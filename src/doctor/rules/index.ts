@@ -2,6 +2,7 @@ import type { Rule } from '../types.ts';
 import { botCooldownMismatch } from './bot-cooldown.ts';
 import { broadExclusion } from './broad-exclusion.ts';
 import { configDrift } from './config-drift.ts';
+import { corepackUnavailable } from './corepack.ts';
 import { depcurfewOutdated } from './depcurfew-outdated.ts';
 import { settingIgnoredByVersion } from './ignored-setting.ts';
 import { invalidPolicy } from './invalid-policy.ts';
@@ -22,6 +23,7 @@ export const RULES: readonly Rule[] = [
   depcurfewOutdated,
   managerVersionTooOld,
   runtimeEndOfLife,
+  corepackUnavailable,
   settingIgnoredByVersion,
   npmrcOverridesPolicy,
   pnpmSharedWorkspaceLockfile,

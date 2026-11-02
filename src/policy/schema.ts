@@ -75,7 +75,7 @@ export const installScriptsShape = object(
     ),
     deny: withDefault(
       packagePatterns(
-        'Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example "fsevents", which ships a prebuilt binary. A package cannot be in both lists, also not through two patterns that match the same name. Python packages listed here must not be built from source: doctor reports a tool that would still build one.',
+        'Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example "fsevents", which ships a prebuilt binary. depcurfew init fills it with the packages of the lockfile whose scripts depcurfew knows to be unneeded (esbuild, fsevents) or to do only a task of the project (lefthook). A package cannot be in both lists, also not through two patterns that match the same name. Python packages listed here must not be built from source: doctor reports a tool that would still build one.',
       ),
       [],
     ),

@@ -16,6 +16,7 @@ const leftovers = verifiedOn('2026-11-01');
 const runtimes = verifiedOn('2026-11-01');
 const recheck = verifiedOn('2026-11-01');
 const finalReview = verifiedOn('2026-11-01');
+const release14 = verifiedOn('2026-11-02');
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
@@ -44,6 +45,10 @@ const OFFICIAL_IMAGES = 'https://github.com/docker-library/official-images/blob/
 const DOCKERFILE_REFERENCE = 'https://github.com/moby/buildkit/blob/c1cfdbd30b79b4a4908cdccc3c0f9849c30e34e5/frontend/dockerfile/docs/reference.md';
 const DOCKER_DOCS = 'https://github.com/docker/docs/blob/53581df94e05ad4116a8d31e47ea098289fa5498';
 const SETUP_NODE = 'https://github.com/actions/setup-node/blob/949feb2413d6458794dcd2491c4babbbce0c15c1';
+// Packages whose install scripts are known (decision D-127), read at these release tags.
+const ESBUILD = 'https://github.com/evanw/esbuild/blob/v0.28.2';
+const LEFTHOOK = 'https://github.com/evilmartians/lefthook/blob/v2.2.2';
+const FSEVENTS = 'https://github.com/fsevents/fsevents/blob/v2.3.3';
 
 export const environment: EnvironmentKnowledge = {
   corepack: {
@@ -118,6 +123,54 @@ export const environment: EnvironmentKnowledge = {
       { command: 'enable', npmOnlyWhenNamed: true },
       COREPACK_README,
       'corepack enable [... name] creates shims for the package managers it is given, or for all of them without parameters: "Note that the npm shims will not be installed unless explicitly requested, as npm is currently distributed with Node.js through other means". So corepack enable npm makes npm the version Corepack picks (packageManager), while a bare corepack enable leaves the bundled npm.',
+    ),
+    manualInstall: release14.verified(
+      { package: 'corepack', command: 'npm install -g corepack', enable: 'corepack enable' },
+      `${COREPACK_V0_36_0}/README.md`,
+      'How to Install: "Corepack is distributed with Node.js from version 14.19.0 up to (but not including) 25.0.0. Run `corepack enable` to install the required Yarn and pnpm binaries on your path." Manual Installs, "Install Corepack using npm": "npm install -g corepack". The Node.js 25.0.0 changelog lists "build: stop distributing Corepack" (#57617) among its semver-major commits (https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V25.md), and the node images of 25 and later extract the release tarball unchanged (docker.nodeImage), so they have no Corepack either.',
+    ),
+  },
+  installScriptPackages: {
+    esbuild: release14.verified(
+      {
+        name: 'esbuild',
+        versions: ['0.28.2'],
+        script: 'postinstall: node install.js',
+        kind: 'not-needed',
+        does: 'it only puts the binary, which esbuild takes from an optional dependency for the platform, in place of the esbuild command and checks that it runs',
+        withoutScript:
+          'the esbuild command starts through a small Node.js script instead of the binary itself (install.js never makes that change on Windows or with Yarn anyway), and the install no longer checks that the binary runs',
+        needsOptionalDependencies: true,
+      },
+      `${ESBUILD}/lib/npm/node-platform.ts`,
+      'npm/esbuild/package.json at v0.28.2 declares "postinstall": "node install.js" and one optionalDependencies entry per platform (@esbuild/linux-x64 and the others, version 0.28.2). generateBinPath in lib/npm/node-platform.ts, which the JavaScript API and bin/esbuild run, first resolves the binary from that optional package ("First check for the binary package from our optionalDependencies"), so esbuild works without its install script. lib/npm/node-install.ts (the install script) only replaces bin/esbuild with the binary ("This optimization also doesn\'t apply when npm\'s --ignore-scripts flag is used since in that case this install script will not be run"; not on Windows, with Yarn or WASM), checks the version of the binary, and downloads the platform package when it is missing ("This can happen if you use the --no-optional flag"). Without both, esbuild fails: "maybe someone installed esbuild with both the --no-optional and the --ignore-scripts flags. The fix for this is to just not do that", with the error "make sure that you don\'t specify the --no-optional or --omit=optional flags".',
+    ),
+    fsevents: release14.verified(
+      {
+        name: 'fsevents',
+        versions: ['2.3.3'],
+        script: 'install: node-gyp rebuild',
+        kind: 'not-needed',
+        does: 'it is the node-gyp rebuild that npm adds because the source has a binding.gyp, while the package already contains the built fsevents.node',
+        withoutScript: 'nothing changes',
+        needsOptionalDependencies: false,
+      },
+      `${FSEVENTS}/package.json`,
+      'The package.json of fsevents 2.3.3 declares no install script and lists "files": ["fsevents.d.ts", "fsevents.js", "fsevents.node"], so the published package contains the built module that fsevents.js loads (require("./fsevents.node")); the published tarball holds exactly LICENSE, README.md, package.json, fsevents.js, fsevents.d.ts and fsevents.node (listed on 2026-11-02, nothing run). The repository has a binding.gyp at that tag, and npm adds an install script to such a package when it is published: "If there is a binding.gyp file in the root of your package and you haven\'t defined your own install or preinstall scripts, npm will default the install command to compile using node-gyp via node-gyp rebuild" (https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/using-npm/scripts.md). That is the install: node-gyp rebuild of the registry metadata and the hasInstallScript of lockfiles; the tarball has no binding.gyp to build from.',
+    ),
+    lefthook: release14.verified(
+      {
+        name: 'lefthook',
+        versions: ['2.2.2'],
+        script: 'postinstall: node postinstall.js',
+        kind: 'project-task',
+        does: 'it runs lefthook install, which installs the git hooks of the repository',
+        withoutScript: 'the install no longer installs the git hooks',
+        needsOptionalDependencies: false,
+        projectScript: { event: 'prepare', command: 'lefthook install' },
+      },
+      `${LEFTHOOK}/packaging/registries/npm/lefthook/postinstall.js`,
+      'postinstall.js runs the lefthook executable with install in INIT_CWD (the directory the install was started in), and does nothing when CI is set and LEFTHOOK is not ("if (isEnabled(process.env.CI) && !isEnabled(process.env.LEFTHOOK)) return"). get-exe.js resolves the executable from lefthook-<os>-<arch>/bin/lefthook, one of the optionalDependencies of packaging/registries/npm/lefthook/package.json (version 2.2.2), whose only script is "postinstall": "node postinstall.js". docs/usage/commands/install.md: lefthook install "Installs configured hooks to Git hooks"; "NPM package lefthook installs the hooks in a postinstall script automatically. For projects not using NPM package run lefthook install after cloning the repo." The legacy package @evilmartians/lefthook-installer fetches the executable when it is installed (docs/installation/node.md), so its script is needed; it is not this entry.',
     ),
   },
   node: {

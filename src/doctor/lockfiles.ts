@@ -37,7 +37,7 @@ export interface LockEntry {
   line?: number;
   /** A requirement without a package name (a bare URL or path): `name` is its location, and no allow-list matches it. */
   unnamed?: boolean;
-  /** The exact version of a package from a registry, when the lockfile pins one (doctor --osv, decision D-129). */
+  /** The exact version of a package from a registry, when the lockfile pins one (doctor --osv and the install-script notes, decisions D-127 and D-129). */
   version?: string;
 }
 

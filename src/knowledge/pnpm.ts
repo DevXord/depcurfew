@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, SourceKnowledge, ToolKnowledge, UserLocation } from './types.ts';
+import type { DirectoryOptionsKnowledge, RootLifecycleScriptsKnowledge, SourceKnowledge, ToolKnowledge, UserLocation } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -7,6 +7,7 @@ const reviewed = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
 const user = verifiedOn('2026-10-31');
 const runtimes = verifiedOn('2026-11-01');
+const release14 = verifiedOn('2026-11-02');
 const PNPM_V12 = 'https://github.com/pnpm/pnpm/blob/v12.16.1';
 const PNPM_V11_CODE = 'https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/config/reader/src';
 
@@ -516,6 +517,16 @@ export const pnpm: ToolKnowledge = {
     unknownWorkspaceKeys: verified(
       'pnpm 11 and earlier silently ignore misspelled pnpm-workspace.yaml settings; pnpm 12 warns',
       'https://pnpm.io/blog/releases/12.0',
+    ),
+    rootLifecycleScripts: release14.verified<RootLifecycleScriptsKnowledge>(
+      { events: ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'], skippedBy: 'ignoreScripts', allowListApplies: false },
+      'https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/installing/deps-installer/src/install/linkResolvedProjects.ts',
+      'pnpm 11.28.10 runs the projects\' own lifecycle scripts after linking "if (!opts.ignoreScripts && !opts.virtualStoreOnly)" (runProjectLifecycleScripts), with PROJECT_LIFECYCLE_STAGES = preinstall, install, postinstall, preprepare, prepare, postprepare for a full install and only the install stages for --prod or deploy (exec/lifecycle/src/runLifecycleHooksConcurrently.ts); allowBuilds only goes to the build of dependencies (allowBuild). pnpm 10.34.9 does the same in pkg-manager/core/src/install/index.ts and, for a frozen lockfile, pkg-manager/headless/src/index.ts ("if (!opts.ignoreScripts && !opts.ignorePackageManifest) await runLifecycleHooksConcurrently([preinstall, install, postinstall, preprepare, prepare, postprepare], ...)"). pnpm 12.16.1 picks PROJECT_LIFECYCLE_STAGES for a full install with devDependencies (project_script_stages in pnpm/crates/package-manager/src/install/lifecycle/uninstall.rs).',
+    ),
+    managesOwnVersion: release14.verified(
+      { since: '10.0.0', field: 'packageManager' },
+      'https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md',
+      '10.0.0: "manage-package-manager-versions: enabled by default. pnpm now manages its own version based on the packageManager field in package.json by default" (added in 9.7.0, off by default: "pnpm will switch to the version specified in the packageManager field of package.json ... This is the same field used by Corepack"). The 11.0.0 release notes replace the setting with pmOnFail, which "directly sets the onFail behavior of both packageManager and devEngines.packageManager" (https://github.com/pnpm/pnpm/releases/tag/v11.0.0); pnpm 12 documents pmOnFail with the default download: "download and run the declared pnpm version (this is the default and matches the previous managePackageManagerVersions: true behavior)" (pnpm/docs/settings/cli.md at v12.16.1). So any pnpm 10 or later honors a pnpm pin without Corepack.',
     ),
   },
 };

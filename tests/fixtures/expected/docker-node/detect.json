@@ -168,7 +168,8 @@
               "tool": "npm",
               "line": 2
             }
-          ]
+          ],
+          "corepack": 2
         }
       ]
     }

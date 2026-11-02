@@ -1,0 +1,29 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 9
+    },
+    "message": "packageManager in package.json (line 4) pins yarn@4.18.1, but Node.js 26 in GitHub Actions (.github/workflows/ci.yml, job test) does not come with Corepack (Node.js 25.0.0 stopped distributing it), and Corepack is what reads that pin: without a separate Corepack install, yarn there is whatever Yarn is installed, or none",
+    "fix": "Install Corepack in job test of .github/workflows/ci.yml before it runs yarn (a step that runs npm install -g corepack, then corepack enable)"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 24
+    },
+    "message": "packageManager in package.json (line 4) pins yarn@4.18.1, but Node.js 26 in GitHub Actions (.github/workflows/ci.yml, job late) does not come with Corepack (Node.js 25.0.0 stopped distributing it), and Corepack is what reads that pin: without a separate Corepack install, yarn there is whatever Yarn is installed, or none",
+    "fix": "Install Corepack in job late of .github/workflows/ci.yml before it runs yarn (a step that runs npm install -g corepack, then corepack enable)"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "Dockerfile",
+      "line": 1
+    },
+    "message": "packageManager in package.json (line 4) pins yarn@4.18.1, but Node.js 26 in Dockerfile does not come with Corepack (Node.js 25.0.0 stopped distributing it), and Corepack is what reads that pin: without a separate Corepack install, yarn there is whatever Yarn is installed, or none",
+    "fix": "Install Corepack in Dockerfile before yarn runs (RUN npm install -g corepack && corepack enable)"
+  }
+]

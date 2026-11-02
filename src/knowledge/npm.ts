@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, ToolKnowledge } from './types.ts';
+import type { DirectoryOptionsKnowledge, OmitOptionalKnowledge, RootLifecycleScriptsKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -7,6 +7,7 @@ const reviewed = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
 const runtimes = verifiedOn('2026-11-01');
 const finalReview = verifiedOn('2026-11-01');
+const release14 = verifiedOn('2026-11-02');
 
 const CONFIG = 'https://docs.npmjs.com/cli/v12/using-npm/config';
 const CONFIG_V11 = 'https://docs.npmjs.com/cli/v11/using-npm/config';
@@ -552,6 +553,16 @@ export const npm: ToolKnowledge = {
       ],
       'https://github.com/npm/cli/blob/v11.19.1/package.json',
       'engines.node of npm/cli package.json, the same at the tags v11.0.0, v11.10.0, v11.16.0, v11.19.1 and v11.21.1 (^20.17.0 || >=22.9.0) and at v12.0.0 and v12.2.1 (^22.22.2 || ^24.15.0 || >=26.0.0, https://github.com/npm/cli/blob/v12.2.1/package.json). On a Node.js outside the range npm only warns that it does not support it: lib/cli/entry.js at v11.19.1 runs log.warn(\'cli\', validateEngines.unsupportedMessage) when !satisfies(node, engines), for a Node.js "still unsupported and untested and might not work reliably", and lib/cli/validate-engines.js prints "ERROR: npm ... is known not to run on Node.js ..." when it fails with a SyntaxError. So npm install -g npm@11 on Node.js 18 installs an npm that is not meant to run there.',
+    ),
+    rootLifecycleScripts: release14.verified<RootLifecycleScriptsKnowledge>(
+      { events: ['preinstall', 'install', 'postinstall', 'prepublish', 'preprepare', 'prepare', 'postprepare'], skippedBy: 'ignore-scripts', allowListApplies: false },
+      `${NPM_GITHUB_V12}/lib/commands/install.js`,
+      'A bare npm install in a project runs the lifecycle scripts of the project itself with runScript, outside arborist and its allowScripts gate: "const runRootLifecycle = !args.length && !isGlobalInstall && !ignoreScripts", preinstall before reify and install, postinstall, prepublish, preprepare, prepare and postprepare after it. npm ci does the same "if (!ignoreScripts)" (lib/commands/ci.js), and so do install.js and ci.js at v11.16.0. collectUnreviewedScripts in workspaces/arborist/lib/unreviewed-scripts.js skips "node.isProjectRoot || node.isWorkspace", so strict-allow-scripts never stops at them. using-npm/scripts.md: prepare "Runs on local npm install without package arguments (runs with flags like --production or --omit=dev, but does not run when installing specific packages like npm install express)".',
+    ),
+    omitOptional: release14.verified<OmitOptionalKnowledge>(
+      { omit: { setting: 'omit', value: 'optional' }, alias: { setting: 'optional', off: false }, include: { setting: 'include' }, variablePrefix: 'npm_config_', listSeparator: '\n\n' },
+      NPM_DEFINITIONS,
+      'omit: [Array, "dev", "optional", "peer"], "Dependency types to omit from the installation tree on disk"; include: "Dependency types specified in --include will not be omitted, regardless of the order in which omit/include are specified on the command-line"; optional: deprecated, "Alias for --include=optional or --omit=optional" (buildOmitList: obj.optional === false pushes optional to omit, true to include; omit then drops what include lists). --no-optional sets optional to false. Each is one key: the value of the highest layer that sets it wins (command line, then npm_config_* variables in any case, then the project .npmrc). parseField in workspaces/config/lib/parse-field.js splits a list from the environment at two line breaks ("list types get put in the environment separated by double-\\n"), so NPM_CONFIG_OMIT=optional omits them and dev,optional is one unknown value.',
     ),
   },
 };

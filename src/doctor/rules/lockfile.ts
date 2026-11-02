@@ -18,6 +18,7 @@ import type { Rule, RuleContext } from '../types.ts';
 import { hasBuildRecords, showsBuilds } from '../python-lockfiles.ts';
 import { hasLockfile } from '../applies.ts';
 import { npmInUseSeveral, npmInUseText, npmPlaces, repositoryPin, type NpmInUse } from './bundled-versions.ts';
+import { denyFix, knownPackage, omittedOptionalText, optionalOmissions, scriptsPurpose, versionNote, type OmitPlace } from '../install-script-packages.ts';
 
 const LABELS = {
   npm: { git: 'a git repository', remoteTarball: 'a tarball URL', file: 'a local tarball', directory: 'a local directory' },
@@ -138,7 +139,7 @@ function runsScripts(context: RuleContext, tool: ToolKnowledge, strict: boolean)
  * them all off (`all`), strict-allow-scripts makes the install fail on scripts that are not allowed, while the
  * packages of the allow-list still run theirs.
  */
-function scriptsDisabledBy(context: RuleContext, tool: ToolKnowledge): { reason: string; all: boolean } | undefined {
+function scriptsDisabledBy(context: RuleContext, tool: ToolKnowledge): { reason: string; all: boolean; setting: string } | undefined {
   const file = values(tool.cooldown.configFiles)[0]?.[0];
   if (file === undefined) return undefined;
   const fact = tool.installScripts.disableAll;
@@ -147,11 +148,11 @@ function scriptsDisabledBy(context: RuleContext, tool: ToolKnowledge): { reason:
   if (match !== null) {
     const [, key = '', expected] = match;
     const found = readSetting(context.repository, file, key);
-    if (found !== undefined && found.value === (expected === undefined ? true : iniValue(expected))) return { reason: `${key} in ${file} turns them off`, all: true };
+    if (found !== undefined && found.value === (expected === undefined ? true : iniValue(expected))) return { reason: `${key} in ${file} turns them off`, all: true, setting: `${key} in ${file}` };
   }
   const strict = tool.extra?.['strictAllowScripts'] === undefined ? undefined : extraOf(tool, 'strictAllowScripts', isSwitch);
   if (strict !== undefined && readSetting(context.repository, file, strict.setting)?.value === strict.value) {
-    return { reason: `${strict.setting} in ${file} stops the install until they are allowed`, all: false };
+    return { reason: `${strict.setting} in ${file} stops the install until they are allowed`, all: false, setting: `${strict.setting} in ${file}` };
   }
   return undefined;
 }
@@ -247,8 +248,8 @@ export const lockfileInstallScripts: Rule = {
   checks: 'The lockfile has no install scripts or source builds that depcurfew.json does not allow',
   summary: 'The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.',
   description:
-    'Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or an entry in its own allow-list lets them run, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. A package in installScripts.deny was reviewed and works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed without a build. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index (depcurfew check pypi:<name> shows whether one has wheels), only to requirements from a repository, a URL or a local path.',
-  help: 'Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can).',
+    'Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or its own allow-list lets them run, they run code the policy does not allow; where it blocks them, a package may not work. A package in installScripts.deny works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed (a Python package without wheels, esbuild without optional dependencies). Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index (depcurfew check pypi:<name> shows whether one has wheels), only to requirements from a repository, a URL or a local path.',
+  help: 'Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can). For packages whose scripts depcurfew knows (esbuild, fsevents, lefthook) the finding names the fix: installScripts.deny, and for lefthook "prepare": "lefthook install" in the scripts of package.json.',
   level: 'error',
   requiresPolicy: true,
   // pip requirements files and Pipfile.lock list hashes only, so they cannot show a package without wheels (D-107).
@@ -285,6 +286,9 @@ export const lockfileInstallScripts: Rule = {
       // "npm 11.16.0 (with Node.js 24.18.0 in Dockerfile) runs them": the npm in use that does (decision D-109).
       const runs = runner?.text === undefined ? `${tool.name} runs them by default` : `${runner.text} ${runner.unknown === true ? 'may run' : runner.several === true ? 'run' : 'runs'} them`;
       const lists = ownLists(context, tool);
+      // Where npm leaves out optional dependencies, which a denied package that takes its binary from one needs (D-127).
+      let omissions: OmitPlace[] | undefined;
+      const omitted = () => (omissions ??= tool.id === 'npm' ? optionalOmissions(context.repository, context.detection, tool) : []);
       for (const entry of flagged) {
         if (allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;
         const isDenied = deny.some((pattern) => matchesPattern(entry.name, pattern));
@@ -305,7 +309,13 @@ export const lockfileInstallScripts: Rule = {
         if (isDenied) {
           // Reviewed and blocked on purpose: nothing to report while the tool does not run its scripts, which includes a
           // denial the tool records (npm 11.16+ skips a package set to false in allowScripts, also without strict-allow-scripts).
-          if (!running || blocked) continue;
+          // A known package that takes its binary from an optional dependency then needs that dependency (decision D-127).
+          if (!running || blocked) {
+            const known = knownPackage(entry.name);
+            if (known?.needsOptionalDependencies !== true) continue;
+            for (const place of omitted()) context.report({ level: 'warning', location: place.location, ...omittedOptionalText(known, place) });
+            continue;
+          }
           context.report({
             level: 'error',
             location: location(lockfile, entry),
@@ -314,17 +324,24 @@ export const lockfileInstallScripts: Rule = {
           });
           continue;
         }
+        // A package whose scripts depcurfew knows gets its own fix: deny it, and for a project task run that task in the
+        // project's own lifecycle script (decision D-127).
+        const known = knownPackage(entry.name);
+        const why = known === undefined ? 'the package may need them' : `${scriptsPurpose(known)}${versionNote(known, entry.version)}`;
+        const knownFix = known === undefined ? undefined : denyFix(known, tool, disabledBy?.all === true ? disabledBy.setting : undefined);
         context.report({
           level: running ? 'error' : 'warning',
           location: location(lockfile, entry),
           message: running
             ? `${entry.name} has install scripts and ${runs}, but ${POLICY_FILE} does not allow it`
             : disabledBy === undefined
-              ? `${entry.name} has install scripts that ${tool.name} will not run because ${POLICY_FILE} does not allow it; the package may need them`
-              : `${entry.name} has install scripts that ${tool.name} will not run because ${disabledBy.reason}; the package may need them`,
+              ? `${entry.name} has install scripts that ${tool.name} will not run because ${POLICY_FILE} does not allow it; ${why}`
+              : `${entry.name} has install scripts that ${tool.name} will not run because ${disabledBy.reason}; ${why}`,
           fix: running
-            ? `Review its scripts and add ${entry.name} to installScripts.allow in ${POLICY_FILE}, or replace the package`
-            : `Review its scripts: add ${entry.name} to installScripts.allow in ${POLICY_FILE} if it needs them, or to installScripts.deny if it works without them; otherwise replace the package`,
+            ? knownFix === undefined
+              ? `Review its scripts and add ${entry.name} to installScripts.allow in ${POLICY_FILE}, or replace the package`
+              : `${knownFix}. Then make ${tool.name} stop running dependency install scripts (run depcurfew apply and follow its warnings)`
+            : (knownFix ?? `Review its scripts: add ${entry.name} to installScripts.allow in ${POLICY_FILE} if it needs them, or to installScripts.deny if it works without them; otherwise replace the package`),
         });
       }
     });

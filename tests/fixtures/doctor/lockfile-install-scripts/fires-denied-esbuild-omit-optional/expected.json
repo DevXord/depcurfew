@@ -1,0 +1,20 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 9
+    },
+    "message": "esbuild is in installScripts.deny, so it can take its binary only from its optional dependencies, but the npm install in job build of .github/workflows/ci.yml (line 9) leaves them out, so esbuild cannot find its binary after such an install",
+    "fix": "Remove --omit=optional, --no-optional, npm_config_omit=optional and npm_config_optional=false from that install, or add --include=optional to it; or move esbuild from installScripts.deny to installScripts.allow in depcurfew.json after reviewing its install script"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": ".npmrc",
+      "line": 2
+    },
+    "message": "esbuild is in installScripts.deny, so it can take its binary only from its optional dependencies, but omit=optional in .npmrc (line 2) leaves them out, so esbuild cannot find its binary after such an install",
+    "fix": "Remove omit=optional from .npmrc so that npm installs optional dependencies, or move esbuild from installScripts.deny to installScripts.allow in depcurfew.json after reviewing its install script"
+  }
+]

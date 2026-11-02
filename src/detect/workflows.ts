@@ -225,6 +225,7 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
           record.runsNode ||= found.runsNode;
           const configVariable = facts.commands.pip.delay?.configVariable;
           if (found.pipConfig === true || (configVariable !== undefined && (environment.get(configVariable) ?? '') !== '')) record.pipConfig = true;
+          if (found.corepack !== undefined) record.corepack ??= lineCounter.linePos(start + found.corepack).line;
           const stepDirectory = step.has('working-directory') ? workingDirectory(step.get('working-directory', true)) : jobDirectory;
           for (const { offset, cd, ...command } of found.commands) {
             const line = lineCounter.linePos(start + offset).line;

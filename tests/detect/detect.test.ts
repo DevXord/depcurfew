@@ -171,7 +171,7 @@ describe('detectProject on GitHub Actions', () => {
     ]);
     expect(result.packageManagers[0]?.versions).toEqual([{ version: '11.6.0', source: 'github-actions', file, line: 12, job: 'test' }]);
     expect(result.jobs).toEqual([
-      { file, id: 'test', line: 2, commands: [{ kind: 'upgrade', tool: 'npm', version: '11.6.0', line: 12 }], runsNode: true },
+      { file, id: 'test', line: 2, commands: [{ kind: 'upgrade', tool: 'npm', version: '11.6.0', line: 12 }], runsNode: true, corepack: 11 },
       { file, id: 'other', line: 13, commands: [], runsNode: false },
     ]);
   });

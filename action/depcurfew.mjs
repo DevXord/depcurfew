@@ -645,6 +645,7 @@ const reviewed$2 = verifiedOn("2026-10-30");
 const rechecked$4 = verifiedOn("2026-10-31");
 const runtimes$2 = verifiedOn("2026-11-01");
 const finalReview$3 = verifiedOn("2026-11-01");
+const release14$2 = verifiedOn("2026-11-02");
 const CONFIG$2 = "https://docs.npmjs.com/cli/v12/using-npm/config";
 const NPMRC$1 = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
 const release$4 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
@@ -1657,7 +1658,33 @@ const npm$1 = {
 		}, {
 			since: "12.0.0",
 			node: "^22.22.2 || ^24.15.0 || >=26.0.0"
-		}], "https://github.com/npm/cli/blob/v11.19.1/package.json", "engines.node of npm/cli package.json, the same at the tags v11.0.0, v11.10.0, v11.16.0, v11.19.1 and v11.21.1 (^20.17.0 || >=22.9.0) and at v12.0.0 and v12.2.1 (^22.22.2 || ^24.15.0 || >=26.0.0, https://github.com/npm/cli/blob/v12.2.1/package.json). On a Node.js outside the range npm only warns that it does not support it: lib/cli/entry.js at v11.19.1 runs log.warn('cli', validateEngines.unsupportedMessage) when !satisfies(node, engines), for a Node.js \"still unsupported and untested and might not work reliably\", and lib/cli/validate-engines.js prints \"ERROR: npm ... is known not to run on Node.js ...\" when it fails with a SyntaxError. So npm install -g npm@11 on Node.js 18 installs an npm that is not meant to run there.")
+		}], "https://github.com/npm/cli/blob/v11.19.1/package.json", "engines.node of npm/cli package.json, the same at the tags v11.0.0, v11.10.0, v11.16.0, v11.19.1 and v11.21.1 (^20.17.0 || >=22.9.0) and at v12.0.0 and v12.2.1 (^22.22.2 || ^24.15.0 || >=26.0.0, https://github.com/npm/cli/blob/v12.2.1/package.json). On a Node.js outside the range npm only warns that it does not support it: lib/cli/entry.js at v11.19.1 runs log.warn('cli', validateEngines.unsupportedMessage) when !satisfies(node, engines), for a Node.js \"still unsupported and untested and might not work reliably\", and lib/cli/validate-engines.js prints \"ERROR: npm ... is known not to run on Node.js ...\" when it fails with a SyntaxError. So npm install -g npm@11 on Node.js 18 installs an npm that is not meant to run there."),
+		rootLifecycleScripts: release14$2.verified({
+			events: [
+				"preinstall",
+				"install",
+				"postinstall",
+				"prepublish",
+				"preprepare",
+				"prepare",
+				"postprepare"
+			],
+			skippedBy: "ignore-scripts",
+			allowListApplies: false
+		}, `${NPM_GITHUB_V12}/lib/commands/install.js`, "A bare npm install in a project runs the lifecycle scripts of the project itself with runScript, outside arborist and its allowScripts gate: \"const runRootLifecycle = !args.length && !isGlobalInstall && !ignoreScripts\", preinstall before reify and install, postinstall, prepublish, preprepare, prepare and postprepare after it. npm ci does the same \"if (!ignoreScripts)\" (lib/commands/ci.js), and so do install.js and ci.js at v11.16.0. collectUnreviewedScripts in workspaces/arborist/lib/unreviewed-scripts.js skips \"node.isProjectRoot || node.isWorkspace\", so strict-allow-scripts never stops at them. using-npm/scripts.md: prepare \"Runs on local npm install without package arguments (runs with flags like --production or --omit=dev, but does not run when installing specific packages like npm install express)\"."),
+		omitOptional: release14$2.verified({
+			omit: {
+				setting: "omit",
+				value: "optional"
+			},
+			alias: {
+				setting: "optional",
+				off: false
+			},
+			include: { setting: "include" },
+			variablePrefix: "npm_config_",
+			listSeparator: "\n\n"
+		}, NPM_DEFINITIONS, "omit: [Array, \"dev\", \"optional\", \"peer\"], \"Dependency types to omit from the installation tree on disk\"; include: \"Dependency types specified in --include will not be omitted, regardless of the order in which omit/include are specified on the command-line\"; optional: deprecated, \"Alias for --include=optional or --omit=optional\" (buildOmitList: obj.optional === false pushes optional to omit, true to include; omit then drops what include lists). --no-optional sets optional to false. Each is one key: the value of the highest layer that sets it wins (command line, then npm_config_* variables in any case, then the project .npmrc). parseField in workspaces/config/lib/parse-field.js splits a list from the environment at two line breaks (\"list types get put in the environment separated by double-\\n\"), so NPM_CONFIG_OMIT=optional omits them and dev,optional is one unknown value.")
 	}
 };
 
@@ -2954,6 +2981,7 @@ const reviewed$1 = verifiedOn("2026-10-30");
 const rechecked$1 = verifiedOn("2026-10-31");
 const user$3 = verifiedOn("2026-10-31");
 const runtimes$1 = verifiedOn("2026-11-01");
+const release14$1 = verifiedOn("2026-11-02");
 const PNPM_V12 = "https://github.com/pnpm/pnpm/blob/v12.16.1";
 const PNPM_V11_CODE = "https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/config/reader/src";
 /** A file in pnpm's config directory (getConfigDir): $XDG_CONFIG_HOME/pnpm when set, else the platform's own place. */
@@ -3693,7 +3721,23 @@ const pnpm$1 = {
 			since: "11.1.3",
 			value: "lockfile entries are re-checked; trustLockfile: true (11.3.0) turns this off"
 		}], release$3("11.1.3"), "The 11.1.3 release notes confirm re-validation (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). The pnpm 10 behavior rests on maintainer comments in pnpm/pnpm#12450 (a Dependabot lockfile passed --frozen-lockfile on 10.34.5), not on docs."),
-		unknownWorkspaceKeys: verified$6("pnpm 11 and earlier silently ignore misspelled pnpm-workspace.yaml settings; pnpm 12 warns", "https://pnpm.io/blog/releases/12.0")
+		unknownWorkspaceKeys: verified$6("pnpm 11 and earlier silently ignore misspelled pnpm-workspace.yaml settings; pnpm 12 warns", "https://pnpm.io/blog/releases/12.0"),
+		rootLifecycleScripts: release14$1.verified({
+			events: [
+				"preinstall",
+				"install",
+				"postinstall",
+				"preprepare",
+				"prepare",
+				"postprepare"
+			],
+			skippedBy: "ignoreScripts",
+			allowListApplies: false
+		}, "https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/installing/deps-installer/src/install/linkResolvedProjects.ts", "pnpm 11.28.10 runs the projects' own lifecycle scripts after linking \"if (!opts.ignoreScripts && !opts.virtualStoreOnly)\" (runProjectLifecycleScripts), with PROJECT_LIFECYCLE_STAGES = preinstall, install, postinstall, preprepare, prepare, postprepare for a full install and only the install stages for --prod or deploy (exec/lifecycle/src/runLifecycleHooksConcurrently.ts); allowBuilds only goes to the build of dependencies (allowBuild). pnpm 10.34.9 does the same in pkg-manager/core/src/install/index.ts and, for a frozen lockfile, pkg-manager/headless/src/index.ts (\"if (!opts.ignoreScripts && !opts.ignorePackageManifest) await runLifecycleHooksConcurrently([preinstall, install, postinstall, preprepare, prepare, postprepare], ...)\"). pnpm 12.16.1 picks PROJECT_LIFECYCLE_STAGES for a full install with devDependencies (project_script_stages in pnpm/crates/package-manager/src/install/lifecycle/uninstall.rs)."),
+		managesOwnVersion: release14$1.verified({
+			since: "10.0.0",
+			field: "packageManager"
+		}, "https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md", "10.0.0: \"manage-package-manager-versions: enabled by default. pnpm now manages its own version based on the packageManager field in package.json by default\" (added in 9.7.0, off by default: \"pnpm will switch to the version specified in the packageManager field of package.json ... This is the same field used by Corepack\"). The 11.0.0 release notes replace the setting with pmOnFail, which \"directly sets the onFail behavior of both packageManager and devEngines.packageManager\" (https://github.com/pnpm/pnpm/releases/tag/v11.0.0); pnpm 12 documents pmOnFail with the default download: \"download and run the declared pnpm version (this is the default and matches the previous managePackageManagerVersions: true behavior)\" (pnpm/docs/settings/cli.md at v12.16.1). So any pnpm 10 or later honors a pnpm pin without Corepack.")
 	}
 };
 
@@ -5485,6 +5529,7 @@ const leftovers = verifiedOn("2026-11-01");
 const runtimes = verifiedOn("2026-11-01");
 const recheck = verifiedOn("2026-11-01");
 const finalReview = verifiedOn("2026-11-01");
+const release14 = verifiedOn("2026-11-02");
 const COREPACK_README = "https://github.com/nodejs/corepack/blob/main/README.md";
 const COREPACK_CHANGELOG = "https://github.com/nodejs/corepack/blob/main/CHANGELOG.md";
 const COREPACK_V0_36_0 = "https://github.com/nodejs/corepack/blob/v0.36.0";
@@ -5523,6 +5568,9 @@ const OFFICIAL_IMAGES = "https://github.com/docker-library/official-images/blob/
 const DOCKERFILE_REFERENCE = "https://github.com/moby/buildkit/blob/c1cfdbd30b79b4a4908cdccc3c0f9849c30e34e5/frontend/dockerfile/docs/reference.md";
 const DOCKER_DOCS = "https://github.com/docker/docs/blob/53581df94e05ad4116a8d31e47ea098289fa5498";
 const SETUP_NODE = "https://github.com/actions/setup-node/blob/949feb2413d6458794dcd2491c4babbbce0c15c1";
+const ESBUILD = "https://github.com/evanw/esbuild/blob/v0.28.2";
+const LEFTHOOK = "https://github.com/evilmartians/lefthook/blob/v2.2.2";
+const FSEVENTS = "https://github.com/fsevents/fsevents/blob/v2.3.3";
 const environment = {
 	corepack: {
 		packageManagerField: verified({
@@ -5599,7 +5647,45 @@ const environment = {
 		enableNpm: runtimes.verified({
 			command: "enable",
 			npmOnlyWhenNamed: true
-		}, COREPACK_README, "corepack enable [... name] creates shims for the package managers it is given, or for all of them without parameters: \"Note that the npm shims will not be installed unless explicitly requested, as npm is currently distributed with Node.js through other means\". So corepack enable npm makes npm the version Corepack picks (packageManager), while a bare corepack enable leaves the bundled npm.")
+		}, COREPACK_README, "corepack enable [... name] creates shims for the package managers it is given, or for all of them without parameters: \"Note that the npm shims will not be installed unless explicitly requested, as npm is currently distributed with Node.js through other means\". So corepack enable npm makes npm the version Corepack picks (packageManager), while a bare corepack enable leaves the bundled npm."),
+		manualInstall: release14.verified({
+			package: "corepack",
+			command: "npm install -g corepack",
+			enable: "corepack enable"
+		}, `${COREPACK_V0_36_0}/README.md`, "How to Install: \"Corepack is distributed with Node.js from version 14.19.0 up to (but not including) 25.0.0. Run `corepack enable` to install the required Yarn and pnpm binaries on your path.\" Manual Installs, \"Install Corepack using npm\": \"npm install -g corepack\". The Node.js 25.0.0 changelog lists \"build: stop distributing Corepack\" (#57617) among its semver-major commits (https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V25.md), and the node images of 25 and later extract the release tarball unchanged (docker.nodeImage), so they have no Corepack either.")
+	},
+	installScriptPackages: {
+		esbuild: release14.verified({
+			name: "esbuild",
+			versions: ["0.28.2"],
+			script: "postinstall: node install.js",
+			kind: "not-needed",
+			does: "it only puts the binary, which esbuild takes from an optional dependency for the platform, in place of the esbuild command and checks that it runs",
+			withoutScript: "the esbuild command starts through a small Node.js script instead of the binary itself (install.js never makes that change on Windows or with Yarn anyway), and the install no longer checks that the binary runs",
+			needsOptionalDependencies: true
+		}, `${ESBUILD}/lib/npm/node-platform.ts`, "npm/esbuild/package.json at v0.28.2 declares \"postinstall\": \"node install.js\" and one optionalDependencies entry per platform (@esbuild/linux-x64 and the others, version 0.28.2). generateBinPath in lib/npm/node-platform.ts, which the JavaScript API and bin/esbuild run, first resolves the binary from that optional package (\"First check for the binary package from our optionalDependencies\"), so esbuild works without its install script. lib/npm/node-install.ts (the install script) only replaces bin/esbuild with the binary (\"This optimization also doesn't apply when npm's --ignore-scripts flag is used since in that case this install script will not be run\"; not on Windows, with Yarn or WASM), checks the version of the binary, and downloads the platform package when it is missing (\"This can happen if you use the --no-optional flag\"). Without both, esbuild fails: \"maybe someone installed esbuild with both the --no-optional and the --ignore-scripts flags. The fix for this is to just not do that\", with the error \"make sure that you don't specify the --no-optional or --omit=optional flags\"."),
+		fsevents: release14.verified({
+			name: "fsevents",
+			versions: ["2.3.3"],
+			script: "install: node-gyp rebuild",
+			kind: "not-needed",
+			does: "it is the node-gyp rebuild that npm adds because the source has a binding.gyp, while the package already contains the built fsevents.node",
+			withoutScript: "nothing changes",
+			needsOptionalDependencies: false
+		}, `${FSEVENTS}/package.json`, "The package.json of fsevents 2.3.3 declares no install script and lists \"files\": [\"fsevents.d.ts\", \"fsevents.js\", \"fsevents.node\"], so the published package contains the built module that fsevents.js loads (require(\"./fsevents.node\")); the published tarball holds exactly LICENSE, README.md, package.json, fsevents.js, fsevents.d.ts and fsevents.node (listed on 2026-11-02, nothing run). The repository has a binding.gyp at that tag, and npm adds an install script to such a package when it is published: \"If there is a binding.gyp file in the root of your package and you haven't defined your own install or preinstall scripts, npm will default the install command to compile using node-gyp via node-gyp rebuild\" (https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/using-npm/scripts.md). That is the install: node-gyp rebuild of the registry metadata and the hasInstallScript of lockfiles; the tarball has no binding.gyp to build from."),
+		lefthook: release14.verified({
+			name: "lefthook",
+			versions: ["2.2.2"],
+			script: "postinstall: node postinstall.js",
+			kind: "project-task",
+			does: "it runs lefthook install, which installs the git hooks of the repository",
+			withoutScript: "the install no longer installs the git hooks",
+			needsOptionalDependencies: false,
+			projectScript: {
+				event: "prepare",
+				command: "lefthook install"
+			}
+		}, `${LEFTHOOK}/packaging/registries/npm/lefthook/postinstall.js`, "postinstall.js runs the lefthook executable with install in INIT_CWD (the directory the install was started in), and does nothing when CI is set and LEFTHOOK is not (\"if (isEnabled(process.env.CI) && !isEnabled(process.env.LEFTHOOK)) return\"). get-exe.js resolves the executable from lefthook-<os>-<arch>/bin/lefthook, one of the optionalDependencies of packaging/registries/npm/lefthook/package.json (version 2.2.2), whose only script is \"postinstall\": \"node postinstall.js\". docs/usage/commands/install.md: lefthook install \"Installs configured hooks to Git hooks\"; \"NPM package lefthook installs the hooks in a postinstall script automatically. For projects not using NPM package run lefthook install after cloning the repo.\" The legacy package @evilmartians/lefthook-installer fetches the executable when it is installed (docs/installation/node.md), so its script is needed; it is not this entry.")
 	},
 	node: {
 		bundledNpm: runtimes.verified([
@@ -7347,6 +7433,8 @@ function detectionFacts(tools, environment) {
 	const poetryTool = tools.find((candidate) => candidate.id === "poetry");
 	const poetryPackage = poetryTool === void 0 ? void 0 : extraValue(poetryTool, "installedPackage");
 	const off = extraValue(npm, "scriptsOff");
+	const omitOptional = npm.extra?.["omitOptional"] === void 0 ? void 0 : extraValue(npm, "omitOptional");
+	const corepackInstall = first$1(environment.corepack.manualInstall);
 	const strings = (value) => Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
 	const others = [
 		"pnpm",
@@ -7377,6 +7465,14 @@ function detectionFacts(tools, environment) {
 				option: off["option"],
 				variable: off["variable"],
 				value: off["value"]
+			} } : {},
+			...isRecord(omitOptional) && isRecord(omitOptional["omit"]) && isRecord(omitOptional["alias"]) && isRecord(omitOptional["include"]) ? { omitOptional: {
+				omit: String(omitOptional["omit"]["setting"]),
+				value: String(omitOptional["omit"]["value"]),
+				alias: String(omitOptional["alias"]["setting"]),
+				include: String(omitOptional["include"]["setting"]),
+				prefix: String(omitOptional["variablePrefix"]),
+				separator: String(omitOptional["listSeparator"])
 			} } : {}
 		},
 		others,
@@ -7396,7 +7492,10 @@ function detectionFacts(tools, environment) {
 			} } : {}
 		},
 		python: interpreter,
-		corepack: { enableCommand: first$1(environment.corepack.enableNpm).command },
+		corepack: {
+			enableCommand: first$1(environment.corepack.enableNpm).command,
+			package: corepackInstall.package
+		},
 		...isRecord(poetryPackage) && typeof poetryPackage["name"] === "string" && Array.isArray(poetryPackage["commands"]) ? { poetry: {
 			name: poetryPackage["name"],
 			commands: poetryPackage["commands"].filter((item) => Array.isArray(item))
@@ -15158,6 +15257,12 @@ function readNames(facts) {
 		const found = /* @__PURE__ */ new Map();
 		const off = facts.npm.scriptsOff;
 		if (off !== void 0) found.set(off.variable.toLowerCase(), true);
+		const optional = facts.npm.omitOptional;
+		if (optional !== void 0) for (const key of [
+			optional.omit,
+			optional.alias,
+			optional.include
+		]) found.set(`${optional.prefix}${key}`.toLowerCase(), true);
 		const delay = facts.pip.delay;
 		if (delay !== void 0) {
 			found.set(delay.variable, false);
@@ -15206,6 +15311,44 @@ function scriptsOff(args, environment, facts) {
 	else if (word.text === negated) off = false;
 	return off;
 }
+/**
+* What the command line and the variables of an npm install say about optional dependencies (decision D-127):
+* `omitted` when they leave them out (--omit=optional, --no-optional, npm_config_omit=optional), `kept` when they keep
+* them whatever .npmrc says (--include=optional, which wins over any omit, or --optional), absent when they do not
+* say, so the project .npmrc decides. Each of omit, include and optional is one key, the command line winning over
+* the variables.
+*/
+function optionalDependencies(args, environment, facts) {
+	const known = facts.npm.omitOptional;
+	if (known === void 0) return void 0;
+	const fromVariable = (key) => {
+		const value = anyCase(environment, `${known.prefix}${key}`);
+		return value === void 0 || value.trim() === "" ? void 0 : value.trim().split(known.separator).map((item) => item.trim());
+	};
+	let omit = fromVariable(known.omit);
+	let include = fromVariable(known.include);
+	const alias = fromVariable(known.alias);
+	let optional = alias === void 0 ? void 0 : alias[0] === "true" ? true : alias[0] === "false" ? false : void 0;
+	let omitOnLine;
+	let includeOnLine;
+	for (const [index, word] of args.entries()) {
+		const value = (option) => word.text === `--${option}` ? args[index + 1]?.text : word.text.startsWith(`--${option}=`) ? word.text.slice(option.length + 3) : void 0;
+		const omitted = value(known.omit);
+		if (omitted !== void 0) omitOnLine = [...omitOnLine ?? [], omitted];
+		const included = value(known.include);
+		if (included !== void 0) includeOnLine = [...includeOnLine ?? [], included];
+		if (word.text === `--no-${known.alias}`) optional = false;
+		else if (word.text === `--${known.alias}`) optional = args[index + 1]?.text !== "false";
+		else if (word.text.startsWith(`--${known.alias}=`)) {
+			const text = word.text.slice(known.alias.length + 3);
+			optional = text === "false" ? false : text === "true" ? true : optional;
+		}
+	}
+	omit = omitOnLine ?? omit;
+	include = includeOnLine ?? include;
+	if (include?.includes(known.value) === true || optional === true) return "kept";
+	return omit?.includes(known.value) === true || optional === false ? "omitted" : void 0;
+}
 function npmCommand(args, at, facts, environment) {
 	const values = setOf(facts.npm.valueOptions);
 	const index = firstOperand(args, values);
@@ -15221,13 +15364,26 @@ function npmCommand(args, at, facts, environment) {
 		offset: at
 	};
 	if (global && facts.npm.globalIgnoresProject) return void 0;
+	const optional = optionalDependencies(rest, environment, facts);
 	return {
 		kind: "install",
 		tool: "npm",
 		...facts.npm.cleanCommands.includes(command) ? { lockfile: true } : {},
 		...scriptsOff(rest, environment, facts) ? { scriptsOff: true } : {},
+		...optional === void 0 ? {} : { optionalDependencies: optional },
 		offset: at
 	};
+}
+/** npm install -g corepack (or corepack@<version>): it installs Corepack for the machine (decision D-128). */
+function installsCorepack(args, facts) {
+	const name = facts.corepack.package;
+	if (name === void 0) return false;
+	const values = setOf(facts.npm.valueOptions);
+	const index = firstOperand(args, values);
+	const command = args[index]?.text;
+	if (command === void 0 || !facts.npm.installCommands.includes(command)) return false;
+	const rest = args.filter((_, position) => position !== index);
+	return rest.some((word) => facts.npm.globalOptions.includes(word.text)) && operands(rest, values).some((word) => word.text === name || word.text.startsWith(`${name}@`));
 }
 /** pnpm install, pnpm i, pnpm add, yarn, yarn install, yarn add, bun install, bun add. */
 function otherCommand(tool, args, at) {
@@ -15385,6 +15541,7 @@ function readCommand(words, facts, depth, environment = /* @__PURE__ */ new Map(
 			const { commands, ...inner } = findToolCommands(script.text, facts, depth + 1, seen);
 			return {
 				...inner,
+				...inner.corepack === void 0 ? {} : { corepack: script.offset },
 				found: commands.map((item) => ({
 					...item,
 					offset: script.offset
@@ -15395,11 +15552,13 @@ function readCommand(words, facts, depth, environment = /* @__PURE__ */ new Map(
 	const runsNode = NODE_EXECUTABLES.has(name);
 	if (name === "npm") return {
 		found: [npmCommand(args, first.offset, facts, seen)].filter((item) => item !== void 0),
-		runsNode
+		runsNode,
+		...installsCorepack(args, facts) ? { corepack: first.offset } : {}
 	};
 	if (name === "corepack") return {
 		found: [corepackCommand(args, first.offset, facts)].filter((item) => item !== void 0),
-		runsNode
+		runsNode,
+		corepack: first.offset
 	};
 	const other = facts.others.find((entry) => entry.tool === name);
 	if (other !== void 0) return {
@@ -15469,6 +15628,7 @@ function findToolCommands(script, facts, depth = 0, environment = /* @__PURE__ *
 	const commands = [];
 	let runsNode = false;
 	let pipConfig = false;
+	let corepack;
 	const overLimit = {};
 	const variables = withVariables(facts, environment);
 	let changes = 0;
@@ -15532,6 +15692,7 @@ function findToolCommands(script, facts, depth = 0, environment = /* @__PURE__ *
 		}
 		runsNode ||= result.runsNode;
 		pipConfig ||= result.pipConfig === true;
+		corepack ??= result.corepack;
 		if (result.overLimit?.directory !== void 0) overLimit.directory ??= result.overLimit.directory;
 		if (result.overLimit?.variables === true) overLimit.variables = true;
 	}
@@ -15539,6 +15700,7 @@ function findToolCommands(script, facts, depth = 0, environment = /* @__PURE__ *
 		commands,
 		runsNode,
 		...pipConfig ? { pipConfig: true } : {},
+		...corepack === void 0 ? {} : { corepack },
 		...overLimit.directory !== void 0 || overLimit.variables === true ? { overLimit } : {}
 	};
 }
@@ -16019,11 +16181,13 @@ function runCommands(instruction, facts, environment) {
 		for (const { offset: _offset, ...command } of found.commands) commands.push(located(command, instruction.line));
 		return {
 			commands,
-			...found.pipConfig === true ? { pipConfig: true } : {}
+			...found.pipConfig === true ? { pipConfig: true } : {},
+			...found.corepack === void 0 ? {} : { corepack: instruction.line }
 		};
 	}
 	const found = findToolCommands(text, facts.commands, 0, environment);
 	let pipConfig = found.pipConfig === true;
+	let corepack = found.corepack === void 0 ? void 0 : lineAt$2(instruction, offset + found.corepack);
 	const overLimit = { ...found.overLimit };
 	for (const { offset: at, ...command } of found.commands) commands.push(located(command, lineAt$2(instruction, offset + at)));
 	for (const heredoc of instruction.heredocs) {
@@ -16032,6 +16196,7 @@ function runCommands(instruction, facts, environment) {
 		for (let index = heredoc.body.indexOf("\n"); index >= 0; index = heredoc.body.indexOf("\n", index + 1)) lineStarts.push(index + 1);
 		const body = findToolCommands(heredoc.body, facts.commands, 0, environment);
 		pipConfig ||= body.pipConfig === true;
+		if (body.corepack !== void 0) corepack ??= heredoc.line;
 		if (body.overLimit?.directory !== void 0) overLimit.directory ??= body.overLimit.directory;
 		if (body.overLimit?.variables === true) overLimit.variables = true;
 		for (const { offset: at, ...command } of body.commands) {
@@ -16048,6 +16213,7 @@ function runCommands(instruction, facts, environment) {
 	return {
 		commands,
 		...pipConfig ? { pipConfig: true } : {},
+		...corepack === void 0 ? {} : { corepack },
 		...Object.keys(overLimit).length === 0 ? {} : { overLimit }
 	};
 }
@@ -16154,6 +16320,7 @@ function readDockerStages(file, text, facts) {
 		if (instruction.keyword !== "RUN" || stage === void 0) continue;
 		const run = runCommands(instruction, facts, environment ?? /* @__PURE__ */ new Map());
 		if (run.pipConfig === true) stage.pipConfig = true;
+		if (run.corepack !== void 0) stage.corepack ??= run.corepack;
 		for (const message of overLimitMessages(run.overLimit, `the RUN instruction in ${file} (line ${instruction.line})`)) notices.push({
 			message,
 			line: instruction.line
@@ -16430,6 +16597,7 @@ function readWorkflows(repository, facts) {
 					record.runsNode ||= found.runsNode;
 					const configVariable = facts.commands.pip.delay?.configVariable;
 					if (found.pipConfig === true || configVariable !== void 0 && (environment.get(configVariable) ?? "") !== "") record.pipConfig = true;
+					if (found.corepack !== void 0) record.corepack ??= lineCounter.linePos(start + found.corepack).line;
 					const stepDirectory = step.has("working-directory") ? workingDirectory(step.get("working-directory", true)) : jobDirectory;
 					for (const { offset, cd, ...command } of found.commands) {
 						const line = lineCounter.linePos(start + offset).line;
@@ -20023,7 +20191,7 @@ const SOURCE_LABEL = {
 	"github-actions": "GitHub Actions",
 	dockerfile: "Dockerfile"
 };
-const RULE$1 = "manager-version-too-old";
+const RULE$2 = "manager-version-too-old";
 /** Where developers choose their Node.js; anyone can install another npm, so these give warnings. */
 const DEVELOPER_SOURCES = /* @__PURE__ */ new Set([
 	"nvmrc",
@@ -20747,7 +20915,7 @@ function report$1(context, helpers, check, place, resolution, facts) {
 	});
 }
 function unknown(context, subject, reason, file) {
-	context.notice(`${RULE$1} cannot tell which npm or pip comes with ${subject}: ${reason}`, file);
+	context.notice(`${RULE$2} cannot tell which npm or pip comes with ${subject}: ${reason}`, file);
 }
 /**
 * The npm an npm install -g npm@X puts in place, checked against the settings of the directory its installs run in, as
@@ -20761,7 +20929,7 @@ function checkUpgrade(context, helpers, check, place, facts) {
 	const where = place.label === place.file ? place.label : `${place.label} (${place.file})`;
 	const lowest = lowestVersion(spec);
 	if (lowest.kind === "unknown") {
-		context.notice(`${RULE$1} cannot evaluate ${name} version "${spec}" in ${place.file}`, place.file);
+		context.notice(`${RULE$2} cannot evaluate ${name} version "${spec}" in ${place.file}`, place.file);
 		return;
 	}
 	const missing = helpers.missing(placeFeatures(check.features, place.of), (since) => belowVersion(lowest, since));
@@ -20888,7 +21056,7 @@ function checkDockerfiles(context, helpers, checkFor, tool, facts) {
 					file: file.file,
 					line: root.line
 				},
-				message: `${RULE$1} cannot tell which ${tool} comes with ${subject}: ${runtime.unknown ?? "the tag names no version"}`,
+				message: `${RULE$2} cannot tell which ${tool} comes with ${subject}: ${runtime.unknown ?? "the tag names no version"}`,
 				fix: `Use a ${runtimeTool} image tag that names the ${runtimeName} version (such as ${runtimeTool}:${runtimeTool === "node" ? "24-alpine" : "3.13-slim"}, with the digest after it: ${runtimeTool}:<tag>@sha256:…), or check by hand that the ${tool} of that image supports ${list}`
 			});
 			continue;
@@ -22017,7 +22185,7 @@ const cooldownShape = object({
 const installScriptsShape = object({
 	default: required(access("Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default; for Python, whether packages may be built from source.")),
 	allow: withDefault(packagePatterns("Packages whose lifecycle scripts may run when the default is \"deny\"; Python packages listed here are always built from source."), []),
-	deny: withDefault(packagePatterns("Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example \"fsevents\", which ships a prebuilt binary. A package cannot be in both lists, also not through two patterns that match the same name. Python packages listed here must not be built from source: doctor reports a tool that would still build one."), [])
+	deny: withDefault(packagePatterns("Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example \"fsevents\", which ships a prebuilt binary. depcurfew init fills it with the packages of the lockfile whose scripts depcurfew knows to be unneeded (esbuild, fsevents) or to do only a task of the project (lefthook). A package cannot be in both lists, also not through two patterns that match the same name. Python packages listed here must not be built from source: doctor reports a tool that would still build one."), [])
 }, { description: "Code that dependencies run when they are installed: lifecycle scripts in npm, building from source in Python." });
 const sourcesShape = object({
 	git: optional(access("Dependencies installed from git repositories.")),
@@ -26389,6 +26557,151 @@ function policyIssueLine(text, issues) {
 	}
 }
 
+// src/doctor/install-script-packages.ts
+/** Every known package, in the order of the knowledge base. */
+function knownPackages() {
+	return Object.values(environment.installScriptPackages).flatMap((fact) => evidenceOf(fact).map((evidence) => evidence.value));
+}
+/** The known package of that name, if any. */
+function knownPackage(name) {
+	return knownPackages().find((entry) => entry.name === name);
+}
+/** " (depcurfew checked esbuild 0.28.2; the lockfile has 0.21.5)" when the locked version is not one that was read. */
+function versionNote(known, version, where = "the lockfile") {
+	if (version === void 0 || known.versions.includes(version)) return "";
+	return ` (depcurfew checked ${known.name} ${known.versions.join(", ")}; ${where} has ${version}, so check that it works the same)`;
+}
+/** The lifecycle scripts of the project that the tool runs on install whatever its allow-list says, when that is known. */
+function rootScripts(tool) {
+	if (tool?.extra?.["rootLifecycleScripts"] === void 0) return void 0;
+	const value = extraOf(tool, "rootLifecycleScripts", isRecord);
+	return Array.isArray(value.events) ? value : void 0;
+}
+/**
+* Why the package can do without its install scripts, as a clause of a doctor finding: "esbuild does not need them: it
+* only puts ...", or for a project task "they only do a task of the project: it runs lefthook install, ...".
+*/
+function scriptsPurpose(known) {
+	return `${known.kind === "project-task" ? "they only do a task of the project" : `${known.name} does not need them`}: ${known.does}`;
+}
+/** "keep optional dependencies installed (no omit=optional in .npmrc, ...)", with npm's settings where npm installs. */
+function keepOptional(tool, capital = false) {
+	const keep = `${capital ? "K" : "k"}eep optional dependencies installed`;
+	return tool !== void 0 && omitFacts(tool) !== void 0 ? `${keep} (no omit=optional in .npmrc, no --omit=optional or --no-optional on the install)` : keep;
+}
+/**
+* What to do about a known package that has no entry in installScripts: add it to installScripts.deny, and for a
+* project task also run that task in the project's own lifecycle script, where the tool runs it on install
+* (rootLifecycleScripts) and its scripts are not all switched off (`allScriptsOff`, ignore-scripts in .npmrc).
+*/
+function denyFix(known, tool, allScriptsOff) {
+	const deny = `Add ${known.name} to installScripts.deny in ${POLICY_FILE}`;
+	if (known.kind === "project-task") return `${deny}, and ${projectTaskStep(known, tool, allScriptsOff)}`;
+	return known.needsOptionalDependencies ? `${deny}, and ${keepOptional(tool)}: ${known.name} works without its install script then` : `${deny}: ${known.name} works without its install script, and ${known.withoutScript}`;
+}
+/** How the project runs the task of a project-task package itself; depcurfew never edits the scripts of package.json. */
+function projectTaskStep(known, tool, allScriptsOff, manifest = "package.json") {
+	const script = known.projectScript;
+	const scripts = rootScripts(tool);
+	const after = `run ${script?.command ?? known.name} after each clone`;
+	if (script === void 0 || tool === void 0 || scripts === void 0 || !scripts.events.includes(script.event)) return `${after} (depcurfew does not know whether ${tool?.name ?? "the package manager"} runs a ${script?.event ?? "lifecycle"} script of the project on install)`;
+	if (allScriptsOff !== void 0) return `${after}: ${allScriptsOff} also keeps ${tool.name} from running the ${script.event} script of the project`;
+	return `add "${script.event}": "${script.command}" to scripts in ${manifest}, which ${tool.name} runs for the project itself on install (its allow-list of dependency scripts does not apply to it; depcurfew does not edit scripts)`;
+}
+function omitFacts(tool) {
+	if (tool.extra?.["omitOptional"] === void 0) return void 0;
+	const value = extraOf(tool, "omitOptional", isRecord);
+	return isRecord(value.omit) && isRecord(value.alias) && isRecord(value.include) ? value : void 0;
+}
+/**
+* What the project .npmrc says about optional dependencies, as npm reads it: each of omit, include and optional is one
+* key, the last line winning (`omit[]` lines add to the list); include=optional wins over an omit.
+*/
+function npmrcOmission(text, facts) {
+	const lists = /* @__PURE__ */ new Map();
+	let optional;
+	for (const entry of iniEntries(text)) {
+		const list = entry.key.endsWith("[]");
+		const key = list ? entry.key.slice(0, -2) : entry.key;
+		if (key === facts.alias.setting) optional = {
+			value: entry.value,
+			line: entry.line
+		};
+		if (key !== facts.omit.setting && key !== facts.include.setting) continue;
+		const known = lists.get(key);
+		lists.set(key, {
+			values: list && known !== void 0 ? [...known.values, entry.value] : [entry.value],
+			line: entry.line,
+			text: `${entry.key}=${entry.value}`
+		});
+	}
+	const omit = lists.get(facts.omit.setting);
+	const included = lists.get(facts.include.setting)?.values.includes(facts.omit.value) === true || optional?.value === "true";
+	if (omit?.values.includes(facts.omit.value) === true) return {
+		omitted: !included,
+		included,
+		line: omit.line,
+		entry: omit.text
+	};
+	if (optional?.value === String(facts.alias.off)) return {
+		omitted: !included,
+		included,
+		line: optional.line,
+		entry: `${facts.alias.setting}=${optional.value}`
+	};
+	return {
+		omitted: false,
+		included
+	};
+}
+/** "the npm install in job build of .github/workflows/ci.yml (line 14)" */
+function commandPlace(command, where, file) {
+	return {
+		location: {
+			file,
+			line: command.line
+		},
+		text: `the npm install ${where} (line ${command.line})`
+	};
+}
+/**
+* Where npm leaves out optional dependencies for this directory (decision D-127): the project .npmrc (omit=optional,
+* omit[]=optional, optional=false), and the npm installs of CI jobs and Dockerfiles whose command line or variables do
+* (--omit=optional, --no-optional, NPM_CONFIG_OMIT=optional), unless include=optional keeps them.
+*/
+function optionalOmissions(repository, detection, npm) {
+	const facts = omitFacts(npm);
+	if (facts === void 0) return [];
+	const file = firstFile(npm.cooldown.configFiles) ?? ".npmrc";
+	const npmrc = npmrcOmission(repository.readText(file) ?? "", facts);
+	const places = [];
+	if (npmrc.omitted && npmrc.entry !== void 0) places.push({
+		location: {
+			file,
+			...npmrc.line === void 0 ? {} : { line: npmrc.line }
+		},
+		entry: npmrc.entry,
+		text: `${npmrc.entry} in ${file}${npmrc.line === void 0 ? "" : ` (line ${npmrc.line})`}`
+	});
+	if (npmrc.included) return places;
+	const omits = (command) => command.tool === "npm" && command.kind === "install" && command.optionalDependencies === "omitted";
+	for (const job of detection.jobs) for (const command of job.commands.filter(omits)) places.push(commandPlace(command, `in job ${job.id} of ${job.file}`, job.file));
+	for (const dockerfile of detection.dockerfiles) for (const stage of dockerfile.stages) for (const command of stage.commands.filter(omits)) places.push(commandPlace(command, `in ${dockerfile.file}`, dockerfile.file));
+	return places;
+}
+/** The denied packages that need their optional dependencies: known ones that a pattern of installScripts.deny covers. */
+function deniedNeedingOptional(deny) {
+	return knownPackages().filter((known) => known.needsOptionalDependencies && deny.some((pattern) => matchesPattern$1(known.name, pattern)));
+}
+/** The warning, in doctor and apply, for a denied package that needs optional dependencies npm leaves out. */
+function omittedOptionalText(known, place) {
+	const allow = `move ${known.name} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing its install script`;
+	return {
+		message: `${known.name} is in installScripts.deny, so it can take its binary only from its optional dependencies, but ${place.text} leaves them out, so ${known.name} cannot find its binary after such an install`,
+		fix: place.entry === void 0 ? `Remove --omit=optional, --no-optional, npm_config_omit=optional and npm_config_optional=false from that install, or add --include=optional to it; or ${allow}` : `Remove ${place.entry} from ${place.location.file} so that npm installs optional dependencies, or ${allow}`
+	};
+}
+
 // src/apply/index.ts
 const DETAILS = /* @__PURE__ */ new WeakMap();
 /** What planApply configured for this report; undefined for a report it did not make. */
@@ -26496,6 +26809,29 @@ function allowListWarnings(root, workspace, policy, detection, targets, tools) {
 			};
 		});
 	});
+}
+/**
+* deny-needs-optional-dependencies (decision D-127): a package of installScripts.deny that takes its binary from an
+* optional dependency (esbuild), while npm leaves optional dependencies out somewhere (.npmrc, a CI job, a Dockerfile).
+* The same places and text as lockfile-install-scripts in doctor, which also needs the package in the lockfile.
+*/
+function optionalDependencyWarnings(root, policy, detection, targets, tools) {
+	const npmTool = tools.find((tool) => tool.id === "npm");
+	if (policy.installScripts?.default !== "deny" || npmTool === void 0 || !targets.has("npm")) return [];
+	if (!detection.packageManagers.some((manager) => manager.id === "npm" && manager.supported)) return [];
+	const denied = deniedNeedingOptional(policyFor(policy, "npm").installScripts?.deny ?? []);
+	if (denied.length === 0) return [];
+	const places = optionalOmissions(new Repository(root), detection, npmTool);
+	return denied.flatMap((known) => places.map((place) => {
+		const { message, fix } = omittedOptionalText(known, place);
+		return {
+			code: "deny-needs-optional-dependencies",
+			tool: "npm",
+			location: place.location,
+			message,
+			fix
+		};
+	}));
 }
 /**
 * file-ignored-by-git: a file apply writes that git does not pick up, so the protection never reaches the repository
@@ -26672,6 +27008,7 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 		run(tool, void 0, (context) => generator(context, duration, { workflows: detection.workflows }));
 	}
 	warnings.push(...allowListWarnings(root, workspace, policy, detection, targets, tools));
+	warnings.push(...optionalDependencyWarnings(root, policy, detection, targets, tools));
 	const changes = workspace.changes();
 	if (policy.cooldown !== void 0) warnings.push(...shortenedDelays(root, changes, detection, tools, targets, policy.cooldown.minimum.text));
 	if (options.project === void 0) warnings.push(...ignoredFileWarnings(root, changes));
@@ -28482,6 +28819,149 @@ function reportedDifferences(before, after) {
 	return [first, ...later.filter((item) => !repeats(item))].filter((item) => item !== void 0);
 }
 
+// src/doctor/rules/corepack.ts
+const RULE$1 = "corepack-unavailable";
+/** The first release without Corepack after releases with it (25.0.0), from environment.corepack.bundledWithNode. */
+function removedIn() {
+	for (const evidence of evidenceOf(environment.corepack.bundledWithNode)) {
+		let bundled = false;
+		for (const entry of evidence.value) if (entry.value) bundled = true;
+		else if (bundled) return parseVersion(entry.since);
+	}
+}
+/** Whether the tool acts on its own pin: pnpm 10 and later switches to it (managesOwnVersion). */
+function managesOwnVersion(tool) {
+	return tool?.extra?.["managesOwnVersion"] !== void 0 && isRecord(extraOf(tool, "managesOwnVersion", isRecord));
+}
+/** The pins of the tools Corepack manages that nothing else acts on. */
+function pinsOf(scope) {
+	const managers = new Set(evidenceOf(environment.corepack.packageManagerField).flatMap((evidence) => [...evidence.value.managers]));
+	return scope.detection.packageManagers.flatMap((manager) => manager.versions.flatMap((declaration) => {
+		if (!managers.has(manager.id) || !("version" in declaration)) return [];
+		if (declaration.source !== "packageManager" && declaration.source !== "devEngines") return [];
+		if (manager.id === "npm" && declaration.source === "devEngines") return [];
+		if (managesOwnVersion(scope.tools.find((tool) => tool.id === manager.id))) return [];
+		const name = manager.id;
+		return [{
+			tool: manager.id,
+			name,
+			text: `${name}@${declaration.version}`,
+			declaration
+		}];
+	}));
+}
+/** The installs a command list makes with the pinned tool. */
+const installsWith = (tool) => (command) => command.kind === "install" && command.tool === tool;
+/** The stage a Dockerfile declaration belongs to, by its name or its number from 0. */
+function stageOf(file, declaration) {
+	if (declaration.stage === void 0) return void 0;
+	const byName = file.stages.findIndex((stage) => stage.name === declaration.stage);
+	if (byName !== -1) return byName;
+	const index = Number(declaration.stage);
+	return Number.isInteger(index) && index >= 0 && index < file.stages.length ? index : void 0;
+}
+/** The stages that start from `index`, directly or through others, with it; each with the stages from `index` to it. */
+function stagesFrom(file, index) {
+	const chains = [];
+	file.stages.forEach((stage, at) => {
+		const chain = [stage];
+		let current = at;
+		for (let guard = 0; current !== index && guard < file.stages.length; guard++) {
+			const from = file.stages[current]?.from;
+			if (from === void 0) return;
+			current = from;
+			chain.unshift(file.stages[current]);
+		}
+		if (current === index) chains.push(chain);
+	});
+	return chains;
+}
+/**
+* Whether the place of a Node.js declaration uses the pinned tool without Corepack: a CI job that installs with it after
+* the step without a Corepack command before; a Dockerfile stage (or one that starts from it) likewise; any other
+* place (a version file, engines) always, since people run the tool there.
+*/
+function usesWithoutCorepack(context, declaration, tool) {
+	if (declaration.source === "github-actions") {
+		const group = jobIndex(context.detection).of(declaration);
+		if (group === void 0) return false;
+		if (!group.job.runsNode) return false;
+		const install = commandsAfterStep(group, declaration).find(installsWith(tool));
+		if (install === void 0) return false;
+		return group.job.corepack === void 0 || group.job.corepack > install.line;
+	}
+	if (declaration.source === "dockerfile") {
+		const file = context.detection.dockerfiles.find((entry) => entry.file === declaration.file);
+		const index = file === void 0 ? void 0 : stageOf(file, declaration);
+		if (file === void 0 || index === void 0) return false;
+		return stagesFrom(file, index).some((chain) => {
+			const install = chain.at(-1)?.commands.find(installsWith(tool));
+			if (install === void 0) return false;
+			return !chain.flatMap((stage) => stage.corepack === void 0 ? [] : [stage.corepack]).some((line) => line < install.line);
+		});
+	}
+	return declaration.source !== "volta";
+}
+/** What to do there: install Corepack, as its README says for Node.js 25 and later, then enable the pinned tool. */
+function fixFor(declaration, pin, node) {
+	const install = evidenceOf(environment.corepack.manualInstall)[0]?.value ?? {
+		command: "npm install -g corepack",
+		enable: "corepack enable",
+		package: "corepack"
+	};
+	const enable = pin.tool === "npm" ? `${install.enable} npm` : install.enable;
+	const steps = `${install.command}, then ${enable}`;
+	const npm = pin.tool === "npm" ? "; npm itself does not read packageManager, while it checks devEngines.packageManager itself" : "";
+	if (declaration.source === "github-actions") return `Install Corepack in job ${declaration.job ?? ""} of ${declaration.file} before it runs ${pin.name} (a step that runs ${steps})${npm}`;
+	if (declaration.source === "dockerfile") return `Install Corepack in ${declaration.file} before ${pin.name} runs (RUN ${install.command} && ${enable})${npm}`;
+	return `Install Corepack wherever ${node} is used for this project (${steps}), as the Corepack README says for a Node.js without it${npm}`;
+}
+const corepackUnavailable = {
+	id: RULE$1,
+	checks: "A pin that only Corepack reads has a Node.js that comes with Corepack",
+	summary: "packageManager or devEngines.packageManager pins Yarn or npm, but a declared Node.js is 25 or later, which no longer comes with Corepack.",
+	description: "Corepack reads packageManager (and devEngines.packageManager) and runs the pinned Yarn, or npm after corepack enable npm. Node.js 25.0.0 stopped distributing Corepack, so where a version file, CI job or Dockerfile chooses Node.js 25 or later, the pin has no effect unless Corepack is installed separately: whatever Yarn or npm is there runs, or none. pnpm 10 and later switches to its pinned version itself, and npm checks devEngines.packageManager itself, so those pins are not reported; nor is a CI job or Dockerfile stage that installs or runs Corepack before it installs with the pinned tool.",
+	help: "Install Corepack where that Node.js runs (npm install -g corepack, then corepack enable), before the pinned tool runs.",
+	level: "warning",
+	requiresPolicy: false,
+	applies: (scope) => pinsOf(scope).length > 0 && scope.detection.node.versions.some((declaration) => declaration.source !== "volta"),
+	check(context) {
+		const pins = pinsOf(context);
+		const removed = removedIn();
+		if (pins.length === 0 || removed === void 0) return;
+		const facts = runtimeFacts(environment);
+		const bundled = evidenceOf(environment.corepack.bundledWithNode)[0]?.value ?? [];
+		const withoutCorepack = (declaration) => {
+			if (declaration.unknown !== void 0) return false;
+			const lines = nodeLines(declaration.version, namingFor(declaration), facts);
+			if (lines === void 0 || lines.length === 0) return false;
+			return lines.every((line) => line.line >= removed[0] && versionedValue(bundled, [
+				line.line,
+				0,
+				0
+			]) === false);
+		};
+		for (const declaration of context.detection.node.versions) {
+			if (declaration.source === "volta" || !("version" in declaration) || !withoutCorepack(declaration)) continue;
+			const subject = nodeSubject(declaration, SOURCE_LABEL[declaration.source]);
+			const line = declarationLine(context, declaration);
+			for (const pin of pins) {
+				if (!usesWithoutCorepack(context, declaration, pin.tool)) continue;
+				const pinLine = declarationLine(context, pin.declaration);
+				const where = `${SOURCE_LABEL[pin.declaration.source] === "devEngines" ? "devEngines.packageManager" : "packageManager"} in ${pin.declaration.file}${pinLine === void 0 ? "" : ` (line ${pinLine})`}`;
+				context.report({
+					location: line === void 0 ? { file: declaration.file } : {
+						file: declaration.file,
+						line
+					},
+					message: `${where} pins ${pin.text}, but ${subject} does not come with Corepack (Node.js ${removed.slice(0, 3).join(".")} stopped distributing it), and Corepack is what reads that pin: without a separate Corepack install, ${pin.name} there is whatever ${pin.tool === "npm" ? "npm comes with that Node.js" : "Yarn is installed, or none"}`,
+					fix: fixFor(declaration, pin, subject.replace(/ in .*$/u, ""))
+				});
+			}
+		}
+	}
+};
+
 // src/doctor/rules/depcurfew-outdated.ts
 const depcurfewOutdated = {
 	id: "depcurfew-outdated",
@@ -29182,13 +29662,15 @@ function scriptsDisabledBy(context, tool) {
 		const found = readSetting(context.repository, file, key);
 		if (found !== void 0 && found.value === (expected === void 0 ? true : iniValue(expected))) return {
 			reason: `${key} in ${file} turns them off`,
-			all: true
+			all: true,
+			setting: `${key} in ${file}`
 		};
 	}
 	const strict = tool.extra?.["strictAllowScripts"] === void 0 ? void 0 : extraOf(tool, "strictAllowScripts", isSwitch);
 	if (strict !== void 0 && readSetting(context.repository, file, strict.setting)?.value === strict.value) return {
 		reason: `${strict.setting} in ${file} stops the install until they are allowed`,
-		all: false
+		all: false,
+		setting: `${strict.setting} in ${file}`
 	};
 }
 /**
@@ -29258,8 +29740,8 @@ const lockfileInstallScripts = {
 	id: "lockfile-install-scripts",
 	checks: "The lockfile has no install scripts or source builds that depcurfew.json does not allow",
 	summary: "The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.",
-	description: "Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or an entry in its own allow-list lets them run, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. A package in installScripts.deny was reviewed and works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed without a build. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index (depcurfew check pypi:<name> shows whether one has wheels), only to requirements from a repository, a URL or a local path.",
-	help: "Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can).",
+	description: "Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or its own allow-list lets them run, they run code the policy does not allow; where it blocks them, a package may not work. A package in installScripts.deny works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed (a Python package without wheels, esbuild without optional dependencies). Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index (depcurfew check pypi:<name> shows whether one has wheels), only to requirements from a repository, a URL or a local path.",
+	help: "Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can). For packages whose scripts depcurfew knows (esbuild, fsevents, lefthook) the finding names the fix: installScripts.deny, and for lefthook \"prepare\": \"lefthook install\" in the scripts of package.json.",
 	level: "error",
 	requiresPolicy: true,
 	applies: (scope) => hasBuildRecords(scope.detection.packageManagers, scope.tools),
@@ -29286,6 +29768,8 @@ const lockfileInstallScripts = {
 			const running = runner !== void 0;
 			const runs = runner?.text === void 0 ? `${tool.name} runs them by default` : `${runner.text} ${runner.unknown === true ? "may run" : runner.several === true ? "run" : "runs"} them`;
 			const lists = ownLists(context, tool);
+			let omissions;
+			const omitted = () => omissions ??= tool.id === "npm" ? optionalOmissions(context.repository, context.detection, tool) : [];
 			for (const entry of flagged) {
 				if (allow.some((pattern) => matchesPattern$1(entry.name, pattern))) continue;
 				const isDenied = deny.some((pattern) => matchesPattern$1(entry.name, pattern));
@@ -29301,7 +29785,16 @@ const lockfileInstallScripts = {
 					continue;
 				}
 				if (isDenied) {
-					if (!running || blocked) continue;
+					if (!running || blocked) {
+						const known = knownPackage(entry.name);
+						if (known?.needsOptionalDependencies !== true) continue;
+						for (const place of omitted()) context.report({
+							level: "warning",
+							location: place.location,
+							...omittedOptionalText(known, place)
+						});
+						continue;
+					}
 					context.report({
 						level: "error",
 						location: location(lockfile, entry),
@@ -29310,11 +29803,14 @@ const lockfileInstallScripts = {
 					});
 					continue;
 				}
+				const known = knownPackage(entry.name);
+				const why = known === void 0 ? "the package may need them" : `${scriptsPurpose(known)}${versionNote(known, entry.version)}`;
+				const knownFix = known === void 0 ? void 0 : denyFix(known, tool, disabledBy?.all === true ? disabledBy.setting : void 0);
 				context.report({
 					level: running ? "error" : "warning",
 					location: location(lockfile, entry),
-					message: running ? `${entry.name} has install scripts and ${runs}, but ${POLICY_FILE} does not allow it` : disabledBy === void 0 ? `${entry.name} has install scripts that ${tool.name} will not run because ${POLICY_FILE} does not allow it; the package may need them` : `${entry.name} has install scripts that ${tool.name} will not run because ${disabledBy.reason}; the package may need them`,
-					fix: running ? `Review its scripts and add ${entry.name} to installScripts.allow in ${POLICY_FILE}, or replace the package` : `Review its scripts: add ${entry.name} to installScripts.allow in ${POLICY_FILE} if it needs them, or to installScripts.deny if it works without them; otherwise replace the package`
+					message: running ? `${entry.name} has install scripts and ${runs}, but ${POLICY_FILE} does not allow it` : disabledBy === void 0 ? `${entry.name} has install scripts that ${tool.name} will not run because ${POLICY_FILE} does not allow it; ${why}` : `${entry.name} has install scripts that ${tool.name} will not run because ${disabledBy.reason}; ${why}`,
+					fix: running ? knownFix === void 0 ? `Review its scripts and add ${entry.name} to installScripts.allow in ${POLICY_FILE}, or replace the package` : `${knownFix}. Then make ${tool.name} stop running dependency install scripts (run depcurfew apply and follow its warnings)` : knownFix ?? `Review its scripts: add ${entry.name} to installScripts.allow in ${"depcurfew.json"} if it needs them, or to installScripts.deny if it works without them; otherwise replace the package`
 				});
 			}
 		});
@@ -30428,6 +30924,7 @@ const RULES = [
 	depcurfewOutdated,
 	managerVersionTooOld,
 	runtimeEndOfLife,
+	corepackUnavailable,
 	settingIgnoredByVersion,
 	npmrcOverridesPolicy,
 	pnpmSharedWorkspaceLockfile,

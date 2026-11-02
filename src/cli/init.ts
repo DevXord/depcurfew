@@ -27,6 +27,7 @@ import { printable } from '../printable.ts';
 import { toolName } from './describe.ts';
 import type { InitMessage } from './init-codes.ts';
 import { proposedProjects } from './init-projects.ts';
+import { installScriptHints } from './init-scripts.ts';
 import { hasBuildRecords } from '../doctor/python-lockfiles.ts';
 import { checkDirectory, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
@@ -272,9 +273,16 @@ export function init(directory: string | undefined, options: InitOptions, io: Cl
     if (longer !== undefined) kept = { ...longer, location: { ...longer.location, file: inProject(entry.project, longer.location.file) } };
   }
   const minimum = kept === undefined ? DEFAULT_POLICY.cooldown.minimum : policyDuration(kept.minutes);
+  // Packages of the lockfiles whose install scripts depcurfew knows go into installScripts.deny, each with a note, and
+  // the other packages with install scripts are listed to review (decision D-127).
+  const scripts =
+    DEFAULT_POLICY.installScripts.default === 'deny'
+      ? installScriptHints(absolute, [{ detection }, ...projects.map((entry) => ({ project: entry.project, detection: entry.detection }))])
+      : { deny: [], notes: [] };
   const text = renderPolicy({
     ...DEFAULT_POLICY,
     cooldown: { ...DEFAULT_POLICY.cooldown, minimum },
+    installScripts: { ...DEFAULT_POLICY.installScripts, deny: scripts.deny },
     ...(projects.length === 0 ? {} : { projects: projects.map((entry) => entry.project) }),
   });
   try {
@@ -339,6 +347,7 @@ export function init(directory: string | undefined, options: InitOptions, io: Cl
       fix: `${how.charAt(0).toUpperCase()}${how.slice(1)}, and add the ones you trust to installScripts.allow as pypi:<name>`,
     });
   }
+  after.push(...scripts.notes);
   // In a repository of projects the workflows of the root set up the projects' tools, as apply knows (decision D-100).
   const inProjects = new Set(projects.flatMap((entry) => entry.detection.packageManagers.map((manager) => manager.id)));
   for (const entry of ciOnly.filter((item) => !inProjects.has(item.id as never))) {

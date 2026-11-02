@@ -219,8 +219,31 @@ describe('findToolCommands', () => {
     ['/venv/bin/pip install .', [{ kind: 'install', tool: 'pip' }]],
     ['uv pip install flask', []],
     ['python -c "import pip"', []],
+    // Optional dependencies on the command line and in npm_config_* (decision D-127).
+    ['npm ci --omit=optional', [{ kind: 'install', tool: 'npm', lockfile: true, optionalDependencies: 'omitted' }]],
+    ['npm ci --omit optional', [{ kind: 'install', tool: 'npm', lockfile: true, optionalDependencies: 'omitted' }]],
+    ['npm install --no-optional', [{ kind: 'install', tool: 'npm', optionalDependencies: 'omitted' }]],
+    ['npm install --optional=false', [{ kind: 'install', tool: 'npm', optionalDependencies: 'omitted' }]],
+    ['NPM_CONFIG_OMIT=optional npm ci', [{ kind: 'install', tool: 'npm', lockfile: true, optionalDependencies: 'omitted' }]],
+    ['export npm_config_optional=false; npm ci', [{ kind: 'install', tool: 'npm', lockfile: true, optionalDependencies: 'omitted' }]],
+    ['npm ci --omit=optional --include=optional', [{ kind: 'install', tool: 'npm', lockfile: true, optionalDependencies: 'kept' }]],
+    ['NPM_CONFIG_OMIT=optional npm ci --omit=dev', [{ kind: 'install', tool: 'npm', lockfile: true }]],
+    ['npm ci --omit=dev --omit=optional', [{ kind: 'install', tool: 'npm', lockfile: true, optionalDependencies: 'omitted' }]],
+    ['NPM_CONFIG_OMIT=dev,optional npm ci', [{ kind: 'install', tool: 'npm', lockfile: true }]],
+    ['npm install -g corepack', []],
   ])('%s', (script, expected) => {
     expect(commands(script)).toEqual(expected);
+  });
+
+  it.each([
+    ['npm install -g corepack && yarn install', 0],
+    ['npm i --global corepack@0.36.0', 0],
+    ['yarn install; corepack enable', 14],
+    ["sh -c 'corepack enable && yarn'", 6],
+    ['npm install corepack', undefined],
+    ['echo corepack', undefined],
+  ])('finds where %s installs or runs Corepack (decision D-128)', (script, offset) => {
+    expect(findToolCommands(script, facts.commands).corepack).toBe(offset);
   });
 
   it('splits on operators and keeps ${VAR} in its word', () => {

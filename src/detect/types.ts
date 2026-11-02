@@ -73,6 +73,12 @@ export interface ToolCommand {
   lockfile?: true;
   /** npm runs it with dependency install scripts off (--ignore-scripts, npm_config_ignore_scripts=true; decision D-115). */
   scriptsOff?: true;
+  /**
+   * npm install: its command line and variables leave out optional dependencies (--omit=optional, --no-optional,
+   * npm_config_omit=optional) or keep them whatever .npmrc says (--include=optional); absent when they do not say
+   * (decision D-127).
+   */
+  optionalDependencies?: 'omitted' | 'kept';
   /** pip install: the release-age delay it gets, as written (--uploaded-prior-to, PIP_UPLOADED_PRIOR_TO; decision D-115). */
   delay?: string;
   /** pip install: PIP_CONFIG_FILE names a file that may set the delay, or the value is a variable depcurfew does not read. */
@@ -103,6 +109,8 @@ export interface WorkflowJob {
    * release-age delay of its pip installs cannot be told (decision D-115).
    */
   pipConfig?: true;
+  /** The line of the first run step command that installs Corepack (npm install -g corepack) or runs it (decision D-128). */
+  corepack?: number;
 }
 
 /** The official runtime image a build stage starts from. */
@@ -130,6 +138,8 @@ export interface DockerStage {
   commands: ToolCommand[];
   /** A RUN may change pip's configuration (pip config set, a pip.conf it writes), as for jobs (decision D-115). */
   pipConfig?: true;
+  /** The line of the first RUN command that installs Corepack (npm install -g corepack) or runs it (decision D-128). */
+  corepack?: number;
   /**
    * The source paths of the stage's COPY and ADD instructions that copy from the build context (not --from), as
    * written; absent when there are none. A root Dockerfile whose stage copies only files of one directory listed in

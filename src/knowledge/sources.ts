@@ -89,6 +89,10 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'github.com', pathPrefix: '/nvm-sh/' },
   { host: 'github.com', pathPrefix: '/nodenv/' },
   { host: 'github.com', pathPrefix: '/schniz/' },
+  // npm packages whose install scripts are known (decision D-127): each package's own repository at a release tag.
+  { host: 'github.com', pathPrefix: '/evanw/esbuild/' },
+  { host: 'github.com', pathPrefix: '/evilmartians/lefthook/' },
+  { host: 'github.com', pathPrefix: '/fsevents/fsevents/' },
 ];
 
 export function isOfficialSource(url: URL, rules: readonly SourceRule[]): boolean {

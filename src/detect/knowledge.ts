@@ -198,6 +198,8 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
   const poetryTool = tools.find((candidate) => candidate.id === 'poetry');
   const poetryPackage = poetryTool === undefined ? undefined : extraValue(poetryTool, 'installedPackage');
   const off = extraValue(npm, 'scriptsOff');
+  const omitOptional = npm.extra?.['omitOptional'] === undefined ? undefined : extraValue(npm, 'omitOptional');
+  const corepackInstall = first(environment.corepack.manualInstall);
   const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []);
   // pnpm, Yarn and Bun: the commands that install the project's dependencies and those that add packages.
   const others = (['pnpm', 'yarn', 'bun'] as const).flatMap((id) => {
@@ -218,6 +220,18 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
       ...(isRecord(off) && typeof off['option'] === 'string' && typeof off['variable'] === 'string' && typeof off['value'] === 'string'
         ? { scriptsOff: { option: off['option'], variable: off['variable'], value: off['value'] } }
         : {}),
+      ...(isRecord(omitOptional) && isRecord(omitOptional['omit']) && isRecord(omitOptional['alias']) && isRecord(omitOptional['include'])
+        ? {
+            omitOptional: {
+              omit: String(omitOptional['omit']['setting']),
+              value: String(omitOptional['omit']['value']),
+              alias: String(omitOptional['alias']['setting']),
+              include: String(omitOptional['include']['setting']),
+              prefix: String(omitOptional['variablePrefix']),
+              separator: String(omitOptional['listSeparator']),
+            },
+          }
+        : {}),
     },
     others,
     pip: {
@@ -230,7 +244,7 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
         : {}),
     },
     python: interpreter,
-    corepack: { enableCommand: first(environment.corepack.enableNpm).command },
+    corepack: { enableCommand: first(environment.corepack.enableNpm).command, package: corepackInstall.package },
     ...(isRecord(poetryPackage) && typeof poetryPackage['name'] === 'string' && Array.isArray(poetryPackage['commands'])
       ? { poetry: { name: poetryPackage['name'], commands: (poetryPackage['commands'] as unknown[]).filter((item): item is string[] => Array.isArray(item)) } }
       : {}),

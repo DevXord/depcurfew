@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "package.json",
+      "line": 5
+    },
+    "message": "packageManager in package.json (line 4) pins npm@12.2.1, but Node.js >=25 in engines (package.json) does not come with Corepack (Node.js 25.0.0 stopped distributing it), and Corepack is what reads that pin: without a separate Corepack install, npm there is whatever npm comes with that Node.js",
+    "fix": "Install Corepack wherever Node.js >=25 is used for this project (npm install -g corepack, then corepack enable npm), as the Corepack README says for a Node.js without it; npm itself does not read packageManager, while it checks devEngines.packageManager itself"
+  }
+]

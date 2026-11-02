@@ -44,6 +44,7 @@ import { parseVersion, pinnedVersion, type Version } from './version.ts';
 import { warningText, type ApplyErrorCode, type ApplyWarning } from './warnings.ts';
 import { CHANGED, OUTSIDE, WriteFailed, writeChanges, type FileChange } from './workspace.ts';
 import { policyIssueLine } from '../doctor/policy-lines.ts';
+import { deniedNeedingOptional, omittedOptionalText, optionalOmissions } from '../doctor/install-script-packages.ts';
 
 export type { FileChange } from './workspace.ts';
 export type { ProjectProblem } from './projects.ts';
@@ -182,6 +183,26 @@ function allowListWarnings(root: string, workspace: ManifestGuard, policy: Resol
         return { code: 'deny-conflicts-with-file', tool: manager.id, location, message: `${text.message}; depcurfew apply does not change entries it did not write`, fix: text.fix };
       });
     });
+}
+
+/**
+ * deny-needs-optional-dependencies (decision D-127): a package of installScripts.deny that takes its binary from an
+ * optional dependency (esbuild), while npm leaves optional dependencies out somewhere (.npmrc, a CI job, a Dockerfile).
+ * The same places and text as lockfile-install-scripts in doctor, which also needs the package in the lockfile.
+ */
+function optionalDependencyWarnings(root: string, policy: ResolvedPolicy, detection: Detection, targets: ReadonlySet<ToolId>, tools: readonly ToolKnowledge[]): ApplyWarning[] {
+  const npmTool = tools.find((tool) => tool.id === 'npm');
+  if (policy.installScripts?.default !== 'deny' || npmTool === undefined || !targets.has('npm')) return [];
+  if (!detection.packageManagers.some((manager) => manager.id === 'npm' && manager.supported)) return [];
+  const denied = deniedNeedingOptional(policyFor(policy, 'npm').installScripts?.deny ?? []);
+  if (denied.length === 0) return [];
+  const places = optionalOmissions(new Repository(root), detection, npmTool);
+  return denied.flatMap((known) =>
+    places.map((place): ApplyWarning => {
+      const { message, fix } = omittedOptionalText(known, place);
+      return { code: 'deny-needs-optional-dependencies', tool: 'npm', location: place.location, message, fix };
+    }),
+  );
 }
 
 /**
@@ -384,6 +405,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   }
 
   warnings.push(...allowListWarnings(root, workspace, policy, detection, targets, tools));
+  warnings.push(...optionalDependencyWarnings(root, policy, detection, targets, tools));
   const changes = workspace.changes();
   if (policy.cooldown !== undefined) warnings.push(...shortenedDelays(root, changes, detection, tools, targets, policy.cooldown.minimum.text));
   // A project's files may match a .gitignore of the root, which planRepository reads for all of them.

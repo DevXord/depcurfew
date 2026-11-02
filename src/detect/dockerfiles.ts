@@ -155,7 +155,7 @@ export function envDeclarations(text: string, spaceForm: boolean): [string, stri
   });
 }
 
-function runCommands(instruction: Instruction, facts: DockerFacts, environment: Environment): { commands: ToolCommand[]; pipConfig?: true; overLimit?: ScriptCommands['overLimit'] } {
+function runCommands(instruction: Instruction, facts: DockerFacts, environment: Environment): { commands: ToolCommand[]; pipConfig?: true; corepack?: number; overLimit?: ScriptCommands['overLimit'] } {
   const commands: ToolCommand[] = [];
   const { text, offset } = withoutOptions(instruction.text);
   const exec = execWords(text);
@@ -163,10 +163,11 @@ function runCommands(instruction: Instruction, facts: DockerFacts, environment: 
     const words: Word[] = exec.map((word) => ({ text: word, offset: 0 }));
     const found = findExecCommands(words, facts.commands, environment);
     for (const { offset: _offset, ...command } of found.commands) commands.push(located(command, instruction.line));
-    return { commands, ...(found.pipConfig === true ? { pipConfig: true as const } : {}) };
+    return { commands, ...(found.pipConfig === true ? { pipConfig: true as const } : {}), ...(found.corepack === undefined ? {} : { corepack: instruction.line }) };
   }
   const found = findToolCommands(text, facts.commands, 0, environment);
   let pipConfig = found.pipConfig === true;
+  let corepack = found.corepack === undefined ? undefined : lineAt(instruction, offset + found.corepack);
   const overLimit: NonNullable<ScriptCommands['overLimit']> = { ...found.overLimit };
   for (const { offset: at, ...command } of found.commands) commands.push(located(command, lineAt(instruction, offset + at)));
   for (const heredoc of instruction.heredocs) {
@@ -175,6 +176,7 @@ function runCommands(instruction: Instruction, facts: DockerFacts, environment: 
     for (let index = heredoc.body.indexOf('\n'); index >= 0; index = heredoc.body.indexOf('\n', index + 1)) lineStarts.push(index + 1);
     const body = findToolCommands(heredoc.body, facts.commands, 0, environment);
     pipConfig ||= body.pipConfig === true;
+    if (body.corepack !== undefined) corepack ??= heredoc.line;
     if (body.overLimit?.directory !== undefined) overLimit.directory ??= body.overLimit.directory;
     if (body.overLimit?.variables === true) overLimit.variables = true;
     for (const { offset: at, ...command } of body.commands) {
@@ -188,7 +190,7 @@ function runCommands(instruction: Instruction, facts: DockerFacts, environment: 
       commands.push(located(command, heredoc.line + low));
     }
   }
-  return { commands, ...(pipConfig ? { pipConfig: true as const } : {}), ...(Object.keys(overLimit).length === 0 ? {} : { overLimit }) };
+  return { commands, ...(pipConfig ? { pipConfig: true as const } : {}), ...(corepack === undefined ? {} : { corepack }), ...(Object.keys(overLimit).length === 0 ? {} : { overLimit }) };
 }
 
 /** The most COPY and ADD sources kept for one stage. */
@@ -293,6 +295,7 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
     if (instruction.keyword !== 'RUN' || stage === undefined) continue;
     const run = runCommands(instruction, facts, environment ?? new Map());
     if (run.pipConfig === true) stage.pipConfig = true;
+    if (run.corepack !== undefined) stage.corepack ??= run.corepack;
     for (const message of overLimitMessages(run.overLimit, `the RUN instruction in ${file} (line ${instruction.line})`)) notices.push({ message, line: instruction.line });
     for (const command of run.commands) {
       stage.commands.push(command);

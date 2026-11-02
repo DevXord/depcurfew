@@ -1191,6 +1191,52 @@ export interface MovingTagsKnowledge {
   tags: Readonly<Record<string, string>>;
 }
 
+/**
+ * An npm package with install scripts whose effect is known (decision D-127), read in its source at the releases in
+ * `versions`: `not-needed` when the package works without the script, `project-task` when the script does a task of
+ * the project (installing git hooks) that the project can run in its own lifecycle script (`projectScript`).
+ */
+export interface InstallScriptPackageKnowledge {
+  name: string;
+  /** The releases the source was read at. */
+  versions: readonly string[];
+  /** The install script, as the package declares it or as npm adds it, for messages. */
+  script: string;
+  kind: 'not-needed' | 'project-task';
+  /** What the script does, as a clause for messages ("it runs lefthook install, which installs the git hooks"). */
+  does: string;
+  /** What changes when the script does not run, as a clause for messages ("nothing changes"). */
+  withoutScript: string;
+  /**
+   * Without its install script the package can take its binary only from an optional dependency for the platform (the
+   * script fetches it otherwise), so a denied one fails where optional dependencies are left out.
+   */
+  needsOptionalDependencies: boolean;
+  /** project-task: the lifecycle script of the project that does the same task. */
+  projectScript?: { event: string; command: string };
+}
+
+/**
+ * npm: how a project can leave out optional dependencies (decision D-127). The setting `omit` with the value `optional`
+ * (also a list item), its alias `optional` set to false, and `include`, which wins over both.
+ */
+export interface OmitOptionalKnowledge {
+  omit: { setting: string; value: string };
+  alias: { setting: string; off: boolean };
+  include: { setting: string };
+  /** npm_config_<setting>, read in any case; list values are separated by two line breaks. */
+  variablePrefix: string;
+  listSeparator: string;
+}
+
+/** The lifecycle scripts of the project itself that an install runs, and what keeps them from running (decision D-127). */
+export interface RootLifecycleScriptsKnowledge {
+  events: readonly string[];
+  /** Only this switch stops them; the allow-list of dependency install scripts does not apply to the project itself. */
+  skippedBy: string;
+  allowListApplies: boolean;
+}
+
 export interface EnvironmentKnowledge {
   corepack: {
     packageManagerField: Fact<PackageManagerFieldKnowledge>;
@@ -1205,7 +1251,14 @@ export interface EnvironmentKnowledge {
     defaults: Fact<CorepackDefaultsKnowledge>;
     /** corepack enable installs an npm shim only when npm is named. */
     enableNpm: Fact<{ command: string; npmOnlyWhenNamed: boolean }>;
+    /**
+     * Installing Corepack where Node.js does not come with it (decision D-128): the npm package and the command; then
+     * corepack enable puts the shims on the path.
+     */
+    manualInstall: Fact<{ package: string; command: string; enable: string }>;
   };
+  /** npm packages whose install scripts are known to be unneeded or to do a task of the project (decision D-127). */
+  installScriptPackages: Readonly<Record<string, Fact<InstallScriptPackageKnowledge>>>;
   node: {
     /** The npm each Node.js release bundles, per release line. */
     bundledNpm: Fact<readonly BundledVersionsLine[]>;

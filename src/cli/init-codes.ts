@@ -11,6 +11,10 @@ export const INIT_NOTES = {
   'cooldown-kept': 'The repository (with --user, the user file of an installed tool) already sets a longer release-age delay, so cooldown.minimum keeps it instead of the default.',
   'python-builds-denied': 'installScripts.default "deny" also blocks building Python packages from source, so a package without wheels for the platform stops installing until it is allowed.',
   'tool-only-in-ci': 'A tool appears only in a CI setup step, so depcurfew apply does not configure it under targets "auto".',
+  'install-script-denied': 'A lockfile has a package whose install script depcurfew knows it does not need (esbuild, fsevents), so init adds it to installScripts.deny; the note says what changes without the script.',
+  'install-script-project-task': 'A lockfile has a package whose install script only does a task of the project (lefthook installs the git hooks), so init adds it to installScripts.deny; the fix says how the project runs that task itself.',
+  'install-scripts-to-review': 'A lockfile has other packages with install scripts, which installScripts.default "deny" blocks; review each before depcurfew apply.',
+  'install-scripts-not-recorded': 'A lockfile does not record which packages have install scripts (pnpm-lock.yaml, yarn.lock), or is in a format depcurfew does not read, so init can name only the packages depcurfew knows.',
 } as const satisfies Record<string, string>;
 
 export const INIT_CODES = { ...INIT_WARNINGS, ...INIT_NOTES } as const;

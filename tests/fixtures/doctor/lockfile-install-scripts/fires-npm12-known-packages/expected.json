@@ -1,0 +1,38 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "package-lock.json",
+      "line": 15
+    },
+    "message": "esbuild has install scripts that npm will not run because depcurfew.json does not allow it; esbuild does not need them: it only puts the binary, which esbuild takes from an optional dependency for the platform, in place of the esbuild command and checks that it runs",
+    "fix": "Add esbuild to installScripts.deny in depcurfew.json, and keep optional dependencies installed (no omit=optional in .npmrc, no --omit=optional or --no-optional on the install): esbuild works without its install script then"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "package-lock.json",
+      "line": 37
+    },
+    "message": "fsevents has install scripts that npm will not run because depcurfew.json does not allow it; fsevents does not need them: it is the node-gyp rebuild that npm adds because the source has a binding.gyp, while the package already contains the built fsevents.node",
+    "fix": "Add fsevents to installScripts.deny in depcurfew.json: fsevents works without its install script, and nothing changes"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "package-lock.json",
+      "line": 46
+    },
+    "message": "lefthook has install scripts that npm will not run because depcurfew.json does not allow it; they only do a task of the project: it runs lefthook install, which installs the git hooks of the repository (depcurfew checked lefthook 2.2.2; the lockfile has 2.1.0, so check that it works the same)",
+    "fix": "Add lefthook to installScripts.deny in depcurfew.json, and add \"prepare\": \"lefthook install\" to scripts in package.json, which npm runs for the project itself on install (its allow-list of dependency scripts does not apply to it; depcurfew does not edit scripts)"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "package-lock.json",
+      "line": 56
+    },
+    "message": "core-js has install scripts that npm will not run because depcurfew.json does not allow it; the package may need them",
+    "fix": "Review its scripts: add core-js to installScripts.allow in depcurfew.json if it needs them, or to installScripts.deny if it works without them; otherwise replace the package"
+  }
+]
