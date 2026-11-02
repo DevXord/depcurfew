@@ -6,7 +6,7 @@ import type { Duration } from '../../policy/duration.ts';
 import type { ResolvedPolicy } from '../../policy/schema.ts';
 import type { ToolId, ToolKnowledge } from '../../knowledge/types.ts';
 import { blockStart } from '../block.ts';
-import { mergesYamlKeys } from '../facts.ts';
+import { mergesYamlKeys, readsYamlLikePsych } from '../facts.ts';
 import { writeIniBlock } from '../ini.ts';
 import { jsonArrayAppend, jsonArrayRemove, jsonArrayReplace, jsonGet, jsonObjectRemove, jsonSet } from '../json-edit.ts';
 import { writeRequirementsBlock } from '../pip-requirements.ts';
@@ -171,7 +171,7 @@ export function createContext(options: {
   const user = options.user !== undefined;
   const versionLabel = options.user?.versionText ?? formatVersion(options.version ?? [0, 0, 0]);
   const scope = user ? 'user' : 'project';
-  const yamlOptions = { merge: mergesYamlKeys(tool) };
+  const yamlOptions = { merge: mergesYamlKeys(tool), ...(readsYamlLikePsych(tool) ? { psychScalars: true } : {}) };
   const atLeast = (since: string | undefined): boolean => {
     const required = since === undefined ? undefined : parseVersion(since);
     return options.version === undefined || required === undefined || compareVersions(options.version, required) >= 0;

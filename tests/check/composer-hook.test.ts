@@ -52,14 +52,14 @@ async function hook(command: string, root: string, options: { fetch?: FetchLike;
   return stdout === '' ? {} : (JSON.parse(stdout) as { hookSpecificOutput: Output }).hookSpecificOutput;
 }
 
-const YOUNG = 'composer:guzzlehttp/guzzle 8.3.1 was published on Packagist 7 days ago; depcurfew.json requires 2 weeks (composer:guzzlehttp/guzzle 8.3.0 is old enough)';
+const YOUNG = 'composer:guzzlehttp/guzzle:8.3.1 was published on Packagist 7 days ago; depcurfew.json requires 2 weeks (composer:guzzlehttp/guzzle:8.3.0 is old enough)';
 
 describe('the hook reads Composer commands', () => {
   it('denies composer require of a release younger than the cooldown, and passes an old enough one', async () => {
     const root = project();
     const denied = await hook('composer require guzzlehttp/guzzle', root);
     expect(denied.permissionDecision).toBe('deny');
-    expect(denied.permissionDecisionReason).toContain(`- composer:guzzlehttp/guzzle: ${YOUNG}. Fix: Install composer:guzzlehttp/guzzle:8.3.0 instead, or wait until composer:guzzlehttp/guzzle 8.3.1 is 2 weeks old`);
+    expect(denied.permissionDecisionReason).toContain(`- composer:guzzlehttp/guzzle: ${YOUNG}. Fix: Install composer:guzzlehttp/guzzle:8.3.0 instead, or wait until composer:guzzlehttp/guzzle:8.3.1 is 2 weeks old`);
     // Platform packages are not looked up.
     expect(await hook('composer require "monolog/monolog:^3.9" php:^8.2 ext-json', root, { fetch: answerOnly(['monolog/monolog']) })).toEqual({});
   });
@@ -85,7 +85,7 @@ describe('the hook reads Composer commands', () => {
     const root = project();
     const plugin = await hook('composer require php-http/discovery', root);
     expect(plugin.permissionDecision).toBe('deny');
-    expect(plugin.permissionDecisionReason).toContain('composer:php-http/discovery 1.20.0 is a Composer plugin (type composer-plugin)');
+    expect(plugin.permissionDecisionReason).toContain('composer:php-http/discovery:1.20.0 is a Composer plugin (type composer-plugin)');
     const branch = await hook('composer require monolog/monolog:dev-main', root);
     expect(branch.permissionDecision).toBe('ask');
     expect(branch.permissionDecisionReason).toContain('"dev-main" names a branch of composer:monolog/monolog, not a release');
@@ -120,18 +120,19 @@ describe('the hook reads Composer commands', () => {
     const asked = await hook('composer require monolog/monolog', vcs);
     expect(asked.permissionDecision).toBe('ask');
     expect(asked.permissionDecisionReason).toContain(
-      '- composer:monolog/monolog: the install may take it from the vcs repository https://git.example/acme/tool that composer.json (line 3) declares, which Composer asks before Packagist; depcurfew checked only https://repo.packagist.org',
+      '- composer:monolog/monolog: the install may take it from the vcs repository https://git.example/acme/tool that composer.json (line 3) declares, which Composer asks before Packagist; depcurfew checks only Packagist (https://repo.packagist.org), so it did not look the package up',
     );
     expect(asked.permissionDecisionReason).toContain(`Fix: ${UNREAD_REGISTRY_IS_THE_USERS}`);
     const off = project({ 'composer.json': '{"repositories": [{"packagist.org": false}]}' });
     expect((await hook('composer require monolog/monolog', off)).permissionDecisionReason).toContain(
-      'the install would not use Packagist: composer.json (line 1) turns packagist.org off, so the package comes from the other repositories it declares; depcurfew checked https://repo.packagist.org',
+      'the install would not use Packagist: composer.json (line 1) turns packagist.org off, so the package comes from the other repositories it declares; depcurfew checks only Packagist (https://repo.packagist.org), so it did not look the package up',
     );
-    // A package Packagist does not have may come from that repository: the hook asks instead of denying it as made up.
-    const missing = await hook('composer require this-vendor-does-not-exist-xyz/nothing-123', vcs);
+    // A package that may come from that repository is not looked up on Packagist at all (decision D-136): the hook asks,
+    // and never denies it as made up.
+    const missing = await hook('composer require this-vendor-does-not-exist-xyz/nothing-123', vcs, { fetch: async (url) => Promise.reject(new Error(`unexpected request ${url}`)) });
     expect(missing.permissionDecision).toBe('ask');
     expect(missing.permissionDecisionReason).toContain(
-      'composer:this-vendor-does-not-exist-xyz/nothing-123 does not exist in https://repo.packagist.org, but it may come from the vcs repository https://git.example/acme/tool that composer.json (line 3) declares, which depcurfew did not check',
+      'composer:this-vendor-does-not-exist-xyz/nothing-123: the install may take it from the vcs repository https://git.example/acme/tool that composer.json (line 3) declares, which Composer asks before Packagist; depcurfew checks only Packagist (https://repo.packagist.org), so it did not look the package up',
     );
     // Packagist itself as a repository changes nothing; the composer.json of a subdirectory counts there.
     const same = project({ 'composer.json': '{"repositories": {"packagist.org": {"type": "composer", "url": "https://repo.packagist.org"}}}', 'app/composer.json': '{"repositories": [{"type": "path", "url": "../lib"}]}' });

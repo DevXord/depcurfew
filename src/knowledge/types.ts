@@ -518,6 +518,13 @@ export interface DirectoryOption {
 export interface DirectoryOptionsKnowledge {
   options: readonly DirectoryOption[];
   variables: readonly DirectoryOption[];
+  /**
+   * How the tool finds the option: by its own option parsing (left out), or as symfony/console's
+   * getParameterOption(..., onlyParams: true) does for Composer (decision D-136): the first word, up to --, that is one
+   * of the options followed by the value, or starts with a long option and = or with a short option and has the value
+   * after it; grouped short options (-nd dir) do not count.
+   */
+  lookup?: 'first-token';
 }
 
 /** A command that changes the tool's configuration, which an install later in the same command line reads. */
@@ -548,6 +555,8 @@ export interface CommandNamesKnowledge {
    * must all stand for one command.
    */
   matching?: 'npm' | 'symfony-console';
+  /** symfony-console: commands find() leaves out when a word matches others too, and refuses when it matches only them. */
+  hidden?: readonly string[];
 }
 
 /**
@@ -574,6 +583,52 @@ export interface ComposerCommandsKnowledge {
   requireOption: string;
   /** Options of create-project with the minimum stability of the package. */
   stabilityOptions: readonly string[];
+}
+
+/**
+ * An option of the input definition of Composer's application (symfony/console's defaults and Composer's own), the only
+ * options that can take the word after them before the command name is known (decision D-136).
+ */
+export interface ApplicationOption {
+  /** The long name, without --. */
+  name: string;
+  /** The short forms, without -; verbose has v, vv and vvv. */
+  shortcuts: readonly string[];
+  /** none: takes no value; required: takes one; negatable: also --no-<name>, no value. */
+  value: 'none' | 'required' | 'negatable';
+}
+
+/** The scripts of the root composer.json that Composer registers as commands (decision D-136). */
+export interface ComposerScriptCommandsKnowledge {
+  /** The key of the scripts in composer.json. */
+  scripts: string;
+  /** The key that gives a script command its aliases. */
+  aliases: string;
+  /** Script names of events, which are not registered as commands (ScriptEvents, compared in upper case with - as _). */
+  events: readonly string[];
+  /** A command name symfony/console accepts: parts without a colon, separated by single colons. */
+  validName: string;
+}
+
+/** How the root composer.json picks the stability of the versions Composer installs (decision D-136). */
+export interface ComposerRootStabilityKnowledge {
+  minimumStability: string;
+  preferStable: string;
+  /** The stability names RootPackageLoader accepts, in lower case. */
+  values: readonly string[];
+}
+
+/** Where Composer installs a locked package from, by config.preferred-install (decision D-136). */
+export interface ComposerInstallPreferenceKnowledge {
+  setting: string;
+  /** The value Composer starts from (Config::$defaultConfig). */
+  default: string;
+  /** The values that choose: dist for the archive, source for the checkout, auto for the checkout of dev versions only. */
+  dist: string;
+  source: string;
+  auto: string;
+  /** In a pattern object, the key that matches every package; Composer moves it to the end. */
+  everything: string;
 }
 
 /** The v2 metadata of Packagist.org, from which depcurfew check reads Composer packages (decision D-133). */

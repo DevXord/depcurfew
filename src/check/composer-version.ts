@@ -167,28 +167,41 @@ export function normalizeVersion(input: string): string | undefined {
 /** A version as PHP's version_compare reads it (php_canonicalize_version). */
 function canonical(version: string): string {
   if (version === '') return '';
-  const { separators } = comparison();
-  const isDigit = (character: string) => character >= '0' && character <= '9';
-  const isAlnum = (character: string) => isDigit(character) || (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z');
-  const digit = (character: string) => isDigit(character);
-  const notDigit = (character: string) => !isDigit(character) && character !== '.';
-  const out: string[] = [version[0] as string];
-  let previous = version[0] as string;
-  for (const character of version.slice(1)) {
-    const last = out.at(-1);
-    if (separators.includes(character)) {
-      if (last !== '.') out.push('.');
-    } else if ((notDigit(previous) && digit(character)) || (digit(previous) && notDigit(character))) {
-      if (last !== '.') out.push('.');
-      out.push(character);
-    } else if (!isAlnum(character)) {
-      if (last !== '.') out.push('.');
+  // By character code into a buffer, so that ten thousand versions of hundreds of characters take milliseconds (decision D-136).
+  cachedSeparators ??= new Set(comparison().separators.map((separator) => separator.charCodeAt(0)));
+  const separators = cachedSeparators;
+  const out = new Uint16Array(version.length * 2);
+  let length = 0;
+  let previous = version.charCodeAt(0);
+  out[length++] = previous;
+  for (let index = 1; index < version.length; index++) {
+    const code = version.charCodeAt(index);
+    const last = out[length - 1];
+    if (separators.has(code)) {
+      if (last !== DOT) out[length++] = DOT;
+    } else if ((notDigit(previous) && isDigitCode(code)) || (isDigitCode(previous) && notDigit(code))) {
+      if (last !== DOT) out[length++] = DOT;
+      out[length++] = code;
+    } else if (!isAlnumCode(code)) {
+      if (last !== DOT) out[length++] = DOT;
     } else {
-      out.push(character);
+      out[length++] = code;
     }
-    previous = character;
+    previous = code;
   }
-  return out.join('');
+  return UTF16.decode(new Uint8Array(out.buffer, 0, length * 2));
+}
+
+const DOT = 46;
+const UTF16 = new TextDecoder('utf-16le');
+let cachedSeparators: ReadonlySet<number> | undefined;
+const isDigitCode = (code: number) => code >= 48 && code <= 57;
+const isAlnumCode = (code: number) => isDigitCode(code) || (code >= 97 && code <= 122) || (code >= 65 && code <= 90);
+const notDigit = (code: number) => !isDigitCode(code) && code !== DOT;
+
+/** A version in the form version_compare compares, to compare many times with compareComparable (decision D-136). */
+export function comparableVersion(version: string): string {
+  return version.startsWith('#') ? version : canonical(version);
 }
 
 /** The order of a part that is a word (compare_special_version_forms): the first special form it starts with. */
@@ -205,8 +218,12 @@ const isDigitAt = (text: string, index: number) => {
 /** PHP's version_compare(a, b): -1, 0 or 1. */
 export function compareVersions(a: string, b: string): number {
   if (a === '' || b === '') return a === b ? 0 : a !== '' ? 1 : -1;
-  const v1 = a.startsWith('#') ? a : canonical(a);
-  const v2 = b.startsWith('#') ? b : canonical(b);
+  return compareComparable(comparableVersion(a), comparableVersion(b));
+}
+
+/** version_compare of two versions already in the form of comparableVersion. */
+export function compareComparable(v1: string, v2: string): number {
+  if (v1 === '' || v2 === '') return v1 === v2 ? 0 : v1 !== '' ? 1 : -1;
   let p1 = 0;
   let p2 = 0;
   let n1: number | null = 0;
@@ -231,8 +248,8 @@ export function compareVersions(a: string, b: string): number {
     if (n2 !== null) p2 = n2 + 1;
   }
   if (compare === 0) {
-    if (n1 !== null) compare = isDigitAt(v1, p1) ? 1 : compareVersions(v1.slice(p1), NUMBER_FORM);
-    else if (n2 !== null) compare = isDigitAt(v2, p2) ? -1 : compareVersions(NUMBER_FORM, v2.slice(p2));
+    if (n1 !== null) compare = isDigitAt(v1, p1) ? 1 : compareComparable(v1.slice(p1), NUMBER_FORM);
+    else if (n2 !== null) compare = isDigitAt(v2, p2) ? -1 : compareComparable(NUMBER_FORM, v2.slice(p2));
   }
   return compare;
 }

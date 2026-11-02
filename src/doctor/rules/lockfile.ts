@@ -7,7 +7,7 @@ import type { ScriptPolicy, ToolKnowledge } from '../../knowledge/types.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
 import { COMPOSER_PREFIX, PYPI_PREFIX } from '../../policy/package-pattern.ts';
-import { COMPOSER_MANIFEST, composerManifest, declaredRepositories, isComposerName, lockedPluginApi, pluginDecision, unmatchedRepositories } from '../composer.ts';
+import { COMPOSER_MANIFEST, composerManifest, declaredRepositories, fallbackRemoved, isComposerName, lockedPluginApi, pluginDecision, sourceHostOf, unmatchedRepositories } from '../composer.ts';
 import { normalizePythonName } from '../../policy/python-names.ts';
 import { allowEntries, denyEntries, matchesPattern, type AllowEntry } from '../allow-lists.ts';
 import { latestVersion, versionedValue } from '../effective.ts';
@@ -61,7 +61,7 @@ export const lockfileForbiddenSource: Rule = {
   checks: 'The lockfile installs no package from a source depcurfew.json denies',
   summary: 'The lockfile installs a package from a source depcurfew.json denies.',
   description:
-    'A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say. For Composer, whose lockfile does not name the repository of a package, packages of a path or artifact repository are told by their dist, those of a VCS or package repository by the repositories of composer.json, a package without a dist is a VCS checkout (Composer installs it from its source), an archive from a host that neither the archives of Packagist.org (GitHub, GitLab, Bitbucket, Codeberg) nor a repository of composer.json use is a source depcurfew does not recognize (a warning), and a repository of a denied kind that no package of composer.lock comes from is reported at its declaration (a warning).',
+    'A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say. For Composer, whose lockfile does not name the repository of a package, packages of a path or artifact repository are told by their dist, those of a VCS or package repository by the repositories of composer.json; a package without a usable dist, or one that config.preferred-install makes Composer check out, is a VCS checkout. Warnings: an archive from a host that neither the archives of Packagist.org (GitHub, GitLab, Bitbucket, Codeberg) nor a repository of composer.json use, such an archive next to a source on another host, and a repository of a denied kind that no package of composer.lock comes from.',
   help: 'Replace the dependency with a registry version, or allow that source in depcurfew.json.',
   level: 'error',
   requiresPolicy: true,
@@ -86,11 +86,23 @@ export const lockfileForbiddenSource: Rule = {
           });
           continue;
         }
+        // Composer: an archive of Packagist.org's hosts next to a source on another host, which Packagist.org never
+        // writes; Composer installs from that source in some cases (decision D-136).
+        const other = entry.otherSource;
+        if (other !== undefined && sources.git === 'deny') {
+          const expected = sourceHostOf(tool, other.distHost);
+          context.report({
+            level: 'warning',
+            location: location(lockfile, entry),
+            message: `${lockfile.file} gives ${entry.name} an archive from ${other.distHost} but a VCS source on another host (${shownSpec(other.spec)}), which ${POLICY_FILE} denies; for an archive from ${other.distHost} the source is on ${expected}, so the entry was edited, and Composer installs from that source with --prefer-source, with preferred-install "source" in COMPOSER_HOME/config.json, and before Composer ${fallbackRemoved(tool)} when the archive cannot be downloaded`,
+            fix: `Find out who changed this entry of ${lockfile.file}, then lock ${entry.name} again with composer update ${entry.name}`,
+          });
+        }
         if (entry.source !== 'git' && entry.source !== 'remoteTarball' && entry.source !== 'file' && entry.source !== 'directory') continue;
         if (sources[entry.source] !== 'deny') continue;
         context.report({
           location: location(lockfile, entry),
-          message: `${lockfile.file} installs ${entry.unnamed === true ? 'a package' : entry.name} from ${LABELS[ecosystemOfTool(tool)][entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies`,
+          message: `${lockfile.file} installs ${entry.unnamed === true ? 'a package' : entry.name} from ${LABELS[ecosystemOfTool(tool)][entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies${entry.why === undefined ? '' : `: ${entry.why}`}`,
           fix: `Use a registry version ${entry.unnamed === true ? 'instead' : `of ${entry.name}`}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`,
         });
       }

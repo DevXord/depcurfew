@@ -18,7 +18,9 @@ import { parseSpec } from '../check/spec.ts';
 import { isPythonSpec } from '../check/python.ts';
 import { COMPOSER_PREFIX } from '../policy/package-pattern.ts';
 import { isComposerSpec } from '../check/composer.ts';
+import { findComposerCommand } from '../check/composer-commands.ts';
 import { packagistUrl } from '../check/packagist.ts';
+import { knowledgeBase } from '../knowledge/index.ts';
 import { blockingExitCode, decide, formatDecision, hookEventExample, readHookEvent, reasonText, requestedSpecs, UNREAD_REGISTRY_FIX_START, type PlacedRequest } from '../check/hook.ts';
 import { missingDirectory, notVirtualEnvironment, overrideDoubt, TOO_MANY, unknownDirectory, type CommandDirectory, type Override } from '../check/command.ts';
 import { defaultRegistry, type FetchLike, isLinkLocal, type LookupCache } from '../check/registry.ts';
@@ -40,7 +42,7 @@ import {
 import { quoted } from '../check/findings.ts';
 import { PopularNames } from '../check/similar.ts';
 import { values } from '../apply/facts.ts';
-import type { ToolId } from '../knowledge/types.ts';
+import type { CommandNamesKnowledge, ToolId } from '../knowledge/types.ts';
 import { popularPackages } from '../knowledge/popular.ts';
 import { popularPythonPackages } from '../knowledge/popular-python.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
@@ -434,11 +436,13 @@ function unreadFinding(setting: UnreadSetting, report: PackageReport, applied: P
   if (setting.composer !== undefined) {
     // depcurfew asks Packagist only, and has no option to ask another repository (decision D-133).
     const fix = `the package in the repositories that ${setting.file} declares: depcurfew checks only Packagist (${used}), so it cannot vouch for a package from another repository`;
+    // The package is not looked up on Packagist, so that a private name does not leave the machine (decision D-136).
+    const skipped = `depcurfew checks only Packagist (${used}), so it did not look the package up`;
     if (setting.composer.kind === 'packagist-off') {
-      return finding(`the install would not use Packagist: ${where} turns packagist.org off, so the package comes from the other repositories it declares; depcurfew checked ${used}`, fix);
+      return finding(`the install would not use Packagist: ${where} turns packagist.org off, so the package comes from the other repositories it declares; ${skipped}`, fix);
     }
     const repository = `the ${setting.composer.type} repository${value === undefined ? '' : ` ${value}`}`;
-    return finding(`the install may take it from ${repository} that ${where} declares, which Composer asks before Packagist; depcurfew checked only ${used}`, fix);
+    return finding(`the install may take it from ${repository} that ${where} declares, which Composer asks before Packagist; ${skipped}`, fix);
   }
   if (setting.applies === 'tag') {
     return finding(
@@ -508,13 +512,29 @@ function toolSettings(requests: readonly CheckRequest[], applied: Pick<AppliedPo
   return { unread: found.flatMap((entry) => entry.unread), skipped: found.flatMap((entry) => entry.skipped) };
 }
 
+/** Composer's command names (extra.commandNames), for the words the scripts of composer.json may change (decision D-136). */
+function composerCommandNames(): CommandNamesKnowledge | undefined {
+  const composer = knowledgeBase.find((tool) => tool.id === 'composer');
+  const fact = composer?.extra?.['commandNames'];
+  return fact === undefined ? undefined : (values(fact)[0] as CommandNamesKnowledge | undefined);
+}
+
 /**
- * The requests of composer update without a constraint (fromManifest), with the constraint the root composer.json
- * requires; a package it does not require is left out, as composer update picks its version within what the packages
- * that require it allow, which depcurfew does not know (decision D-133).
+ * The requests of a Composer command as the root composer.json makes them: a command word that, with the scripts of
+ * composer.json registered as commands, no longer stands for the command it was read as (a script, which runs as
+ * composer run-script does, or an ambiguous word) installs nothing of its own (decision D-136); composer update without
+ * a constraint (fromManifest) gets the constraint the root composer.json requires, and a package it does not require
+ * is left out, as composer update picks its version within what the packages that require it allow, which depcurfew
+ * does not know (decision D-133).
  */
 function withManifestConstraints(requests: readonly CheckRequest[], composer: ComposerProject | undefined): CheckRequest[] {
+  const names = composer?.scripts === undefined ? undefined : composerCommandNames();
   return requests.flatMap((request): CheckRequest[] => {
+    const word = request.composerCommand;
+    if (word !== undefined && names !== undefined) {
+      const found = findComposerCommand(names, word.word, composer?.scripts);
+      if (found?.kind !== 'command' || found.name !== word.command) return [];
+    }
     if (request.fromManifest !== true) return [request];
     const name = request.spec.trim().slice(COMPOSER_PREFIX.length).toLowerCase();
     const constraint = request.readsManifest === false ? undefined : composer?.requires.get(name);
@@ -557,16 +577,20 @@ export async function checkApplied(given: readonly CheckRequest[], applied: Appl
     popularPython: popularPython(),
     scopeRegistries: applied.scopes,
     lookups,
-    // A scope whose registry is set elsewhere, to another registry than depcurfew would ask, is not looked up.
+    // A scope whose registry is set elsewhere, to another registry than depcurfew would ask, is not looked up; nor is a
+    // Composer package when the root composer.json declares another repository (decision D-136).
     skipLookup: (name: string, tool: ToolId | undefined, request?: Omit<CheckRequest, 'spec'>) =>
-      unread.some(
-        (setting) =>
-          setting.applies === 'scope' &&
-          setting.scope === scopeOf(name) &&
-          (setting.tool === 'npm' || setting.tool === tool) &&
-          readsSetting(setting, request ?? { ...(tool === undefined ? {} : { tool }) }) &&
-          changesTheCheck(setting, applied.scopes.get(setting.scope) ?? applied.registry.url),
-      ),
+      isComposerSpec(name)
+        ? request?.readsManifest !== false && unread.some((setting) => setting.tool === 'composer')
+        : unread.some(
+            (setting) =>
+              setting.applies === 'scope' &&
+              setting.scope === scopeOf(name) &&
+              (setting.tool === 'npm' || setting.tool === tool) &&
+              readsSetting(setting, request ?? { ...(tool === undefined ? {} : { tool }) }) &&
+              changesTheCheck(setting, applied.scopes.get(setting.scope) ?? applied.registry.url),
+          ),
+    ...(composer?.stability === undefined || composer.file === undefined ? {} : { composerStability: { ...composer.stability, file: composer.file } }),
     ...(settings.index === undefined ? {} : { index: applied.index }),
     ...(applied.tag === undefined ? {} : { defaultTag: applied.tag.value }),
     ...(settings.scriptBodies === undefined ? {} : { scriptBodies: settings.scriptBodies }),

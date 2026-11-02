@@ -50,14 +50,14 @@ describe('depcurfew check on composer: packages', () => {
       {
         level: 'error',
         code: 'too-young',
-        message: 'composer:guzzlehttp/guzzle 8.3.1 was published on Packagist 7 days ago; depcurfew.json requires 2 weeks (composer:guzzlehttp/guzzle 8.3.0 is old enough)',
-        fix: 'Install composer:guzzlehttp/guzzle:8.3.0 instead, or wait until composer:guzzlehttp/guzzle 8.3.1 is 2 weeks old',
+        message: 'composer:guzzlehttp/guzzle:8.3.1 was published on Packagist 7 days ago; depcurfew.json requires 2 weeks (composer:guzzlehttp/guzzle:8.3.0 is old enough)',
+        fix: 'Install composer:guzzlehttp/guzzle:8.3.0 instead, or wait until composer:guzzlehttp/guzzle:8.3.1 is 2 weeks old',
       },
     ]);
     // intercom/intercom-php 5.0.2: its author-set time is 2026-01-30, Packagist published it on 2026-04-30.
     const long = policy({ cooldown: { minimum: '200d' } });
     const counted = await checkSpec('composer:intercom/intercom-php:5.0.2', options({ policy: long }));
-    expect(counted.findings[0]?.message).toBe('composer:intercom/intercom-php 5.0.2 was published on Packagist 185 days ago; depcurfew.json requires 200 days');
+    expect(counted.findings[0]?.message).toBe('composer:intercom/intercom-php:5.0.2 was published on Packagist 185 days ago; depcurfew.json requires 200 days');
   });
 
   it('skips the cooldown for composer: exceptions only', async () => {
@@ -172,7 +172,7 @@ describe('depcurfew check on composer: packages', () => {
       {
         level: 'error',
         code: 'install-scripts',
-        message: 'composer:php-http/discovery 1.20.0 is a Composer plugin (type composer-plugin), whose code runs during Composer commands, and depcurfew.json does not allow it (installScripts)',
+        message: 'composer:php-http/discovery:1.20.0 is a Composer plugin (type composer-plugin), whose code runs during Composer commands, and depcurfew.json does not allow it (installScripts)',
         fix: 'Pick a package that is not a plugin, or add composer:php-http/discovery to installScripts.allow in depcurfew.json if you trust it',
       },
     ]);
@@ -191,7 +191,7 @@ describe('depcurfew check on composer: packages', () => {
       const fetch = metadata([{ version: '1.0.0', version_normalized: '1.0.0.0', 'published-time': '2025-01-01T00:00:00+00:00', type }]);
       const report = await checkSpec('composer:acme/tool:^1.0', options({ fetch }));
       expect(report.findings.map((finding) => [finding.code, finding.message]), type).toEqual([
-        ['install-scripts', `composer:acme/tool 1.0.0 is a Composer plugin (type ${type.toLowerCase()}), whose code runs during Composer commands, and depcurfew.json does not allow it (installScripts)`],
+        ['install-scripts', `composer:acme/tool:1.0.0 is a Composer plugin (type ${type.toLowerCase()}), whose code runs during Composer commands, and depcurfew.json does not allow it (installScripts)`],
       ]);
     }
   });
@@ -233,8 +233,8 @@ describe('depcurfew check on composer: packages', () => {
       {
         level: 'error',
         code: 'unverified',
-        message: 'Packagist gives no publication time (published-time) for composer:acme/tool 1.0.0, so its age cannot be checked, and Composer 2.11 refuses it while a cooldown is set',
-        fix: 'Check when composer:acme/tool 1.0.0 was published before installing it, or pick a version that Packagist dates',
+        message: 'Packagist gives no publication time (published-time) for composer:acme/tool:1.0.0, so its age cannot be checked, and Composer 2.11 refuses it while a cooldown is set',
+        fix: 'Check when composer:acme/tool:1.0.0 was published before installing it, or pick a version that Packagist dates',
       },
     ]);
     expect(codes((await checkSpec('composer:acme/tool', options({ fetch }))).findings)).toEqual(['error:too-young', 'error:install-scripts', 'warning:deprecated']);
@@ -266,7 +266,7 @@ describe('depcurfew check on composer: packages', () => {
     expect((await reason(async () => Promise.reject(new TypeError('fetch failed'))))?.message).toBe('it cannot be checked: Packagist cannot be reached (fetch failed)');
     const many = { packages: { 'monolog/monolog': Array.from({ length: 100_001 }, () => ({})) }, minified: 'composer/2.0' };
     expect((await reason(answer(() => new Response(JSON.stringify(many), { status: 200 }))))?.message).toBe(
-      'it cannot be checked: the repository lists more than 100000 versions of monolog/monolog, more than depcurfew reads of one package, so its versions were not checked',
+      'it cannot be checked: the repository lists more than 10000 versions of monolog/monolog, more than depcurfew reads of one package, so its versions were not checked',
     );
   });
 });

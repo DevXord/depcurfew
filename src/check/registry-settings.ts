@@ -24,6 +24,8 @@ import { iniEntries, jsonSetting } from '../doctor/settings.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type {
   CommandLineParsing,
+  ComposerRootStabilityKnowledge,
+  ComposerScriptCommandsKnowledge,
   IndexEntriesKnowledge,
   IndexEntryEffect,
   NpmLocalPrefixKnowledge,
@@ -37,6 +39,7 @@ import { normalizePythonName } from '../policy/python-names.ts';
 import { withoutCredentials } from '../printable.ts';
 import { readLimited } from '../read-limited.ts';
 import { readYamlDocument } from '../yaml-parse.ts';
+import { scriptCommands, type ScriptCommands } from './composer-commands.ts';
 import { defaultIndex } from './pypi.ts';
 import { isMap, isScalar, type Node } from 'yaml';
 
@@ -510,6 +513,39 @@ export interface ComposerProject {
   /** The constraints of require and require-dev, by the package name in lower case. */
   requires: ReadonlyMap<string, string>;
   skipped: SkippedFile[];
+  /** minimum-stability (normalized as Composer does) and prefer-stable, when the file sets them (decision D-136). */
+  stability?: ComposerStability;
+  /** The scripts Composer registers as commands, when there are any it would accept (decision D-136). */
+  scripts?: ScriptCommands;
+}
+
+/** How the root composer.json picks the stability of versions: minimum-stability and prefer-stable (decision D-136). */
+export interface ComposerStability {
+  minimum?: string;
+  preferStable: boolean;
+}
+
+/** minimum-stability and prefer-stable as RootPackageLoader reads them (extra.rootStability); undefined when neither is set. */
+function composerStability(manifest: Record<string, unknown>): ComposerStability | undefined {
+  const composer = knowledgeBase.find((tool) => tool.id === 'composer');
+  const facts = composer?.extra?.['rootStability'] === undefined ? undefined : (values(composer.extra['rootStability'])[0] as ComposerRootStabilityKnowledge | undefined);
+  if (facts === undefined) return undefined;
+  const minimum = manifest[facts.minimumStability];
+  const prefer = manifest[facts.preferStable];
+  if (minimum === undefined && prefer === undefined) return undefined;
+  // normalizeStability: lower case, RC for rc; another value makes Composer stop, so it changes nothing here.
+  const lower = typeof minimum === 'string' ? minimum.toLowerCase() : undefined;
+  const normalized = lower !== undefined && facts.values.includes(lower) ? (lower === 'rc' ? 'RC' : lower) : undefined;
+  // (bool) in PHP: false, 0, "", "0", null and [] are false.
+  const preferStable = !(prefer === undefined || prefer === null || prefer === false || prefer === 0 || prefer === '' || prefer === '0' || (Array.isArray(prefer) && prefer.length === 0));
+  return { ...(normalized === undefined ? {} : { minimum: normalized }), preferStable };
+}
+
+/** The scripts of composer.json that Composer would register as commands (extra.scriptCommands). */
+function composerScripts(manifest: Record<string, unknown>): ScriptCommands | undefined {
+  const composer = knowledgeBase.find((tool) => tool.id === 'composer');
+  const facts = composer?.extra?.['scriptCommands'] === undefined ? undefined : (values(composer.extra['scriptCommands'])[0] as ComposerScriptCommandsKnowledge | undefined);
+  return facts === undefined ? undefined : scriptCommands(manifest, facts);
 }
 
 /** Composer's names for its repositories setting and for the entry that turns Packagist off (extra.repositoryTypes). */
@@ -547,7 +583,16 @@ export function composerProject(start: string, top: string): ComposerProject {
         return { ...empty, file, skipped: [{ file, reason: 'it cannot be parsed' }] };
       }
       if (!isRecord(manifest)) return { ...empty, file, skipped: [{ file, reason: 'it is not a JSON object' }] };
-      return { file, unread: composerRepositories(read.text, manifest, file, facts), requires: composerRequires(manifest), skipped: [] };
+      const stability = composerStability(manifest);
+      const scripts = composerScripts(manifest);
+      return {
+        file,
+        unread: composerRepositories(read.text, manifest, file, facts),
+        requires: composerRequires(manifest),
+        skipped: [],
+        ...(stability === undefined ? {} : { stability }),
+        ...(scripts === undefined ? {} : { scripts }),
+      };
     }
     if (directory === last || !isInside(last, directory) || dirname(directory) === directory) return empty;
   }

@@ -217,7 +217,7 @@ export async function checkSpec(request: string | CheckRequest, options: CheckOp
   const { spec: raw, ...chosen } = typeof request === 'string' ? { spec: request } : request;
   if (isPythonSpec(raw)) return checkPythonSpec(raw, options, chosen);
   // Composer packages are looked up in Packagist (decision D-133).
-  if (isComposerSpec(raw)) return checkComposerSpec(raw, options);
+  if (isComposerSpec(raw)) return checkComposerSpec(raw, options, chosen);
   const spec = parseSpec(raw);
   if (spec === undefined) {
     const finding: CheckFinding = { level: 'error', code: 'invalid-spec', message: `"${raw}" is not a package spec`, fix: 'Write it as name, name@version, name@range or name@tag' };

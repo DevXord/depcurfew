@@ -369,7 +369,8 @@ const COMMAND_NAMES = {
 		u: "update",
 		upgrade: "update"
 	},
-	matching: "symfony-console"
+	matching: "symfony-console",
+	hidden: ["_complete"]
 };
 const noSetting$6 = (kind) => ({ setting: uncertain$11(null, `${SCHEMA$2}#repositories`, `No setting allows or forbids ${kind} dependencies (concluded from the config options in 06-config.md). Such packages come only from repositories declared in the root composer.json: "Repositories are not resolved recursively. You can only add them to your main composer.json. Repository declarations of dependencies' composer.jsons are ignored."`) });
 const composer$3 = {
@@ -798,7 +799,7 @@ const composer$3 = {
 			],
 			parsing: { groupedShortOptions: true }
 		}, CLI$1, "composer require (alias r) takes packages as \"vendor/package:2.*\" or vendor/package2:dev-master, and picks a constraint itself for a package without one; composer global <command> runs the command \"as if you were running them from the COMPOSER_HOME directory\"; composer create-project <package> [<directory>] [<version>]; composer update (u, upgrade) takes packages, wildcards and constraints vendor/package:2.0.1, and --with foo/bar:1.0.0. \"As Composer uses symfony/console you can call commands by short name if it's not ambiguous\" (commandNames). The options with a value of require, update, create-project, install, config and repository (InputOption VALUE_REQUIRED or VALUE_OPTIONAL in src/Composer/Command/*Command.php at 2.11.1) and the global --working-dir (-d) of src/Composer/Console/Application.php; symfony/console v5.4.55 (Input/ArgvInput.php) groups short options (-nd dir), takes a value attached (-ddir, --working-dir=dir) or the next word when it does not start with -, accepts options before and after the command, reads every word after -- as an argument and does not shorten long options."),
-		commandNames: verified$13(COMMAND_NAMES, `${CONSOLE}/Application.php`, "Application::find: an exact command name or alias; otherwise every name and alias that starts with the word (for each part between colons), first with case and then without, aliases of a command already in the list left out; one command is run, more are ambiguous (an error) and none is not defined. The names and aliases are those of Composer's getDefaultCommands (src/Composer/Console/Application.php at 2.11.1, setName and setAliases in each src/Composer/Command/*Command.php) and of symfony/console (help, list, completion and the hidden _complete). Scripts of composer.json and commands of plugins are added as commands too, unless a command of that name exists."),
+		commandNames: verified$13(COMMAND_NAMES, `${CONSOLE}/Application.php`, "Application::find: an exact command name or alias; otherwise every name and alias that starts with the word (for each part between colons, a name with more parts too), first with case and then without (ASCII letters only, PCRE without u), of which one must match the word whole; an alias is left out when the name of its command is in the list, a hidden command (_complete) when others remain; one name is run, more are ambiguous (an error) and none is not defined. The names and aliases are those of Composer's getDefaultCommands (src/Composer/Console/Application.php at 2.11.1, setName and setAliases in each src/Composer/Command/*Command.php) and of symfony/console (help, list, completion and the hidden _complete). Scripts of composer.json (extra.scriptCommands) and commands of plugins are added as commands too, unless a command of that name exists."),
 		commandArguments: verified$13({
 			require: "require",
 			update: "update",
@@ -809,8 +810,8 @@ const composer$3 = {
 				"=",
 				" "
 			],
-			platformPackages: "^(?:php(?:-64bit|-ipv6|-zts|-debug)?|hhvm|(?:ext|lib)-[a-z0-9](?:[_.-]?[a-z0-9]+)*|composer(?:-(?:plugin|runtime)-api)?)$",
-			namePattern: "^[a-z0-9]([_.-]?[a-z0-9]+)*/[a-z0-9](([_.]|-{1,2})?[a-z0-9]+)*$",
+			platformPackages: "^(?:php(?:-64bit|-ipv6|-zts|-debug)?|hhvm|(?:ext|lib)-[a-z0-9]+(?:[_.-][a-z0-9]+)*|composer(?:-(?:plugin|runtime)-api)?)$",
+			namePattern: "^[a-z0-9]+(?:[_.-][a-z0-9]+)*/[a-z0-9]+(?:(?:[_.]|-{1,2})[a-z0-9]+)*$",
 			updateLockWords: [
 				"lock",
 				"nothing",
@@ -819,13 +820,13 @@ const composer$3 = {
 			withOption: "--with",
 			requireOption: "--require",
 			stabilityOptions: ["--stability", "-s"]
-		}, `${SRC}/Package/Version/VersionParser.php`, "parseNameVersionPairs: an argument is split at the first =, : or space after the name; an argument without one takes the next argument as its constraint when that has no /, no * next to a letter, digit, _, / or - and is no platform package. require and create-project read their packages so (RequireCommand via PackageDiscoveryTrait, CreateProjectCommand::installRootPackage); update moves an argument with a constraint (\\S+[ =:]\\S+) to the temporary constraints of --with and takes lock, nothing and mirrors as --lock (UpdateCommand.php). create-project takes its stability from --stability (-s), else from the @<stability> of its version, else from the version itself. Platform packages are PlatformRepository::PLATFORM_PACKAGE_REGEX (case-insensitive). The name pattern is the one 04-schema.md#name gives; Composer lowercases the names it looks up."),
+		}, `${SRC}/Package/Version/VersionParser.php`, "parseNameVersionPairs: an argument is split at the first =, : or space after the name; an argument without one takes the next argument as its constraint when that has no /, no * next to a letter, digit, _, / or - and is no platform package. require and create-project read their packages so (RequireCommand via PackageDiscoveryTrait, CreateProjectCommand::installRootPackage); update moves an argument with a constraint (\\S+[ =:]\\S+) to the temporary constraints of --with and takes lock, nothing and mirrors as --lock (UpdateCommand.php). create-project takes its stability from --stability (-s), else from the @<stability> of its version, else from the version itself. Platform packages are PlatformRepository::PLATFORM_PACKAGE_REGEX (case-insensitive). The name pattern is the one 04-schema.md#name gives (ValidatingArrayLoader::hasPackageNamingError checks the same with possessive quantifiers); Composer lowercases the names it looks up. Both are written here as patterns of the same names whose repeated group starts with its separator (X+(?:[sep]X+)*, decision D-136), so that a long name that fails at its end is read in linear time: X(?:[sep]?X+)* can split a run of letters in exponentially many ways."),
 		registryOverrides: verified$13({
 			registryOptions: ["--repository", "--repository-url"],
 			registryVariables: [],
 			configOptions: [],
-			configVariables: ["COMPOSER"]
-		}, `${CLI$1}#create-project`, "create-project --repository \"Provide a custom repository to search for the package, which will be used instead of packagist\" (and --repository-url, CreateProjectCommand.php at 2.11.1). COMPOSER sets the file name of composer.json, whose repositories then apply (#composer). Other commands take their repositories from composer.json only."),
+			configVariables: ["COMPOSER", "COMPOSER_HOME"]
+		}, `${CLI$1}#create-project`, "create-project --repository \"Provide a custom repository to search for the package, which will be used instead of packagist\" (and --repository-url, CreateProjectCommand.php at 2.11.1). COMPOSER sets the file name of composer.json, whose repositories then apply (#composer). COMPOSER_HOME sets the home directory (Factory::getHomeDir: \"if ($home = Platform::getEnv('COMPOSER_HOME')) return $home\"), whose config.json Factory::createConfig merges under the configuration of every project, its repositories included (03-cli.md#composer-home-config-json), and in which composer global runs, with the composer.json there (GlobalCommand::prepareSubcommandInput changes to the home directory of the configuration). Other commands take their repositories from composer.json only."),
 		installOverrides: verified$13({
 			options: [
 				{
@@ -967,6 +968,116 @@ const composer$3 = {
 				writes: ["add-source"]
 			}
 		], `${CLI$1}#config`, "composer config [options] [setting-key] [setting-value1] ... changes a setting of composer.json (with --global, -g, of COMPOSER_HOME/config.json), --unset removes one and --editor (-e) opens the file; with a key alone it shows the value (src/Composer/Command/ConfigCommand.php at 2.11.1). composer repository (repo) add, remove (rm, delete), set-url (seturl), enable and disable change the repositories, list (ls, show) and get-url (geturl) only read them (RepositoryCommand.php). composer policy add-source changes config.policy (PolicyCommand.php). The same commands after composer global change the files of COMPOSER_HOME."),
+		applicationOptions: verified$13([
+			{
+				name: "help",
+				shortcuts: ["h"],
+				value: "none"
+			},
+			{
+				name: "quiet",
+				shortcuts: ["q"],
+				value: "none"
+			},
+			{
+				name: "verbose",
+				shortcuts: [
+					"v",
+					"vv",
+					"vvv"
+				],
+				value: "none"
+			},
+			{
+				name: "version",
+				shortcuts: ["V"],
+				value: "none"
+			},
+			{
+				name: "ansi",
+				shortcuts: [],
+				value: "negatable"
+			},
+			{
+				name: "no-interaction",
+				shortcuts: ["n"],
+				value: "none"
+			},
+			{
+				name: "profile",
+				shortcuts: [],
+				value: "none"
+			},
+			{
+				name: "no-plugins",
+				shortcuts: [],
+				value: "none"
+			},
+			{
+				name: "no-scripts",
+				shortcuts: [],
+				value: "none"
+			},
+			{
+				name: "working-dir",
+				shortcuts: ["d"],
+				value: "required"
+			},
+			{
+				name: "no-cache",
+				shortcuts: [],
+				value: "none"
+			}
+		], `${SRC}/Console/Application.php`, "Composer finds the command name before it knows the command (getCommandNameBeforeBinding: \"This ensures we can find the correct command name even if a global input option is present before it\"): it binds the words to the input definition of the application, ignoring the error that stops the binding (an option it does not define, a missing value, a second argument), and takes $input->getFirstArgument(). The definition is that of symfony/console (Application::getDefaultInputDefinition at v5.4.55: the command argument, --help -h, --quiet -q, --verbose -v|vv|vvv, --version -V, --ansi|--no-ansi, --no-interaction -n) with the --profile, --no-plugins, --no-scripts, --working-dir -d (with a value) and --no-cache of Composer. ArgvInput::getFirstArgument (v5.4.55) passes over each word that starts with -, and also over the next word when the option is one the binding set (a long name, or the last letter of a short one) and that word equals its bound value; the first other word is the command. So only -d and --working-dir take the word after them before the command, an option of a command (--ignore-platform-req) does not, and that command later binds the word after it as its value (Input/ArgvInput.php: parse, addLongOption, parseShortOptionSet)."),
+		scriptCommands: verified$13({
+			scripts: "scripts",
+			aliases: "scripts-aliases",
+			events: [
+				"pre-install-cmd",
+				"post-install-cmd",
+				"pre-update-cmd",
+				"post-update-cmd",
+				"pre-status-cmd",
+				"post-status-cmd",
+				"pre-autoload-dump",
+				"post-autoload-dump",
+				"post-root-package-install",
+				"post-create-project-cmd",
+				"pre-archive-cmd",
+				"post-archive-cmd"
+			],
+			validName: "^[^:]+(?::[^:]+)*$"
+		}, `${SRC}/Console/Application.php`, "doRunComposer registers the scripts of the composer.json it runs with (Factory::getComposerFile, after -d) as commands when the command word is not the exact name of a command Composer found before (mayNeedScriptCommand: \"$rawCommandName !== $commandName\", so also for an alias, an abbreviation, another case or a word that names no command) or the command is run-script. Each key of scripts that is no event (the constants of src/Composer/Script/ScriptEvents.php, compared in upper case with - as _) and not already a command or alias ($this->has($script): \"A script named ... would override a Composer command and has been skipped\") becomes a ScriptAliasCommand with the aliases that scripts-aliases gives it. Application::add of symfony/console (v5.4.55) maps the name and each alias to it, over an alias or name of another command; Command::setName and setAliases reject a name that is not parts without a colon separated by single colons (validateName), and ScriptAliasCommand an alias that is not a string, which stops Composer. find() then resolves the word among all of them: the exact name or alias, else the names that start with it. ScriptAliasCommand runs the script as composer run-script does (src/Composer/Command/ScriptAliasCommand.php)."),
+		rootStability: verified$13({
+			minimumStability: "minimum-stability",
+			preferStable: "prefer-stable",
+			values: [
+				"stable",
+				"rc",
+				"beta",
+				"alpha",
+				"dev"
+			]
+		}, `${SRC}/Package/Loader/RootPackageLoader.php`, "RootPackageLoader reads minimum-stability of the root composer.json through VersionParser::normalizeStability (composer/semver 3.6.0: lower case, one of stable, RC, beta, alpha and dev, else an exception) and prefer-stable as (bool) $config['prefer-stable']. composer require without a constraint takes the minimum stability of composer.json (PackageDiscoveryTrait::getMinimumStability) for the versions it considers and asks VersionSelector::findBestCandidate for a version with the preferred stability \"stable\" under prefer-stable, else the minimum stability (RequireCommand.php): versions at least that stable come first, the highest of them, else the most stable of the others. The solver orders the versions a constraint allows with DefaultPolicy::versionCompare: with prefer-stable the more stable one first, else the higher version, which a branch (dev-main aliased 3.x-dev) is. All at 2.11.1 (src/Composer/Package/Version/VersionSelector.php, src/Composer/DependencyResolver/DefaultPolicy.php, src/Composer/Command/PackageDiscoveryTrait.php)."),
+		installPreference: verified$13({
+			setting: "preferred-install",
+			default: "dist",
+			dist: "dist",
+			source: "source",
+			auto: "auto",
+			everything: "*"
+		}, `${SRC}/Downloader/DownloadManager.php`, "DownloadManager::getAvailableSources offers source before dist (each only with a type) and reverses them \"in case dist is the preferred source for this package\": unless preferSource, when preferDist or resolvePackageInstallPreference says dist. BaseCommand::getPreferredInstallOptions sets preferSource for config.preferred-install \"source\" and preferDist for \"dist\" (Config::$defaultConfig has \"dist\"), and neither for \"auto\", another string or an object; Factory::createDownloadManager hands an object to setPreferences. resolvePackageInstallPreference takes the first key that matches the package name ({^pattern$}i with * as .*): \"dist\", or \"auto\" for a version that is not dev, gives dist, any other value source; with no match, source for a dev version (a branch) and dist for others. Config::merge turns the default \"dist\" into {\"*\": \"dist\"} under an object of composer.json and moves the \"*\" key to the end. --prefer-source, --prefer-dist and --prefer-install override it for one command. All at 2.11.1 (src/Composer/Command/BaseCommand.php, src/Composer/Factory.php, src/Composer/Config.php)."),
+		sourceFallback: verified$13({
+			since: "2.10.0",
+			setting: "source-fallback",
+			removedIn: "2.11.0"
+		}, CHANGELOG$3, "2.10.0: \"Disabled automatic fallback to source checkout if dist/zip install fails, we have introduced a new source-fallback config option as a temporary way to restore the old behavior\" (#12885); 2.11.0-RC1: \"Removed the source-fallback config option which was added in 2.10 as a temporary measure, dist installs no longer fall back to source\" (#13050). DownloadManager::download at 2.11.1 only falls back from source to dist (\"Only fallback from dist to source is risky as it can silently switch to less-trusted code\"). Composer before 2.10.0 installs a package from its source when the download of its archive fails."),
+		registrySourceHosts: verified$13({
+			"api.github.com": "github.com",
+			"gitlab.com": "gitlab.com",
+			"bitbucket.org": "bitbucket.org",
+			"codeberg.org": "codeberg.org"
+		}, `${SRC}/Repository/Vcs/GitHubDriver.php`, "The host of the source that the VCS driver gives a package whose archive comes from a host of registryDistHosts: GitHubDriver::getSource https://github.com/<owner>/<repo>.git (git@github.com:<owner>/<repo>.git for a private repository) beside its archive on api.github.com; GitLabDriver::getSource the http_url_to_repo or ssh_url_to_repo of the project on gitlab.com; GitBitbucketDriver::getSource the URL of the repository on bitbucket.org; ForgejoDriver::getSource its clone URL on codeberg.org (src/Composer/Repository/Vcs/*Driver.php at 2.11.1)."),
 		directoryOptions: verified$13({
 			options: [{
 				name: "--working-dir",
@@ -975,8 +1086,9 @@ const composer$3 = {
 				name: "-d",
 				moves: "directory"
 			}],
-			variables: []
-		}, `${CLI$1}#global-options`, "\"--working-dir (-d): If specified, use the given directory as working directory.\" Application::doRunComposer changes to it before it reads composer.json (src/Composer/Console/Application.php at 2.11.1). Without it and without composer.json in the current directory, an interactive run asks whether to use the nearest parent that has one, and use-parent-dir true does so without asking.")
+			variables: [],
+			lookup: "first-token"
+		}, `${CLI$1}#global-options`, "\"--working-dir (-d): If specified, use the given directory as working directory.\" Application::doRunComposer changes to it before it reads composer.json (src/Composer/Console/Application.php at 2.11.1). Without it and without composer.json in the current directory, an interactive run asks whether to use the nearest parent that has one, and use-parent-dir true does so without asking. getNewWorkingDir reads the directory with $input->getParameterOption(['--working-dir', '-d'], null, true), which in symfony/console v5.4.55 (Input/ArgvInput.php) takes the first word, up to --, that is --working-dir or -d (then the next word) or starts with --working-dir= or -d (then the rest of the word); a grouped -nd dir does not start with -d, so Composer stays where it is, although the command later binds -n and -d dir as options.")
 	}
 };
 
@@ -1313,6 +1425,11 @@ const dependabot$1 = {
 			composer: ["composer"]
 		}, `${OPTIONS$1}#package-ecosystem`, "The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). composer covers Composer v2. Cooldown, including the semver-* keys, is supported for all of them (the cooldown table of the same page lists Composer with default and SemVer-bump days, read 2026-11-02). PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0)."),
 		yamlAliases: bots$1.verified({ accepted: false }, "https://github.com/dependabot/dependabot-core/blob/v0.402.0/common/lib/dependabot/config/file.rb", "Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load(config, symbolize_names: true); Psych.safe_load takes aliases: false unless told otherwise and raises Psych::AliasesNotEnabled on an alias (*name), so a file with one is not read. The issue that asks for aliases (https://github.com/dependabot/dependabot-core/issues/1582, \"YAML aliases\", open and labelled Keep on 2026-11-02) quotes the error users get, \"YAML aliases are not supported\"; the pull request that would allow them (#9653) is open and not merged. The reference of dependabot.yml (dependabot-options-reference.md in github/docs) does not mention anchors or aliases. An anchor (&name) that no alias refers to changes nothing."),
+		yamlScalars: bots$1.verified({
+			library: "psych",
+			version: "5.5.0",
+			integers: "legacy"
+		}, "https://github.com/ruby/psych/blob/v5.5.0/lib/psych/scalar_scanner.rb", "Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load (dependabot-core v0.402.0, common/lib/dependabot/config/file.rb), which is Psych: Ruby 4.0.5 (.ruby-version) with psych 5.5.0 (Gemfile.lock of dependabot-core at v0.402.0). ScalarScanner#tokenize reads a plain scalar in this order: words, booleans (yes, no, on, off, true, false) and null; times and dates; .inf and .nan; :symbols; base 60 integers [-+]?[0-9][0-9_]*(:[0-5]?[0-9]){1,2}, summed as part * 60 ** (index - 2).abs, so 1:30 is 5400; floats with a dot; then INTEGER_LEGACY, the default without strict_integer: 0b binary, 0 followed by octal digits, decimal without a leading zero, 0x hex, each with _ and , allowed, read with Integer(string.delete(',_')), so 010 is 8, 1_0 and 1,0 are 10; anything else, 0o12 and 08 too, is a string."),
 		githubActions: bots$1.verified({
 			ecosystem: "github-actions",
 			semverDays: false
@@ -1691,7 +1808,7 @@ const npm$1 = {
 			extension: ".tgz",
 			scopeSeparator: "/|%2f",
 			version: "semver"
-		}, "https://github.com/npm/cli/blob/v12.2.1/workspaces/arborist/lib/version-from-tgz.js", "What npm installs for an entry of package-lock.json is the tarball of resolved (after replace-registry-host), whatever its version field says: #extractOrLink in workspaces/arborist/lib/arborist/reify.js extracts <name>@<resolved> when resolved is set, and <name>@<version> only without it (12.2.1; the same code in 10.9.9). The allowScripts matcher of npm 12.2.1 takes the name and version of a registry package from resolved with this function (getTrustedRegistryIdentity in workspaces/arborist/lib/script-allowed.js: \"Never use node.packageName / node.version here: those read from the tarball's own package.json and can be forged\"): the path part after the last /-/ must be the file name of the URL, the part before it ends with the name, with the scope before it when that starts with @ (separated by / or %2f), and the file name is <name>-<version>.tgz with a version that semver.parse reads (semver 7.8.5 in npm 12.2.1: three numbers without leading zeros, an optional pre-release and build, an optional leading v, at most 256 characters; the version drops the v and the build). A path in another layout gives no name and version."),
+		}, "https://github.com/npm/cli/blob/v12.2.1/workspaces/arborist/lib/version-from-tgz.js", "What npm installs for an entry of package-lock.json is the tarball of resolved (after replace-registry-host), whatever its version field says: #extractOrLink in workspaces/arborist/lib/arborist/reify.js extracts <name>@<resolved> when resolved is set, and <name>@<version> only without it (12.2.1; the same code in 10.9.9). The allowScripts matcher of npm 12.2.1 takes the name and version of a registry package from resolved with this function (getTrustedRegistryIdentity in workspaces/arborist/lib/script-allowed.js: \"Never use node.packageName / node.version here: those read from the tarball's own package.json and can be forged\"): the path part after the last /-/ must be the file name of the URL, the part before it ends with the name, with the scope before it when that starts with @ (separated by / or %2f), and the file name is <name>-<version>.tgz with a version that semver.parse reads (semver 7.8.5 in npm 12.2.1: three numbers without leading zeros, an optional pre-release and build, an optional leading v, at most 256 characters; the version drops the v and the build). A path in another layout gives no name and version. versionFromTgz reads the whole URL, so a query or a fragment after the file name (.tgz?x=1, .tgz#x) gives none either, while npm still fetches the tarball: pacote 22.0.0 (the version npm 12.2.1 locks) fetches resolved as it is, or, when replace-registry-host replaces its host, new URL(path, registry) without query or fragment (lib/remote.js), and minipass-fetch 6.0.0 requests pathname and search, never the fragment (lib/request.js). The registry serves the file the path names, with its percent-escapes decoded as an HTTP server reads a path (decision D-136)."),
 		lockfileFormat: checked$5.verified({
 			installScripts: "hasInstallScript",
 			gitPrefixes: ["git+", "git:"],
@@ -4427,7 +4544,7 @@ const pnpm$1 = {
 			value: "lockfile entries are re-checked; trustLockfile: true (11.3.0) turns this off"
 		}], release$3("11.1.3"), "The 11.1.3 release notes confirm re-validation (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). The pnpm 10 behavior rests on maintainer comments in pnpm/pnpm#12450 (a Dependabot lockfile passed --frozen-lockfile on 10.34.5), not on docs."),
 		unknownWorkspaceKeys: verified$6("pnpm 11 and earlier silently ignore misspelled pnpm-workspace.yaml settings; pnpm 12 warns", "https://pnpm.io/blog/releases/12.0"),
-		tarballResolution: release14$2.verified({ field: "tarball" }, "https://github.com/pnpm/pnpm/blob/v10.34.9/lockfile/utils/src/pkgSnapshotToResolution.ts", "pnpm fetches a registry package of pnpm-lock.yaml (a key name@version) from the tarball URL get-npm-tarball-url builds from the name and version, unless its resolution has tarball: then from that URL, resolved against the registry (new url.URL(resolution.tarball, registry)). pnpm 11.28.10 does the same (resolveTarballUrl in pnpm11/lockfile/utils/src/pkgSnapshotToResolution.ts). assertRegistryShapedResolution (lockfile/utils/src/assertRegistryShapedResolution.ts at v10.34.9) accepts any http(s) URL there for such a key, while the allowBuild policy \"derives a trusted package identity from that key shape\". pnpm writes tarball for a registry package whose tarball is not at the URL it would build."),
+		tarballResolution: release14$2.verified({ field: "tarball" }, "https://github.com/pnpm/pnpm/blob/v10.34.9/lockfile/utils/src/pkgSnapshotToResolution.ts", "pnpm fetches a registry package of pnpm-lock.yaml (a key name@version) from the tarball URL get-npm-tarball-url builds from the name and version, unless its resolution has tarball: then from that URL, resolved against the registry (new url.URL(resolution.tarball, registry)). pnpm 11.28.10 does the same (resolveTarballUrl in pnpm11/lockfile/utils/src/pkgSnapshotToResolution.ts). assertRegistryShapedResolution (lockfile/utils/src/assertRegistryShapedResolution.ts at v10.34.9) accepts any http(s) URL there for such a key, and a relative path without a scheme or a leading slash, which \"is resolved against the configured registry\", while the allowBuild policy \"derives a trusted package identity from that key shape\". pnpm writes tarball for a registry package whose tarball is not at the URL it would build. The fetch requests the path and the query of the URL, never the fragment, and the registry serves the file the path names."),
 		rootLifecycleScripts: release14$2.verified({
 			events: [
 				"preinstall",
@@ -7995,7 +8112,17 @@ function mergesYamlKeys(tool) {
 */
 function yamlOptionsFor(file, tools = knowledgeBase) {
 	const name = file.split("/").at(-1) ?? file;
-	return { merge: tools.some((tool) => mergesYamlKeys(tool) && values$1(tool.cooldown.configFiles).some((files) => files.includes(name))) };
+	const reads = (tool) => values$1(tool.cooldown.configFiles).some((files) => files.includes(name) || files.includes(file));
+	const psych = tools.some((tool) => readsYamlLikePsych(tool) && reads(tool));
+	return {
+		merge: tools.some((tool) => mergesYamlKeys(tool) && reads(tool)),
+		...psych ? { psychScalars: true } : {}
+	};
+}
+/** Whether a tool loads its YAML files with Ruby's Psych, whose numbers differ from YAML 1.2 (Dependabot, extra.yamlScalars, decision D-136). */
+function readsYamlLikePsych(tool) {
+	const fact = tool?.extra?.["yamlScalars"];
+	return fact?.status === "verified" && isRecord(fact.value) && fact.value["library"] === "psych";
 }
 function isWildcards(value) {
 	return isRecord(value) && (typeof value["since"] === "string" || value["since"] === null) && typeof value["trailingOnly"] === "boolean";
@@ -15543,6 +15670,62 @@ var require_dist = /* @__PURE__ */ __commonJSMin(((exports) => {
 
 // src/yaml-parse.ts
 var import_dist = require_dist();
+const PSYCH_WORD = /^[^\d.:-]?[\p{L}_\s!@#$%^&*(){}<>|/\\~;=]+/u;
+const PSYCH_TIME = /^-?\d{4}-\d{1,2}-\d{1,2}(?:[Tt]|\s+)\d{1,2}:\d\d:\d\d(?:\.\d*)?(?:\s*(?:Z|[-+]\d{1,2}:?(?:\d\d)?))?$/u;
+const PSYCH_DATE = /^\d{4}-(?:1[012]|0\d|\d)-(?:[12]\d|3[01]|0\d|\d)$/u;
+const PSYCH_BASE60 = /^[-+]?[0-9][0-9_]*(?::[0-5]?[0-9]){1,2}$/u;
+const PSYCH_BASE60_FLOAT = /^[-+]?[0-9][0-9_]*(?::[0-5]?[0-9]){1,2}\.[0-9_]*$/u;
+const PSYCH_FLOAT = /^[-+]?(?:[0-9][0-9_,]*)?\.[0-9]*(?:[eE][-+][0-9]+)?$/u;
+const PSYCH_INTEGER = /^(?:[-+]?0b[_,]*[0-1][0-1_,]*|[-+]?0[_,]*[0-7][0-7_,]*|[-+]?(?:0|[1-9](?:[0-9]|,[0-9]|_[0-9])*)|[-+]?0x[_,]*[0-9a-fA-F][0-9a-fA-F_,]*)$/u;
+/** Ruby's String#to_i: an optional sign and digits, single underscores between them, up to the first other character. */
+function rubyToI(text) {
+	const match = /^[-+]?\d+(?:_\d+)*/u.exec(text);
+	return match === null ? 0 : Number.parseInt(match[0].replaceAll("_", ""), 10);
+}
+/** Ruby's Integer() of a text INTEGER_LEGACY matched, after the commas and underscores are deleted. */
+function rubyInteger(text) {
+	const digits = text.replace(/[,_]/gu, "");
+	const negative = digits.startsWith("-");
+	const unsigned = digits.replace(/^[-+]/u, "");
+	const big = unsigned.startsWith("0b") || unsigned.startsWith("0x") ? BigInt(unsigned) : unsigned.length > 1 && unsigned.startsWith("0") ? BigInt(`0o${unsigned.slice(1)}`) : BigInt(unsigned);
+	return Number(negative ? -big : big);
+}
+/**
+* A plain scalar as Psych 5.5.0's ScalarScanner#tokenize reads it (extra.yamlScalars of Dependabot), as far as numbers
+* go: words, booleans, null, times, dates, infinities and symbols are `other` (no number either way), so are floats;
+* base 60 and INTEGER_LEGACY integers are integers; any other text is a string, also where YAML 1.2 reads a number.
+*/
+function psychScalar(text) {
+	if (text === "" || PSYCH_WORD.test(text) || text.includes("\n")) return { kind: "other" };
+	if (PSYCH_TIME.test(text) || PSYCH_DATE.test(text)) return { kind: "other" };
+	if (/^\+?\.inf$/iu.test(text) || /^-\.inf$/iu.test(text) || /^\.nan$/iu.test(text) || /^:./u.test(text)) return { kind: "other" };
+	if (PSYCH_BASE60.test(text)) {
+		let total = 0;
+		for (const [index, part] of text.split(":").entries()) total += rubyToI(part) * 60 ** Math.abs(index - 2);
+		return {
+			kind: "integer",
+			value: total
+		};
+	}
+	if (PSYCH_BASE60_FLOAT.test(text) || PSYCH_FLOAT.test(text)) return { kind: "other" };
+	if (PSYCH_INTEGER.test(text)) return {
+		kind: "integer",
+		value: rubyInteger(text)
+	};
+	return {
+		kind: "string",
+		value: text
+	};
+}
+/** Gives the plain values of a document the numbers Psych reads (YamlOptions.psychScalars). */
+function readLikePsych(document) {
+	(0, import_dist.visit)(document, { Scalar(key, node) {
+		if (key === "key" || node.type !== "PLAIN" || typeof node.source !== "string") return;
+		const reading = psychScalar(node.source);
+		if (reading.kind === "integer") node.value = reading.value;
+		else if (reading.kind === "string" && typeof node.value === "number") node.value = reading.value;
+	} });
+}
 /** Whether a pair is a merge key (<<) of a document parsed with `merge`: the yaml package gives it a symbol. */
 function isMergePair(pair) {
 	return (0, import_dist.isScalar)(pair.key) && typeof pair.key.value === "symbol" && pair.key.value.description === "<<";
@@ -15726,11 +15909,13 @@ function parseYamlDocument(text, lineCounter = new import_dist.LineCounter(), op
 	const deep = tooDeep(text);
 	if (deep !== void 0) return tooDeepDocument(text, deep);
 	const merge = options.merge === true;
-	return checked$1((0, import_dist.parseDocument)(text, {
+	const document = checked$1((0, import_dist.parseDocument)(text, {
 		uniqueKeys: false,
 		lineCounter,
 		merge
 	}), lineCounter, merge);
+	if (options.psychScalars === true && document.errors.length === 0) readLikePsych(document);
+	return document;
 }
 /** Every document of a YAML stream, as parseAllDocuments gives them; errors as in parseYamlDocument. */
 function parseYamlDocuments(text, lineCounter = new import_dist.LineCounter()) {
@@ -15750,7 +15935,7 @@ const READ_CACHE_SIZE = 4;
 * a large file is parsed once. Nothing may change the document; apply parses its own copy to edit.
 */
 function readYamlDocument(text, options = {}) {
-	const key = `${options.merge === true ? "merge" : "plain"}\n${text}`;
+	const key = `${options.merge === true ? "merge" : "plain"}${options.psychScalars === true ? " psych" : ""}\n${text}`;
 	const cached = READ_CACHE.get(key);
 	if (cached !== void 0) return cached;
 	const lineCounter = new import_dist.LineCounter();
@@ -18958,7 +19143,10 @@ function lineAt$1(text, offset) {
 */
 function yamlNode(text, path, options = {}) {
 	const merge = options.merge === true;
-	const { document, lineCounter } = readYamlDocument(text, { merge });
+	const { document, lineCounter } = readYamlDocument(text, {
+		merge,
+		...options.psychScalars === true ? { psychScalars: true } : {}
+	});
 	if (document.errors.length > 0) return void 0;
 	let node = document.contents;
 	let keyOffset = 0;
@@ -18989,16 +19177,22 @@ function yamlNode(text, path, options = {}) {
 		document
 	};
 }
-/** The YAML value at `path`, the line of its key and, with `merge`, the line of the << it comes in through. */
+/**
+* The YAML value at `path`, the line of its key and, with `merge`, the line of the << it comes in through; `written` is
+* the text of a plain scalar as the file has it when it is not the text of its value (010, which Psych reads as 8).
+*/
 function yamlSetting(text, path, options = {}) {
 	const found = yamlNode(text, path, options);
 	if (found === void 0) return void 0;
 	const { node, line, mergedAt, document } = found;
 	const convert = (item) => options.merge === true ? item.toJS(document) : item.toJSON();
+	const value = node === null ? null : (0, import_dist.isMap)(node) || (0, import_dist.isSeq)(node) || (0, import_dist.isScalar)(node) ? convert(node) : void 0;
+	const written = node !== null && (0, import_dist.isScalar)(node) && node.type === "PLAIN" && typeof node.source === "string" && node.source !== String(value) ? node.source : void 0;
 	return {
-		value: node === null ? null : (0, import_dist.isMap)(node) || (0, import_dist.isSeq)(node) || (0, import_dist.isScalar)(node) ? convert(node) : void 0,
+		value,
 		line,
-		...mergedAt === void 0 ? {} : { mergedAt }
+		...mergedAt === void 0 ? {} : { mergedAt },
+		...written === void 0 ? {} : { written }
 	};
 }
 /**
@@ -19235,13 +19429,14 @@ function valueAt(item, path) {
 /**
 * The packages of composer.lock with the source each comes from: a path repository (dist type path), an artifact
 * repository (an archive at a local path), a package repository of the root composer.json (by the names it defines),
-* a VCS repository of the root composer.json (by its URL), a VCS checkout when the entry has no dist (Composer then
-* installs from its source, decision D-134), else Packagist or another Composer repository; an archive from a host
+* a VCS repository of the root composer.json (by its URL), a VCS checkout when the entry has no dist or a dist without
+* a type (Composer then installs from its source, decision D-134) or when config.preferred-install of composer.json
+* makes Composer check it out (decision D-136), else Packagist or another Composer repository; an archive from a host
 * that is neither one those registries use nor the host of a declared repository is a source depcurfew does not
-* recognize. Names are in lower case, as Composer reads them. Plugins are the packages whose code Composer runs: of
+* recognize, and an archive of Packagist.org's hosts next to a source on another host is noted on the entry. Names are in lower case, as Composer reads them. Plugins are the packages whose code Composer runs: of
 * type composer-plugin or composer-installer, in any case.
 */
-function composerEntries(text, tool, repositories) {
+function composerEntries(text, tool, repositories, manifest) {
 	const format = extraOf(tool, "lockfileFormat", isFormat);
 	const branches = extraOf(tool, "branchVersions", isBranches);
 	const document = JSON.parse(text);
@@ -19268,14 +19463,23 @@ function composerEntries(text, tool, repositories) {
 			if (dist?.["type"] === format.pathType) kind = "directory";
 			else if (distUrl !== void 0 && isLocal(distUrl) && format.archiveTypes.includes(String(dist?.["type"]))) kind = "file";
 			else if (fromInline !== void 0) kind = fromInline.kind === "registry" || fromInline.kind === "disable" ? "unknown" : fromInline.kind;
-			else if ([sourceUrl, distUrl].some((url) => url !== void 0 && vcs.has(normalizedUrl(url)))) {
+			const offered = (location) => location !== void 0 && typeof location["type"] === "string" && location["type"] !== "" && location["type"] !== "0";
+			const locked = item[format.version];
+			const dev = typeof locked === "string" && (locked.startsWith(branches.prefix) || locked.endsWith(branches.suffix));
+			let why;
+			let otherSource;
+			if (kind === "registry" && [sourceUrl, distUrl].some((url) => url !== void 0 && vcs.has(normalizedUrl(url)))) {
 				kind = "git";
 				spec = describe$2(source) || spec;
-			} else if (distUrl === void 0 && sourceUrl !== void 0) {
+			} else if (kind === "registry" && sourceUrl !== void 0 && (distUrl === void 0 || !offered(dist))) {
 				kind = "git";
 				spec = describe$2(source);
-			} else if (distUrl !== void 0 && !isLocal(distUrl) && !hosts.has(hostOf(distUrl))) kind = "unknown";
-			const locked = item[format.version];
+				if (dist !== void 0) why = "its dist has no type, so Composer cannot download its archive";
+			} else if (kind === "registry" && sourceUrl !== void 0 && offered(source) && (why = sourcePreference(manifest, tool, name, dev)) !== void 0) {
+				kind = "git";
+				spec = describe$2(source);
+			} else if (kind === "registry" && distUrl !== void 0 && !isLocal(distUrl) && !hosts.has(hostOf(distUrl))) kind = "unknown";
+			else if (kind === "registry" && distUrl !== void 0 && sourceUrl !== void 0 && offered(source)) otherSource = sourceElsewhere(tool, distUrl, sourceUrl, describe$2(source));
 			const release = (kind === "registry" || kind === "unknown" && fromInline === void 0) && typeof locked === "string" && locked !== "" && !locked.startsWith(branches.prefix) && !locked.endsWith(branches.suffix);
 			const type = item[format.installScripts];
 			const plugin = typeof type === "string" && pluginTypes.has(type.toLowerCase());
@@ -19286,11 +19490,76 @@ function composerEntries(text, tool, repositories) {
 				installScript: plugin,
 				anchor: `"${format.name}": ${JSON.stringify(written)}`,
 				...release ? { version: locked } : {},
-				...plugin && valueAt(item, format.optionalPlugin) === true ? { optional: true } : {}
+				...plugin && valueAt(item, format.optionalPlugin) === true ? { optional: true } : {},
+				...kind === "git" && why !== void 0 ? { why } : {},
+				...otherSource === void 0 ? {} : { otherSource }
 			});
 		}
 	}
 	return entries;
+}
+const isPreference = (value) => isRecord(value) && [
+	"setting",
+	"default",
+	"dist",
+	"source",
+	"auto",
+	"everything"
+].every((key) => typeof value[key] === "string");
+/**
+* Why Composer installs a locked package that has both an archive and a source from the source, by config.preferred-install
+* of the root composer.json (extra.installPreference, decision D-136); undefined when it downloads the archive. A string
+* "source" always, "dist" never, "auto" and any other string for a dev version (preferDist and preferSource both off);
+* an object by its first key that matches the name, in any case and with * for any characters, "*" last and "dist"
+* when the object has no "*": "dist" never, "auto" for a dev version, any other value always.
+*/
+function sourcePreference(manifest, tool, name, dev) {
+	if (tool.extra?.["installPreference"] === void 0) return void 0;
+	const fact = extraOf(tool, "installPreference", isPreference);
+	const config = manifest?.["config"];
+	const setting = isRecord(config) ? config[fact.setting] : void 0;
+	const where = `config.${fact.setting} in ${COMPOSER_MANIFEST}`;
+	const forDev = (text) => dev ? `${text}, which installs a dev version from its source` : void 0;
+	if (typeof setting === "string") {
+		if (setting === fact.source) return `${where} is "${setting}"`;
+		if (setting === fact.dist) return void 0;
+		return forDev(`${where} is ${JSON.stringify(setting)}`);
+	}
+	if (!isRecord(setting)) return void 0;
+	const keys = [...Object.keys(setting).filter((key) => key !== fact.everything), fact.everything];
+	for (const key of keys) {
+		if (!pluginPatternMatches(name, key)) continue;
+		const preference = Object.hasOwn(setting, key) ? setting[key] : fact.default;
+		if (preference === fact.dist) return void 0;
+		const given = `${where} gives ${JSON.stringify(preference)} for ${key}`;
+		return preference === fact.auto ? forDev(given) : given;
+	}
+}
+/**
+* An archive from a host of registryDistHosts next to a source on another host than the one the VCS driver of that
+* archive gives (extra.registrySourceHosts, decision D-136): Packagist.org never writes such an entry.
+*/
+function sourceElsewhere(tool, distUrl, sourceUrl, spec) {
+	if (tool.extra?.["registrySourceHosts"] === void 0) return void 0;
+	const hosts = extraOf(tool, "registrySourceHosts", (value) => isRecord(value) && Object.values(value).every((host) => typeof host === "string"));
+	const distHost = hostOf(distUrl);
+	const expected = Object.hasOwn(hosts, distHost) ? hosts[distHost] : void 0;
+	const sourceHost = hostOf(sourceUrl);
+	return expected === void 0 || sourceHost === expected ? void 0 : {
+		spec,
+		distHost,
+		sourceHost
+	};
+}
+/** The host of the source the VCS driver gives a package whose archive is on `distHost` (extra.registrySourceHosts). */
+function sourceHostOf(tool, distHost) {
+	const host = (tool.extra?.["registrySourceHosts"] === void 0 ? {} : extraOf(tool, "registrySourceHosts", isRecord))[distHost];
+	return typeof host === "string" ? host : distHost;
+}
+/** The first Composer that no longer falls back from an archive to its source by default (extra.sourceFallback). */
+function fallbackRemoved(tool) {
+	const fact = tool.extra?.["sourceFallback"] === void 0 ? void 0 : extraOf(tool, "sourceFallback", isRecord);
+	return typeof fact?.["since"] === "string" ? fact["since"] : "2.10.0";
 }
 /** The repositories of a kind the policy denies that no entry of composer.lock comes from, as far as depcurfew can tell. */
 function unmatchedRepositories(repositories, entries) {
@@ -19922,22 +20191,38 @@ function parseSemver$1(text) {
 		build
 	};
 }
+/** The base a relative resolution.tarball of pnpm is read against: pnpm resolves it against the registry, whose path only adds to the front. */
+const RELATIVE_BASE = "https://registry.invalid/";
 /**
-* The registry package whose tarball a URL is, as npm reads it from resolved (versionFromTgz, npm extra.tarballIdentity,
-* decision D-135): /<name>/-/<name>-<version>.tgz, with the scope before the name and any path of the registry before
-* them. undefined for a URL in another layout.
+* The path of a tarball URL as the registry reads it (decisions D-135 and D-136): without the query and the fragment,
+* which name no other file (the fragment is not even sent), with its percent-escapes decoded; a relative URL (pnpm)
+* is read against the registry. undefined for a URL that is not http(s) or does not decode.
 */
-function tarballIdentity(url, format) {
-	const separator = String(format["separator"]);
-	const extension = String(format["extension"]);
-	const base = url.slice(url.lastIndexOf("/") + 1);
-	if (!base.endsWith(extension) || !HTTP.test(url)) return void 0;
-	let path;
+function tarballPath(url, relative) {
 	try {
-		path = new URL(url).pathname;
+		const parsed = relative && !HTTP.test(url) ? new URL(url, RELATIVE_BASE) : new URL(url);
+		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return void 0;
+		return decodeURIComponent(parsed.pathname);
 	} catch {
 		return;
 	}
+}
+/** Whether a tarball URL has the layout of a registry tarball (/-/ in its path), whatever depcurfew reads from it. */
+function registryLayout(url, format, relative) {
+	return tarballPath(url, relative)?.includes(String(format["separator"])) === true;
+}
+/**
+* The registry package whose tarball a URL is, as npm reads it from resolved (versionFromTgz, npm extra.tarballIdentity,
+* decisions D-135 and D-136): /<name>/-/<name>-<version>.tgz in the path the registry reads, with the scope before the
+* name and any path of the registry before them. undefined for a path in another layout.
+*/
+function tarballIdentity(url, format, relative = false) {
+	const separator = String(format["separator"]);
+	const extension = String(format["extension"]);
+	const path = tarballPath(url, relative);
+	if (path === void 0) return void 0;
+	const base = path.slice(path.lastIndexOf("/") + 1);
+	if (!base.endsWith(extension)) return void 0;
 	const parts = path.slice(1).split(separator);
 	if (parts.length < 2 || parts.pop() !== base) return void 0;
 	const pieces = (parts.pop() ?? "").split(new RegExp(String(format["scopeSeparator"]), "iu"));
@@ -20026,7 +20311,9 @@ function npmEntries(text, format, workspaces, manifest, overridesFormat, identit
 			anchor: `${JSON.stringify(key)}: {`,
 			...exactVersion(source, version)
 		};
-		const identity = source === "registry" && resolved !== "" && identityFormat !== void 0 ? tarballIdentity(resolved, identityFormat) : void 0;
+		const fetched = source === "registry" && resolved !== "" && identityFormat !== void 0;
+		const identity = fetched ? tarballIdentity(resolved, identityFormat) : void 0;
+		if (fetched && identity === void 0) delete entry.version;
 		if (identity !== void 0) {
 			entry.version = identity.version;
 			if (identity.name !== name) entry.registryName = identity.name;
@@ -20089,7 +20376,9 @@ function pnpmEntries(text, format, documents, identityFormat) {
 			anchor: key,
 			...exactVersion(source, spec.split("(", 1)[0])
 		};
-		const identity = source === "registry" && HTTP.test(tarball) && identityFormat !== void 0 ? tarballIdentity(tarball, identityFormat) : void 0;
+		const fetched = source === "registry" && tarball !== "" && !tarball.startsWith("file:") && identityFormat !== void 0;
+		const identity = fetched ? tarballIdentity(tarball, identityFormat, true) : void 0;
+		if (fetched && identity === void 0 && registryLayout(tarball, identityFormat, true)) delete entry.version;
 		if (identity !== void 0 && (identity.name !== name || identity.version !== entry.version)) {
 			entry.version = identity.version;
 			if (identity.name !== name) entry.registryName = identity.name;
@@ -20410,7 +20699,7 @@ function parseLockfiles(repository, manager, tool, workspaces, tools) {
 			else if (tool.id === "pdm") entries = pdmEntries(text, format);
 			else if (tool.id === "pipenv") entries = pipfileLockEntries(text, format);
 			else if (tool.id === "pip") entries = requirementsEntries(text, requirementsFormatOf(tool));
-			else if (tool.id === "composer") entries = composerEntries(text, tool, declaredRepositories(repository, tool));
+			else if (tool.id === "composer") entries = composerEntries(text, tool, declaredRepositories(repository, tool), composerManifest(repository));
 			else ({entries, recordsScripts} = denoEntries(text, format));
 			const optionFiles = requirements.get(file);
 			const isRequirements = tool.id === "pip" && !(lockfiles.includes(file) && isPylock(pip, file));
@@ -24167,6 +24456,16 @@ const dependabot = (context, duration, repository) => {
 
 // src/apply/yaml-edit.ts
 const YAML_MARKER = "# managed by depcurfew";
+const PLAIN$1 = {
+	merge: false,
+	psych: false
+};
+function modeOf(options) {
+	return {
+		merge: options.merge === true,
+		psych: options.psychScalars === true
+	};
+}
 /**
 * The last texts parsed. Every edit parses the text before it (to find the node and to compare the data) and the
 * text after it (to check the result), and the text after one edit is the text before the next: each is parsed once,
@@ -24174,14 +24473,19 @@ const YAML_MARKER = "# managed by depcurfew";
 * Documents are only read, never changed.
 */
 const recent = [];
-function parse(text, merge = false) {
-	let parsed = recent.find((entry) => entry.text === text && entry.merge === merge);
+function parse(text, mode = PLAIN$1) {
+	let parsed = recent.find((entry) => entry.text === text && entry.merge === mode.merge && entry.psych === mode.psych);
 	if (parsed === void 0) {
 		const lineCounter = new import_dist.LineCounter();
+		const document = parseYamlDocument(text, lineCounter, {
+			merge: mode.merge,
+			...mode.psych ? { psychScalars: true } : {}
+		});
 		parsed = {
 			text,
-			merge,
-			document: parseYamlDocument(text, lineCounter, { merge }),
+			merge: mode.merge,
+			psych: mode.psych,
+			document,
 			lineCounter
 		};
 		recent.unshift(parsed);
@@ -24191,8 +24495,8 @@ function parse(text, merge = false) {
 	return parsed;
 }
 /** The data of a text, for comparing before and after an edit. */
-function dataOf$1(text, merge = false) {
-	const parsed = parse(text, merge);
+function dataOf$1(text, mode = PLAIN$1) {
+	const parsed = parse(text, mode);
 	if (!("data" in parsed)) parsed.data = parsed.document.toJS();
 	return parsed.data;
 }
@@ -24322,7 +24626,7 @@ function replaceValue(text, keyRange, valueNode, value, keyIndent) {
 	return `${text.slice(0, colon + 1)} ${rendered}${text.slice(colon + 1, start)}${text.slice(end)}`;
 }
 function yamlGet(text, path, options = {}) {
-	let current = dataOf$1(text, options.merge === true);
+	let current = dataOf$1(text, modeOf(options));
 	for (const segment of path) {
 		if (typeof current !== "object" || current === null) return void 0;
 		current = current[String(segment)];
@@ -24342,8 +24646,8 @@ function refuseFlow(path, index, value) {
 	throw new Error(`${where} is written in flow style ({ ... } or [ ... ]), which depcurfew does not edit; rewrite it in block style, or set ${path.join(".")} to ${JSON.stringify(value)} by hand`);
 }
 /** The 1-based line of the deepest key of `path` that exists in the document, if any. */
-function pathLine(text, path, merge) {
-	const { document, lineCounter } = parse(text, merge);
+function pathLine(text, path, mode) {
+	const { document, lineCounter } = parse(text, mode);
 	let node = document.contents;
 	let line;
 	for (const segment of path) {
@@ -24352,7 +24656,7 @@ function pathLine(text, path, merge) {
 			node = (0, import_dist.isSeq)(node) ? node.items[segment] ?? null : null;
 			continue;
 		}
-		const pair = ownPair(node, segment) ?? (merge ? mergedPair(document, node, segment)?.pair : void 0);
+		const pair = ownPair(node, segment) ?? (mode.merge ? mergedPair(document, node, segment)?.pair : void 0);
 		if (pair === void 0) break;
 		if (pair.key.range !== null && pair.key.range !== void 0) line = lineCounter.linePos(pair.key.range[0]).line;
 		node = pair.value;
@@ -24364,18 +24668,18 @@ function pathLine(text, path, merge) {
 * parse and hold the same data as before apart from that value; otherwise nothing is changed and an error says so.
 */
 function yamlSet(text, path, value, options = {}) {
-	const merge = options.merge === true;
-	const before = dataOf$1(text, merge);
-	const edited = setValue(text, path, value, merge);
+	const mode = modeOf(options);
+	const before = dataOf$1(text, mode);
+	const edited = setValue(text, path, value, mode);
 	if (edited === text) return text;
 	const setting = () => {
-		const line = pathLine(text, path, merge);
+		const line = pathLine(text, path, mode);
 		return `${path.join(".")}${line === void 0 ? "" : ` (line ${line})`}`;
 	};
 	const byHand = `set ${path.join(".")} to ${JSON.stringify(value)} by hand`;
 	let after;
 	try {
-		after = dataOf$1(edited, merge);
+		after = dataOf$1(edited, mode);
 	} catch (error) {
 		throw new Error(`setting ${setting()} would leave invalid YAML (${error instanceof Error ? error.message : String(error)}), so depcurfew did not edit it; ${byHand}`);
 	}
@@ -24412,7 +24716,7 @@ function changedStretch(text, edited) {
 * yamlSet, which gives the same result or the same error as without batching.
 */
 function yamlSetMany(text, edits, options = {}) {
-	const merge = options.merge === true;
+	const mode = modeOf(options);
 	let base = text;
 	let pending = [];
 	let byStart = [];
@@ -24454,10 +24758,10 @@ function yamlSetMany(text, edits, options = {}) {
 		}
 		parts.push(base.slice(at));
 		const edited = parts.join("");
-		const expected = withValues(dataOf$1(base, merge), pending);
+		const expected = withValues(dataOf$1(base, mode), pending);
 		let same = false;
 		try {
-			same = sameData(dataOf$1(edited, merge), expected);
+			same = sameData(dataOf$1(edited, mode), expected);
 		} catch {
 			same = false;
 		}
@@ -24472,7 +24776,7 @@ function yamlSetMany(text, edits, options = {}) {
 		if (related(path)) flush();
 		let edited;
 		try {
-			edited = setValue(base, path, value, merge);
+			edited = setValue(base, path, value, mode);
 		} catch {
 			flush();
 			base = yamlSet(base, path, value, options);
@@ -24482,7 +24786,7 @@ function yamlSetMany(text, edits, options = {}) {
 		let stretch = changedStretch(base, edited);
 		if (overlaps(stretch.start, stretch.end)) {
 			flush();
-			edited = setValue(base, path, value, merge);
+			edited = setValue(base, path, value, mode);
 			if (edited === base) continue;
 			stretch = changedStretch(base, edited);
 		}
@@ -24495,8 +24799,8 @@ function yamlSetMany(text, edits, options = {}) {
 	flush();
 	return base;
 }
-function setValue(text, path, value, merge = false) {
-	const { document, lineCounter } = parse(text, merge);
+function setValue(text, path, value, mode = PLAIN$1) {
+	const { document, lineCounter } = parse(text, mode);
 	const column = (offset) => lineCounter.linePos(offset).col - 1;
 	if (document.contents === null || (0, import_dist.isScalar)(document.contents) && document.contents.value === null) return `${text.trim() === "" ? "" : text.endsWith("\n") ? text : `${text}\n`}${YAML_MARKER}\n${render(nest(path, value), text)}`;
 	let node = document.contents;
@@ -24510,7 +24814,7 @@ function setValue(text, path, value, merge = false) {
 		}
 		if (!(0, import_dist.isMap)(node)) throw new Error(`${path.slice(0, index).join(".")} is not a map`);
 		const pair = ownPair(node, segment);
-		const merged = pair === void 0 && merge ? mergedPair(document, node, segment) : void 0;
+		const merged = pair === void 0 && mode.merge ? mergedPair(document, node, segment) : void 0;
 		if (merged !== void 0) {
 			if (index === path.length - 1) {
 				if (equal(merged.pair.value === null ? null : merged.pair.value.toJS(document), value)) return text;
@@ -24528,7 +24832,7 @@ function setValue(text, path, value, merge = false) {
 			return at >= text.length ? `${text}\n${addition}` : `${text.slice(0, at + 1)}${addition}${text.slice(at + 1)}`;
 		}
 		if (index === path.length - 1) {
-			if (equal(pair.value === null ? null : merge ? pair.value.toJS(document) : pair.value.toJSON(), value)) return text;
+			if (equal(pair.value === null ? null : mode.merge ? pair.value.toJS(document) : pair.value.toJSON(), value)) return text;
 			const keyRange = pair.key.range;
 			const valueNode = pair.value;
 			let replaced;
@@ -24545,7 +24849,7 @@ function setValue(text, path, value, merge = false) {
 		}
 		if (pair.value === null || !((0, import_dist.isMap)(pair.value) || (0, import_dist.isSeq)(pair.value))) {
 			if (isFlow(node)) refuseFlow(path, index, value);
-			return setValue(text, path.slice(0, index + 1), nest(path.slice(index + 1), value), merge);
+			return setValue(text, path.slice(0, index + 1), nest(path.slice(index + 1), value), mode);
 		}
 		if (pair.key.range !== null && pair.key.range !== void 0 && marked(text, pair.key.range[0])) insideMarked = true;
 		node = pair.value;
@@ -24657,7 +24961,8 @@ function managerDelay(repository, manager, tool) {
 function dependabotDelays$1(repository, bot, file, workflows) {
 	const text = repository.readText(file);
 	if (text === void 0 || rejectsYamlAliases(bot) && yamlAliasLine(text) !== void 0) return [];
-	const updates = yamlSetting(text, ["updates"]);
+	const yaml = yamlOptionsFor(file, [bot]);
+	const updates = yamlSetting(text, ["updates"], yaml);
 	if (updates === void 0 || !Array.isArray(updates.value)) return [];
 	const keys = extraOf(bot, "cooldownKeys", isCooldownKeys$1);
 	const ecosystems = Object.keys(extraOf(bot, "ecosystems", isRecord));
@@ -24676,7 +24981,7 @@ function dependabotDelays$1(repository, bot, file, workflows) {
 			setting,
 			keys.days
 		];
-		const line = yamlSetting(text, path)?.line ?? updates.line;
+		const line = yamlSetting(text, path, yaml)?.line ?? updates.line;
 		return [{
 			tool: bot.id,
 			scope: `updates[${index}]`,
@@ -25723,7 +26028,10 @@ function createContext(options) {
 		0
 	]);
 	const scope = user ? "user" : "project";
-	const yamlOptions = { merge: mergesYamlKeys(tool) };
+	const yamlOptions = {
+		merge: mergesYamlKeys(tool),
+		...readsYamlLikePsych(tool) ? { psychScalars: true } : {}
+	};
 	const atLeast = (since) => {
 		const required = since === void 0 ? void 0 : parseVersion(since);
 		return options.version === void 0 || required === void 0 || compareVersions$1(options.version, required) >= 0;
@@ -29661,7 +29969,8 @@ function describe$1(minutes) {
 function dependabotDelays(context, bot, file) {
 	const text = context.repository.readText(file);
 	if (text === void 0) return [];
-	const updates = yamlSetting(text, ["updates"]);
+	const yaml = yamlOptionsFor(file, context.tools);
+	const updates = yamlSetting(text, ["updates"], yaml);
 	if (updates === void 0 || !Array.isArray(updates.value)) return [];
 	const ecosystems = extraOf(bot, "ecosystems", isEcosystems);
 	const keys = extraOf(bot, "cooldownKeys", isCooldownKeys);
@@ -29680,12 +29989,21 @@ function dependabotDelays(context, bot, file) {
 		const semver = (forActions && !actions.semverDays ? [] : keys.semverDays).filter((key) => typeof cooldown?.[key] === "number");
 		const days = Math.min(base, ...semver.map((key) => cooldown?.[key]));
 		const shortest = semver.find((key) => cooldown?.[key] === days);
-		const origin = cooldown === void 0 ? `Dependabot's default (${describe$1(days * 1440)})` : shortest !== void 0 && days < base ? `${shortest}: ${days} in ${file}` : typeof cooldown[keys.days] === "number" ? `${keys.days}: ${days} in ${file}` : `Dependabot's default (${describe$1(days * 1440)})`;
+		const written = (key) => {
+			const asWritten = yamlSetting(text, [
+				"updates",
+				String(index),
+				"cooldown",
+				key
+			], yaml)?.written;
+			return asWritten === void 0 || asWritten === String(days) ? `${key}: ${days} in ${file}` : `${key}: ${asWritten} in ${file}, which Dependabot reads as ${days}`;
+		};
+		const origin = cooldown === void 0 ? `Dependabot's default (${describe$1(days * 1440)})` : shortest !== void 0 && days < base ? written(shortest) : typeof cooldown[keys.days] === "number" ? written(keys.days) : `Dependabot's default (${describe$1(days * 1440)})`;
 		const line = yamlSetting(text, [
 			"updates",
 			String(index),
 			cooldown === void 0 ? "package-ecosystem" : "cooldown"
-		])?.line ?? updates.line;
+		], yaml)?.line ?? updates.line;
 		const target = forActions ? { actions: true } : {};
 		const delays = [{
 			bot,
@@ -29708,7 +30026,7 @@ function dependabotDelays(context, bot, file) {
 				String(index),
 				"cooldown",
 				include.key
-			])?.line ?? line;
+			], yaml)?.line ?? line;
 			delays.push({
 				bot,
 				managers,
@@ -29921,7 +30239,7 @@ function missingDependabotEntries(context, views) {
 	if (bot === void 0 || file === void 0 || views.length < 2) return;
 	const text = context.repository.readText(file);
 	if (text === void 0 || rejectsYamlAliases(bot) && yamlAliasLine(text) !== void 0) return;
-	const updates = yamlSetting(text, ["updates"]);
+	const updates = yamlSetting(text, ["updates"], yamlOptionsFor(file, context.tools));
 	if (updates === void 0 || !Array.isArray(updates.value)) return;
 	const ecosystems = extraOf(bot, "ecosystems", isEcosystems);
 	const keys = extraOf(bot, "directories", isDirectories);
@@ -30091,7 +30409,7 @@ const botCooldownMismatch = {
 					origin: source.relocate(found.origin)
 				};
 				const timeNote = () => {
-					if (delay.bot.id === "dependabot" && manager.id === "composer" && own.minutes > 0 && delay.unreadableFile === void 0) composerTimeNote(context, delay, tool.name);
+					if (delay.bot.id === "dependabot" && manager.id === "composer" && own.minutes > 0 && delay.unreadableFile === void 0) composerTimeNote(context, delay, knowledge.name, source.project);
 				};
 				if (compare(context, delay, managerReference(tool, own))) {
 					timeNote();
@@ -30101,7 +30419,7 @@ const botCooldownMismatch = {
 					level: "warning",
 					location: delay.location,
 					message: `${delay.bot.name} security updates skip its delay, but ${tool.name} re-checks the lockfile and waits ${describe$1(own.minutes)} (${own.origin}); a security fix younger than that fails to install`,
-					fix: `When a security update fails, exempt the fixed package in the ${tool.name} exclusion list until the delay has passed`
+					fix: `When a security update fails, exempt the fixed package in ${source.project === void 0 ? `the ${tool.name} exclusion list` : `the exclusion list of ${tool.name}`} until the delay has passed`
 				});
 				timeNote();
 			}
@@ -30112,9 +30430,10 @@ const isReleaseTime = (value) => isRecord(value) && typeof value["field"] === "s
 /**
 * Dependabot counts its composer cooldown from the time the package author sets (extra.composerReleaseTime), and
 * updates composer.lock with a Composer that has no cooldown policy; composer install then installs the locked version
-* without Composer's cooldown, which counts from Packagist's published-time.
+* without Composer's cooldown, which counts from Packagist's published-time. In a repository with projects, the
+* project is named where composer install runs, not in the name of the tool (decision D-136).
 */
-function composerTimeNote(context, delay, manager) {
+function composerTimeNote(context, delay, manager, project) {
 	if (delay.bot.extra?.["composerReleaseTime"] === void 0 || delay.location === void 0) return;
 	const fact = extraOf(delay.bot, "composerReleaseTime", isReleaseTime);
 	const hash = delay.bot.extra["composerContentHash"] === void 0 ? void 0 : extraOf(delay.bot, "composerContentHash", isContentHash);
@@ -30125,7 +30444,7 @@ function composerTimeNote(context, delay, manager) {
 	context.report({
 		level: "note",
 		location: delay.location,
-		message: `${delay.bot.name} counts the cooldown of ${delay.scope} from ${fact.field}, the release time the package author writes, not from ${fact.ignores}, when Packagist received the version, and it updates composer.lock with Composer ${fact.composerVersion}, which has no cooldown; a version published with an older ${fact.field} is proposed at once, and composer install takes it from composer.lock without ${manager}'s cooldown${hashText}`,
+		message: `${delay.bot.name} counts the cooldown of ${delay.scope} from ${fact.field}, the release time the package author writes, not from ${fact.ignores}, when Packagist received the version, and it updates composer.lock with Composer ${fact.composerVersion}, which has no cooldown; a version published with an older ${fact.field} is proposed at once, and composer install${project === void 0 ? "" : ` in ${project}`} takes it from composer.lock without ${manager}'s cooldown${hashText}`,
 		fix: `Check the publication date on Packagist before merging ${delay.bot.name}'s composer pull requests${hashFix}, or update Composer packages with a bot that counts from ${fact.ignores}`
 	});
 }
@@ -30183,7 +30502,7 @@ function checkDependabot(context, file) {
 	const text = context.repository.readText(file);
 	const bot = tool(context, "dependabot");
 	if (text === void 0 || bot !== void 0 && rejectsYamlAliases(bot) && yamlAliasLine(text) !== void 0) return;
-	const updates = yamlSetting(text, ["updates"]);
+	const updates = yamlSetting(text, ["updates"], yamlOptionsFor(file, context.tools));
 	if (updates === void 0 || !Array.isArray(updates.value)) return;
 	updates.value.forEach((entry, index) => {
 		if (!isRecord(entry) || !isRecord(entry["cooldown"]) || !Array.isArray(entry["cooldown"]["exclude"])) return;
@@ -31547,7 +31866,7 @@ const knownMalicious = {
 	id: "known-malicious",
 	checks: "With --osv: no locked package version is a known malicious version in OSV.dev",
 	summary: "With --osv: a lockfile locks a package version that OSV.dev lists as malicious.",
-	description: "With --osv, doctor sends the name and version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) to api.osv.dev in batch queries, and reports each version that has a record of the OpenSSF malicious-packages database there (an id starting with MAL-). Such a version was published to steal or damage, and installing from the lockfile brings it back. It looks up what the tool installs: for npm the registry tarball of resolved, for pnpm the one of resolution.tarball, for Yarn the version of resolution; an entry whose name or version says otherwise gets a warning, as does a registry entry of a lockfile without an exact version. Only reported malware is found, and the database admits false positives. Without --osv nothing is sent and the rule does not run; when OSV.dev cannot be reached it gives a warning instead of passing.",
+	description: "With --osv, doctor sends the name and version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) to api.osv.dev in batch queries, and reports each version that has a record of the OpenSSF malicious-packages database there (an id starting with MAL-). Such a version was published to steal or damage, and installing from the lockfile brings it back. It looks up what the tool installs: for npm the registry tarball of resolved, for pnpm the one of resolution.tarball (each path read as the registry reads it), for Yarn the version of resolution; an entry whose name or version says otherwise gets a warning, as does a registry entry without an exact version. Only reported malware is found, and the database admits false positives. Without --osv nothing is sent and the rule does not run; when OSV.dev cannot be reached it gives a warning instead of passing.",
 	help: "Remove or replace the package version and lock again; if it was installed anywhere, read the record on OSV.dev and treat that machine as exposed.",
 	level: "error",
 	requiresPolicy: false,
@@ -31741,7 +32060,7 @@ const lockfileForbiddenSource = {
 	id: "lockfile-forbidden-source",
 	checks: "The lockfile installs no package from a source depcurfew.json denies",
 	summary: "The lockfile installs a package from a source depcurfew.json denies.",
-	description: "A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say. For Composer, whose lockfile does not name the repository of a package, packages of a path or artifact repository are told by their dist, those of a VCS or package repository by the repositories of composer.json, a package without a dist is a VCS checkout (Composer installs it from its source), an archive from a host that neither the archives of Packagist.org (GitHub, GitLab, Bitbucket, Codeberg) nor a repository of composer.json use is a source depcurfew does not recognize (a warning), and a repository of a denied kind that no package of composer.lock comes from is reported at its declaration (a warning).",
+	description: "A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say. For Composer, whose lockfile does not name the repository of a package, packages of a path or artifact repository are told by their dist, those of a VCS or package repository by the repositories of composer.json; a package without a usable dist, or one that config.preferred-install makes Composer check out, is a VCS checkout. Warnings: an archive from a host that neither the archives of Packagist.org (GitHub, GitLab, Bitbucket, Codeberg) nor a repository of composer.json use, such an archive next to a source on another host, and a repository of a denied kind that no package of composer.lock comes from.",
 	help: "Replace the dependency with a registry version, or allow that source in depcurfew.json.",
 	level: "error",
 	requiresPolicy: true,
@@ -31761,11 +32080,21 @@ const lockfileForbiddenSource = {
 					});
 					continue;
 				}
+				const other = entry.otherSource;
+				if (other !== void 0 && sources.git === "deny") {
+					const expected = sourceHostOf(tool, other.distHost);
+					context.report({
+						level: "warning",
+						location: location(lockfile, entry),
+						message: `${lockfile.file} gives ${entry.name} an archive from ${other.distHost} but a VCS source on another host (${shownSpec(other.spec)}), which ${POLICY_FILE} denies; for an archive from ${other.distHost} the source is on ${expected}, so the entry was edited, and Composer installs from that source with --prefer-source, with preferred-install "source" in COMPOSER_HOME/config.json, and before Composer ${fallbackRemoved(tool)} when the archive cannot be downloaded`,
+						fix: `Find out who changed this entry of ${lockfile.file}, then lock ${entry.name} again with composer update ${entry.name}`
+					});
+				}
 				if (entry.source !== "git" && entry.source !== "remoteTarball" && entry.source !== "file" && entry.source !== "directory") continue;
 				if (sources[entry.source] !== "deny") continue;
 				context.report({
 					location: location(lockfile, entry),
-					message: `${lockfile.file} installs ${entry.unnamed === true ? "a package" : entry.name} from ${LABELS[ecosystemOfTool(tool)][entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies`,
+					message: `${lockfile.file} installs ${entry.unnamed === true ? "a package" : entry.name} from ${LABELS[ecosystemOfTool(tool)][entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies${entry.why === void 0 ? "" : `: ${entry.why}`}`,
 					fix: `Use a registry version ${entry.unnamed === true ? "instead" : `of ${entry.name}`}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`
 				});
 			}

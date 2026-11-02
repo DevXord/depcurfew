@@ -336,8 +336,8 @@ describe('doctor --osv: what the tool installs, not the labels', () => {
     expect(own(report)).toEqual([]);
   });
 
-  it('npm: falls back to the version field when resolved has a layout npm cannot read the version from', async () => {
-    // A query after the file name: npm reads no name or version from such a URL, but takes it as a registry tarball.
+  it('npm: reads the tarball of a resolved URL with a query after the file name, which npm fetches (decision D-136)', async () => {
+    // versionFromTgz reads no name or version from such a URL, but npm fetches the path, which the registry serves.
     const lock = JSON.stringify({ name: 'app', lockfileVersion: 3, packages: { '': { name: 'app' }, 'node_modules/@acme/d': { version: '1.0.0', resolved: 'https://repo.example/npm/@acme/d/-/d-1.0.0.tgz?token=1' } } });
     const fetch = osvFetch();
     await runDoctorWithOsv(repository({ 'package.json': PACKAGE, 'package-lock.json': lock }), {}, { fetch });

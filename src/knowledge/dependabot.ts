@@ -113,6 +113,11 @@ export const dependabot: ToolKnowledge = {
       'https://github.com/dependabot/dependabot-core/blob/v0.402.0/common/lib/dependabot/config/file.rb',
       'Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load(config, symbolize_names: true); Psych.safe_load takes aliases: false unless told otherwise and raises Psych::AliasesNotEnabled on an alias (*name), so a file with one is not read. The issue that asks for aliases (https://github.com/dependabot/dependabot-core/issues/1582, "YAML aliases", open and labelled Keep on 2026-11-02) quotes the error users get, "YAML aliases are not supported"; the pull request that would allow them (#9653) is open and not merged. The reference of dependabot.yml (dependabot-options-reference.md in github/docs) does not mention anchors or aliases. An anchor (&name) that no alias refers to changes nothing.',
     ),
+    yamlScalars: bots.verified(
+      { library: 'psych', version: '5.5.0', integers: 'legacy' },
+      'https://github.com/ruby/psych/blob/v5.5.0/lib/psych/scalar_scanner.rb',
+      'Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load (dependabot-core v0.402.0, common/lib/dependabot/config/file.rb), which is Psych: Ruby 4.0.5 (.ruby-version) with psych 5.5.0 (Gemfile.lock of dependabot-core at v0.402.0). ScalarScanner#tokenize reads a plain scalar in this order: words, booleans (yes, no, on, off, true, false) and null; times and dates; .inf and .nan; :symbols; base 60 integers [-+]?[0-9][0-9_]*(:[0-5]?[0-9]){1,2}, summed as part * 60 ** (index - 2).abs, so 1:30 is 5400; floats with a dot; then INTEGER_LEGACY, the default without strict_integer: 0b binary, 0 followed by octal digits, decimal without a leading zero, 0x hex, each with _ and , allowed, read with Integer(string.delete(\',_\')), so 010 is 8, 1_0 and 1,0 are 10; anything else, 0o12 and 08 too, is a string.',
+    ),
     githubActions: bots.verified(
       { ecosystem: 'github-actions', semverDays: false },
       `${OPTIONS}#cooldown`,

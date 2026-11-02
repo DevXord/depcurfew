@@ -1,6 +1,6 @@
 // broad-exclusion: an exception list that matches every package turns the protection off while the setting still
 // looks configured. Checked in depcurfew.json, in the tools' own files and in Renovate packageRules.
-import { extraOf, isRecord, settingOf, values } from '../../apply/facts.ts';
+import { extraOf, isRecord, settingOf, values, yamlOptionsFor } from '../../apply/facts.ts';
 import { listing } from '../../apply/requirements.ts';
 import { compareVersions, formatVersion, parseVersion, pinnedVersion } from '../../apply/version.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
@@ -75,7 +75,7 @@ function checkDependabot(context: RuleContext, file: string): void {
   const bot = tool(context, 'dependabot');
   // Dependabot does not read a file with YAML aliases (extra.yamlAliases); bot-cooldown-mismatch gives a note for it.
   if (text === undefined || (bot !== undefined && rejectsYamlAliases(bot) && yamlAliasLine(text) !== undefined)) return;
-  const updates = yamlSetting(text, ['updates']);
+  const updates = yamlSetting(text, ['updates'], yamlOptionsFor(file, context.tools));
   if (updates === undefined || !Array.isArray(updates.value)) return;
   (updates.value as unknown[]).forEach((entry, index) => {
     if (!isRecord(entry) || !isRecord(entry['cooldown']) || !Array.isArray(entry['cooldown']['exclude'])) return;

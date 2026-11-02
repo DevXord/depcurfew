@@ -13,7 +13,7 @@ import { POLICY_FILE } from '../policy/defaults.ts';
 import { parseDuration } from '../policy/duration.ts';
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import { BLOCK_END, isBlockStart } from './block.ts';
-import { extraOf, isRecord, settingOf, values } from './facts.ts';
+import { extraOf, isRecord, settingOf, values, yamlOptionsFor } from './facts.ts';
 import { isActionsEcosystem } from './generators/dependabot.ts';
 import { compareVersions, parseVersion, pinnedVersion, type Version } from './version.ts';
 import type { ApplyWarning } from './warnings.ts';
@@ -138,7 +138,9 @@ function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: stri
   const text = repository.readText(file);
   // Dependabot does not read a file with YAML aliases (extra.yamlAliases, decision D-135), so it configures no delay.
   if (text === undefined || (rejectsYamlAliases(bot) && yamlAliasLine(text) !== undefined)) return [];
-  const updates = yamlSetting(text, ['updates']);
+  // Numbers as Dependabot's YAML library reads them (extra.yamlScalars, decision D-136).
+  const yaml = yamlOptionsFor(file, [bot]);
+  const updates = yamlSetting(text, ['updates'], yaml);
   if (updates === undefined || !Array.isArray(updates.value)) return [];
   const keys = extraOf(bot, 'cooldownKeys', isCooldownKeys);
   const ecosystems = Object.keys(extraOf(bot, 'ecosystems', isRecord));
@@ -153,7 +155,7 @@ function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: stri
     const days = isRecord(cooldown) ? cooldown[keys.days] : undefined;
     if (typeof days !== 'number' || days <= 0) return [];
     const path = ['updates', String(index), setting, keys.days];
-    const line = yamlSetting(text, path)?.line ?? updates.line;
+    const line = yamlSetting(text, path, yaml)?.line ?? updates.line;
     return [
       {
         tool: bot.id,

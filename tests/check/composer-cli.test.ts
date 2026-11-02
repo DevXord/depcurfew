@@ -49,7 +49,7 @@ describe('depcurfew check with composer: packages', () => {
     const young = await exec(['check', '--dir', root, 'composer:guzzlehttp/guzzle']);
     expect(young.code).toBe(EXIT_FAILURE);
     expect(young.stdout).toBe(
-      'composer:guzzlehttp/guzzle:8.3.1:\n  error: composer:guzzlehttp/guzzle 8.3.1 was published on Packagist 7 days ago; depcurfew.json requires 2 weeks (composer:guzzlehttp/guzzle 8.3.0 is old enough)\n    fix: Install composer:guzzlehttp/guzzle:8.3.0 instead, or wait until composer:guzzlehttp/guzzle 8.3.1 is 2 weeks old\n\n1 package: 1 with errors, 0 with warnings\n',
+      'composer:guzzlehttp/guzzle:8.3.1:\n  error: composer:guzzlehttp/guzzle:8.3.1 was published on Packagist 7 days ago; depcurfew.json requires 2 weeks (composer:guzzlehttp/guzzle:8.3.0 is old enough)\n    fix: Install composer:guzzlehttp/guzzle:8.3.0 instead, or wait until composer:guzzlehttp/guzzle:8.3.1 is 2 weeks old\n\n1 package: 1 with errors, 0 with warnings\n',
     );
     const json = await exec(['check', '--json', '--dir', root, 'composer:monolog/monolog:^3.11']);
     expect(JSON.parse(json.stdout)).toEqual({
@@ -81,7 +81,7 @@ describe('depcurfew check with composer: packages', () => {
         level: 'error',
         code: 'unverified',
         message:
-          'the install may take it from the composer repository https://packages.corp.example that composer.json (line 3) declares, which Composer asks before Packagist; depcurfew checked only https://repo.packagist.org',
+          'the install may take it from the composer repository https://packages.corp.example that composer.json (line 3) declares, which Composer asks before Packagist; depcurfew checks only Packagist (https://repo.packagist.org), so it did not look the package up',
         fix: 'Before installing it, check the package in the repositories that composer.json declares: depcurfew checks only Packagist (https://repo.packagist.org), so it cannot vouch for a package from another repository',
       },
     ]);
@@ -124,7 +124,7 @@ describe('depcurfew check with composer: packages', () => {
     const context = { projectDir: root, registry: undefined, index: undefined, home: HOME, fetch: recordedFetch, now: () => NOW };
     const checked = await tool.run({ packages: ['composer:guzzlehttp/guzzle', 'composer:monolog/monolog'] }, context, new AbortController().signal);
     const document = checked.structuredContent as { packages: { findings: { code: string; fix: string }[] }[] };
-    expect(document.packages[0]?.findings).toEqual([expect.objectContaining({ code: 'too-young', fix: 'Install composer:guzzlehttp/guzzle:8.3.0 instead, or wait until composer:guzzlehttp/guzzle 8.3.1 is 2 weeks old' })]);
+    expect(document.packages[0]?.findings).toEqual([expect.objectContaining({ code: 'too-young', fix: 'Install composer:guzzlehttp/guzzle:8.3.0 instead, or wait until composer:guzzlehttp/guzzle:8.3.1 is 2 weeks old' })]);
     expect(document.packages[1]?.findings).toEqual([]);
     const elsewhere = await tool.run({ packages: ['composer:monolog/monolog'], directory: 'app' }, context, new AbortController().signal);
     expect((elsewhere.structuredContent as typeof document).packages[0]?.findings).toEqual([expect.objectContaining({ code: 'unverified', fix: UNREAD_REGISTRY_IS_THE_USERS })]);

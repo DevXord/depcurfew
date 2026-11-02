@@ -10,7 +10,7 @@ import type { ToolKnowledge } from '../knowledge/types.ts';
 import { listing } from '../apply/requirements.ts';
 import { isAbsoluteAnywhere } from '../paths.ts';
 import { parseYaml, parseYamlDocuments } from '../yaml-parse.ts';
-import { composerEntries, declaredRepositories } from './composer.ts';
+import { composerEntries, composerManifest, declaredRepositories } from './composer.ts';
 import { pdmEntries, pipfileLockEntries, poetryEntries, pylockEntries, requirementsEntries, requirementsFormatOf, requirementsIncludes, uvEntries } from './python-lockfiles.ts';
 
 /** Lockfiles are often larger than configuration files. */
@@ -54,6 +54,13 @@ export interface LockEntry {
    * registry tarball of resolution.tarball, Yarn's version field beside the version of the resolution.
    */
   mislabel?: { tool: 'npm'; key: string; label: string } | { tool: 'pnpm'; key: string; label: string } | { tool: 'yarn'; label: string; resolution: string };
+  /** Composer: why it installs a package that has an archive from its VCS source instead (decision D-136), for messages. */
+  why?: string;
+  /**
+   * Composer: an archive from a host of Packagist.org's packages next to a VCS source on a host that is not the one of
+   * that archive (decision D-136), which Packagist.org never writes: the source Composer falls back to in some cases.
+   */
+  otherSource?: { spec: string; distHost: string; sourceHost: string };
 }
 
 export interface Lockfile {
@@ -183,22 +190,41 @@ function parseSemver(text: string): { core: string; build: string | undefined } 
   return { core: `${major}.${minor}.${patch}${pre === undefined ? '' : `-${pre}`}`, build };
 }
 
+/** The base a relative resolution.tarball of pnpm is read against: pnpm resolves it against the registry, whose path only adds to the front. */
+const RELATIVE_BASE = 'https://registry.invalid/';
+
 /**
- * The registry package whose tarball a URL is, as npm reads it from resolved (versionFromTgz, npm extra.tarballIdentity,
- * decision D-135): /<name>/-/<name>-<version>.tgz, with the scope before the name and any path of the registry before
- * them. undefined for a URL in another layout.
+ * The path of a tarball URL as the registry reads it (decisions D-135 and D-136): without the query and the fragment,
+ * which name no other file (the fragment is not even sent), with its percent-escapes decoded; a relative URL (pnpm)
+ * is read against the registry. undefined for a URL that is not http(s) or does not decode.
  */
-function tarballIdentity(url: string, format: Format): { name: string; version: string } | undefined {
-  const separator = String(format['separator']);
-  const extension = String(format['extension']);
-  const base = url.slice(url.lastIndexOf('/') + 1);
-  if (!base.endsWith(extension) || !HTTP.test(url)) return undefined;
-  let path: string;
+function tarballPath(url: string, relative: boolean): string | undefined {
   try {
-    path = new URL(url).pathname;
+    const parsed = relative && !HTTP.test(url) ? new URL(url, RELATIVE_BASE) : new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
+    return decodeURIComponent(parsed.pathname);
   } catch {
     return undefined;
   }
+}
+
+/** Whether a tarball URL has the layout of a registry tarball (/-/ in its path), whatever depcurfew reads from it. */
+function registryLayout(url: string, format: Format, relative: boolean): boolean {
+  return tarballPath(url, relative)?.includes(String(format['separator'])) === true;
+}
+
+/**
+ * The registry package whose tarball a URL is, as npm reads it from resolved (versionFromTgz, npm extra.tarballIdentity,
+ * decisions D-135 and D-136): /<name>/-/<name>-<version>.tgz in the path the registry reads, with the scope before the
+ * name and any path of the registry before them. undefined for a path in another layout.
+ */
+function tarballIdentity(url: string, format: Format, relative = false): { name: string; version: string } | undefined {
+  const separator = String(format['separator']);
+  const extension = String(format['extension']);
+  const path = tarballPath(url, relative);
+  if (path === undefined) return undefined;
+  const base = path.slice(path.lastIndexOf('/') + 1);
+  if (!base.endsWith(extension)) return undefined;
   const parts = path.slice(1).split(separator);
   if (parts.length < 2 || parts.pop() !== base) return undefined;
   const pieces = (parts.pop() ?? '').split(new RegExp(String(format['scopeSeparator']), 'iu'));
@@ -294,9 +320,12 @@ function npmEntries(text: string, format: Format, workspaces: readonly string[],
     }
     else if (resolved === '' && (spec === '' || EXACT_VERSION.test(spec))) source = 'registry';
     const entry: LockEntry = { name, spec, source, installScript: value[scriptsKey] === true, anchor: `${JSON.stringify(key)}: {`, ...exactVersion(source, version) };
-    // npm installs the tarball of resolved, whatever the name and version fields say (extra.tarballIdentity, D-135);
-    // a resolved URL in a layout npm reads nothing from leaves the version field.
-    const identity = source === 'registry' && resolved !== '' && identityFormat !== undefined ? tarballIdentity(resolved, identityFormat) : undefined;
+    // npm installs the tarball of resolved, whatever the name and version fields say (extra.tarballIdentity, D-135),
+    // also when a query or a fragment follows its file name; a registry tarball URL from which depcurfew reads no name
+    // and version is an entry without an exact version, never the version field (D-136).
+    const fetched = source === 'registry' && resolved !== '' && identityFormat !== undefined;
+    const identity = fetched ? tarballIdentity(resolved, identityFormat) : undefined;
+    if (fetched && identity === undefined) delete entry.version;
     if (identity !== undefined) {
       entry.version = identity.version;
       if (identity.name !== name) entry.registryName = identity.name;
@@ -342,9 +371,13 @@ function pnpmEntries(text: string, format: Format, documents: Format | undefined
     else if (HTTP.test(spec)) source = 'remoteTarball';
     // A registry package is name@version; a key may carry a suffix in parentheses (peers, a patch hash).
     const entry: LockEntry = { name, spec, source, installScript: undefined, anchor: key, ...exactVersion(source, spec.split('(', 1)[0]) };
-    // pnpm fetches resolution.tarball when it is there (extra.tarballResolution, D-135); a registry tarball of another
-    // package or version is what it installs. A URL in another layout leaves the key.
-    const identity = source === 'registry' && HTTP.test(tarball) && identityFormat !== undefined ? tarballIdentity(tarball, identityFormat) : undefined;
+    // pnpm fetches resolution.tarball when it is there (extra.tarballResolution, D-135), a relative one from the
+    // registry; a registry tarball of another package or version is what it installs. A URL in the layout of a
+    // registry tarball that depcurfew cannot read gives no exact version (D-136); a URL in a layout of its own (a
+    // registry such as GitHub Packages) leaves the key.
+    const fetched = source === 'registry' && tarball !== '' && !tarball.startsWith('file:') && identityFormat !== undefined;
+    const identity = fetched ? tarballIdentity(tarball, identityFormat, true) : undefined;
+    if (fetched && identity === undefined && registryLayout(tarball, identityFormat, true)) delete entry.version;
     if (identity !== undefined && (identity.name !== name || identity.version !== entry.version)) {
       entry.version = identity.version;
       if (identity.name !== name) entry.registryName = identity.name;
@@ -668,7 +701,7 @@ function parseLockfiles(
       else if (tool.id === 'pdm') entries = pdmEntries(text, format);
       else if (tool.id === 'pipenv') entries = pipfileLockEntries(text, format);
       else if (tool.id === 'pip') entries = requirementsEntries(text, requirementsFormatOf(tool));
-      else if (tool.id === 'composer') entries = composerEntries(text, tool, declaredRepositories(repository, tool));
+      else if (tool.id === 'composer') entries = composerEntries(text, tool, declaredRepositories(repository, tool), composerManifest(repository));
       else ({ entries, recordsScripts } = denoEntries(text, format));
       const optionFiles = requirements.get(file);
       const isRequirements = tool.id === 'pip' && !(lockfiles.includes(file) && isPylock(pip, file));

@@ -1,6 +1,10 @@
 import { verifiedOn } from './define.ts';
 import type {
+  ApplicationOption,
   ComposerCommandsKnowledge,
+  ComposerInstallPreferenceKnowledge,
+  ComposerRootStabilityKnowledge,
+  ComposerScriptCommandsKnowledge,
   ComposerConstraintsKnowledge,
   ComposerStabilitiesKnowledge,
   CommandLineKnowledge,
@@ -48,6 +52,7 @@ const COMMAND_NAMES: CommandNamesKnowledge = {
     rm: 'remove', uninstall: 'remove', repo: 'repository', r: 'require', run: 'run-script', selfupdate: 'self-update', info: 'show', u: 'update', upgrade: 'update',
   },
   matching: 'symfony-console',
+  hidden: ['_complete'],
 };
 
 const noSetting = (kind: string): SourceKnowledge => ({
@@ -390,7 +395,7 @@ export const composer: ToolKnowledge = {
     commandNames: verified<CommandNamesKnowledge>(
       COMMAND_NAMES,
       `${CONSOLE}/Application.php`,
-      "Application::find: an exact command name or alias; otherwise every name and alias that starts with the word (for each part between colons), first with case and then without, aliases of a command already in the list left out; one command is run, more are ambiguous (an error) and none is not defined. The names and aliases are those of Composer's getDefaultCommands (src/Composer/Console/Application.php at 2.11.1, setName and setAliases in each src/Composer/Command/*Command.php) and of symfony/console (help, list, completion and the hidden _complete). Scripts of composer.json and commands of plugins are added as commands too, unless a command of that name exists.",
+      "Application::find: an exact command name or alias; otherwise every name and alias that starts with the word (for each part between colons, a name with more parts too), first with case and then without (ASCII letters only, PCRE without u), of which one must match the word whole; an alias is left out when the name of its command is in the list, a hidden command (_complete) when others remain; one name is run, more are ambiguous (an error) and none is not defined. The names and aliases are those of Composer's getDefaultCommands (src/Composer/Console/Application.php at 2.11.1, setName and setAliases in each src/Composer/Command/*Command.php) and of symfony/console (help, list, completion and the hidden _complete). Scripts of composer.json (extra.scriptCommands) and commands of plugins are added as commands too, unless a command of that name exists.",
     ),
     commandArguments: verified<ComposerCommandsKnowledge>(
       {
@@ -399,20 +404,20 @@ export const composer: ToolKnowledge = {
         createProject: 'create-project',
         global: 'global',
         pairSeparators: [':', '=', ' '],
-        platformPackages: '^(?:php(?:-64bit|-ipv6|-zts|-debug)?|hhvm|(?:ext|lib)-[a-z0-9](?:[_.-]?[a-z0-9]+)*|composer(?:-(?:plugin|runtime)-api)?)$',
-        namePattern: '^[a-z0-9]([_.-]?[a-z0-9]+)*/[a-z0-9](([_.]|-{1,2})?[a-z0-9]+)*$',
+        platformPackages: '^(?:php(?:-64bit|-ipv6|-zts|-debug)?|hhvm|(?:ext|lib)-[a-z0-9]+(?:[_.-][a-z0-9]+)*|composer(?:-(?:plugin|runtime)-api)?)$',
+        namePattern: '^[a-z0-9]+(?:[_.-][a-z0-9]+)*/[a-z0-9]+(?:(?:[_.]|-{1,2})[a-z0-9]+)*$',
         updateLockWords: ['lock', 'nothing', 'mirrors'],
         withOption: '--with',
         requireOption: '--require',
         stabilityOptions: ['--stability', '-s'],
       },
       `${SRC}/Package/Version/VersionParser.php`,
-      'parseNameVersionPairs: an argument is split at the first =, : or space after the name; an argument without one takes the next argument as its constraint when that has no /, no * next to a letter, digit, _, / or - and is no platform package. require and create-project read their packages so (RequireCommand via PackageDiscoveryTrait, CreateProjectCommand::installRootPackage); update moves an argument with a constraint (\\S+[ =:]\\S+) to the temporary constraints of --with and takes lock, nothing and mirrors as --lock (UpdateCommand.php). create-project takes its stability from --stability (-s), else from the @<stability> of its version, else from the version itself. Platform packages are PlatformRepository::PLATFORM_PACKAGE_REGEX (case-insensitive). The name pattern is the one 04-schema.md#name gives; Composer lowercases the names it looks up.',
+      'parseNameVersionPairs: an argument is split at the first =, : or space after the name; an argument without one takes the next argument as its constraint when that has no /, no * next to a letter, digit, _, / or - and is no platform package. require and create-project read their packages so (RequireCommand via PackageDiscoveryTrait, CreateProjectCommand::installRootPackage); update moves an argument with a constraint (\\S+[ =:]\\S+) to the temporary constraints of --with and takes lock, nothing and mirrors as --lock (UpdateCommand.php). create-project takes its stability from --stability (-s), else from the @<stability> of its version, else from the version itself. Platform packages are PlatformRepository::PLATFORM_PACKAGE_REGEX (case-insensitive). The name pattern is the one 04-schema.md#name gives (ValidatingArrayLoader::hasPackageNamingError checks the same with possessive quantifiers); Composer lowercases the names it looks up. Both are written here as patterns of the same names whose repeated group starts with its separator (X+(?:[sep]X+)*, decision D-136), so that a long name that fails at its end is read in linear time: X(?:[sep]?X+)* can split a run of letters in exponentially many ways.',
     ),
     registryOverrides: verified<RegistryOverridesKnowledge>(
-      { registryOptions: ['--repository', '--repository-url'], registryVariables: [], configOptions: [], configVariables: ['COMPOSER'] },
+      { registryOptions: ['--repository', '--repository-url'], registryVariables: [], configOptions: [], configVariables: ['COMPOSER', 'COMPOSER_HOME'] },
       `${CLI}#create-project`,
-      'create-project --repository "Provide a custom repository to search for the package, which will be used instead of packagist" (and --repository-url, CreateProjectCommand.php at 2.11.1). COMPOSER sets the file name of composer.json, whose repositories then apply (#composer). Other commands take their repositories from composer.json only.',
+      'create-project --repository "Provide a custom repository to search for the package, which will be used instead of packagist" (and --repository-url, CreateProjectCommand.php at 2.11.1). COMPOSER sets the file name of composer.json, whose repositories then apply (#composer). COMPOSER_HOME sets the home directory (Factory::getHomeDir: "if ($home = Platform::getEnv(\'COMPOSER_HOME\')) return $home"), whose config.json Factory::createConfig merges under the configuration of every project, its repositories included (03-cli.md#composer-home-config-json), and in which composer global runs, with the composer.json there (GlobalCommand::prepareSubcommandInput changes to the home directory of the configuration). Other commands take their repositories from composer.json only.',
     ),
     installOverrides: verified<InstallOverridesKnowledge>(
       {
@@ -451,10 +456,70 @@ export const composer: ToolKnowledge = {
       `${CLI}#config`,
       'composer config [options] [setting-key] [setting-value1] ... changes a setting of composer.json (with --global, -g, of COMPOSER_HOME/config.json), --unset removes one and --editor (-e) opens the file; with a key alone it shows the value (src/Composer/Command/ConfigCommand.php at 2.11.1). composer repository (repo) add, remove (rm, delete), set-url (seturl), enable and disable change the repositories, list (ls, show) and get-url (geturl) only read them (RepositoryCommand.php). composer policy add-source changes config.policy (PolicyCommand.php). The same commands after composer global change the files of COMPOSER_HOME.',
     ),
+    applicationOptions: verified<readonly ApplicationOption[]>(
+      [
+        { name: 'help', shortcuts: ['h'], value: 'none' },
+        { name: 'quiet', shortcuts: ['q'], value: 'none' },
+        { name: 'verbose', shortcuts: ['v', 'vv', 'vvv'], value: 'none' },
+        { name: 'version', shortcuts: ['V'], value: 'none' },
+        { name: 'ansi', shortcuts: [], value: 'negatable' },
+        { name: 'no-interaction', shortcuts: ['n'], value: 'none' },
+        { name: 'profile', shortcuts: [], value: 'none' },
+        { name: 'no-plugins', shortcuts: [], value: 'none' },
+        { name: 'no-scripts', shortcuts: [], value: 'none' },
+        { name: 'working-dir', shortcuts: ['d'], value: 'required' },
+        { name: 'no-cache', shortcuts: [], value: 'none' },
+      ],
+      `${SRC}/Console/Application.php`,
+      'Composer finds the command name before it knows the command (getCommandNameBeforeBinding: "This ensures we can find the correct command name even if a global input option is present before it"): it binds the words to the input definition of the application, ignoring the error that stops the binding (an option it does not define, a missing value, a second argument), and takes $input->getFirstArgument(). The definition is that of symfony/console (Application::getDefaultInputDefinition at v5.4.55: the command argument, --help -h, --quiet -q, --verbose -v|vv|vvv, --version -V, --ansi|--no-ansi, --no-interaction -n) with the --profile, --no-plugins, --no-scripts, --working-dir -d (with a value) and --no-cache of Composer. ArgvInput::getFirstArgument (v5.4.55) passes over each word that starts with -, and also over the next word when the option is one the binding set (a long name, or the last letter of a short one) and that word equals its bound value; the first other word is the command. So only -d and --working-dir take the word after them before the command, an option of a command (--ignore-platform-req) does not, and that command later binds the word after it as its value (Input/ArgvInput.php: parse, addLongOption, parseShortOptionSet).',
+    ),
+    scriptCommands: verified<ComposerScriptCommandsKnowledge>(
+      {
+        scripts: 'scripts',
+        aliases: 'scripts-aliases',
+        events: [
+          'pre-install-cmd',
+          'post-install-cmd',
+          'pre-update-cmd',
+          'post-update-cmd',
+          'pre-status-cmd',
+          'post-status-cmd',
+          'pre-autoload-dump',
+          'post-autoload-dump',
+          'post-root-package-install',
+          'post-create-project-cmd',
+          'pre-archive-cmd',
+          'post-archive-cmd',
+        ],
+        validName: '^[^:]+(?::[^:]+)*$',
+      },
+      `${SRC}/Console/Application.php`,
+      'doRunComposer registers the scripts of the composer.json it runs with (Factory::getComposerFile, after -d) as commands when the command word is not the exact name of a command Composer found before (mayNeedScriptCommand: "$rawCommandName !== $commandName", so also for an alias, an abbreviation, another case or a word that names no command) or the command is run-script. Each key of scripts that is no event (the constants of src/Composer/Script/ScriptEvents.php, compared in upper case with - as _) and not already a command or alias ($this->has($script): "A script named ... would override a Composer command and has been skipped") becomes a ScriptAliasCommand with the aliases that scripts-aliases gives it. Application::add of symfony/console (v5.4.55) maps the name and each alias to it, over an alias or name of another command; Command::setName and setAliases reject a name that is not parts without a colon separated by single colons (validateName), and ScriptAliasCommand an alias that is not a string, which stops Composer. find() then resolves the word among all of them: the exact name or alias, else the names that start with it. ScriptAliasCommand runs the script as composer run-script does (src/Composer/Command/ScriptAliasCommand.php).',
+    ),
+    rootStability: verified<ComposerRootStabilityKnowledge>(
+      { minimumStability: 'minimum-stability', preferStable: 'prefer-stable', values: ['stable', 'rc', 'beta', 'alpha', 'dev'] },
+      `${SRC}/Package/Loader/RootPackageLoader.php`,
+      'RootPackageLoader reads minimum-stability of the root composer.json through VersionParser::normalizeStability (composer/semver 3.6.0: lower case, one of stable, RC, beta, alpha and dev, else an exception) and prefer-stable as (bool) $config[\'prefer-stable\']. composer require without a constraint takes the minimum stability of composer.json (PackageDiscoveryTrait::getMinimumStability) for the versions it considers and asks VersionSelector::findBestCandidate for a version with the preferred stability "stable" under prefer-stable, else the minimum stability (RequireCommand.php): versions at least that stable come first, the highest of them, else the most stable of the others. The solver orders the versions a constraint allows with DefaultPolicy::versionCompare: with prefer-stable the more stable one first, else the higher version, which a branch (dev-main aliased 3.x-dev) is. All at 2.11.1 (src/Composer/Package/Version/VersionSelector.php, src/Composer/DependencyResolver/DefaultPolicy.php, src/Composer/Command/PackageDiscoveryTrait.php).',
+    ),
+    installPreference: verified<ComposerInstallPreferenceKnowledge>(
+      { setting: 'preferred-install', default: 'dist', dist: 'dist', source: 'source', auto: 'auto', everything: '*' },
+      `${SRC}/Downloader/DownloadManager.php`,
+      'DownloadManager::getAvailableSources offers source before dist (each only with a type) and reverses them "in case dist is the preferred source for this package": unless preferSource, when preferDist or resolvePackageInstallPreference says dist. BaseCommand::getPreferredInstallOptions sets preferSource for config.preferred-install "source" and preferDist for "dist" (Config::$defaultConfig has "dist"), and neither for "auto", another string or an object; Factory::createDownloadManager hands an object to setPreferences. resolvePackageInstallPreference takes the first key that matches the package name ({^pattern$}i with * as .*): "dist", or "auto" for a version that is not dev, gives dist, any other value source; with no match, source for a dev version (a branch) and dist for others. Config::merge turns the default "dist" into {"*": "dist"} under an object of composer.json and moves the "*" key to the end. --prefer-source, --prefer-dist and --prefer-install override it for one command. All at 2.11.1 (src/Composer/Command/BaseCommand.php, src/Composer/Factory.php, src/Composer/Config.php).',
+    ),
+    sourceFallback: verified(
+      { since: '2.10.0', setting: 'source-fallback', removedIn: '2.11.0' },
+      CHANGELOG,
+      '2.10.0: "Disabled automatic fallback to source checkout if dist/zip install fails, we have introduced a new source-fallback config option as a temporary way to restore the old behavior" (#12885); 2.11.0-RC1: "Removed the source-fallback config option which was added in 2.10 as a temporary measure, dist installs no longer fall back to source" (#13050). DownloadManager::download at 2.11.1 only falls back from source to dist ("Only fallback from dist to source is risky as it can silently switch to less-trusted code"). Composer before 2.10.0 installs a package from its source when the download of its archive fails.',
+    ),
+    registrySourceHosts: verified(
+      { 'api.github.com': 'github.com', 'gitlab.com': 'gitlab.com', 'bitbucket.org': 'bitbucket.org', 'codeberg.org': 'codeberg.org' },
+      `${SRC}/Repository/Vcs/GitHubDriver.php`,
+      'The host of the source that the VCS driver gives a package whose archive comes from a host of registryDistHosts: GitHubDriver::getSource https://github.com/<owner>/<repo>.git (git@github.com:<owner>/<repo>.git for a private repository) beside its archive on api.github.com; GitLabDriver::getSource the http_url_to_repo or ssh_url_to_repo of the project on gitlab.com; GitBitbucketDriver::getSource the URL of the repository on bitbucket.org; ForgejoDriver::getSource its clone URL on codeberg.org (src/Composer/Repository/Vcs/*Driver.php at 2.11.1).',
+    ),
     directoryOptions: verified<DirectoryOptionsKnowledge>(
-      { options: [{ name: '--working-dir', moves: 'directory' }, { name: '-d', moves: 'directory' }], variables: [] },
+      { options: [{ name: '--working-dir', moves: 'directory' }, { name: '-d', moves: 'directory' }], variables: [], lookup: 'first-token' },
       `${CLI}#global-options`,
-      '"--working-dir (-d): If specified, use the given directory as working directory." Application::doRunComposer changes to it before it reads composer.json (src/Composer/Console/Application.php at 2.11.1). Without it and without composer.json in the current directory, an interactive run asks whether to use the nearest parent that has one, and use-parent-dir true does so without asking.',
+      '"--working-dir (-d): If specified, use the given directory as working directory." Application::doRunComposer changes to it before it reads composer.json (src/Composer/Console/Application.php at 2.11.1). Without it and without composer.json in the current directory, an interactive run asks whether to use the nearest parent that has one, and use-parent-dir true does so without asking. getNewWorkingDir reads the directory with $input->getParameterOption([\'--working-dir\', \'-d\'], null, true), which in symfony/console v5.4.55 (Input/ArgvInput.php) takes the first word, up to --, that is --working-dir or -d (then the next word) or starts with --working-dir= or -d (then the rest of the word); a grouped -nd dir does not start with -d, so Composer stays where it is, although the command later binds -n and -d dir as options.',
     ),
   },
 };

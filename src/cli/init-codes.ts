@@ -13,7 +13,7 @@ export const INIT_NOTES = {
   'tool-only-in-ci': 'A tool appears only in a CI setup step, so depcurfew apply does not configure it under targets "auto".',
   'install-script-denied': 'A lockfile has a package whose install script depcurfew knows it does not need (esbuild, fsevents), so init adds it to installScripts.deny; the note says what changes without the script.',
   'install-script-project-task': 'A lockfile has a package whose install script only does a task of the project (lefthook installs the git hooks), so init adds it to installScripts.deny; the fix says how the project runs that task itself.',
-  'install-scripts-to-review': 'A lockfile has other packages with install scripts, which installScripts.default "deny" blocks; review each before depcurfew apply.',
+  'install-scripts-to-review': 'A lockfile has other packages with install scripts, or composer.lock has Composer plugins (the note says which ones allow-plugins in composer.json already allows), which installScripts.default "deny" blocks; review each before depcurfew apply.',
   'install-scripts-not-recorded': 'A lockfile does not record which packages have install scripts (pnpm-lock.yaml, yarn.lock), or is in a format depcurfew does not read, so init can name only the packages depcurfew knows.',
 } as const satisfies Record<string, string>;
 

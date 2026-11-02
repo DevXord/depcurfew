@@ -9,7 +9,9 @@ import { inProject } from '../apply/projects.ts';
 import { listing } from '../apply/requirements.ts';
 import { Repository } from '../detect/repository.ts';
 import type { Detection } from '../detect/types.ts';
+import { COMPOSER_MANIFEST, composerManifest, isComposerName, pluginDecision } from '../doctor/composer.ts';
 import { keepFix, knownPackageOf, knownPackages, versionNote, withoutScript } from '../doctor/install-script-packages.ts';
+import { COMPOSER_PREFIX } from '../policy/package-pattern.ts';
 import { readLockfiles, type Lockfile, type LockEntry } from '../doctor/lockfiles.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { InstallScriptPackageKnowledge, ToolKnowledge } from '../knowledge/types.ts';
@@ -66,6 +68,10 @@ export function installScriptHints(base: string, directories: readonly ScriptDir
     const workspaces = detection.workspaces?.packages ?? [];
     for (const manager of detection.packageManagers.filter((entry) => entry.supported)) {
       const tool = knowledgeBase.find((entry) => entry.id === manager.id);
+      if (tool !== undefined && tool.id === 'composer') {
+        review.push(...composerPlugins(repository, manager, tool, shownFile));
+        continue;
+      }
       if (tool === undefined || ecosystemOfTool(tool) !== 'npm') continue;
       for (const result of readLockfiles(repository, manager, tool, workspaces, knowledgeBase)) {
         if (!result.ok) {
@@ -107,6 +113,37 @@ export function installScriptHints(base: string, directories: readonly ScriptDir
   }
   // The order of the knowledge base, so that the policy does not depend on the order of the lockfiles.
   return { deny: knownPackages().map((known) => known.name).filter((name) => deny.has(name)), notes: [...notes, ...review] };
+}
+
+/**
+ * The Composer plugins of composer.lock, which installScripts.default "deny" blocks (decision D-136): one note per
+ * lockfile with their names as the policy writes them, and for each that config.allow-plugins of composer.json already
+ * allows, that it does, so that the user reviews it and adds it to installScripts.allow before apply.
+ */
+function composerPlugins(repository: Repository, manager: Detection['packageManagers'][number], tool: ToolKnowledge, shownFile: (file: string) => string): InitMessage[] {
+  const notes: InitMessage[] = [];
+  const manifest = composerManifest(repository);
+  for (const result of readLockfiles(repository, manager, tool, [], knowledgeBase)) {
+    if (!result.ok) continue;
+    const { lockfile } = result;
+    const plugins = lockfile.entries.filter((entry) => entry.installScript === true);
+    if (plugins.length === 0) continue;
+    const shown = shownFile(lockfile.file);
+    const named = [...new Set(plugins.map((entry) => entry.name))].map((name) => {
+      const label = isComposerName(name) ? `${COMPOSER_PREFIX}${name}` : name;
+      const decision = pluginDecision(manifest, name);
+      return decision.allowed === true && decision.key !== undefined ? `${label} (config.allow-plugins in ${COMPOSER_MANIFEST} allows it)` : label;
+    });
+    const one = named.length === 1;
+    notes.push({
+      code: 'install-scripts-to-review',
+      level: 'note',
+      location: { file: shown },
+      message: `${shown} has ${one ? 'a Composer plugin' : 'Composer plugins'}, whose code runs during Composer commands, that installScripts.default "deny" blocks: ${names(named)}`,
+      fix: `Review each one before you run depcurfew apply: add it to installScripts.allow in ${POLICY_FILE} if the project needs it (as ${COMPOSER_PREFIX}vendor/name), or to installScripts.deny if it works without it; depcurfew apply then writes config.allow-plugins from ${POLICY_FILE}`,
+    });
+  }
+  return notes;
 }
 
 /** A lockfile from which init cannot tell which packages have install scripts. */

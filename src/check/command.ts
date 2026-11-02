@@ -21,6 +21,7 @@ import { delayMinutes, formatMinutes } from '../doctor/durations.ts';
 import { environment } from '../knowledge/environment.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type {
+  ApplicationOption,
   ComposerCommandsKnowledge,
   CommandLineKnowledge,
   CommandLineParsing,
@@ -42,6 +43,7 @@ import type {
 } from '../knowledge/types.ts';
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import { COMPOSER_PREFIX, PYPI_PREFIX } from '../policy/package-pattern.ts';
+import { commandWordIndex, findComposerCommand } from './composer-commands.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import {
@@ -105,6 +107,8 @@ export interface InstallRequest {
   readsManifest?: false;
   /** Composer: composer update names the package without a constraint, so the one of the root composer.json applies. */
   fromManifest?: true;
+  /** Composer: the command word, when the scripts of composer.json may change the command it stands for (decision D-136). */
+  composerCommand?: { word: string; command: string };
 }
 
 export type { CommandDirectory, KnownDirectory } from './directories.ts';
@@ -710,6 +714,8 @@ interface ToolCommands {
   directories: DirectoryOptionsKnowledge | undefined;
   /** Composer: how its commands name the packages they install (decision D-133). */
   composer: ComposerCommandsKnowledge | undefined;
+  /** Composer: the options of the application, which it binds before it knows the command (decision D-136). */
+  applicationOptions: readonly ApplicationOption[] | undefined;
 }
 
 interface Commands {
@@ -822,6 +828,7 @@ function commands(): Commands {
             commandNames: factOf<CommandNamesKnowledge>(tool, sibling(key, 'commandNames')),
             directories: factOf<DirectoryOptionsKnowledge>(tool, sibling(key, 'directoryOptions')),
             composer: factOf<ComposerCommandsKnowledge>(tool, sibling(key, 'commandArguments')),
+            applicationOptions: factOf<ApplicationOption[]>(tool, sibling(key, 'applicationOptions')),
           },
         ];
       }),
@@ -1104,6 +1111,8 @@ const PROTECTS = 'which protects every package the command fetches, also those d
 const OVERRIDE_UNREAD = `is set in a way depcurfew does not read, which may weaken ${WEAKENS}`;
 /** More specs than the hook checks for one command. */
 export const TOO_MANY = 'depcurfew checks at most';
+/** composer global update of a name without a constraint (decision D-136). */
+const GLOBAL_CONSTRAINT = 'from the constraint in COMPOSER_HOME/composer.json, which depcurfew does not read';
 /** How the reason starts for an install whose directory cannot be told (decision D-118). */
 const UNKNOWN_DIRECTORY = 'depcurfew cannot tell which directory';
 /** A file run in this shell, and a trap that runs between later commands, make every later directory unknown (decision D-123). */
@@ -1156,6 +1165,7 @@ export function unreadableFix(reason: string): string {
   }
   if (reason.includes(CMD_READS_AGAIN)) return 'Leave & | < > and " out of the arguments of the package manager, so depcurfew can check the command';
   if (reason.includes(TOO_MANY)) return 'Install the packages in smaller groups, so depcurfew can check each of them';
+  if (reason.includes(GLOBAL_CONSTRAINT)) return 'Name the version to install (composer global require vendor/name:1.2.3), so depcurfew can check it';
   return 'Write the package names out in the command, so depcurfew can check them';
 }
 
@@ -2759,20 +2769,12 @@ function commandName(names: CommandNamesKnowledge, word: string): string {
 }
 
 /**
- * A command name as symfony/console resolves it for Composer (Application::find, decision D-133): an exact command or
- * alias, else every command and alias that starts with the word, with case and, when none does, without; they must
- * all stand for one command, else the word stays as written (Composer reports it as ambiguous or not defined). No
- * command of Composer has a colon, so a word with one is not a prefix of any.
+ * A command name as symfony/console resolves it for Composer (Application::find, decisions D-133 and D-136), without
+ * the scripts of composer.json, which the check of the install adds (findComposerCommand); a word that is ambiguous
+ * or names no command stays as written (Composer runs nothing for it).
  */
 function symfonyCommandName(names: CommandNamesKnowledge, word: string): string {
-  if (names.commands.includes(word)) return word;
-  if (Object.hasOwn(names.aliases, word)) return names.aliases[word] as string;
-  if (word === '' || word.includes(':')) return word;
-  const all = [...names.commands, ...Object.keys(names.aliases)];
-  let matched = all.filter((candidate) => candidate.startsWith(word));
-  if (matched.length === 0) matched = all.filter((candidate) => candidate.toLowerCase().startsWith(word.toLowerCase()));
-  const commands = new Set(matched.map((candidate) => (Object.hasOwn(names.aliases, candidate) ? (names.aliases[candidate] as string) : candidate)));
-  return commands.size === 1 ? ([...commands][0] as string) : word;
+  return findComposerCommand(names, word)?.name ?? word;
 }
 
 function resolveCommandName(names: CommandNamesKnowledge, word: string): string {
@@ -2912,6 +2914,7 @@ function positionals(tool: ToolCommands, words: readonly Word[]): { texts: strin
 function toolDirectory(tool: ToolCommands, executable: string, words: readonly Word[], assigned: readonly Word[]): { directory: CommandDirectory | undefined; words: readonly Word[] } {
   const facts = tool.directories;
   if (facts === undefined) return { directory: undefined, words };
+  if (facts.lookup === 'first-token') return firstTokenDirectory(facts, executable, words);
   let rest = words;
   const found: { option: DirectoryOption; value: Word }[] = [];
   for (const option of facts.options) {
@@ -2966,6 +2969,34 @@ function toolDirectory(tool: ToolCommands, executable: string, words: readonly W
   const steps = chosen.map((entry) => (entry.option.file === undefined ? entry.value.text : directoryOfFile(entry.value.text)));
   const local = chosen.some((entry) => entry.option.localPrefix === true) ? { localPrefix: true as const } : {};
   return { directory: { steps, ...local }, words: rest };
+}
+
+/**
+ * The directory option as symfony/console's getParameterOption(..., onlyParams: true) finds it for Composer (decision
+ * D-136): the first word up to -- that is the option, with the next word as its value, or starts with it (a long option
+ * and =, a short option with the value attached); a grouped -nd dir does not count. A word the shell expands before it
+ * may be the option, so the directory is unknown then.
+ */
+function firstTokenDirectory(facts: DirectoryOptionsKnowledge, executable: string, words: readonly Word[]): { directory: CommandDirectory | undefined; words: readonly Word[] } {
+  for (let index = 0; index < words.length; index++) {
+    const word = words[index] as Word;
+    if (word.text === '--') break;
+    for (const option of facts.options) {
+      const leading = option.name.startsWith('--') ? `${option.name}=` : option.name;
+      let value: Word | undefined;
+      if (word.text === option.name) value = words[index + 1];
+      else if (word.text.startsWith(leading)) value = { text: word.text.slice(leading.length), dynamic: word.dynamic };
+      else continue;
+      // getParameterOption returns what follows the first match, also nothing: Composer then stays where it is.
+      if (value === undefined) return { directory: undefined, words };
+      if (value.dynamic) return { directory: { unknown: `the shell expands ${option.name}, which names the directory "${shown(executable)}" runs in` }, words };
+      return { directory: { steps: [value.text] }, words };
+    }
+    if (word.dynamic) {
+      return { directory: { unknown: `the shell expands "${shown(word.text)}", which may be the ${facts.options[0]?.name ?? 'option'} that names the directory "${shown(executable)}" runs in` }, words };
+    }
+  }
+  return { directory: undefined, words };
 }
 
 /** The directory of a file named by a path: '.' for a file named alone, '/' for one in the root. */
@@ -3057,16 +3088,19 @@ function composerPairs(texts: readonly string[], facts: ComposerCommandsKnowledg
 }
 
 /**
- * A Composer command (decision D-133), read as symfony/console reads it: options anywhere (grouped short options, a
- * value attached or in the next word), every word after -- an argument, and the first argument the command, resolved
- * as Composer resolves its names (commandNames). composer require, the require of composer global, create-project
- * (its package and --require) and composer update with packages or --with name the packages they install; update
- * names without a constraint take the one of the root composer.json, and patterns and lock, nothing and mirrors are no
- * packages. Platform packages (php, ext-*) are not installed by Composer. composer install installs composer.lock, so
- * only what its options weaken counts, as for any other command.
+ * A Composer command (decisions D-133 and D-136), read as symfony/console reads it: options anywhere (grouped short
+ * options, a value attached or in the next word) and every word after -- an argument. The command word is the one
+ * Composer finds before it knows the command (getFirstArgument after binding the options of the application, so that
+ * only -d and --working-dir take the word after them before it), resolved as Composer resolves its names
+ * (commandNames); the first word the command then binds as an argument is its command argument, and the others are
+ * its arguments. composer require, the require of composer global, create-project (its package and --require) and
+ * composer update with packages or --with name the packages they install; update names without a constraint take the
+ * one of the root composer.json, and patterns and lock, nothing and mirrors are no packages. Platform packages (php,
+ * ext-*) are not installed by Composer. composer install installs composer.lock, so only what its options weaken
+ * counts, as for any other command. A command word that is not the exact name of the command it stands for is kept
+ * with the requests, since the scripts of composer.json may make it stand for a script or for nothing.
  */
 function scanComposer(tool: ToolCommands, facts: ComposerCommandsKnowledge, rest: readonly Word[], line: string, depth: number): CommandScan {
-  const positional: Word[] = [];
   const values = new Map<string, string[]>();
   const found: Found[] = [];
   let arguments_ = false;
@@ -3076,10 +3110,7 @@ function scanComposer(tool: ToolCommands, facts: ComposerCommandsKnowledge, rest
       arguments_ = true;
       continue;
     }
-    if (arguments_ || !isOption(word.text)) {
-      positional.push(word);
-      continue;
-    }
+    if (arguments_ || !isOption(word.text)) continue;
     if (word.dynamic) return unreadable(`${shown(line)}: ${expanded(word)}`);
     const option = readOption(rest, index, tool, (name) => tool.valueOptions.has(name));
     if (option.next?.dynamic === true) return unreadable(`${shown(line)}: "${shown(`${word.text} ${option.next.text}`)}" is expanded by the shell`);
@@ -3090,31 +3121,60 @@ function scanComposer(tool: ToolCommands, facts: ComposerCommandsKnowledge, rest
     if (option.value !== undefined) values.set(option.name, [...(values.get(option.name) ?? []), option.value]);
     if (option.next !== undefined) index += 1;
   }
+  // The words the command binds as arguments: every word that is no option or option value, and each after --.
+  const positionalOf = (words: readonly Word[]): Word[] => {
+    const list: Word[] = [];
+    let after = false;
+    for (let index = 0; index < words.length; index++) {
+      const word = words[index] as Word;
+      if (!after && word.text === '--') {
+        after = true;
+        continue;
+      }
+      if (after || !isOption(word.text)) {
+        list.push(word);
+        continue;
+      }
+      if (readOption(words, index, tool, (name) => tool.valueOptions.has(name)).next !== undefined) index += 1;
+    }
+    return list;
+  };
   const scan = managerScan(line, found);
   const names = tool.commandNames;
   const resolve = (word: Word) => (names === undefined ? word.text : commandName(names, word.text));
-  let words = positional;
-  let readsManifest = true;
-  const head = words[0];
+  const options = tool.applicationOptions ?? [];
+  const commandWord = (words: readonly Word[]): Word | undefined => words[commandWordIndex(words.map((word) => word.text), options)];
+  const head = commandWord(rest);
   if (head === undefined) return scan;
   if (head.dynamic) return unreadable(`${shown(line)}: ${expanded(head, 'the subcommand ')}`);
   let command = resolve(head);
+  // An alias or abbreviation of a command: the scripts of composer.json may change what it stands for (decision D-136).
+  const marker = names !== undefined && command !== head.text && (names.commands.includes(command) || Object.hasOwn(names.aliases, command)) ? { word: head.text, command } : undefined;
+  let operands = positionalOf(rest).slice(1);
+  let readsManifest = true;
   if (command === facts.global) {
-    // composer global runs the command in COMPOSER_HOME, whose composer.json depcurfew does not read.
+    // composer global runs the input again without the global word, in COMPOSER_HOME, whose composer.json depcurfew does not read.
     readsManifest = false;
-    words = words.slice(1);
-    const inner = words[0];
-    if (inner === undefined) return scan;
-    if (inner.dynamic) return unreadable(`${shown(line)}: ${expanded(inner, 'the subcommand ')}`);
-    command = resolve(inner);
+    const inner = rest.filter((word) => word !== head);
+    const innerHead = commandWord(inner);
+    if (innerHead === undefined) return scan;
+    if (innerHead.dynamic) return unreadable(`${shown(line)}: ${expanded(innerHead, 'the subcommand ')}`);
+    command = resolve(innerHead);
+    operands = positionalOf(inner).slice(1);
   }
-  const operands = words.slice(1);
   const dynamic = operands.find((word) => word.dynamic);
   const platform = new RegExp(facts.platformPackages, 'iu');
   const requests: InstallRequest[] = [];
   const request = (name: string, constraint: string | undefined, extra: Pick<InstallRequest, 'readsManifest' | 'fromManifest'> = {}) => {
     if (platform.test(name)) return;
-    requests.push({ tool: tool.tool, command: line, spec: `${COMPOSER_PREFIX}${name.toLowerCase()}${constraint === undefined ? '' : `:${constraint}`}`, ...(readsManifest ? {} : { readsManifest: false }), ...extra });
+    requests.push({
+      tool: tool.tool,
+      command: line,
+      spec: `${COMPOSER_PREFIX}${name.toLowerCase()}${constraint === undefined ? '' : `:${constraint}`}`,
+      ...(readsManifest ? {} : { readsManifest: false }),
+      ...extra,
+      ...(marker === undefined ? {} : { composerCommand: marker }),
+    });
   };
   const option = (names: readonly string[]) => names.flatMap((name) => values.get(name) ?? []);
   if (command === facts.require) {
@@ -3127,7 +3187,10 @@ function scanComposer(tool: ToolCommands, facts: ComposerCommandsKnowledge, rest
       if (facts.updateLockWords.includes(text) || text.includes('*')) continue;
       const pair = constrained.exec(text.trim());
       if (pair !== null) request(pair[1] as string, pair[2] as string);
-      else if (!values.get(facts.withOption)?.includes(text)) request(text, undefined, { fromManifest: true });
+      else if (values.get(facts.withOption)?.includes(text)) continue;
+      // composer global update takes the constraint from the composer.json of COMPOSER_HOME (decision D-136).
+      else if (!readsManifest) return unreadable(`${shown(line)}: Composer takes the version of ${shown(text)} ${GLOBAL_CONSTRAINT}`);
+      else request(text, undefined, { fromManifest: true });
     }
   } else if (command === facts.createProject) {
     if (dynamic !== undefined) return unreadable(`${shown(line)}: ${expanded(dynamic)}`);
@@ -3142,7 +3205,7 @@ function scanComposer(tool: ToolCommands, facts: ComposerCommandsKnowledge, rest
     }
     for (const pair of composerPairs(option([facts.requireOption]), facts)) request(pair.name, pair.constraint);
   } else {
-    // Another command (install, remove, exec): what its options weaken, and a package manager it runs.
+    // Another command (install, remove, exec, run-script): what its options weaken, and a package manager it runs.
     merge(scan, laterCommand(operands, depth));
     return scan;
   }
@@ -3181,19 +3244,39 @@ function namedRunner(text: string): string | undefined {
  */
 function namedSetting(text: string): string | undefined {
   const { configVariables, registryVariables, selectionVariables } = commands();
-  for (const piece of text.split(/[^A-Za-z0-9_]+/u)) {
+  for (const { piece, at } of namedPieces(text)) {
     const lower = piece.toLowerCase();
-    if (configVariables.has(lower) || registryVariables.has(lower)) return anotherRegistry(piece);
-    if (selectionVariables.has(lower)) return `${piece} ${SET_UNREAD}`;
+    if ((configVariables.has(lower) || registryVariables.has(lower)) && namesVariable(text, piece, at)) return anotherRegistry(piece);
+    if (selectionVariables.has(lower) && namesVariable(text, piece, at)) return `${piece} ${SET_UNREAD}`;
   }
   return undefined;
+}
+
+/** The words of a PowerShell line that may name a variable, with where they start. */
+function* namedPieces(text: string): Generator<{ piece: string; at: number }> {
+  for (const match of text.matchAll(/[A-Za-z0-9_]+/gu)) yield { piece: match[0], at: match.index };
+}
+
+/**
+ * Whether a word of a PowerShell line counts as naming an environment variable: always, unless the variable has the
+ * name of a package manager (COMPOSER, decision D-136), which the line names as a command too; that one counts only
+ * where PowerShell takes a variable name: after env: (Set-Item env:COMPOSER, ${env:COMPOSER}), in quotes on its own
+ * ([Environment]::SetEnvironmentVariable('COMPOSER', …)) and after -Name (New-Item -Path Env: -Name COMPOSER).
+ */
+function namesVariable(text: string, piece: string, at: number): boolean {
+  if (!commands().executables.has(piece.toLowerCase())) return true;
+  const before = text.slice(0, at);
+  const after = text[at + piece.length];
+  if (/env:[\\/]?$/iu.test(before) || /-name\s+$/iu.test(before)) return true;
+  const quote = before.at(-1);
+  return (quote === "'" || quote === '"') && after === quote;
 }
 
 /** A variable that weakens the delay or the rule on install scripts, named in a PowerShell line outside what was read. */
 function namedOverride(text: string): string | undefined {
   const { overrideVariables } = commands();
-  const piece = text.split(/[^A-Za-z0-9_]+/u).find((part) => overrideVariables.has(part.toLowerCase()));
-  return piece === undefined ? undefined : `${piece} ${OVERRIDE_UNREAD}`;
+  for (const { piece, at } of namedPieces(text)) if (overrideVariables.has(piece.toLowerCase()) && namesVariable(text, piece, at)) return `${piece} ${OVERRIDE_UNREAD}`;
+  return undefined;
 }
 
 /**

@@ -11,9 +11,22 @@ type Path = readonly (string | number)[];
 
 export const YAML_MARKER = '# managed by depcurfew';
 
+/** How a file is read: with merge keys, and with the numbers of Psych (decision D-136), as its tool reads it. */
+interface Mode {
+  merge: boolean;
+  psych: boolean;
+}
+
+const PLAIN: Mode = { merge: false, psych: false };
+
+function modeOf(options: YamlOptions): Mode {
+  return { merge: options.merge === true, psych: options.psychScalars === true };
+}
+
 interface Parsed {
   text: string;
   merge: boolean;
+  psych: boolean;
   document: ReturnType<typeof parseYamlDocument>;
   lineCounter: LineCounter;
   /** The plain data, computed once; only compared and copied, never handed out or changed. */
@@ -28,11 +41,12 @@ interface Parsed {
  */
 const recent: Parsed[] = [];
 
-function parse(text: string, merge = false): Parsed {
-  let parsed = recent.find((entry) => entry.text === text && entry.merge === merge);
+function parse(text: string, mode: Mode = PLAIN): Parsed {
+  let parsed = recent.find((entry) => entry.text === text && entry.merge === mode.merge && entry.psych === mode.psych);
   if (parsed === undefined) {
     const lineCounter = new LineCounter();
-    parsed = { text, merge, document: parseYamlDocument(text, lineCounter, { merge }), lineCounter };
+    const document = parseYamlDocument(text, lineCounter, { merge: mode.merge, ...(mode.psych ? { psychScalars: true } : {}) });
+    parsed = { text, merge: mode.merge, psych: mode.psych, document, lineCounter };
     recent.unshift(parsed);
     recent.length = Math.min(recent.length, 2);
   }
@@ -41,8 +55,8 @@ function parse(text: string, merge = false): Parsed {
 }
 
 /** The data of a text, for comparing before and after an edit. */
-function dataOf(text: string, merge = false): unknown {
-  const parsed = parse(text, merge);
+function dataOf(text: string, mode: Mode = PLAIN): unknown {
+  const parsed = parse(text, mode);
   if (!('data' in parsed)) parsed.data = parsed.document.toJS() as unknown;
   return parsed.data;
 }
@@ -186,7 +200,7 @@ function replaceValue(text: string, keyRange: readonly number[], valueNode: Node
 }
 
 export function yamlGet(text: string, path: Path, options: YamlOptions = {}): unknown {
-  const value: unknown = dataOf(text, options.merge === true);
+  const value: unknown = dataOf(text, modeOf(options));
   let current: unknown = value;
   for (const segment of path) {
     if (typeof current !== 'object' || current === null) return undefined;
@@ -212,8 +226,8 @@ function refuseFlow(path: Path, index: number, value: unknown): never {
 }
 
 /** The 1-based line of the deepest key of `path` that exists in the document, if any. */
-function pathLine(text: string, path: Path, merge: boolean): number | undefined {
-  const { document, lineCounter } = parse(text, merge);
+function pathLine(text: string, path: Path, mode: Mode): number | undefined {
+  const { document, lineCounter } = parse(text, mode);
   let node = document.contents as Node | null;
   let line: number | undefined;
   for (const segment of path) {
@@ -222,7 +236,7 @@ function pathLine(text: string, path: Path, merge: boolean): number | undefined 
       node = isSeq(node) ? ((node.items[segment] as Node | undefined) ?? null) : null;
       continue;
     }
-    const pair = ownPair(node, segment) ?? (merge ? mergedPair(document, node, segment)?.pair : undefined);
+    const pair = ownPair(node, segment) ?? (mode.merge ? mergedPair(document, node, segment)?.pair : undefined);
     if (pair === undefined) break;
     if (pair.key.range !== null && pair.key.range !== undefined) line = lineCounter.linePos(pair.key.range[0]).line;
     node = pair.value;
@@ -235,18 +249,18 @@ function pathLine(text: string, path: Path, merge: boolean): number | undefined 
  * parse and hold the same data as before apart from that value; otherwise nothing is changed and an error says so.
  */
 export function yamlSet(text: string, path: Path, value: unknown, options: YamlOptions = {}): string {
-  const merge = options.merge === true;
-  const before = dataOf(text, merge);
-  const edited = setValue(text, path, value, merge);
+  const mode = modeOf(options);
+  const before = dataOf(text, mode);
+  const edited = setValue(text, path, value, mode);
   if (edited === text) return text;
   const setting = () => {
-    const line = pathLine(text, path, merge);
+    const line = pathLine(text, path, mode);
     return `${path.join('.')}${line === undefined ? '' : ` (line ${line})`}`;
   };
   const byHand = `set ${path.join('.')} to ${JSON.stringify(value)} by hand`;
   let after: unknown;
   try {
-    after = dataOf(edited, merge);
+    after = dataOf(edited, mode);
   } catch (error) {
     throw new Error(`setting ${setting()} would leave invalid YAML (${error instanceof Error ? error.message : String(error)}), so depcurfew did not edit it; ${byHand}`);
   }
@@ -293,7 +307,7 @@ interface Pending {
  * yamlSet, which gives the same result or the same error as without batching.
  */
 export function yamlSetMany(text: string, edits: readonly (readonly [Path, unknown])[], options: YamlOptions = {}): string {
-  const merge = options.merge === true;
+  const mode = modeOf(options);
   let base = text;
   // In the order of the edits, and by position (for the overlap check); the paths of the edits and of their parents.
   let pending: Pending[] = [];
@@ -338,10 +352,10 @@ export function yamlSetMany(text: string, edits: readonly (readonly [Path, unkno
     }
     parts.push(base.slice(at));
     const edited = parts.join('');
-    const expected = withValues(dataOf(base, merge), pending);
+    const expected = withValues(dataOf(base, mode), pending);
     let same = false;
     try {
-      same = sameData(dataOf(edited, merge), expected);
+      same = sameData(dataOf(edited, mode), expected);
     } catch {
       same = false;
     }
@@ -359,7 +373,7 @@ export function yamlSetMany(text: string, edits: readonly (readonly [Path, unkno
     if (related(path)) flush();
     let edited: string;
     try {
-      edited = setValue(base, path, value, merge);
+      edited = setValue(base, path, value, mode);
     } catch {
       // Raise the error as yamlSet raises it, on the text with the edits before this one.
       flush();
@@ -370,7 +384,7 @@ export function yamlSetMany(text: string, edits: readonly (readonly [Path, unkno
     let stretch = changedStretch(base, edited);
     if (overlaps(stretch.start, stretch.end)) {
       flush();
-      edited = setValue(base, path, value, merge);
+      edited = setValue(base, path, value, mode);
       if (edited === base) continue;
       stretch = changedStretch(base, edited);
     }
@@ -380,8 +394,8 @@ export function yamlSetMany(text: string, edits: readonly (readonly [Path, unkno
   return base;
 }
 
-function setValue(text: string, path: Path, value: unknown, merge = false): string {
-  const { document, lineCounter } = parse(text, merge);
+function setValue(text: string, path: Path, value: unknown, mode: Mode = PLAIN): string {
+  const { document, lineCounter } = parse(text, mode);
   const column = (offset: number) => lineCounter.linePos(offset).col - 1;
 
   if (document.contents === null || (isScalar(document.contents) && document.contents.value === null)) {
@@ -401,7 +415,7 @@ function setValue(text: string, path: Path, value: unknown, merge = false): stri
     }
     if (!isMap(node)) throw new Error(`${path.slice(0, index).join('.')} is not a map`);
     const pair = ownPair(node, segment);
-    const merged = pair === undefined && merge ? mergedPair(document, node, segment) : undefined;
+    const merged = pair === undefined && mode.merge ? mergedPair(document, node, segment) : undefined;
     if (merged !== undefined) {
       // A key the map gets through a merge key: a value written into the map itself wins over it. Below such a key the
       // map comes from elsewhere, and writing one key into the map here would drop the other merged keys.
@@ -426,7 +440,7 @@ function setValue(text: string, path: Path, value: unknown, merge = false): stri
       return at >= text.length ? `${text}\n${addition}` : `${text.slice(0, at + 1)}${addition}${text.slice(at + 1)}`;
     }
     if (index === path.length - 1) {
-      const current = pair.value === null ? null : ((merge ? pair.value.toJS(document) : pair.value.toJSON()) as unknown);
+      const current = pair.value === null ? null : ((mode.merge ? pair.value.toJS(document) : pair.value.toJSON()) as unknown);
       if (equal(current, value)) return text;
       const keyRange = pair.key.range as [number, number, number];
       const valueNode = pair.value;
@@ -446,7 +460,7 @@ function setValue(text: string, path: Path, value: unknown, merge = false): stri
     if (pair.value === null || !(isMap(pair.value) || isSeq(pair.value))) {
       if (isFlow(node)) refuseFlow(path, index, value);
       // A scalar stands where a map is needed: replace it with the nested map.
-      return setValue(text, path.slice(0, index + 1), nest(path.slice(index + 1), value), merge);
+      return setValue(text, path.slice(0, index + 1), nest(path.slice(index + 1), value), mode);
     }
     if (pair.key.range !== null && pair.key.range !== undefined && marked(text, pair.key.range[0])) insideMarked = true;
     node = pair.value;

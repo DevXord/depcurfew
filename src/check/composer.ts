@@ -1,7 +1,8 @@
 // `depcurfew check composer:<package>`: the Composer side of check (decision D-133). A package is looked up in the v2
 // metadata of Packagist.org: whether it exists, the version its constraint makes Composer pick (the highest tagged
-// release the constraint and the stability allow, minimum stability stable unless the constraint says otherwise), the
-// age of that version against the cooldown, counted from published-time as Composer 2.11 counts it, whether it is a
+// release the constraint and the stability allow, at the minimum-stability of the root composer.json, stable without
+// it, unless the constraint says otherwise, the most stable first with prefer-stable; decision D-136), the age of that
+// version against the cooldown, counted from published-time as Composer 2.11 counts it, whether it is a
 // plugin (type composer-plugin: Composer's counterpart of install scripts, decision D-126) and whether the package is
 // abandoned. A constraint that names a branch, or allows dev versions, may install a commit that has no release to
 // check. Platform packages (php, ext-*) are not installed by Composer and are not looked up.
@@ -12,8 +13,8 @@ import { knowledgeBase } from '../knowledge/index.ts';
 import type { ComposerCommandsKnowledge } from '../knowledge/types.ts';
 import { policyFor } from '../policy/ecosystem.ts';
 import { COMPOSER_PREFIX } from '../policy/package-pattern.ts';
-import { compareVersions, matches, namesBranch, parseConstraint, parseStability, stabilities, stabilityFlag, stabilityPriority, type Constraint } from './composer-version.ts';
-import { describeAge, quoted, type CheckFinding, type CheckOptions, type PackageReport } from './findings.ts';
+import { comparableVersion, compareComparable, matches, MAX_CONSTRAINT_LENGTH, namesBranch, parseConstraint, parseStability, stabilities, stabilityFlag, stabilityPriority, type Constraint } from './composer-version.ts';
+import { describeAge, quoted, type CheckFinding, type CheckOptions, type CheckRequest, type PackageReport } from './findings.ts';
 import { fetchPackage, packagistUrl, type PackagistPackage, type PackagistVersion } from './packagist.ts';
 import { cachedLookup } from './registry.ts';
 
@@ -69,7 +70,8 @@ export function parseComposerSpec(text: string): ComposerSpec | undefined {
   const pair = new RegExp(`^([^${separators}]+)[${separators}](.*)$`, 'su').exec(trimmed);
   const name = (pair === null ? trimmed : (pair[1] as string)).toLowerCase();
   const constraint = pair === null ? undefined : (pair[2] as string).trim();
-  if (name === '') return undefined;
+  // Real names are a few dozen characters (decision D-136).
+  if (name === '' || name.length > MAX_CONSTRAINT_LENGTH) return undefined;
   if (isPlatformPackage(name)) return { name, platform: true, ...(constraint === undefined ? {} : { constraint }) };
   if (!new RegExp(composerArguments().namePattern, 'u').test(name)) return undefined;
   if (constraint === undefined) return { name };
@@ -77,16 +79,69 @@ export function parseComposerSpec(text: string): ComposerSpec | undefined {
   return parsed === undefined ? undefined : { name, constraint, parsed };
 }
 
-/** The highest of some versions, as Composer orders them. */
+/**
+ * The highest of some versions, as Composer orders them. Each version is put into the form version_compare reads once,
+ * so that a long list of long versions is read in time linear in its length (decision D-136).
+ */
 function highest(versions: readonly PackagistVersion[]): PackagistVersion | undefined {
   let best: PackagistVersion | undefined;
-  for (const version of versions) if (best === undefined || compareVersions(version.normalized, best.normalized) > 0) best = version;
+  let bestForm: string | undefined;
+  for (const version of versions) {
+    const form = readOnce(version).form;
+    if (best === undefined || bestForm === undefined || compareComparable(form, bestForm) > 0) {
+      best = version;
+      bestForm = form;
+    }
+  }
   return best;
+}
+
+/** What check reads of a version, once per version: the answer of a package is shared by the checks of a command. */
+const READ = new WeakMap<PackagistVersion, { form: string; priority: number }>();
+
+function readOnce(version: PackagistVersion): { form: string; priority: number } {
+  let read = READ.get(version);
+  if (read === undefined) {
+    read = { form: comparableVersion(version.normalized), priority: stabilityPriority(parseStability(version.normalized)) };
+    READ.set(version, read);
+  }
+  return read;
+}
+
+/** The stability priority of a version (higher is less stable). */
+function priorityOf(version: PackagistVersion): number {
+  return readOnce(version).priority;
+}
+
+/** The most stable versions of a list (DefaultPolicy::versionCompare with prefer-stable: the more stable one first). */
+function mostStable(versions: readonly PackagistVersion[]): PackagistVersion[] {
+  let best = Number.POSITIVE_INFINITY;
+  for (const version of versions) best = Math.min(best, priorityOf(version));
+  return versions.filter((version) => priorityOf(version) === best);
+}
+
+/**
+ * The version Composer picks among the versions a constraint allows: the highest, or with prefer-stable the highest
+ * of the most stable ones (DefaultPolicy::versionCompare, extra.rootStability).
+ */
+function picked(versions: readonly PackagistVersion[], preferStable: boolean): PackagistVersion | undefined {
+  return highest(preferStable ? mostStable(versions) : versions);
+}
+
+/**
+ * The version composer require picks for a package named without a constraint (VersionSelector::findBestCandidate):
+ * the highest of the versions at least as stable as the preferred stability ("stable" with prefer-stable, else the
+ * minimum stability), else the highest of the most stable others.
+ */
+function bestCandidate(versions: readonly PackagistVersion[], preferred: string): PackagistVersion | undefined {
+  const limit = stabilityPriority(preferred);
+  const stableEnough = versions.filter((version) => priorityOf(version) <= limit);
+  return highest(stableEnough.length > 0 ? stableEnough : mostStable(versions));
 }
 
 /** Whether a version's stability is one a package with this allowed stability may install (StabilityFilter). */
 function acceptable(version: PackagistVersion, allowed: string): boolean {
-  return stabilityPriority(parseStability(version.normalized)) <= stabilityPriority(allowed);
+  return priorityOf(version) <= stabilityPriority(allowed);
 }
 
 /** The versions a constraint allows at a stability, the ones Composer chooses from. */
@@ -113,7 +168,7 @@ function invalid(raw: string): PackageReport {
   };
 }
 
-export async function checkComposerSpec(raw: string, options: CheckOptions): Promise<PackageReport> {
+export async function checkComposerSpec(raw: string, options: CheckOptions, request: Omit<CheckRequest, 'spec'> = {}): Promise<PackageReport> {
   const spec = parseComposerSpec(raw.trim().slice(COMPOSER_PREFIX.length));
   if (spec === undefined) return invalid(raw);
   const label = `${COMPOSER_PREFIX}${spec.name}`;
@@ -133,6 +188,9 @@ export async function checkComposerSpec(raw: string, options: CheckOptions): Pro
     };
   }
   const report: PackageReport = { spec: raw, kind: 'registry', name: label, findings: [] };
+  // Another repository of composer.json may serve the package: the caller says why, and the name does not go to
+  // Packagist, where a private name could leak and a look-alike could answer (decision D-136).
+  if (options.skipLookup?.(label, 'composer', request) === true) return report;
   const add = (finding: CheckFinding) => report.findings.push(finding);
   const repository = packagistUrl();
   const lookup = await cachedLookup(options.lookups, `packagist\0${spec.name}`, () => fetchPackage(spec.name, { fetch: options.fetch, signal: options.signal }));
@@ -150,7 +208,10 @@ export async function checkComposerSpec(raw: string, options: CheckOptions): Pro
     return report;
   }
   const found = lookup.package;
-  const minimum = stabilities().minimumStability;
+  // minimum-stability and prefer-stable of the root composer.json, for a command that reads it (decision D-136).
+  const root = request.readsManifest === false ? undefined : options.composerStability;
+  const minimum = root?.minimum ?? stabilities().minimumStability;
+  const preferStable = root?.preferStable === true;
   const latest = highest(candidates(found, undefined, minimum));
   if (latest !== undefined) report.latest = latest.publishedTime === undefined ? { version: latest.version } : { version: latest.version, publishedAt: latest.publishedTime };
   const suggestion = latest === undefined ? '' : `, such as ${label}:${latest.version}`;
@@ -166,8 +227,12 @@ export async function checkComposerSpec(raw: string, options: CheckOptions): Pro
     });
     return report;
   }
-  const allowed = spec.constraint === undefined ? minimum : (stabilityFlag(spec.constraint, minimum) ?? minimum);
-  const version = highest(candidates(found, spec.parsed, allowed));
+  const flag = spec.constraint === undefined ? undefined : stabilityFlag(spec.constraint, minimum);
+  const allowed = flag ?? minimum;
+  const allowedVersions = candidates(found, spec.parsed, allowed);
+  // composer require without a constraint picks a version itself (VersionSelector::findBestCandidate).
+  const choose = (versions: readonly PackagistVersion[]) => (spec.constraint === undefined ? bestCandidate(versions, preferStable ? 'stable' : minimum) : picked(versions, preferStable));
+  const version = choose(allowedVersions);
   if (version === undefined) {
     const unstable = candidates(found, spec.parsed, 'dev');
     const stabilitiesFound = [...new Set(unstable.map((entry) => parseStability(entry.normalized)))].sort((a, b) => stabilityPriority(a) - stabilityPriority(b));
@@ -181,14 +246,24 @@ export async function checkComposerSpec(raw: string, options: CheckOptions): Pro
   }
   report.version = version.version;
   if (version.publishedTime !== undefined) report.publishedAt = version.publishedTime;
-  const versionLabel = `${label} ${version.version}`;
-  if (allowed === 'dev') {
-    add({
-      level: 'error',
-      code: 'unverified',
-      message: `"${constraint}" allows dev versions of ${label}, so Composer may install a branch instead of ${version.version}: a branch is not a release and has no publication time to check, and Composer's cooldown never holds it back`,
-      fix: `Require tagged releases only (leave out @dev)${suggestion}, so that the age of the version Composer installs can be checked`,
-    });
+  // Versions are written as composer require takes them: vendor/name:version (decisions D-133 and D-136).
+  const versionLabel = `${label}:${version.version}`;
+  if (allowed === 'dev' && !preferStable) {
+    if (flag === undefined && root?.minimum !== undefined) {
+      add({
+        level: 'error',
+        code: 'unverified',
+        message: `minimum-stability "dev" in ${root.file} lets "${constraint}" take dev versions of ${label}, so Composer may install a branch instead of ${version.version}: a branch is not a release and has no publication time to check, and Composer's cooldown never holds it back`,
+        fix: `Set "prefer-stable": true in ${root.file}, or a stabler minimum-stability, so that Composer picks tagged releases${suggestion}; then the age of the version it installs can be checked`,
+      });
+    } else {
+      add({
+        level: 'error',
+        code: 'unverified',
+        message: `"${constraint}" allows dev versions of ${label}, so Composer may install a branch instead of ${version.version}: a branch is not a release and has no publication time to check, and Composer's cooldown never holds it back`,
+        fix: `Require tagged releases only (leave out @dev)${suggestion}, so that the age of the version Composer installs can be checked`,
+      });
+    }
   }
 
   const policy = policyFor(options.policy, 'packagist');
@@ -206,11 +281,11 @@ export async function checkComposerSpec(raw: string, options: CheckOptions): Pro
       const age = (options.now.getTime() - time) / 60000;
       if (age < cooldown.minimum.minutes) {
         const cutoff = options.now.getTime() - cooldown.minimum.minutes * 60000;
-        const instead = highest(candidates(found, spec.parsed, allowed).filter((entry) => publishedAt(entry) <= cutoff));
+        const instead = choose(allowedVersions.filter((entry) => publishedAt(entry) <= cutoff));
         add({
           level: 'error',
           code: 'too-young',
-          message: `${versionLabel} was published on Packagist ${describeAge(age)} ago; depcurfew.json requires ${formatMinutes(cooldown.minimum.minutes)}${instead === undefined ? '' : ` (${label} ${instead.version} is old enough)`}`,
+          message: `${versionLabel} was published on Packagist ${describeAge(age)} ago; depcurfew.json requires ${formatMinutes(cooldown.minimum.minutes)}${instead === undefined ? '' : ` (${label}:${instead.version} is old enough)`}`,
           fix: `${instead === undefined ? 'Wait' : `Install ${label}:${instead.version} instead, or wait`} until ${versionLabel} is ${formatMinutes(cooldown.minimum.minutes)} old`,
         });
       }

@@ -7,7 +7,18 @@ import { isRecord, values } from '../apply/facts.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { PackagistApiKnowledge } from '../knowledge/types.ts';
 import { normalizeVersion } from './composer-version.ts';
-import { fetchSameOrigin, MAX_DOCUMENT_SIZE, MAX_VERSIONS, readLimited, requestSignal, tooManyVersions, type FetchLike } from './registry.ts';
+import { fetchSameOrigin, readLimited, requestSignal, tooManyVersions, type FetchLike } from './registry.ts';
+
+/**
+ * The largest answer, the most versions and the longest version of one package depcurfew reads from Packagist
+ * (decision D-136): every version is read, ordered and compared, so a larger answer costs seconds of CPU per package
+ * in the hook, which checks up to 50. The largest package of Packagist.org, aws/aws-sdk-php, had 2551 versions in
+ * 1.6 MB on 2026-11-02, none longer than 12 characters; an answer beyond a limit leaves the package unverified, never
+ * passed, since Composer may pick a version depcurfew left out.
+ */
+export const MAX_PACKAGIST_SIZE = 16 * 1024 * 1024;
+export const MAX_PACKAGIST_VERSIONS = 10_000;
+export const MAX_PACKAGIST_VERSION_LENGTH = 255;
 
 export interface PackagistVersion {
   /** As the package's tag writes it: v7.3.4 or 3.9.0. */
@@ -125,16 +136,26 @@ function toVersion(entry: Record<string, unknown>, api: PackagistApiKnowledge): 
   };
 }
 
-/** The package of a metadata document; undefined when the document is not package metadata. */
-export function toPackage(document: unknown, name: string): PackagistPackage | 'too many' | undefined {
+/** Whether a version entry has a version or normal form longer than depcurfew reads (decision D-136). */
+function tooLong(entry: Record<string, unknown>, api: PackagistApiKnowledge): boolean {
+  return [entry[api.versionField], entry[api.normalizedField]].some((value) => typeof value === 'string' && value.length > MAX_PACKAGIST_VERSION_LENGTH);
+}
+
+/**
+ * The package of a metadata document; undefined when the document is not package metadata, 'too many' beyond the
+ * versions depcurfew reads, 'too long' for a version longer than it reads: Composer may pick that one, so the package is
+ * not checked at all rather than without it (decision D-136).
+ */
+export function toPackage(document: unknown, name: string): PackagistPackage | 'too many' | 'too long' | undefined {
   const api = packagistApi();
   if (!isRecord(document) || !isRecord(document[api.packagesField])) return undefined;
   const packages = document[api.packagesField] as Record<string, unknown>;
   const list = Object.hasOwn(packages, name) ? packages[name] : undefined;
   if (!Array.isArray(list)) return undefined;
-  if (list.length > MAX_VERSIONS) return 'too many';
+  if (list.length > MAX_PACKAGIST_VERSIONS) return 'too many';
   const expanded = expandVersions(list, document[api.minifiedField] === api.minifiedValue, api);
   if (expanded === undefined) return undefined;
+  if (expanded.some((entry) => tooLong(entry, api))) return 'too long';
   const versions = expanded.flatMap((entry) => toVersion(entry, api) ?? []);
   return { name, versions };
 }
@@ -159,9 +180,10 @@ export async function fetchPackage(name: string, options: { fetch: FetchLike; ti
     return { status: 'error', reason: `Packagist answered HTTP ${response.status}` };
   }
   try {
-    const body = await readLimited(response, options.maxBytes ?? MAX_DOCUMENT_SIZE);
+    const body = await readLimited(response, options.maxBytes ?? MAX_PACKAGIST_SIZE);
     const found = toPackage(JSON.parse(body) as unknown, name);
-    if (found === 'too many') return tooManyVersions(name, 'repository', `${MAX_VERSIONS} versions`);
+    if (found === 'too many') return tooManyVersions(name, 'repository', `${MAX_PACKAGIST_VERSIONS} versions`);
+    if (found === 'too long') return { status: 'error', reason: `Packagist lists a version of ${name} longer than ${MAX_PACKAGIST_VERSION_LENGTH} characters, more than depcurfew reads, so its versions were not checked` };
     return found === undefined ? { status: 'error', reason: 'Packagist answered something that is not package metadata' } : { status: 'found', package: found };
   } catch (error) {
     return { status: 'error', reason: error instanceof Error ? error.message : String(error) };

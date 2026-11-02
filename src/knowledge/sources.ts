@@ -39,10 +39,12 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
     { host: 'github.com', pathPrefix: '/php/php-src/' },
   ],
   renovate: [{ host: 'docs.renovatebot.com' }, { host: 'github.com', pathPrefix: '/renovatebot/' }],
+  // Psych (ruby/psych) is the YAML library dependabot-core loads dependabot.yml with (extra.yamlScalars).
   dependabot: [
     { host: 'docs.github.com' },
     { host: 'github.blog', pathPrefix: '/changelog/' },
     { host: 'github.com', pathPrefix: '/dependabot/' },
+    { host: 'github.com', pathPrefix: '/ruby/psych/' },
   ],
 };
 

@@ -87,6 +87,12 @@ export interface CheckRequest {
    * requires applies; a package that composer.json does not require is not checked.
    */
   fromManifest?: true;
+  /**
+   * Composer (decision D-136): the command word as written and the command of Composer it stands for, when it is not
+   * that command's exact name (an alias, an abbreviation, another case), so that the scripts of the composer.json the
+   * command runs with, which Composer then registers as commands, may make it stand for a script or for nothing.
+   */
+  composerCommand?: { word: string; command: string };
 }
 
 export interface CheckOptions {
@@ -117,6 +123,11 @@ export interface CheckOptions {
    * the name may be private and the public registry may hold a look-alike. The package is reported as unverified.
    */
   skipLookup?: (name: string, tool: ToolId | undefined, request?: Omit<CheckRequest, 'spec'>) => boolean;
+  /**
+   * Composer: minimum-stability and prefer-stable of the root composer.json (decision D-136), for the requests that read
+   * it; without them, the defaults (stable, prefer-stable off).
+   */
+  composerStability?: { minimum?: string; preferStable: boolean; file: string };
 }
 
 /** This machine (a local registry such as Verdaccio): plain HTTP to it does not leave the machine. */

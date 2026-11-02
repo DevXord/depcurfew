@@ -146,7 +146,7 @@ function lineAt(text: string, offset: number): number {
 function yamlNode(text: string, path: readonly string[], options: YamlOptions = {}): { node: Node | null; line: number; mergedAt?: number; document: Document.Parsed } | undefined {
   // Shared with detection and the other rules, which read the same file (readYamlDocument); only read here.
   const merge = options.merge === true;
-  const { document, lineCounter } = readYamlDocument(text, { merge });
+  const { document, lineCounter } = readYamlDocument(text, { merge, ...(options.psychScalars === true ? { psychScalars: true } : {}) });
   if (document.errors.length > 0) return undefined;
   let node: Node | null = document.contents as Node | null;
   let keyOffset = 0;
@@ -173,15 +173,19 @@ function yamlNode(text: string, path: readonly string[], options: YamlOptions = 
   return { node, line: lineCounter.linePos(keyOffset).line, ...(mergedAt === undefined ? {} : { mergedAt }), document };
 }
 
-/** The YAML value at `path`, the line of its key and, with `merge`, the line of the << it comes in through. */
-export function yamlSetting(text: string, path: readonly string[], options: YamlOptions = {}): { value: unknown; line: number; mergedAt?: number } | undefined {
+/**
+ * The YAML value at `path`, the line of its key and, with `merge`, the line of the << it comes in through; `written` is
+ * the text of a plain scalar as the file has it when it is not the text of its value (010, which Psych reads as 8).
+ */
+export function yamlSetting(text: string, path: readonly string[], options: YamlOptions = {}): { value: unknown; line: number; mergedAt?: number; written?: string } | undefined {
   const found = yamlNode(text, path, options);
   if (found === undefined) return undefined;
   const { node, line, mergedAt, document } = found;
   // With merge keys the value is converted in the document, which applies them; toJSON without it cannot.
   const convert = (item: Node) => (options.merge === true ? item.toJS(document) : item.toJSON()) as unknown;
   const value: unknown = node === null ? null : isMap(node) || isSeq(node) || isScalar(node) ? convert(node) : undefined;
-  return { value, line, ...(mergedAt === undefined ? {} : { mergedAt }) };
+  const written = node !== null && isScalar(node) && node.type === 'PLAIN' && typeof node.source === 'string' && node.source !== String(value) ? node.source : undefined;
+  return { value, line, ...(mergedAt === undefined ? {} : { mergedAt }), ...(written === undefined ? {} : { written }) };
 }
 
 /**

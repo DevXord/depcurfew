@@ -80,7 +80,15 @@ export function mergesYamlKeys(tool: ToolKnowledge | undefined): boolean {
  */
 export function yamlOptionsFor(file: string, tools: readonly ToolKnowledge[] = knowledgeBase): YamlOptions {
   const name = file.split('/').at(-1) ?? file;
-  return { merge: tools.some((tool) => mergesYamlKeys(tool) && values(tool.cooldown.configFiles).some((files) => files.includes(name))) };
+  const reads = (tool: ToolKnowledge) => values(tool.cooldown.configFiles).some((files) => files.includes(name) || files.includes(file));
+  const psych = tools.some((tool) => readsYamlLikePsych(tool) && reads(tool));
+  return { merge: tools.some((tool) => mergesYamlKeys(tool) && reads(tool)), ...(psych ? { psychScalars: true } : {}) };
+}
+
+/** Whether a tool loads its YAML files with Ruby's Psych, whose numbers differ from YAML 1.2 (Dependabot, extra.yamlScalars, decision D-136). */
+export function readsYamlLikePsych(tool: ToolKnowledge | undefined): boolean {
+  const fact = tool?.extra?.['yamlScalars'];
+  return fact?.status === 'verified' && isRecord(fact.value) && fact.value['library'] === 'psych';
 }
 
 export interface WildcardFact {

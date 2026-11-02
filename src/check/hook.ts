@@ -314,7 +314,7 @@ export function requestedSpecs(command: string, shell: HookEvent['shell'] = 'pos
     }
     return id;
   };
-  for (const { tool, spec, tag, prereleases, buildFromSource, directory, command: written, readsManifest, fromManifest } of scan.requests) {
+  for (const { tool, spec, tag, prereleases, buildFromSource, directory, command: written, readsManifest, fromManifest, composerCommand } of scan.requests) {
     const request: CheckRequest = {
       spec,
       // The tool decides which of its own registry settings apply (decision D-113).
@@ -328,6 +328,7 @@ export function requestedSpecs(command: string, shell: HookEvent['shell'] = 'pos
       // Composer: the composer.json the command reads, and a constraint that comes from it (decision D-133).
       ...(readsManifest === false ? { readsManifest } : {}),
       ...(fromManifest === true ? { fromManifest } : {}),
+      ...(composerCommand === undefined ? {} : { composerCommand }),
     };
     const key = `${JSON.stringify(request)}\n${keyOf(directory)}`;
     if (!unique.has(key)) unique.set(key, { request, ...(directory === undefined ? {} : { directory }), command: written });

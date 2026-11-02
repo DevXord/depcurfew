@@ -5,7 +5,7 @@
 // packageRules that cover every package of a registry, Renovate manager or category (decision D-131); a preset or a
 // rule matcher depcurfew cannot read gives a note. When the policy's delay covers the actions the workflows run
 // (decision D-130), the bot's delay for them is compared with cooldown.minimum.
-import { extraOf, isRecord, values } from '../../apply/facts.ts';
+import { extraOf, isRecord, values, yamlOptionsFor } from '../../apply/facts.ts';
 import { isActionsEcosystem } from '../../apply/generators/dependabot.ts';
 import { listing } from '../../apply/requirements.ts';
 import { coversActions } from '../../apply/targets.ts';
@@ -67,7 +67,9 @@ function describe(minutes: number): string {
 function dependabotDelays(context: RuleContext, bot: ToolKnowledge, file: string): BotDelay[] {
   const text = context.repository.readText(file);
   if (text === undefined) return [];
-  const updates = yamlSetting(text, ['updates']);
+  // Numbers as Dependabot's YAML library reads them (extra.yamlScalars, decision D-136): default-days: 010 is 8.
+  const yaml = yamlOptionsFor(file, context.tools);
+  const updates = yamlSetting(text, ['updates'], yaml);
   if (updates === undefined || !Array.isArray(updates.value)) return [];
   const ecosystems = extraOf(bot, 'ecosystems', isEcosystems);
   const keys = extraOf(bot, 'cooldownKeys', isCooldownKeys);
@@ -88,22 +90,27 @@ function dependabotDelays(context: RuleContext, bot: ToolKnowledge, file: string
     const semver = (forActions && !actions.semverDays ? [] : keys.semverDays).filter((key) => typeof cooldown?.[key] === 'number');
     const days = Math.min(base, ...semver.map((key) => cooldown?.[key] as number));
     const shortest = semver.find((key) => cooldown?.[key] === days);
+    // The number as the file writes it, and how Dependabot reads it when that differs (010, which it reads as 8).
+    const written = (key: string) => {
+      const asWritten = yamlSetting(text, ['updates', String(index), 'cooldown', key], yaml)?.written;
+      return asWritten === undefined || asWritten === String(days) ? `${key}: ${days} in ${file}` : `${key}: ${asWritten} in ${file}, which Dependabot reads as ${days}`;
+    };
     const origin =
       cooldown === undefined
         ? `Dependabot's default (${describe(days * 1440)})`
         : shortest !== undefined && days < base
-          ? `${shortest}: ${days} in ${file}`
+          ? written(shortest)
           : typeof cooldown[keys.days] === 'number'
-            ? `${keys.days}: ${days} in ${file}`
+            ? written(keys.days)
             : `Dependabot's default (${describe(days * 1440)})`;
-    const line = yamlSetting(text, ['updates', String(index), cooldown === undefined ? 'package-ecosystem' : 'cooldown'])?.line ?? updates.line;
+    const line = yamlSetting(text, ['updates', String(index), cooldown === undefined ? 'package-ecosystem' : 'cooldown'], yaml)?.line ?? updates.line;
     const target = forActions ? { actions: true as const } : {};
     const delays: BotDelay[] = [{ bot, managers, ...target, minutes: days * 1440, origin, location: { file, line }, securityBypass, scope: `${entry['package-ecosystem']} updates` }];
     // With an include list, only the dependencies it names get a cooldown (extra.cooldownInclude).
     const included = cooldown?.[include.key];
     const patterns = Array.isArray(included) ? included.filter((item): item is string => typeof item === 'string') : [];
     if (patterns.length > 0 && !patterns.some((pattern) => /^\*+$/u.test(pattern))) {
-      const at = yamlSetting(text, ['updates', String(index), 'cooldown', include.key])?.line ?? line;
+      const at = yamlSetting(text, ['updates', String(index), 'cooldown', include.key], yaml)?.line ?? line;
       delays.push({
         bot,
         managers,
@@ -305,7 +312,7 @@ function missingDependabotEntries(context: RuleContext, views: readonly ProjectV
   const text = context.repository.readText(file);
   // Dependabot does not read a file with YAML aliases (extra.yamlAliases); bot-cooldown-mismatch gives a note for it.
   if (text === undefined || (rejectsYamlAliases(bot) && yamlAliasLine(text) !== undefined)) return;
-  const updates = yamlSetting(text, ['updates']);
+  const updates = yamlSetting(text, ['updates'], yamlOptionsFor(file, context.tools));
   if (updates === undefined || !Array.isArray(updates.value)) return;
   const ecosystems = extraOf(bot, 'ecosystems', isEcosystems);
   const keys = extraOf(bot, 'directories', isDirectories);
@@ -496,7 +503,7 @@ export const botCooldownMismatch: Rule = {
         const own = { ...found, origin: source.relocate(found.origin) };
         // Dependabot's composer delay counts from the author's time: a note also when the delay is long enough or too short.
         const timeNote = () => {
-          if (delay.bot.id === 'dependabot' && manager.id === 'composer' && own.minutes > 0 && delay.unreadableFile === undefined) composerTimeNote(context, delay, tool.name);
+          if (delay.bot.id === 'dependabot' && manager.id === 'composer' && own.minutes > 0 && delay.unreadableFile === undefined) composerTimeNote(context, delay, knowledge.name, source.project);
         };
         if (compare(context, delay, managerReference(tool, own))) {
           timeNote();
@@ -507,7 +514,7 @@ export const botCooldownMismatch: Rule = {
             level: 'warning',
             location: delay.location,
             message: `${delay.bot.name} security updates skip its delay, but ${tool.name} re-checks the lockfile and waits ${describe(own.minutes)} (${own.origin}); a security fix younger than that fails to install`,
-            fix: `When a security update fails, exempt the fixed package in the ${tool.name} exclusion list until the delay has passed`,
+            fix: `When a security update fails, exempt the fixed package in ${source.project === undefined ? `the ${tool.name} exclusion list` : `the exclusion list of ${tool.name}`} until the delay has passed`,
           });
         }
         timeNote();
@@ -522,9 +529,10 @@ const isReleaseTime = (value: unknown): value is { field: string; ignores: strin
 /**
  * Dependabot counts its composer cooldown from the time the package author sets (extra.composerReleaseTime), and
  * updates composer.lock with a Composer that has no cooldown policy; composer install then installs the locked version
- * without Composer's cooldown, which counts from Packagist's published-time.
+ * without Composer's cooldown, which counts from Packagist's published-time. In a repository with projects, the
+ * project is named where composer install runs, not in the name of the tool (decision D-136).
  */
-function composerTimeNote(context: RuleContext, delay: BotDelay, manager: string): void {
+function composerTimeNote(context: RuleContext, delay: BotDelay, manager: string, project?: string): void {
   if (delay.bot.extra?.['composerReleaseTime'] === undefined || delay.location === undefined) return;
   const fact = extraOf(delay.bot, 'composerReleaseTime', isReleaseTime);
   // Composer 2.10.3 leaves config.policy out of content-hash (extra.composerContentHash, decision D-134).
@@ -539,7 +547,7 @@ function composerTimeNote(context: RuleContext, delay: BotDelay, manager: string
   context.report({
     level: 'note',
     location: delay.location,
-    message: `${delay.bot.name} counts the cooldown of ${delay.scope} from ${fact.field}, the release time the package author writes, not from ${fact.ignores}, when Packagist received the version, and it updates composer.lock with Composer ${fact.composerVersion}, which has no cooldown; a version published with an older ${fact.field} is proposed at once, and composer install takes it from composer.lock without ${manager}'s cooldown${hashText}`,
+    message: `${delay.bot.name} counts the cooldown of ${delay.scope} from ${fact.field}, the release time the package author writes, not from ${fact.ignores}, when Packagist received the version, and it updates composer.lock with Composer ${fact.composerVersion}, which has no cooldown; a version published with an older ${fact.field} is proposed at once, and composer install${project === undefined ? '' : ` in ${project}`} takes it from composer.lock without ${manager}'s cooldown${hashText}`,
     fix: `Check the publication date on Packagist before merging ${delay.bot.name}'s composer pull requests${hashFix}, or update Composer packages with a bot that counts from ${fact.ignores}`,
   });
 }

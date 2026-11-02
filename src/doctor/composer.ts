@@ -5,7 +5,7 @@ import { extraOf, isRecord } from '../apply/facts.ts';
 import { compareVersions, parseVersion } from '../apply/version.ts';
 import type { Repository } from '../detect/repository.ts';
 import { matchSegment, wildcardMatch } from '../detect/wildcard.ts';
-import type { ToolKnowledge } from '../knowledge/types.ts';
+import type { ComposerInstallPreferenceKnowledge, ToolKnowledge } from '../knowledge/types.ts';
 import { COMPOSER_PREFIX, validatePackagePattern } from '../policy/package-pattern.ts';
 import { jsonSetting } from './settings.ts';
 import type { LockEntry, Source } from './lockfiles.ts';
@@ -168,13 +168,14 @@ function valueAt(item: Record<string, unknown>, path: readonly string[]): unknow
 /**
  * The packages of composer.lock with the source each comes from: a path repository (dist type path), an artifact
  * repository (an archive at a local path), a package repository of the root composer.json (by the names it defines),
- * a VCS repository of the root composer.json (by its URL), a VCS checkout when the entry has no dist (Composer then
- * installs from its source, decision D-134), else Packagist or another Composer repository; an archive from a host
+ * a VCS repository of the root composer.json (by its URL), a VCS checkout when the entry has no dist or a dist without
+ * a type (Composer then installs from its source, decision D-134) or when config.preferred-install of composer.json
+ * makes Composer check it out (decision D-136), else Packagist or another Composer repository; an archive from a host
  * that is neither one those registries use nor the host of a declared repository is a source depcurfew does not
- * recognize. Names are in lower case, as Composer reads them. Plugins are the packages whose code Composer runs: of
+ * recognize, and an archive of Packagist.org's hosts next to a source on another host is noted on the entry. Names are in lower case, as Composer reads them. Plugins are the packages whose code Composer runs: of
  * type composer-plugin or composer-installer, in any case.
  */
-export function composerEntries(text: string, tool: ToolKnowledge, repositories: readonly DeclaredRepository[]): LockEntry[] {
+export function composerEntries(text: string, tool: ToolKnowledge, repositories: readonly DeclaredRepository[], manifest?: Record<string, unknown>): LockEntry[] {
   const format = extraOf(tool, 'lockfileFormat', isFormat);
   const branches = extraOf(tool, 'branchVersions', isBranches);
   const document: unknown = JSON.parse(text);
@@ -201,19 +202,31 @@ export function composerEntries(text: string, tool: ToolKnowledge, repositories:
       if (dist?.['type'] === format.pathType) kind = 'directory';
       else if (distUrl !== undefined && isLocal(distUrl) && format.archiveTypes.includes(String(dist?.['type']))) kind = 'file';
       else if (fromInline !== undefined) kind = fromInline.kind === 'registry' || fromInline.kind === 'disable' ? 'unknown' : fromInline.kind;
-      else if ([sourceUrl, distUrl].some((url) => url !== undefined && vcs.has(normalizedUrl(url)))) {
+      // getAvailableSources offers a source or a dist only when it has a type (a value PHP takes for true).
+      const offered = (location: Record<string, unknown> | undefined) => location !== undefined && typeof location['type'] === 'string' && location['type'] !== '' && location['type'] !== '0';
+      const locked = item[format.version];
+      const dev = typeof locked === 'string' && (locked.startsWith(branches.prefix) || locked.endsWith(branches.suffix));
+      let why: string | undefined;
+      let otherSource: LockEntry['otherSource'];
+      if (kind === 'registry' && [sourceUrl, distUrl].some((url) => url !== undefined && vcs.has(normalizedUrl(url)))) {
         kind = 'git';
         spec = describe(source) || spec;
-      } else if (distUrl === undefined && sourceUrl !== undefined) {
+      } else if (kind === 'registry' && sourceUrl !== undefined && (distUrl === undefined || !offered(dist))) {
         // Without a dist, Composer checks the package out of the repository its source names (extra.sourceInstall).
         kind = 'git';
         spec = describe(source);
-      } else if (distUrl !== undefined && !isLocal(distUrl) && !hosts.has(hostOf(distUrl))) {
+        if (dist !== undefined) why = 'its dist has no type, so Composer cannot download its archive';
+      } else if (kind === 'registry' && sourceUrl !== undefined && offered(source) && (why = sourcePreference(manifest, tool, name, dev)) !== undefined) {
+        // config.preferred-install makes Composer check it out instead of downloading the archive (decision D-136).
+        kind = 'git';
+        spec = describe(source);
+      } else if (kind === 'registry' && distUrl !== undefined && !isLocal(distUrl) && !hosts.has(hostOf(distUrl))) {
         kind = 'unknown';
+      } else if (kind === 'registry' && distUrl !== undefined && sourceUrl !== undefined && offered(source)) {
+        otherSource = sourceElsewhere(tool, distUrl, sourceUrl, describe(source));
       }
       // The version of a release, as Composer wrote it, for doctor --osv (decisions D-126 and D-134); a branch has none,
       // and a package from a host depcurfew does not know still names its release.
-      const locked = item[format.version];
       const release =
         (kind === 'registry' || (kind === 'unknown' && fromInline === undefined)) && typeof locked === 'string' && locked !== '' && !locked.startsWith(branches.prefix) && !locked.endsWith(branches.suffix);
       const type = item[format.installScripts];
@@ -226,10 +239,72 @@ export function composerEntries(text: string, tool: ToolKnowledge, repositories:
         anchor: `"${format.name}": ${JSON.stringify(written)}`,
         ...(release ? { version: locked } : {}),
         ...(plugin && valueAt(item, format.optionalPlugin) === true ? { optional: true as const } : {}),
+        ...(kind === 'git' && why !== undefined ? { why } : {}),
+        ...(otherSource === undefined ? {} : { otherSource }),
       });
     }
   }
   return entries;
+}
+
+const isPreference = (value: unknown): value is ComposerInstallPreferenceKnowledge =>
+  isRecord(value) && ['setting', 'default', 'dist', 'source', 'auto', 'everything'].every((key) => typeof value[key] === 'string');
+
+/**
+ * Why Composer installs a locked package that has both an archive and a source from the source, by config.preferred-install
+ * of the root composer.json (extra.installPreference, decision D-136); undefined when it downloads the archive. A string
+ * "source" always, "dist" never, "auto" and any other string for a dev version (preferDist and preferSource both off);
+ * an object by its first key that matches the name, in any case and with * for any characters, "*" last and "dist"
+ * when the object has no "*": "dist" never, "auto" for a dev version, any other value always.
+ */
+function sourcePreference(manifest: Record<string, unknown> | undefined, tool: ToolKnowledge, name: string, dev: boolean): string | undefined {
+  if (tool.extra?.['installPreference'] === undefined) return undefined;
+  const fact = extraOf(tool, 'installPreference', isPreference);
+  const config = manifest?.['config'];
+  const setting = isRecord(config) ? config[fact.setting] : undefined;
+  const where = `config.${fact.setting} in ${COMPOSER_MANIFEST}`;
+  const forDev = (text: string) => (dev ? `${text}, which installs a dev version from its source` : undefined);
+  if (typeof setting === 'string') {
+    if (setting === fact.source) return `${where} is "${setting}"`;
+    if (setting === fact.dist) return undefined;
+    return forDev(`${where} is ${JSON.stringify(setting)}`);
+  }
+  if (!isRecord(setting)) return undefined;
+  const keys = [...Object.keys(setting).filter((key) => key !== fact.everything), fact.everything];
+  for (const key of keys) {
+    if (!pluginPatternMatches(name, key)) continue;
+    const preference = Object.hasOwn(setting, key) ? setting[key] : fact.default;
+    if (preference === fact.dist) return undefined;
+    const given = `${where} gives ${JSON.stringify(preference)} for ${key}`;
+    return preference === fact.auto ? forDev(given) : given;
+  }
+  return undefined;
+}
+
+/**
+ * An archive from a host of registryDistHosts next to a source on another host than the one the VCS driver of that
+ * archive gives (extra.registrySourceHosts, decision D-136): Packagist.org never writes such an entry.
+ */
+function sourceElsewhere(tool: ToolKnowledge, distUrl: string, sourceUrl: string, spec: string): LockEntry['otherSource'] {
+  if (tool.extra?.['registrySourceHosts'] === undefined) return undefined;
+  const hosts = extraOf(tool, 'registrySourceHosts', (value): value is Record<string, string> => isRecord(value) && Object.values(value).every((host) => typeof host === 'string'));
+  const distHost = hostOf(distUrl);
+  const expected = Object.hasOwn(hosts, distHost) ? hosts[distHost] : undefined;
+  const sourceHost = hostOf(sourceUrl);
+  return expected === undefined || sourceHost === expected ? undefined : { spec, distHost, sourceHost };
+}
+
+/** The host of the source the VCS driver gives a package whose archive is on `distHost` (extra.registrySourceHosts). */
+export function sourceHostOf(tool: ToolKnowledge, distHost: string): string {
+  const hosts = tool.extra?.['registrySourceHosts'] === undefined ? {} : extraOf(tool, 'registrySourceHosts', isRecord);
+  const host = hosts[distHost];
+  return typeof host === 'string' ? host : distHost;
+}
+
+/** The first Composer that no longer falls back from an archive to its source by default (extra.sourceFallback). */
+export function fallbackRemoved(tool: ToolKnowledge): string {
+  const fact = tool.extra?.['sourceFallback'] === undefined ? undefined : extraOf(tool, 'sourceFallback', isRecord);
+  return typeof fact?.['since'] === 'string' ? fact['since'] : '2.10.0';
 }
 
 /** The repositories of a kind the policy denies that no entry of composer.lock comes from, as far as depcurfew can tell. */
