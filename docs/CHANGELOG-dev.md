@@ -2,6 +2,16 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-11-02 · 1.4.0: Composer, znane złośliwe wersje z OSV.dev, skrypty znanych paczek, Corepack w Node 25, opóźnienie dla GitHub Actions, strona dokumentacji (D-126–D-134)
+
+- Composer (D-126, D-133, D-134): ekosystem `packagist`, nazwy `composer:` w polityce, `apply` pisze `config.policy.cooldown` i `config.allow-plugins` w `composer.json` (z własnymi wpisami `ignore` oznaczonymi powodem), Dependabot `composer` i reguła Renovate dla `packagist`; `doctor` czyta `composer.lock` tak jak Composer (typy wtyczek bez względu na wielkość liter, `composer-installer`, `plugin-optional`, stary lockfile bez `plugin-api-version`, wpis bez `dist` jako VCS, nieznany host archiwum), nowa reguła `composer-config-weakens`, wersja Composera z `plugin-api-version`; `check composer:` i hook sprawdzają paczki w Packagist (metadane v2 rozwijane jak `MetadataMinifier::expand`, ograniczenia wersji i stabilność jak w composer/semver, wiek od `published-time`), hook czyta polecenia `composer` i opcje osłabiające ochronę; nagranie `npm run record:registry -- packagist`.
+- Znane złośliwe wersje (D-129): `--osv` w `check`, hooku, `mcp` i `doctor` (reguła `known-malicious`), wejście `osv` Action; rekordy `MAL-` z `api.osv.dev/v1/querybatch`, odpowiedź bez rekordu to brak znaleziska, brak odpowiedzi to `unverified` albo ostrzeżenie; hook pyta OSV.dev raz na polecenie, a odmowa samej złośliwej wersji nie odsyła do `depcurfew.json`; `doctor --osv` czyta też wydania z `composer.lock`; fikstury w `tests/fixtures/osv` złożone z eksportu OSV.dev, nagranie `npm run record:registry -- osv`.
+- Skrypty znanych paczek (D-127): `environment.installScriptPackages` (esbuild, fsevents, lefthook), `init` wpisuje je do `installScripts.deny` z notatkami, `doctor` daje im własne poprawki, ostrzeżenie `apply` `deny-needs-optional-dependencies` przy esbuild bez zależności opcjonalnych.
+- Reguła `corepack-unavailable` (D-128): przypięcie Yarn lub npm w `packageManager` przy Node.js 25 lub nowszym, bez Corepacka; pomija pnpm, `yarnPath` z wydaniem w repozytorium i miejsca, które instalują Corepack.
+- Boty (D-130, D-131): `default-days` we wpisach Dependabota `github-actions`, porównanie opóźnienia akcji z `cooldown.minimum`; reguły Renovate z `matchManagers` i `matchCategories` (także menedżer `composer` i kategoria `php`); `BotGenerator` dostał trzeci argument z przepływami pracy.
+- Strona dokumentacji (D-132): `npm run site` buduje `dist-site/` z README, bazy wiedzy i `schema.json` (strony startowe npm, Python, PHP i botów, `schema/v1.json`), workflow `pages.yml` wdraża ją przy opublikowanym wydaniu; `docs/RELEASING.md` opisuje jednorazowe ustawienie Pages. W `docs/knowledge.md` wartość z odwrotnym apostrofem dostaje dłuższy ogranicznik kodu.
+- Wersja 1.4.0 w `package.json`.
+
 ## 2026-11-02 · Aktualizacje zależności repozytorium i pliki dla współtwórców (D-125)
 
 - `.github/dependabot.yml` dla `npm` i `github-actions`, z opóźnieniem 7 dni (dla `npm` z `depcurfew apply`).

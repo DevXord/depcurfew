@@ -2,6 +2,63 @@
 
 All notable changes for users of depcurfew. The project follows [semantic versioning](https://semver.org/): the policy file (`version: 1`), the command-line options, the exit codes and the JSON and SARIF output (`schemaVersion: 1`) only change in a backward-incompatible way in a new major version.
 
+## 1.4.0
+
+### Composer
+
+- depcurfew supports Composer (PHP packages from Packagist). `apply` writes the Composer 2.11 release-age delay into `composer.json` (`config.policy.cooldown.period`, in whole days rounded up, with the `composer:` exceptions of `cooldown.exclude` in `ignore`) and, with `installScripts.default: "deny"`, the plugins of `installScripts.allow` and `installScripts.deny` into `config.allow-plugins`. When it changes `config.policy` and `composer.lock` exists, it says to run `composer update --lock` (`lockfile-out-of-date`): Composer 2.11 hashes the policy into the lock. A delay that is already as long, written another way (`259200`, `"72 hours"`), stays. When `cooldown.exclude` drops a package, `apply` removes only the `ignore` entries it wrote itself (marked by their reason) and warns about the others (`exclude-entry-outside-policy`).
+- Policy package lists accept Composer packages with the prefix `composer:` (`"composer:monolog/monolog"`, `"composer:acme/*"`), with hints for a misspelled prefix and for a `vendor/name` written without one.
+- New `doctor` rule `composer-config-weakens`: `composer.json` settings and CI `env` variables that turn Composer's cooldown, malware blocking, `allow-plugins`, `secure-http` or TLS off, such as `"policy": false`, `"allow-plugins": true` while the policy denies plugins, or `COMPOSER_NO_BLOCKING=1`.
+- `doctor` reads `composer.lock` as Composer does: packages from VCS, path, artifact or package repositories, and packages without an archive (which Composer clones), are checked against `sources` (`lockfile-forbidden-source`), and an archive from an unknown host is a warning. Plugins (types `composer-plugin` and `composer-installer`, in any case) that `allow-plugins` lets run are checked against `installScripts` (`lockfile-install-scripts`), including every plugin of a `composer.lock` from before `allow-plugins` existed, which Composer 2.2 to 2.9 load without asking. `allow-plugins` keys match as in Composer (any case, `*` also covers `/`). A lock written by a Composer older than 2.11, which ignores the delay, is reported by `manager-version-too-old`. `doctor --osv` also checks the releases locked in `composer.lock`.
+- Dependabot `composer` entries and Renovate (the `packagist` datasource, the `composer` manager and the `php` category) get the delay and the Composer exceptions. `doctor` compares them with Composer's delay, and notes that Dependabot counts from the release time the package author sets, while Composer counts from when Packagist received the version, and that Dependabot's `composer.lock` changes fail `composer validate` after `apply` (it hashes the lock with Composer 2.10.3; run `composer update --lock` on its branch).
+- `depcurfew check composer:vendor/name[:constraint]` and `check_packages` of `depcurfew mcp` look Composer packages up on Packagist. They pick the version Composer would install and report a release younger than `cooldown.minimum` (counted from Packagist's `published-time`, as Composer 2.11 does), unknown names, constraints no release matches, branches and `@dev`, plugins the policy does not allow, and abandoned packages. A root `composer.json` that declares other repositories or turns packagist.org off makes them `unverified`, with the file and line.
+- The Claude Code hook checks `composer require` (also `r` and Composer's short command names), `composer global require`, `composer create-project` and `composer update` of named packages, including `php composer.phar …` and `--working-dir`. It asks when a command turns off Composer's protections (`--no-blocking`, `--no-cooldown`, `COMPOSER_NO_BLOCKING`, `COMPOSER_POLICY=0`, `COMPOSER_POLICY_MALWARE_BLOCK=0`, a shorter `COMPOSER_POLICY_COOLDOWN_PERIOD`) or changes Composer's configuration or repositories next to another Composer command, and when the root `composer.json` declares other repositories.
+- `--osv` covers Composer packages as the Packagist ecosystem, and `explain_policy` names the Packagist URL in `lookups.composerRepository`.
+
+### Known malicious versions (OSV.dev)
+
+- New opt-in `--osv` for `depcurfew check`, the Claude Code hook (`check --hook claude-code --osv`) and `depcurfew mcp --osv`: the version an install would pick is looked up in OSV.dev, in one batch query per command, and a version with an OpenSSF malicious-packages record (`MAL-…`) is an error (`known-malicious`) that names and links the record. The hook denies it and tells Claude to choose another package or version.
+- New `depcurfew doctor --osv` and doctor rule `known-malicious`: every locked package version in npm, pnpm, Yarn, Bun and Deno lockfiles, `uv.lock`, `poetry.lock`, `pdm.lock`, `Pipfile.lock`, `pylock.toml`, pinned requirements and `composer.lock` is checked in batch queries, with an error per package and lockfile at its line. New GitHub Action input `osv` (default `false`) runs the same check in CI.
+- If OSV.dev cannot be reached, nothing passes silently: `check` reports the package as unverified, the hook asks, and `doctor` gives a warning per lockfile.
+- Without `--osv` nothing is sent to OSV.dev. With it, package names, ecosystems and versions go to `api.osv.dev`, private packages included. It catches only reported malware; the README section "Known malicious versions (OSV)" says what it does not cover.
+- `explain_policy` of `depcurfew mcp` shows the OSV endpoint in `lookups.osv`; the library exports `runDoctorWithOsv` and `queryOsv`.
+
+### Install scripts of well-known packages
+
+- `depcurfew init` writes esbuild, fsevents and lefthook from the lockfile into `installScripts.deny`, with a note per package on why and what changes (`install-script-denied`, `install-script-project-task`), and lists the other packages with install scripts to review (`install-scripts-to-review`, `install-scripts-not-recorded`).
+- For lefthook, `init` and `doctor` tell you to add `"prepare": "lefthook install"` to your scripts: npm and pnpm run the project's own `prepare` whatever their allow-lists say. depcurfew never edits `scripts`.
+- `doctor` gives esbuild, fsevents and lefthook findings of `lockfile-install-scripts` their own fix, and warns when esbuild is in `installScripts.deny` while npm leaves optional dependencies out (`omit=optional`, `--omit=optional`, `--no-optional`, `NPM_CONFIG_OMIT=optional`), because esbuild then has no binary. `apply` warns about the same case with the new code `deny-needs-optional-dependencies`.
+
+### Corepack on Node.js 25
+
+- New `doctor` rule `corepack-unavailable` (warning): `packageManager` or `devEngines.packageManager` pins Yarn or npm, but a declared Node.js is 25 or later, which no longer comes with Corepack, so the pin has no effect there. The fix says how to install it (`npm install -g corepack`, then `corepack enable`). pnpm pins, a `yarnPath` in `.yarnrc.yml` that points at a Yarn release committed in the repository, and CI jobs or Dockerfile stages that install Corepack first are not reported.
+
+### Update bots and GitHub Actions
+
+- `apply` gives the GitHub Actions that your workflows run the same release-age delay as your packages: it writes `default-days` into Dependabot's existing `github-actions` entries. Renovate's top-level `minimumReleaseAge`, which `apply` already writes, covers its `github-actions` manager.
+- `doctor` (`bot-cooldown-mismatch`) checks that each bot waits at least `cooldown.minimum` before proposing a new action version, and `broad-exclusion` reports a Renovate rule that turns that delay off. The README says why the delay protects actions less than packages: their date comes from git, which the author sets.
+- Renovate `packageRules` with `matchManagers` or `matchCategories` (for example `{"matchManagers": ["npm"], "minimumReleaseAge": "1 hour"}`) are now read. They give `bot-rule-shortens-delay` in `apply` and `bot-cooldown-mismatch` or `broad-exclusion` in `doctor`. A single string instead of a list is read as Renovate reads it, and a rule whose glob depcurfew cannot read (braces, character classes, `?`, extglobs) gets a `doctor` note when it may shorten the delay.
+
+### Documentation site
+
+- The documentation is also a website on GitHub Pages, built by `npm run site` from the README, the knowledge base and `schema.json`, so it says what the README says. It serves the policy schema at `schema.json` and at the stable address `schema/v1.json`.
+- Start pages for JavaScript (npm, pnpm, Yarn, Bun, Deno), Python (uv, pip, Poetry, PDM, Pipenv), PHP (Composer) and the update bots, each with the five-minute start, the settings depcurfew writes and the matching `doctor` rules. Every `doctor` rule, every `apply` and `init` code, the Claude Code hook, the MCP server and the GitHub Action have their own pages with stable anchors, and every knowledge base value links to its official source.
+- The site loads nothing from other hosts, needs no JavaScript and follows the system's light or dark mode. A Pages workflow deploys it only for published releases (or when started by hand), with the Pages permissions limited to the deploy job.
+
+### Fixes
+
+- `docs/knowledge.md` shows a value with a backtick inside (`docker.syntax`) in full instead of ending its code early.
+
+### Upgrading from 1.3.0
+
+- Run `depcurfew apply` again after the upgrade. In a repository with workflows, a `cooldown` and a Dependabot `github-actions` entry, 1.4.0 writes `default-days` into that entry; until then `config-drift` reports it. A longer `default-days` there is reported by `apply` (`cooldown-shortened`) and kept by `init`.
+- In a repository with `composer.json`, `apply` now writes `config.policy` and `config.allow-plugins` there, the delay into Dependabot `composer` entries and a Renovate rule for `composer:` exceptions; until then `config-drift` reports them. After `apply`, run `composer update --lock` and commit `composer.lock`. The delay needs Composer 2.11.0 or later wherever `composer update` or `composer require` runs.
+- A policy with `composer:` names needs depcurfew 1.4.0: 1.3.0 rejects the prefix (`invalid-policy` in `doctor` and the Action, `ask` in the hook).
+- `doctor` checks more than 1.3.0 did, so a repository that passed can get new findings: `corepack-unavailable` for a Yarn or npm pin with Node.js 25 or later, the bot delay for GitHub Actions, Renovate rules with `matchManagers` or `matchCategories`, and in a Composer project `composer-config-weakens`, the sources and plugins of `composer.lock`, and a lock written by Composer before 2.11. With `doctor.failOn: "warning"`, which `init` writes, these warnings fail `doctor` and the Action.
+- The `lockfile-install-scripts` findings for esbuild, fsevents and lefthook have a new `message` and `fix`; the rule id and level stay the same.
+- The Claude Code hook now reads `composer` commands, which 1.3.0 let through without a check: it denies or asks where the policy says so.
+- The Action input `osv` needs the 1.4.0 Action: pin its commit SHA.
+
 ## 1.3.0
 
 ### An MCP server for other coding agents
