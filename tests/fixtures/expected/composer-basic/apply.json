@@ -1,0 +1,35 @@
+{
+  "changed": [
+    "composer.json"
+  ],
+  "warnings": [
+    {
+      "code": "version-not-pinned",
+      "tool": "composer",
+      "message": "Composer: no exact version is pinned, so depcurfew configures for Composer 2.11.1, the latest version it knows",
+      "fix": "Use Composer 2.11.1 or a recent version wherever the project is installed; Composer has no setting that pins its version in the project"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "composer",
+      "message": "Composer has no setting for VCS repository dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "composer",
+      "message": "Composer has no setting for package repository dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "lockfile-out-of-date",
+      "tool": "composer",
+      "location": {
+        "file": "composer.lock"
+      },
+      "message": "Composer: composer.lock records a hash of config.policy in composer.json, which this change alters, so composer.lock is out of date: composer install warns about it and composer validate fails",
+      "fix": "Run composer update --lock, which writes the new hash without updating packages, and commit composer.lock"
+    }
+  ],
+  "snippets": []
+}

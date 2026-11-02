@@ -1,0 +1,75 @@
+{
+  "policy": {
+    "file": "depcurfew.json",
+    "valid": true,
+    "targets": {
+      "mode": "auto",
+      "tools": [
+        "composer"
+      ]
+    },
+    "cooldown": {
+      "minimum": "36h",
+      "tools": [
+        {
+          "tool": "composer",
+          "ok": true,
+          "unit": "duration-string",
+          "value": "2 days",
+          "exact": false
+        }
+      ]
+    },
+    "installScripts": {
+      "default": "deny",
+      "allow": [
+        "composer:php-http/discovery",
+        "composer:symfony/flex"
+      ],
+      "deny": [
+        "composer:phpstan/extension-installer"
+      ],
+      "tools": [
+        {
+          "tool": "composer",
+          "settings": [
+            {
+              "setting": "config.allow-plugins",
+              "file": "composer.json"
+            }
+          ],
+          "warnings": []
+        }
+      ]
+    },
+    "sources": {
+      "git": "deny",
+      "remoteTarball": "deny",
+      "file": "allow",
+      "directory": "allow",
+      "tools": [
+        {
+          "tool": "composer",
+          "settings": [],
+          "warnings": [
+            {
+              "code": "source-not-enforceable",
+              "level": "warning",
+              "tool": "composer",
+              "message": "Composer has no setting for VCS repository dependencies, so \"deny\" cannot be enforced",
+              "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+            },
+            {
+              "code": "source-not-enforceable",
+              "level": "warning",
+              "tool": "composer",
+              "message": "Composer has no setting for package repository dependencies, so \"deny\" cannot be enforced",
+              "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "projects": []
+}

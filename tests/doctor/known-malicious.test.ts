@@ -152,6 +152,49 @@ describe('doctor --osv: known-malicious', () => {
     );
   });
 
+  it('reads the releases of composer.lock as Packagist versions, as Composer wrote them, and says which branches it left out', async () => {
+    const dist = (name: string) => `"dist": { "type": "zip", "url": "https://api.github.com/repos/${name}/zipball/0000" }`;
+    const root = repository({
+      'composer.json': '{ "require": { "monolog/monolog": "^3.9", "intercom/intercom-php": "^5.0", "symfony/console": "^7.3", "acme/tool": "dev-main", "acme/legacy": "1.x-dev" } }\n',
+      'composer.lock': `{
+    "packages": [
+        { "name": "monolog/monolog", "version": "3.9.0", ${dist('Seldaek/monolog')} },
+        { "name": "intercom/intercom-php", "version": "5.0.2", ${dist('intercom/intercom-php')} },
+        { "name": "symfony/console", "version": "v7.3.4", ${dist('symfony/console')} },
+        { "name": "acme/tool", "version": "dev-main", ${dist('acme/tool')} },
+        { "name": "acme/legacy", "version": "1.x-dev", ${dist('acme/legacy')} }
+    ],
+    "packages-dev": [],
+    "plugin-api-version": "2.11.0"
+}
+`,
+    });
+    const fetch = osvFetch();
+    const report = await runDoctorWithOsv(root, {}, { fetch });
+    expect(own(report).map((finding) => [finding.level, finding.location, finding.message])).toEqual([
+      [
+        'error',
+        { file: 'composer.lock', line: 4 },
+        'composer.lock locks intercom/intercom-php@5.0.2, a known malicious version: OSV.dev lists it as MAL-2026-3637 (https://osv.dev/vulnerability/MAL-2026-3637)',
+      ],
+    ]);
+    expect(fetch.requests).toEqual([
+      [
+        { package: { name: 'monolog/monolog', ecosystem: 'Packagist' }, version: '3.9.0' },
+        { package: { name: 'intercom/intercom-php', ecosystem: 'Packagist' }, version: '5.0.2' },
+        { package: { name: 'symfony/console', ecosystem: 'Packagist' }, version: 'v7.3.4' },
+      ],
+    ]);
+    expect(report.notices).toContainEqual(
+      expect.objectContaining({
+        code: 'known-malicious',
+        location: { file: 'composer.lock' },
+        message: 'known-malicious did not check 2 packages of composer.lock, which locks a branch of them (a dev- or -dev version), not a release',
+        fix: 'Require tagged releases of these packages in composer.json and run composer update, so that doctor --osv can check them',
+      }),
+    );
+  });
+
   it('reports the same version in two lockfiles in each of them, and asks for it once', async () => {
     const lock = (name: string) => `{"name":"${name}","lockfileVersion":3,"packages":{"":{"name":"${name}"},"node_modules/cutekitten-test":{"version":"1.0.1","resolved":"https://registry.npmjs.org/cutekitten-test/-/cutekitten-test-1.0.1.tgz"}}}\n`;
     const root = repository({

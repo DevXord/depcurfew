@@ -1,0 +1,32 @@
+{
+  "packageManagers": [
+    {
+      "id": "composer",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "composer.lock"
+        },
+        {
+          "kind": "config",
+          "file": "composer.json"
+        }
+      ],
+      "versions": [],
+      "configFiles": [
+        "composer.json"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
+  "warnings": []
+}

@@ -1,8 +1,9 @@
-// Dependabot: cooldown in every updates entry of a JavaScript or Python ecosystem in dependabot.yml, and in the
-// github-actions entries when the repository has workflows (decision D-130). semver-*-days keys that are already there
-// are raised to the policy's delay (never lowered, never added) where the ecosystem reads them; other keys (include)
-// stay. Each package entry gets the exclusions of its registry: npm names for npm, bun and deno, pypi: names for pip
-// and uv. The policy's exclusions are package names, so a github-actions entry gets none, and keeps its own.
+// Dependabot: cooldown in every updates entry of a JavaScript, Python or Composer ecosystem in dependabot.yml, and in
+// the github-actions entries when the repository has workflows (decision D-130). semver-*-days keys that are already
+// there are raised to the policy's delay (never lowered, never added) where the ecosystem reads them; other keys
+// (include) stay. Each package entry gets the exclusions of its registry: npm names for npm, bun and deno, pypi: names
+// for pip and uv, composer: names for composer. The policy's exclusions are package names, so a github-actions entry
+// gets none, and keeps its own.
 import { convertCooldown } from '../../policy/convert.ts';
 import { ecosystemOfTool } from '../../policy/ecosystem.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
@@ -67,8 +68,8 @@ export const dependabot: BotGenerator = (context, duration, repository) => {
   const updates = yaml.get(['updates']);
   const patternsOf = (ecosystem: string): string[] => {
     const covered = Array.isArray(managers[ecosystem]) ? (managers[ecosystem] as unknown[]) : [];
-    const python = context.tools.some((entry) => covered.includes(entry.id) && ecosystemOfTool(entry) === 'pypi');
-    return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], python ? 'pypi' : 'npm')) ?? [];
+    const tool = context.tools.find((entry) => covered.includes(entry.id));
+    return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], tool === undefined ? 'npm' : ecosystemOfTool(tool))) ?? [];
   };
   let configured = 0;
   let configuredActions = 0;

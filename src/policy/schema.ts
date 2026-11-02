@@ -39,7 +39,7 @@ const packagePatterns = (description: string) =>
       kind: 'invalid package pattern',
       pattern: PACKAGE_PATTERN,
       description:
-        'An npm package name such as "esbuild" or "@scope/name", or a pattern with *, such as "@scope/*". Python packages take the prefix pypi:, e.g. "pypi:requests" or "pypi:acme-*". No versions.',
+        'An npm package name such as "esbuild" or "@scope/name", or a pattern with *, such as "@scope/*". Python packages take the prefix pypi:, e.g. "pypi:requests" or "pypi:acme-*", and Composer packages the prefix composer:, e.g. "composer:monolog/monolog" or "composer:acme/*". No versions.',
       parse: (input) => {
         const message = validatePackagePattern(input);
         return message === undefined ? { ok: true, value: input } : { ok: false, message };
@@ -67,20 +67,20 @@ export const cooldownShape = object(
 export const installScriptsShape = object(
   {
     default: required(
-      access('Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default; for Python, whether packages may be built from source.'),
+      access('Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default; for Python, whether packages may be built from source; for Composer, whether plugins may run.'),
     ),
     allow: withDefault(
-      packagePatterns('Packages whose lifecycle scripts may run when the default is "deny"; Python packages listed here are always built from source.'),
+      packagePatterns('Packages whose lifecycle scripts may run when the default is "deny"; Python packages listed here are always built from source; Composer packages listed here are the plugins allow-plugins lets run.'),
       [],
     ),
     deny: withDefault(
       packagePatterns(
-        'Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example "fsevents", which ships a prebuilt binary. depcurfew init fills it with the packages of the lockfile whose scripts depcurfew knows to be unneeded (esbuild, fsevents) or to do only a task of the project (lefthook). A package cannot be in both lists, also not through two patterns that match the same name. Python packages listed here must not be built from source: doctor reports a tool that would still build one.',
+        'Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example "fsevents", which ships a prebuilt binary. depcurfew init fills it with the packages of the lockfile whose scripts depcurfew knows to be unneeded (esbuild, fsevents) or to do only a task of the project (lefthook). A package cannot be in both lists, also not through two patterns that match the same name. Python packages listed here must not be built from source: doctor reports a tool that would still build one. Composer packages listed here are plugins that allow-plugins disallows.',
       ),
       [],
     ),
   },
-  { description: 'Code that dependencies run when they are installed: lifecycle scripts in npm, building from source in Python.' },
+  { description: 'Code that dependencies run when they are installed: lifecycle scripts in npm, building from source in Python, plugins in Composer.' },
 );
 
 export const sourcesShape = object(
@@ -156,7 +156,7 @@ export const policyShape = object(
     projects: withDefault(projectsShape, []),
     doctor: optional(doctorShape),
   },
-  { description: 'One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Renovate and Dependabot.' },
+  { description: 'One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Composer, Renovate and Dependabot.' },
 );
 
 /** The policy as written in depcurfew.json. */

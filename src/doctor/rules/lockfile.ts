@@ -6,7 +6,8 @@ import { evidenceOf } from '../../knowledge/facts.ts';
 import type { ScriptPolicy, ToolKnowledge } from '../../knowledge/types.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
-import { PYPI_PREFIX } from '../../policy/package-pattern.ts';
+import { COMPOSER_PREFIX, PYPI_PREFIX } from '../../policy/package-pattern.ts';
+import { COMPOSER_MANIFEST, composerManifest, declaredRepositories, pluginDecision, unmatchedRepositories } from '../composer.ts';
 import { normalizePythonName } from '../../policy/python-names.ts';
 import { allowEntries, denyEntries, matchesPattern, type AllowEntry } from '../allow-lists.ts';
 import { latestVersion, versionedValue } from '../effective.ts';
@@ -23,6 +24,7 @@ import { denyFix, knownPackage, omittedOptionalText, optionalOmissions, scriptsP
 const LABELS = {
   npm: { git: 'a git repository', remoteTarball: 'a tarball URL', file: 'a local tarball', directory: 'a local directory' },
   pypi: { git: 'a git repository', remoteTarball: 'a URL', file: 'a local archive', directory: 'a local directory' },
+  packagist: { git: 'a VCS repository', remoteTarball: 'a package repository at a URL', file: 'an artifact repository', directory: 'a path repository' },
 } as const;
 
 /** Why a Python package is built from source, for messages. */
@@ -59,7 +61,7 @@ export const lockfileForbiddenSource: Rule = {
   checks: 'The lockfile installs no package from a source depcurfew.json denies',
   summary: 'The lockfile installs a package from a source depcurfew.json denies.',
   description:
-    'A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say.',
+    'A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say. For Composer, whose lockfile does not name the repository of a package, packages of a path or artifact repository are told by their dist, those of a VCS or package repository by the repositories of composer.json, and a repository of a denied kind that no package of composer.lock comes from is reported at its declaration (a warning).',
   help: 'Replace the dependency with a registry version, or allow that source in depcurfew.json.',
   level: 'error',
   requiresPolicy: true,
@@ -88,9 +90,70 @@ export const lockfileForbiddenSource: Rule = {
           fix: `Use a registry version ${entry.unnamed === true ? 'instead' : `of ${entry.name}`}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`,
         });
       }
+      if (tool.id === 'composer') reportComposerRepositories(context, tool, lockfile, sources);
     });
   },
 };
+
+/**
+ * Composer: a repository of composer.json of a kind the policy denies whose packages depcurfew cannot find in
+ * composer.lock (a VCS repository at another URL than the lock records, a path or artifact repository not locked yet).
+ * Composer installs from it on the next update, so it is reported at its declaration, as a warning (fail closed).
+ */
+function reportComposerRepositories(context: RuleContext, tool: ToolKnowledge, lockfile: Lockfile, sources: NonNullable<NonNullable<RuleContext['policy']>['sources']>): void {
+  for (const repository of unmatchedRepositories(declaredRepositories(context.repository, tool), lockfile.entries)) {
+    const kind = repository.kind;
+    if (kind !== 'git' && kind !== 'remoteTarball' && kind !== 'file' && kind !== 'directory') continue;
+    if (sources[kind] !== 'deny') continue;
+    const what = repository.url === undefined ? `a ${repository.type} repository` : `the ${repository.type} repository ${repository.url}`;
+    context.report({
+      level: 'warning',
+      location: { file: COMPOSER_MANIFEST, line: repository.line },
+      message: `${COMPOSER_MANIFEST} declares ${what} (repositories[${String(repository.key)}]), ${LABELS.packagist[kind]}, which ${POLICY_FILE} denies (sources.${kind}); ${lockfile.file} shows no package from it that depcurfew can tell, so Composer may install from it on the next update`,
+      fix: `Remove the repository from ${COMPOSER_MANIFEST} and require the packages from Packagist, or set sources.${kind} to "allow" in ${POLICY_FILE}`,
+    });
+  }
+}
+
+/**
+ * Composer plugins (type composer-plugin) are the dependency code Composer runs. allow-plugins in composer.json decides
+ * which may run (the first key that matches, true or false; true or false for the whole setting): one it allows that the
+ * policy does not is an error; one it does not list makes Composer ask, or fail without a terminal (a warning).
+ */
+function reportComposerPlugins(context: RuleContext, lockfile: Lockfile, allow: readonly string[], deny: readonly string[]): void {
+  const manifest = composerManifest(context.repository);
+  for (const entry of lockfile.entries.filter((item) => item.installScript === true)) {
+    if (allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;
+    const isDenied = deny.some((pattern) => matchesPattern(entry.name, pattern));
+    const decision = pluginDecision(manifest, entry.name);
+    const by = decision.key === undefined ? 'config.allow-plugins' : `"${decision.key}" in config.allow-plugins`;
+    if (decision.allowed === true) {
+      // Composer takes the first key that matches, so a denial goes before a pattern that allows the plugin.
+      const block =
+        decision.key === undefined
+          ? `replace true in config.allow-plugins of ${COMPOSER_MANIFEST} with the plugins that may run`
+          : decision.key === entry.name
+            ? `set it to false in config.allow-plugins of ${COMPOSER_MANIFEST}`
+            : `put "${entry.name}": false before "${decision.key}" in config.allow-plugins of ${COMPOSER_MANIFEST}, because Composer takes the first key that matches`;
+      context.report({
+        level: 'error',
+        location: location(lockfile, entry),
+        message: `${entry.name} is a Composer plugin, whose code runs during Composer commands, and ${by} in ${COMPOSER_MANIFEST} lets Composer run it, but ${POLICY_FILE} ${isDenied ? 'denies it' : 'does not allow it'}`,
+        fix: isDenied
+          ? `${block.charAt(0).toUpperCase()}${block.slice(1)}, or move ${COMPOSER_PREFIX}${entry.name} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing the plugin`
+          : `Review the plugin and add ${COMPOSER_PREFIX}${entry.name} to installScripts.allow in ${POLICY_FILE}, or ${block}`,
+      });
+      continue;
+    }
+    if (decision.allowed === false || isDenied) continue;
+    context.report({
+      level: 'warning',
+      location: location(lockfile, entry),
+      message: `${entry.name} is a Composer plugin that config.allow-plugins in ${COMPOSER_MANIFEST} does not list, so Composer asks whether to run it, and a run without a terminal (CI) fails; ${POLICY_FILE} does not allow it`,
+      fix: `Review the plugin: add ${COMPOSER_PREFIX}${entry.name} to installScripts.allow in ${POLICY_FILE} if the project needs it, or to installScripts.deny if it works without it, then run depcurfew apply`,
+    });
+  }
+}
 
 /** A lockfile spec for messages, without Yarn's locator parameters (::hash=…&locator=…) and repeated local paths. */
 function shownSpec(spec: string): string {
@@ -248,8 +311,8 @@ export const lockfileInstallScripts: Rule = {
   checks: 'The lockfile has no install scripts or source builds that depcurfew.json does not allow',
   summary: 'The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.',
   description:
-    'Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or its own allow-list lets them run, they run code the policy does not allow; where it blocks them, a package may not work. A package in installScripts.deny works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed (a Python package without wheels, esbuild without optional dependencies). Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index (depcurfew check pypi:<name> shows whether one has wheels), only to requirements from a repository, a URL or a local path.',
-  help: 'Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can). For packages whose scripts depcurfew knows (esbuild, fsevents, lefthook) the finding names the fix: installScripts.deny, and for lefthook "prepare": "lefthook install" in the scripts of package.json.',
+    'Install scripts run arbitrary code during installation, and so do building a Python package from source (a source distribution, a git repository or a local directory) and loading a Composer plugin. Where the package manager runs them by default, or its own allow-list lets them run, they run code the policy does not allow; where it blocks them, a package may not work. A package in installScripts.deny works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed (a Python package without wheels, esbuild without optional dependencies). npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile and composer.lock records plugins; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index, only to requirements from a repository, a URL or a local path.',
+  help: 'Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:, Composer plugins with composer:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can). For packages whose scripts depcurfew knows (esbuild, fsevents, lefthook) the finding names the fix: installScripts.deny, and for lefthook "prepare": "lefthook install" in the scripts of package.json.',
   level: 'error',
   requiresPolicy: true,
   // pip requirements files and Pipfile.lock list hashes only, so they cannot show a package without wheels (D-107).
@@ -261,6 +324,10 @@ export const lockfileInstallScripts: Rule = {
       const view = policyFor(policy, ecosystemOfTool(tool)).installScripts;
       const allow = view?.allow ?? [];
       const deny = view?.deny ?? [];
+      if (ecosystemOfTool(tool) === 'packagist') {
+        reportComposerPlugins(context, lockfile, allow, deny);
+        return;
+      }
       if (ecosystemOfTool(tool) === 'pypi') {
         reportPythonBuilds(context, lockfile, tool, allow, deny);
         if (!showsBuilds(tool, lockfile.file, context.tools) && lockfile.entries.some((entry) => entry.source === 'registry' && entry.installScript === undefined)) {

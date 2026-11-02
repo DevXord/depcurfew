@@ -249,7 +249,7 @@ function checkAllowLists(context: RuleContext, plan: ApplyReport): void {
         level: 'warning',
         location,
         message: `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it`,
-        fix: `Remove ${entry.name} from ${entry.setting}, or add ${entry.name === entry.package ? 'it' : entry.package} to installScripts.allow in ${POLICY_FILE}`,
+        fix: `Remove ${entry.name} from ${entry.setting}, or add ${entry.policyName ?? (entry.name === entry.package ? 'it' : entry.package)} to installScripts.allow in ${POLICY_FILE}`,
       });
     }
   }

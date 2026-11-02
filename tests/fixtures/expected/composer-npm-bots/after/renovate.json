@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    {
+      "description": "depcurfew: packages excluded from minimumReleaseAge",
+      "matchDatasources": [
+        "!packagist"
+      ],
+      "matchPackageNames": [
+        "@acme/*"
+      ],
+      "minimumReleaseAge": null
+    },
+    {
+      "description": "depcurfew: Composer packages excluded from minimumReleaseAge",
+      "matchDatasources": [
+        "packagist"
+      ],
+      "matchPackageNames": [
+        "acme/*",
+        "laravel/framework"
+      ],
+      "minimumReleaseAge": null
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "minimumReleaseAge": null
+  }
+}

@@ -30,6 +30,8 @@ const MANAGED_VALUES = new Set([
   'exclude',
   'minimumDependencyAge',
   'allowScripts',
+  'period',
+  'allow-plugins',
 ]);
 
 const names = readdirSync(REPOS, { withFileTypes: true })

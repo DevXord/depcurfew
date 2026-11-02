@@ -1,0 +1,15 @@
+{
+    "require": {
+        "psr/log": "^3.0"
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true
+        },
+        "policy": {
+            "cooldown": {
+                "period": "3 days"
+            }
+        }
+    }
+}

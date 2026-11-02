@@ -66,7 +66,7 @@ function verifiedOn(verifiedAt) {
 }
 
 // src/knowledge/bun.ts
-const { verified: verified$13, uncertain: uncertain$11, disputed: disputed$6, evidence: evidence$6 } = verifiedOn("2026-10-28");
+const { verified: verified$14, uncertain: uncertain$12, disputed: disputed$6, evidence: evidence$6 } = verifiedOn("2026-10-28");
 const checked$6 = verifiedOn("2026-10-29");
 const user$9 = verifiedOn("2026-10-31");
 const runtimes$3 = verifiedOn("2026-11-01");
@@ -78,18 +78,18 @@ const LIFECYCLE = "https://bun.com/docs/pm/lifecycle";
 const ADD = "https://bun.com/docs/pm/cli/add";
 const BUN_1_4_4 = "https://bun.com/blog/bun-v1.4.4#minimumreleaseage-supports-units-and-per-version-exclusions";
 const DOCS_1_3_0 = "https://github.com/oven-sh/bun/blob/bun-v1.3.0/docs/cli/install.md";
-const noSetting$6 = (anchor, kind) => ({ setting: uncertain$11(null, `${ADD}#${anchor}`, `${kind} dependencies are supported with no setting to allow or forbid them (concluded from the full bunfig [install] list); install.blockExoticSubdeps is proposed in oven-sh/bun#30340 but not shipped.`) });
+const noSetting$7 = (anchor, kind) => ({ setting: uncertain$12(null, `${ADD}#${anchor}`, `${kind} dependencies are supported with no setting to allow or forbid them (concluded from the full bunfig [install] list); install.blockExoticSubdeps is proposed in oven-sh/bun#30340 but not shipped.`) });
 const WORKSPACES$2 = "https://github.com/oven-sh/bun/blob/main/docs/pm/workspaces.mdx";
 const bun$1 = {
 	id: "bun",
 	name: "Bun",
 	kind: "package-manager",
 	cooldown: {
-		setting: verified$13("install.minimumReleaseAge", `${BUNFIG}#install-minimumreleaseage`),
-		configFiles: verified$13(["bunfig.toml"], BUNFIG, "Also the global $HOME/.bunfig.toml or $XDG_CONFIG_HOME/.bunfig.toml; local keys override global ones. Bun's .npmrc support has no min-release-age key."),
-		cliFlag: verified$13("--minimum-release-age", DOCS_1_3_0, "bun install, add and update; bunx honors it only since 1.4.4."),
-		unit: verified$13("seconds", `${BUNFIG}#install-minimumreleaseage`, "Plain numbers are seconds; 0 turns it off. Since 1.4.4 duration strings such as 90m, 12 hours, 3d or 2 weeks also work (the bunfig reference still documents seconds only)."),
-		availableSince: verified$13("1.3.0", "https://bun.com/blog/bun-v1.3#minimum-release-age"),
+		setting: verified$14("install.minimumReleaseAge", `${BUNFIG}#install-minimumreleaseage`),
+		configFiles: verified$14(["bunfig.toml"], BUNFIG, "Also the global $HOME/.bunfig.toml or $XDG_CONFIG_HOME/.bunfig.toml; local keys override global ones. Bun's .npmrc support has no min-release-age key."),
+		cliFlag: verified$14("--minimum-release-age", DOCS_1_3_0, "bun install, add and update; bunx honors it only since 1.4.4."),
+		unit: verified$14("seconds", `${BUNFIG}#install-minimumreleaseage`, "Plain numbers are seconds; 0 turns it off. Since 1.4.4 duration strings such as 90m, 12 hours, 3d or 2 weeks also work (the bunfig reference still documents seconds only)."),
+		availableSince: verified$14("1.3.0", "https://bun.com/blog/bun-v1.3#minimum-release-age"),
 		default: disputed$6("The bunfig reference says the default is null (off) and an open docs pull request (oven-sh/bun#41545) says the feature is off by default; the install page lists 259200 (3 days) under \"These are the default values\".", evidence$6([{
 			since: "1.3.0",
 			value: null
@@ -98,45 +98,45 @@ const bun$1 = {
 			value: 259200
 		}], INSTALL$1)),
 		exclude: {
-			setting: verified$13("install.minimumReleaseAgeExcludes", `${BUNFIG}#install-minimumreleaseageexcludes`),
-			availableSince: verified$13("1.3.0", DOCS_1_3_0),
-			patternSyntax: verified$13("Exact package names (all versions); since 1.4.4 also name@exactVersion. No wildcards; ranges and tags are ignored with a warning", BUN_1_4_4, "Since 1.4.4 --minimum-release-age-excludes replaces the bunfig list for one command.")
+			setting: verified$14("install.minimumReleaseAgeExcludes", `${BUNFIG}#install-minimumreleaseageexcludes`),
+			availableSince: verified$14("1.3.0", DOCS_1_3_0),
+			patternSyntax: verified$14("Exact package names (all versions); since 1.4.4 also name@exactVersion. No wildcards; ranges and tags are ignored with a warning", BUN_1_4_4, "Since 1.4.4 --minimum-release-age-excludes replaces the bunfig list for one command.")
 		},
-		securityUpdates: uncertain$11("applies", BUN_1_4_4, "No automatic bypass is documented; exempt the fixed release with name@version in minimumReleaseAgeExcludes (1.4.4+). Exact version requests still go through the gate.")
+		securityUpdates: uncertain$12("applies", BUN_1_4_4, "No automatic bypass is documented; exempt the fixed release with name@version in minimumReleaseAgeExcludes (1.4.4+). Exact version requests still go through the gate.")
 	},
 	installScripts: {
-		defaultPolicy: verified$13([{
+		defaultPolicy: verified$14([{
 			since: "0.0.0",
 			value: "deny-except-allowlist"
 		}], `${LIFECYCLE}#trusteddependencies`, "Dependency scripts run only for Bun's built-in trusted list (npm-registry packages only since 1.4) or trustedDependencies; the root project's scripts run. First version of this policy not tracked."),
 		allowList: {
-			setting: verified$13("trustedDependencies", `${LIFECYCLE}#trusteddependencies`, "Replaces the built-in default list rather than extending it. bun pm trust and bun add --trust write it."),
-			file: verified$13("package.json", `${LIFECYCLE}#trusteddependencies`),
-			availableSince: uncertain$11("1.0.5", "https://bun.com/blog/release-notes/bun-v1.0.5", "Upper bound: 1.0.5 already persists trustedDependencies in bun.lockb; the first version was not pinned down. bun pm trust and bun add --trust arrived in 1.0.31."),
-			format: verified$13("Array of package names, e.g. [\"node-sass\"]", `${LIFECYCLE}#trusteddependencies`)
+			setting: verified$14("trustedDependencies", `${LIFECYCLE}#trusteddependencies`, "Replaces the built-in default list rather than extending it. bun pm trust and bun add --trust write it."),
+			file: verified$14("package.json", `${LIFECYCLE}#trusteddependencies`),
+			availableSince: uncertain$12("1.0.5", "https://bun.com/blog/release-notes/bun-v1.0.5", "Upper bound: 1.0.5 already persists trustedDependencies in bun.lockb; the first version was not pinned down. bun pm trust and bun add --trust arrived in 1.0.31."),
+			format: verified$14("Array of package names, e.g. [\"node-sass\"]", `${LIFECYCLE}#trusteddependencies`)
 		},
-		disableAll: verified$13("install.ignoreScripts", `${BUNFIG}#install-ignorescripts`, "Default false. Also --ignore-scripts or ignore-scripts=true in .npmrc. Skips the project's own scripts and trustedDependencies too.")
+		disableAll: verified$14("install.ignoreScripts", `${BUNFIG}#install-ignorescripts`, "Default false. Also --ignore-scripts or ignore-scripts=true in .npmrc. Skips the project's own scripts and trustedDependencies too.")
 	},
 	sources: {
-		git: noSetting$6("git-dependencies", "Git"),
-		remoteTarball: noSetting$6("tarball-dependencies", "Tarball URL"),
-		file: noSetting$6("local-paths", "Local tarball"),
-		directory: noSetting$6("local-paths", "Local directory")
+		git: noSetting$7("git-dependencies", "Git"),
+		remoteTarball: noSetting$7("tarball-dependencies", "Tarball URL"),
+		file: noSetting$7("local-paths", "Local tarball"),
+		directory: noSetting$7("local-paths", "Local directory")
 	},
 	project: {
-		lockfiles: uncertain$11([{
+		lockfiles: uncertain$12([{
 			since: "0.0.0",
 			value: ["bun.lockb"]
 		}, {
 			since: "1.2.0",
 			value: ["bun.lock", "bun.lockb"]
 		}], "https://github.com/oven-sh/bun/blob/main/docs/pm/lockfile.mdx", "Bun 1.2 made the text bun.lock the default (verified). That bun.lockb is still read afterwards is inferred from the documented migration command and from saveTextLockfile = false, which writes bun.lockb."),
-		manifests: verified$13(["package.json"], WORKSPACES$2),
-		workspaces: verified$13({
+		manifests: verified$14(["package.json"], WORKSPACES$2),
+		workspaces: verified$14({
 			files: ["package.json"],
 			key: "workspaces"
 		}, WORKSPACES$2, "Full glob syntax, including ! patterns."),
-		workspacesObjectKey: verified$13("packages", "https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx", "The object form also holds catalog and catalogs.")
+		workspacesObjectKey: verified$14("packages", "https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx", "The object form also holds catalog and catalogs.")
 	},
 	user: {
 		files: user$9.verified([{
@@ -261,18 +261,18 @@ const bun$1 = {
 			workspace: "workspace:",
 			tarball: "\\.(?:tar\\.gz|tgz)$"
 		}, "https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/install/lockfile/bun.lock.rs", "bun.lock (text, the default since 1.2) maps each package to a tuple starting with name@<spec>: name@<version> followed by the registry for npm, name@git+<repo>#<sha> and name@github:<owner>/<repo>#<sha> for git, name@https://… for tarball URLs, name@./x.tgz (without file:) for local tarballs, name@file:<dir> and name@link:<dir> for directories, name@workspace:<dir> for workspace packages. The info object carries hasInstallScript: true only since 1.4.4, with no lockfileVersion change, so a missing flag proves nothing for older files. bun.lockb is an undocumented binary format."),
-		durationStrings: verified$13({
+		durationStrings: verified$14({
 			since: "1.4.4",
 			syntax: "compact-or-words"
 		}, BUN_1_4_4, "Since 1.4.4 minimumReleaseAge also takes duration strings such as 90m, 12 hours, 3d or 2 weeks; plain numbers stay seconds."),
-		excludeWildcards: verified$13({
+		excludeWildcards: verified$14({
 			since: null,
 			trailingOnly: false
 		}, BUN_1_4_4, "minimumReleaseAgeExcludes takes exact package names (and name@version since 1.4.4), no wildcards."),
-		latestVersion: verified$13("1.4.4", "https://github.com/oven-sh/bun/releases/tag/bun-v1.4.4"),
+		latestVersion: verified$14("1.4.4", "https://github.com/oven-sh/bun/releases/tag/bun-v1.4.4"),
 		trustedDependenciesReplacesDefaults: checked$6.verified("Adding trustedDependencies replaces the built-in trusted list, so default-trusted packages that are not listed stop running scripts", `${LIFECYCLE}#behavior-of-the-trusteddependencies-field`, "So an empty list trusts no package: without the field Bun 1.4.4 ran esbuild's postinstall (esbuild is on the built-in list); with \"trustedDependencies\": [] it blocked it (bun pm untrusted listed it), tested on 2026-10-29."),
-		lockedVersionsNotRechecked: verified$13("minimumReleaseAge only affects new resolutions; versions already in bun.lock are kept", `${INSTALL$1}#minimum-release-age`),
-		bunxCooldown: verified$13("bunx applies --minimum-release-age only since 1.4.4", "https://bun.com/blog/bun-v1.4.4"),
+		lockedVersionsNotRechecked: verified$14("minimumReleaseAge only affects new resolutions; versions already in bun.lock are kept", `${INSTALL$1}#minimum-release-age`),
+		bunxCooldown: verified$14("bunx applies --minimum-release-age only since 1.4.4", "https://bun.com/blog/bun-v1.4.4"),
 		directoryOptions: runtimes$3.verified({
 			options: [{
 				name: "--cwd",
@@ -292,6 +292,277 @@ const bun$1 = {
 			}],
 			variables: []
 		}, "https://github.com/oven-sh/bun/blob/main/docs/pm/cli/install.mdx", "bun add @types/bun --minimum-release-age 259200 # seconds: \"A number is in seconds\", or a number with a unit such as 90m, 12 hours, 3d or 2 weeks (durationStrings). The page lists no environment variable for it. bun add --trust \"adds the package to trustedDependencies in the project's package.json and installs it\", so its lifecycle scripts run (docs/snippets/cli/add.mdx and docs/pm/lifecycle.mdx at bun-v1.4.4); lifecycle.mdx names no variable that turns scripts on, and ignore-scripts read from the environment \"only turns scripts off\".")
+	}
+};
+
+// src/knowledge/composer.ts
+const { verified: verified$13, uncertain: uncertain$11 } = verifiedOn("2026-11-02");
+const COMPOSER = "https://github.com/composer/composer/blob/2.11.1";
+const CONFIG$3 = `${COMPOSER}/doc/06-config.md`;
+const CLI$1 = `${COMPOSER}/doc/03-cli.md`;
+const SCHEMA$2 = `${COMPOSER}/doc/04-schema.md`;
+const REPOSITORIES = `${COMPOSER}/doc/05-repositories.md`;
+const CHANGELOG$3 = `${COMPOSER}/CHANGELOG.md`;
+const SRC = `${COMPOSER}/src/Composer`;
+const noSetting$6 = (kind) => ({ setting: uncertain$11(null, `${SCHEMA$2}#repositories`, `No setting allows or forbids ${kind} dependencies (concluded from the config options in 06-config.md). Such packages come only from repositories declared in the root composer.json: "Repositories are not resolved recursively. You can only add them to your main composer.json. Repository declarations of dependencies' composer.jsons are ignored."`) });
+const composer$3 = {
+	id: "composer",
+	name: "Composer",
+	kind: "package-manager",
+	ecosystem: "packagist",
+	cooldown: {
+		setting: verified$13("config.policy.cooldown.period", `${CONFIG$3}#cooldown`, "Withholds versions published within the period when composer update or require resolves dependencies (also init and create-project when they pick a constraint). Measured from the publication time the repository reports (published-time, which Packagist.org provides and package authors cannot influence); a Composer repository that lacks it makes the command fail unless require-published-time is false on it, and packages from VCS, path or artifact repositories use the author-set time of their composer.json. Never withheld: dev versions, locked packages a partial update keeps, platform packages and versions without any date."),
+		configFiles: verified$13(["composer.json"], `${SCHEMA$2}#config`, "config is root-only: \"It is only used for projects.\" COMPOSER_HOME/config.json is merged under it (only its config and repositories keys), and \"the local configuration in the project's composer.json always wins\" (03-cli.md#composer-home-config-json)."),
+		cliFlag: uncertain$11(null, `${CLI$1}#require-r`, "No option sets the period (concluded from the command options): --no-cooldown and --no-blocking turn the delay off for one command, show --cooldown-period and outdated --cooldown-period only change what is displayed, and COMPOSER_POLICY_COOLDOWN_PERIOD overrides the period."),
+		unit: verified$13("duration-string", `${CONFIG$3}#period`, "\"A duration string in the form \"<number> <unit>\" where the unit is one of second, minute, hour, day or week (lowercase, singular or plural - e.g. \"7 days\", \"24 hours\", \"30 minutes\", \"1 week\"), an integer number of seconds, or null to disable.\""),
+		availableSince: verified$13("2.11.0", CHANGELOG$3, "\"Added a cooldown policy to withhold newly released package versions for a configurable period\" under 2.11.0-RC1 (2026-10-22); 2.11.0 was released on 2026-10-29."),
+		default: verified$13([{
+			since: "2.11.0",
+			value: null
+		}], `${CONFIG$3}#period`, "\"Defaults to null (no cooldown period). The policy only takes effect once a period is set.\""),
+		exclude: {
+			setting: verified$13("config.policy.cooldown.ignore", `${CONFIG$3}#cooldown`, "\"Packages listed under ignore bypass the cooldown policy.\" The ignore format of the other policies: a list of names, or an object of names to a reason, to { constraint, reason, on-block, on-audit } or to a list of such rules."),
+			availableSince: verified$13("2.11.0", CHANGELOG$3, "Part of the cooldown policy added in 2.11.0-RC1."),
+			patternSyntax: verified$13("Package names with * wildcards, e.g. vendor/*", `${CONFIG$3}#cooldown`, "\"package names support wildcards (e.g. vendor/*)\".")
+		},
+		securityUpdates: uncertain$11("applies", `${CONFIG$3}#cooldown`, "The cooldown section names no exception for security fixes; its example lists symfony/security-bundle under ignore because \"Security fixes need to be applied immediately\".")
+	},
+	installScripts: {
+		defaultPolicy: verified$13([{
+			since: "0.0.0",
+			value: "run"
+		}, {
+			since: "2.2.0",
+			value: "deny-except-allowlist"
+		}], `${CONFIG$3}#allow-plugins`, "Only the root package's scripts run (articles/scripts.md: \"If a dependency of the root package specifies its own scripts, Composer does not execute those additional scripts\"); dependency code runs during Composer commands through plugins, packages of type composer-plugin. allow-plugins (2.2.0) \"Defaults to {} which does not allow any plugins to be loaded\": a plugin it does not list makes Composer ask in an interactive run and fail in a non-interactive one, or skips it when the plugin declares plugin-optional (PluginManager::isPluginAllowed, articles/plugins.md)."),
+		allowList: {
+			setting: verified$13("config.allow-plugins", `${CONFIG$3}#allow-plugins`, "\"Use this setting to allow only packages you trust to execute code.\""),
+			file: verified$13("composer.json", `${SCHEMA$2}#config`, "Root-only, like every config option."),
+			availableSince: verified$13("2.2.0", `${CONFIG$3}#allow-plugins`, "\"As of Composer 2.2.0, the allow-plugins option adds a layer of security\"."),
+			format: verified$13("An object of package name patterns (vendor/*) to true (allow) or false (disallow without asking); true allows every plugin and false none", `${SRC}/Plugin/PluginManager.php`, "parseAllowedPlugins turns each key into a pattern; isPluginAllowed returns the value of the first pattern that matches, in the order written. Config::merge puts the keys of COMPOSER_HOME/config.json after the project's, the project's values winning.")
+		},
+		disableAll: verified$13("config.allow-plugins: false", `${CONFIG$3}#allow-plugins`, "\"You can also set the config option itself to false to disallow all plugins\"; --no-plugins does the same for one command (03-cli.md#global-options).")
+	},
+	sources: {
+		git: noSetting$6("VCS"),
+		remoteTarball: noSetting$6("package repository"),
+		file: noSetting$6("artifact"),
+		directory: noSetting$6("path repository")
+	},
+	project: {
+		lockfiles: verified$13([{
+			since: "0.0.0",
+			value: ["composer.lock"]
+		}], `${COMPOSER}/doc/01-basic-usage.md#commit-your-composer-lock-file-to-version-control`, "JSON next to composer.json. With COMPOSER=<name>.json Composer reads another manifest and writes <name>.lock (03-cli.md#composer); depcurfew reads composer.json and composer.lock only."),
+		manifests: verified$13(["composer.json"], SCHEMA$2, "The root package; repositories, config and scripts are read only from it."),
+		workspaces: uncertain$11(null, `${REPOSITORIES}#path`, "Composer has no workspaces; a monorepo links its packages with path repositories."),
+		workspacesObjectKey: uncertain$11(null, `${REPOSITORIES}#path`, "No workspaces.")
+	},
+	extra: {
+		latestVersion: verified$13("2.11.1", CHANGELOG$3, "Released on 2026-10-30."),
+		durationStrings: verified$13({
+			since: "2.11.0",
+			syntax: "unit-word",
+			numbers: "seconds"
+		}, `${SRC}/Policy/CooldownPolicyConfig.php`, "parseDuration: an integer, or a string of digits, is a number of seconds; otherwise only /^(\\d+)\\s*(second|minute|hour|day|week)s?$/ is accepted (lowercase, one unit). null, \"\", 0 and \"0\" mean no cooldown; any other value makes the command fail with \"Invalid policy.cooldown.period format\", and so does such a COMPOSER_POLICY_COOLDOWN_PERIOD."),
+		durationUnits: verified$13(["days"], `${CONFIG$3}#period`, "The documented examples are \"7 days\", \"24 hours\", \"30 minutes\" and \"1 week\"; depcurfew writes whole days, rounded up."),
+		excludeWildcards: verified$13({
+			since: "2.11.0",
+			trailingOnly: false
+		}, `${CONFIG$3}#cooldown`, "\"package names support wildcards (e.g. vendor/*)\" in ignore."),
+		denyList: verified$13({
+			file: "composer.json",
+			setting: "config.allow-plugins",
+			value: false,
+			since: "2.2.0"
+		}, `${CONFIG$3}#allow-plugins`, "\"The values are true to allow and false to disallow while suppressing further warnings and prompts.\""),
+		cooldownTime: verified$13({
+			published: "published-time",
+			author: "time",
+			requireSetting: "require-published-time",
+			authorTimeRepositories: [
+				"vcs",
+				"path",
+				"artifact"
+			]
+		}, `${SRC}/Policy/CooldownPolicyConfig.php`, "getEffectiveDate returns the published date, else the release date (time). A Composer repository must give published-time while a cooldown is configured, unless require-published-time is false on it (05-repositories.md#require-published-time: \"That field is set by the package author, so the protection is weaker\"); ArtifactRepository drops a published-time from the archive's composer.json."),
+		lockedVersions: verified$13("composer install installs the locked versions without the cooldown; a partial update keeps every other locked version, a full composer update re-evaluates them all", `${CONFIG$3}#cooldown`, "\"The cooldown policy applies when resolving dependencies during composer update/require\"; \"Locked packages that are not being updated\" are never withheld."),
+		olderVersions: uncertain$11("Composer 2.10 reads policy.cooldown as a custom dependency policy without sources, which blocks nothing; older versions ignore config.policy as an unknown config key", `https://github.com/composer/composer/blob/2.10.3/src/Composer/Policy/PolicyConfig.php`, "Read from the code at 2.10.3, not tested: fromConfig passes every key of policy but advisories, malware, abandoned and ignore-unreachable to CustomListPolicyConfig::fromRawConfig, which reads only block, audit, ignore and sources, and the schema at 2.10.3 does not reject period there. Config::merge keeps any unknown config key, and the schema of config has no additionalProperties: false."),
+		contentHash: verified$13({
+			file: "composer.lock",
+			key: "content-hash",
+			settings: ["config.policy"],
+			since: "2.11.0",
+			command: "composer update --lock"
+		}, `${SRC}/Package/Locker.php`, "getContentHash hashes name, version, require, require-dev, conflict, replace, provide, minimum-stability, prefer-stable, repositories, extra, config.platform and config.policy (\"policy changes which versions an update may pick, so changing it should flag the lock as outdated\"; CHANGELOG 2.11.0-RC1, #13149). With another hash composer install warns that \"The lock file is not up to date with the latest changes in composer.json\" (Installer.php) and composer validate fails (03-cli.md#validate); composer update --lock \"Overwrites the lock file hash to suppress warning about the lock file being out of date without updating package versions\" (03-cli.md#update-u-upgrade). allow-plugins is not hashed."),
+		pluginApiVersion: verified$13({
+			key: "plugin-api-version",
+			cooldownApi: "2.11.0"
+		}, `${SRC}/Plugin/PluginInterface.php`, "Locker writes PluginInterface::PLUGIN_API_VERSION of the Composer that writes composer.lock into plugin-api-version (Locker.php; CHANGELOG 1.10.0: \"so third-party tools can know which Composer version was used to generate a lock file\"). It is 2.11.0 at 2.11.1 (\"Bumped composer-plugin-api to 2.11.0\" under 2.11.0-RC1) and 2.9.0 at 2.10.3, so a lower value was written by a Composer older than 2.11.0. It names the Composer that last wrote the lock, not every Composer that installs it."),
+		lockfileFormat: verified$13({
+			sections: ["packages", "packages-dev"],
+			name: "name",
+			version: "version",
+			installScripts: "type",
+			pluginType: "composer-plugin",
+			source: "source",
+			dist: "dist",
+			pathType: "path",
+			archiveTypes: [
+				"zip",
+				"tar",
+				"gzip",
+				"xz",
+				"phar",
+				"rar"
+			]
+		}, `${SRC}/Package/Dumper/ArrayDumper.php`, "Each entry of packages and packages-dev has name, version, type and the source { type, url, reference } and dist { type, url, reference, shasum } it installs from, time and, from a repository that gives it, published-time. A package of a path repository has dist type path with the path as url (PathRepository.php); one of an artifact repository has the archive type and its file path as url (ArtifactRepository.php). Plugins are packages of type composer-plugin (04-schema.md#type)."),
+		branchVersions: verified$13({
+			prefix: "dev-",
+			suffix: "-dev"
+		}, `${COMPOSER}/doc/articles/versions.md#stabilities`, "A locked version names a branch, not a release, when it starts with dev- or ends with -dev: \"Composer automatically adds a -dev suffix to all numeric branches and prefixes all other branches imported from a VCS repository with dev-\" (versions.md, Stabilities); a tag gives its own version (v7.3.4 or 3.9.0, as the tag is written)."),
+		repositoryTypes: verified$13({
+			vcs: [
+				"vcs",
+				"git",
+				"github",
+				"gitlab",
+				"bitbucket",
+				"git-bitbucket",
+				"svn",
+				"hg",
+				"fossil",
+				"perforce"
+			],
+			directory: ["path"],
+			file: ["artifact"],
+			inline: ["package"],
+			registry: ["composer"],
+			disable: "packagist.org"
+		}, `${SRC}/Repository/RepositoryFactory.php`, "The repository classes of createRepositoryManager; 05-repositories.md describes composer, vcs (with the drivers bitbucket, github, gitlab, perforce, fossil, git, svn and hg; git-bitbucket is deprecated), path, package and artifact, and { \"packagist.org\": false } to disable Packagist.org. repositories is root-only."),
+		weakeningSettings: verified$13([
+			{
+				path: ["config", "policy"],
+				when: "false",
+				effect: "turns off every dependency policy, the cooldown and malware blocking included"
+			},
+			{
+				path: [
+					"config",
+					"policy",
+					"cooldown"
+				],
+				when: "false",
+				effect: "turns off the cooldown"
+			},
+			{
+				path: [
+					"config",
+					"policy",
+					"cooldown",
+					"block"
+				],
+				when: "php-false",
+				effect: "stops the cooldown from withholding new versions"
+			},
+			{
+				path: [
+					"config",
+					"policy",
+					"malware"
+				],
+				when: "false",
+				effect: "turns off blocking of versions flagged as malware"
+			},
+			{
+				path: [
+					"config",
+					"policy",
+					"malware",
+					"block"
+				],
+				when: "php-false",
+				effect: "stops blocking versions flagged as malware"
+			},
+			{
+				path: [
+					"config",
+					"policy",
+					"malware",
+					"block-scope"
+				],
+				when: "update",
+				effect: "blocks versions flagged as malware only on update, so composer install still installs them from composer.lock"
+			}
+		], `${CONFIG$3}#policy`, "\"Set to false to disable all dependency policy enforcement\"; malware \"block: Defaults to true\", \"block-scope: Defaults to all\", update blocks \"only during update/require/remove\"; cooldown block \"Set to false to skip blocking for a cooldown period entirely\". policy, cooldown and malware are compared with false exactly; block is read with PHP's (bool) cast after ?? true, so false, 0, \"\", \"0\" and [] turn blocking off, while a missing or null block keeps the default and \"false\" is true (Config.php, MalwarePolicyConfig.php, CooldownPolicyConfig.php)."),
+		transportSettings: verified$13([{
+			path: ["config", "secure-http"],
+			weakensWhen: false,
+			effect: "allows downloads over plain HTTP"
+		}, {
+			path: ["config", "disable-tls"],
+			weakensWhen: true,
+			effect: "downloads without TLS and turns off secure-http"
+		}], `${CONFIG$3}#secure-http`, "secure-http \"Defaults to true. If set to true only HTTPS URLs are allowed to be downloaded via Composer\"; disable-tls \"Defaults to false. If set to true all HTTPS URLs will be tried with HTTP instead\" and \"will implicitly disable the secure-http option\". Config::get reads both as $value !== \"false\" && (bool) $value (Config.php), so \"false\", false, 0, \"\", \"0\" and null are false."),
+		allowAllPlugins: verified$13({
+			setting: "config.allow-plugins",
+			value: true,
+			patterns: ["*"]
+		}, `${CONFIG$3}#allow-plugins`, "\"or true to allow all plugins to run (NOT recommended)\"; a key \"*\" with true matches every package (BasePackage::packageNameToRegexp)."),
+		repositoryWeakening: verified$13([{
+			key: "require-published-time",
+			when: "false",
+			effect: "lets the cooldown count from the time the package author wrote into composer.json"
+		}, {
+			key: "filter",
+			when: "false",
+			list: "malware",
+			effect: "skips the malware list that the repository advertises"
+		}], `${REPOSITORIES}#require-published-time`, "require-published-time \"Defaults to true\"; false falls \"back to the time field of each package's composer.json. That field is set by the package author, so the protection is weaker.\" Only false counts (ComposerRepository.php). \"Set filter: false to opt out of every list this repository advertises\", or an object that sets a list name to false to skip that list (#filter); Packagist.org advertises the list malware (repo.packagist.org/packages.json)."),
+		environmentOverrides: verified$13([
+			{
+				name: "COMPOSER_POLICY",
+				values: [
+					"0",
+					"false",
+					"off"
+				],
+				effect: "turns off every dependency policy, the cooldown included"
+			},
+			{
+				name: "COMPOSER_NO_BLOCKING",
+				values: { except: ["", "0"] },
+				effect: "turns off all policy blocking, the cooldown included"
+			},
+			{
+				name: "COMPOSER_NO_SECURITY_BLOCKING",
+				values: { except: ["", "0"] },
+				effect: "turns off blocking of advisories, abandoned packages and the cooldown"
+			},
+			{
+				name: "COMPOSER_POLICY_COOLDOWN_PERIOD",
+				values: "delay",
+				effect: "replaces the cooldown period"
+			},
+			{
+				name: "COMPOSER_POLICY_COOLDOWN_BLOCK",
+				values: [
+					"0",
+					"false",
+					"off"
+				],
+				effect: "stops the cooldown from withholding new versions"
+			},
+			{
+				name: "COMPOSER_POLICY_MALWARE_BLOCK",
+				values: [
+					"0",
+					"false",
+					"off"
+				],
+				effect: "stops blocking versions flagged as malware"
+			}
+		], `${CLI$1}#environment-variables`, "COMPOSER_POLICY: \"Set to 0 to disable all dependency policy enforcement\" (read with Platform::getBoolEnv: 0, false and off are false). COMPOSER_NO_BLOCKING and COMPOSER_NO_SECURITY_BLOCKING set --no-blocking and --no-security-blocking when (bool) getenv() is true, so every value but \"\" and \"0\" (BaseCommand.php). COMPOSER_POLICY_COOLDOWN_PERIOD \"overrides the configured period\", 0 disabling it; COMPOSER_POLICY_COOLDOWN_BLOCK and COMPOSER_POLICY_MALWARE_BLOCK set 0 to disable blocking (PolicyConfig.php).")
 	}
 };
 
@@ -546,6 +817,7 @@ const python$2 = verifiedOn("2026-10-30");
 const review = verifiedOn("2026-10-31");
 const projects$1 = verifiedOn("2026-11-01");
 const bots$1 = verifiedOn("2026-11-02");
+const composer$2 = verifiedOn("2026-11-02");
 const OPTIONS$1 = "https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference";
 const COOLDOWN_GA = "https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/";
 const DEFAULT_COOLDOWN = "https://github.blog/changelog/2026-07-14-dependabot-version-updates-introduce-default-package-cooldown/";
@@ -610,7 +882,7 @@ const dependabot$1 = {
 			key: "include",
 			everything: "*"
 		}, "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates#setting-up-a-cooldown-period-for-dependency-updates", "An include list in the cooldown block limits the cooldown to the dependencies it names (* wildcards, up to 150 entries): the example applies the cooldown to requests, numpy and names starting with pandas or django, and to cover all dependencies one omits include or uses \"*\". The other dependencies get no cooldown at all, not even the default 3 days: dependabot-core skips the cooldown for a dependency that the include list does not match (ReleaseCooldownOptions#included? with File.fnmatch? and CooldownCalculation.skip_cooldown? in common/lib/dependabot, commit 03892a3e8ee26d43eb96f31c5136c98a85d63b14). exclude wins over include."),
-		ecosystems: python$2.verified({
+		ecosystems: composer$2.verified({
 			npm: [
 				"npm",
 				"pnpm",
@@ -623,8 +895,9 @@ const dependabot$1 = {
 				"poetry",
 				"pipenv"
 			],
-			uv: ["uv"]
-		}, `${OPTIONS$1}#package-ecosystem`, "The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). Cooldown, including the semver-* keys, is supported for all of them. PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0)."),
+			uv: ["uv"],
+			composer: ["composer"]
+		}, `${OPTIONS$1}#package-ecosystem`, "The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). composer covers Composer v2. Cooldown, including the semver-* keys, is supported for all of them (the cooldown table of the same page lists Composer with default and SemVer-bump days, read 2026-11-02). PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0)."),
 		githubActions: bots$1.verified({
 			ecosystem: "github-actions",
 			semverDays: false
@@ -634,6 +907,11 @@ const dependabot$1 = {
 		maximumDays: verified$11(90, "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates", "The page says the number of cooldown days must be between 1 and 90; whether 0 is accepted is disputed (see dayRange)."),
 		missingPublishDate: verified$11("Updates proceed when the registry gives no publication date (fail open); for Docker only Docker Hub tag_last_pushed is used", `${CORE}/docker/README.md`),
 		transitiveGating: uncertain$9("Regular updates pass the cooldown to npm (11.10+), pnpm (10.16+) and Yarn Berry to hold back transitive dependencies; the Bun updater passes none", `${CORE}/npm_and_yarn/lib/dependabot/npm_and_yarn/file_updater/npm_lockfile_updater.rb`, "Read from dependabot-core source."),
+		composerReleaseTime: composer$2.verified({
+			field: "time",
+			ignores: "published-time",
+			composerVersion: "2.10.3"
+		}, "https://github.com/dependabot/dependabot-core/blob/v0.402.0/composer/lib/dependabot/composer/package/registry_package.rb", "For composer, the cooldown compares the release date with released_at, which parse_release takes from the time field of each version in the Packagist metadata: the date the package author sets, not published-time, the date Packagist received the version. Seen on 2026-11-02: intercom/intercom-php 5.0.2 has time 2026-01-30 and published-time 2026-04-30 (repo.packagist.org/p2/intercom/intercom-php.json). The updater runs Composer 2.10.3 (ARG COMPOSER_V2_VERSION in composer/Dockerfile at v0.402.0), which has no cooldown policy of its own."),
 		semverKeysScope: verified$11("semver-major/minor/patch-days apply only to SemVer ecosystems such as npm, Bun and Deno; others use default-days", `${OPTIONS$1}#cooldown`)
 	}
 };
@@ -4112,6 +4390,7 @@ const reviewed = verifiedOn("2026-10-30");
 const rules = verifiedOn("2026-10-30");
 const projects = verifiedOn("2026-11-01");
 const bots = verifiedOn("2026-11-02");
+const composer$1 = verifiedOn("2026-11-02");
 const AT = "https://github.com/renovatebot/renovate/blob/44.198.2";
 const OPTIONS = "https://docs.renovatebot.com/configuration-options/";
 const MINIMUM_RELEASE_AGE = "https://docs.renovatebot.com/key-concepts/minimum-release-age/";
@@ -4191,10 +4470,15 @@ const renovate$1 = {
 		}, "https://github.com/renovatebot/renovate/blob/main/lib/workers/repository/init/merge.ts", "Deprecated: the configuration options page warns that support may be removed, and Renovate logs that using package.json is deprecated."),
 		durationUnits: verified$4(["hours", "days"], "https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md", "Units shown in the docs: minimumReleaseAge=1 hour on this page and \"3 days\" in the configuration options. The value is parsed by toMs (lib/util/pretty-time.ts), whose tests also accept 1 day, 1 week and combined values."),
 		presets: verified$4("config:best-practices extends security:minimumReleaseAgeNpm (since 42.0.0): \"3 days\" and internalChecksFilter \"strict\" for the npm datasource, except pin, replacement, lockFileMaintenance, bump, lockfileUpdate and rollback", "https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm"),
-		datasources: python$1.verified({
+		datasources: composer$1.verified({
 			npm: "npm",
-			pypi: "pypi"
-		}, "https://docs.renovatebot.com/modules/datasource/pypi/", "Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version's files."),
+			pypi: "pypi",
+			packagist: "packagist"
+		}, "https://docs.renovatebot.com/modules/datasource/pypi/", "Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version's files. Composer packages come from packagist, the datasource of the composer manager (static readonly id = 'packagist' in lib/modules/datasource/packagist/index.ts and supportedDatasources in lib/modules/manager/composer/index.ts at 44.199.2, read 2026-11-02)."),
+		packagistReleaseTime: composer$1.verified({
+			field: "published-time",
+			fallback: "time"
+		}, "https://github.com/renovatebot/renovate/blob/44.199.2/lib/modules/datasource/packagist/schema.ts", "The release timestamp of a Composer version is composerRelease['published-time'] ?? composerRelease.time: Packagist's publication date, the author-set time only when it is missing. The releaseTimestampNote of lib/modules/datasource/packagist/index.ts at the same tag still says \"determined from the time field\"."),
 		negativeMatch: python$1.verified("!", "https://docs.renovatebot.com/string-pattern-matching/", "Patterns starting with ! are negative matches, and none of them may match; matchDatasources is matched this way (matchRegexOrGlobList in lib/util/package-rules/datasources.ts at 44.198.0), so [\"!pypi\"] covers every datasource but PyPI."),
 		packageRuleMatching: rules.verified({
 			negation: "!",
@@ -5512,8 +5796,8 @@ const osv = {
 	ecosystems: verified$1({
 		npm: "npm",
 		pypi: "PyPI",
-		composer: "Packagist"
-	}, `${OSV_SCHEMA}#affectedpackage-field`, "Keys are the ecosystems of depcurfew (the prefix of a package name: none for npm, pypi: and composer:), values the ecosystem names of the OSV schema: \"npm\" (an NPM package name), \"PyPI\" (a normalized PyPI package name), \"Packagist\" (a PHP package name; without a :<REMOTE-REPO-URL> suffix it means https://packagist.org). OSV.dev covers all three (google/osv.dev docs/data.md, Covered Ecosystems).")
+		packagist: "Packagist"
+	}, `${OSV_SCHEMA}#affectedpackage-field`, "Keys are the ecosystems of depcurfew (npm, pypi and packagist; in package names of the policy no prefix, pypi: and composer:), values the ecosystem names of the OSV schema: \"npm\" (an NPM package name), \"PyPI\" (a normalized PyPI package name), \"Packagist\" (a PHP package name; without a :<REMOTE-REPO-URL> suffix it means https://packagist.org). OSV.dev covers all three (google/osv.dev docs/data.md, Covered Ecosystems). It compares Packagist versions as PHP does, with a leading v left out (PackagistVersion in osv/ecosystems/packagist.py of google/osv.dev at b7449847246af793439d06284d340af40cdae854), so a version of composer.lock is sent as Composer wrote it.")
 };
 
 // src/knowledge/environment.ts
@@ -7133,6 +7417,7 @@ const knowledgeBase = [
 	poetry$1,
 	pdm$1,
 	pipenv$1,
+	composer$3,
 	renovate$1,
 	dependabot$1
 ];
@@ -7322,7 +7607,8 @@ const PACKAGE_MANAGERS = [
 	"pip",
 	"poetry",
 	"pdm",
-	"pipenv"
+	"pipenv",
+	"composer"
 ];
 const BOTS$1 = ["renovate", "dependabot"];
 /** Files several tools read; a Python tool counts the project file only when it has the tool's table. */
@@ -17173,6 +17459,364 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 // src/policy/defaults.ts
 const POLICY_FILE = "depcurfew.json";
 
+// src/policy/shape.ts
+const IDENTIFIER = /^[A-Za-z_$][\w$]*$/u;
+function formatPath(path) {
+	let text = "";
+	for (const segment of path) if (typeof segment === "number") text += `[${segment}]`;
+	else if (IDENTIFIER.test(segment)) text += text === "" ? segment : `.${segment}`;
+	else text += `[${JSON.stringify(segment)}]`;
+	return text === "" ? "(root)" : text;
+}
+function jsonTypeOf(value) {
+	if (value === null) return "null";
+	if (Array.isArray(value)) return "array";
+	const type = typeof value;
+	return type === "object" || type === "string" || type === "number" || type === "boolean" ? type : "null";
+}
+/** Shows what was found: scalars as JSON, compound values by kind. */
+function describeValue(value) {
+	switch (jsonTypeOf(value)) {
+		case "array": return "a list";
+		case "object": return "an object";
+		default: return JSON.stringify(value) ?? String(value);
+	}
+}
+/** Optimal string alignment distance: insertions, deletions, substitutions and adjacent transpositions. */
+function editDistance(a, b) {
+	const rows = Array.from({ length: a.length + 1 }, (_, i) => Array.from({ length: b.length + 1 }, (_, j) => i === 0 ? j : j === 0 ? i : 0));
+	const at = (i, j) => rows[i]?.[j] ?? Number.POSITIVE_INFINITY;
+	for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+		const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+		let best = Math.min(at(i - 1, j) + 1, at(i, j - 1) + 1, at(i - 1, j - 1) + cost);
+		if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) best = Math.min(best, at(i - 2, j - 2) + 1);
+		rows[i][j] = best;
+	}
+	return at(a.length, b.length);
+}
+/** The closest candidate to a mistyped name, if one is close enough to be a likely typo. */
+function suggest(input, candidates) {
+	const normalize = (text) => text.toLowerCase().replace(/[-_\s]/gu, "");
+	const wanted = normalize(input);
+	const exact = candidates.find((candidate) => normalize(candidate) === wanted);
+	if (exact !== void 0) return exact;
+	const prefix = candidates.find((candidate) => {
+		const name = normalize(candidate);
+		return Math.min(name.length, wanted.length) >= 3 && (name.startsWith(wanted) || wanted.startsWith(name));
+	});
+	if (prefix !== void 0) return prefix;
+	let best;
+	let bestDistance = Number.POSITIVE_INFINITY;
+	for (const candidate of candidates) {
+		const distance = editDistance(wanted, normalize(candidate));
+		if (distance <= Math.max(1, Math.floor(candidate.length / 3)) && distance < bestDistance) {
+			best = candidate;
+			bestDistance = distance;
+		}
+	}
+	return best;
+}
+function didYouMean(value, candidates) {
+	if (typeof value !== "string" || candidates === void 0) return "";
+	const match = suggest(value, candidates);
+	return match === void 0 ? "" : `; did you mean ${JSON.stringify(match)}?`;
+}
+function report$1(issues, path, message) {
+	issues.push({
+		path: formatPath(path),
+		message
+	});
+	return { ok: false };
+}
+function mismatch(issues, path, label, value, candidates) {
+	return report$1(issues, path, `must be ${label}, got ${describeValue(value)}${didYouMean(value, candidates)}`);
+}
+function withDescription(schema, description) {
+	return description === void 0 ? schema : {
+		description,
+		...schema
+	};
+}
+function literal(value, options = {}) {
+	const label = JSON.stringify(value);
+	return {
+		label,
+		jsonTypes: [typeof value === "string" ? "string" : "number"],
+		...typeof value === "string" ? { suggestions: [value] } : {},
+		parse: (input, path, issues) => input === value ? {
+			ok: true,
+			value
+		} : mismatch(issues, path, label, input, typeof value === "string" ? [value] : void 0),
+		toJsonSchema: () => {
+			return withDescription({
+				type: typeof value === "string" ? "string" : Number.isInteger(value) ? "integer" : "number",
+				const: value
+			}, options.description);
+		}
+	};
+}
+function oneOfStrings(values, options = {}) {
+	const label = `one of ${values.map((value) => JSON.stringify(value)).join(", ")}`;
+	return {
+		label,
+		jsonTypes: ["string"],
+		suggestions: values,
+		parse: (input, path, issues) => typeof input === "string" && values.includes(input) ? {
+			ok: true,
+			value: input
+		} : mismatch(issues, path, label, input, values),
+		toJsonSchema: () => withDescription({
+			type: "string",
+			enum: values
+		}, options.description)
+	};
+}
+/** A string with its own syntax; the JSON Schema `pattern` must accept exactly the canonical form. */
+function text$1(options) {
+	return {
+		label: options.label,
+		jsonTypes: ["string"],
+		parse(input, path, issues) {
+			if (typeof input !== "string") return mismatch(issues, path, options.label, input);
+			const result = options.parse(input);
+			return result.ok ? result : report$1(issues, path, `${options.kind} ${JSON.stringify(input)}: ${result.message}`);
+		},
+		toJsonSchema: () => withDescription({
+			type: "string",
+			pattern: options.pattern,
+			...options.examples === void 0 ? {} : { examples: options.examples }
+		}, options.description)
+	};
+}
+function anyString(options = {}) {
+	return {
+		label: "a string",
+		jsonTypes: ["string"],
+		parse: (input, path, issues) => typeof input === "string" ? {
+			ok: true,
+			value: input
+		} : mismatch(issues, path, "a string", input),
+		toJsonSchema: () => withDescription({ type: "string" }, options.description)
+	};
+}
+function list$1(item, options = {}) {
+	const label = options.label ?? "a list";
+	return {
+		label,
+		jsonTypes: ["array"],
+		parse(input, path, issues) {
+			if (!Array.isArray(input)) return mismatch(issues, path, label, input);
+			if (options.nonEmpty !== void 0 && input.length === 0) return report$1(issues, path, `must not be an empty list; ${options.nonEmpty}`);
+			const values = [];
+			const firstIndex = /* @__PURE__ */ new Map();
+			let ok = true;
+			input.forEach((element, index) => {
+				const result = item.parse(element, [...path, index], issues);
+				if (!result.ok) {
+					ok = false;
+					return;
+				}
+				if (options.unique === true) {
+					const key = JSON.stringify(element);
+					const first = firstIndex.get(key);
+					if (first !== void 0) {
+						ok = false;
+						report$1(issues, [...path, index], `duplicate entry ${describeValue(element)} (first at index ${first})`);
+						return;
+					}
+					firstIndex.set(key, index);
+				}
+				values.push(result.value);
+			});
+			return ok ? {
+				ok: true,
+				value: values
+			} : { ok: false };
+		},
+		toJsonSchema: () => withDescription({
+			type: "array",
+			items: item.toJsonSchema(),
+			...options.unique === true ? { uniqueItems: true } : {},
+			...options.nonEmpty === void 0 ? {} : { minItems: 1 }
+		}, options.description)
+	};
+}
+/** Alternatives told apart by JSON type, e.g. `"auto"` or a list of tools. */
+function anyOf(shapes, options = {}) {
+	const types = shapes.flatMap((shape) => shape.jsonTypes);
+	if (new Set(types).size !== types.length) throw new Error("anyOf alternatives must accept different JSON types");
+	const label = shapes.map((shape) => shape.label).join(" or ");
+	const suggestions = shapes.flatMap((shape) => shape.suggestions ?? []);
+	return {
+		label,
+		jsonTypes: types,
+		suggestions,
+		parse(input, path, issues) {
+			const shape = shapes.find((candidate) => candidate.jsonTypes.includes(jsonTypeOf(input)));
+			if (shape === void 0) return mismatch(issues, path, label, input, suggestions);
+			const own = [];
+			const result = shape.parse(input, path, own);
+			if (own.some((issue) => issue.path === formatPath(path) && issue.message.startsWith("must be "))) return mismatch(issues, path, label, input, suggestions);
+			issues.push(...own);
+			return result;
+		},
+		toJsonSchema: () => withDescription({ anyOf: shapes.map((shape) => shape.toJsonSchema()) }, options.description)
+	};
+}
+function required(shape) {
+	return {
+		kind: "required",
+		shape
+	};
+}
+/** Absent fields stay absent in the output. */
+function optional(shape) {
+	return {
+		kind: "optional",
+		shape
+	};
+}
+/** Absent fields get the default, parsed like a written value. */
+function withDefault(shape, value) {
+	return {
+		kind: "default",
+		shape,
+		default: value
+	};
+}
+function isPlainObject(value) {
+	return jsonTypeOf(value) === "object";
+}
+/** An object with known fields only; unknown fields are reported, with a suggestion when one looks like a typo. */
+function object(fields, options = {}) {
+	const names = Object.keys(fields);
+	return {
+		label: "an object",
+		jsonTypes: ["object"],
+		parse(input, path, issues) {
+			if (!isPlainObject(input)) return mismatch(issues, path, "an object", input);
+			let ok = true;
+			for (const key of Object.keys(input)) if (!Object.hasOwn(fields, key)) {
+				ok = false;
+				report$1(issues, path, `unknown field ${JSON.stringify(key)}${didYouMean(key, names)}`);
+			}
+			const output = {};
+			for (const [key, field] of Object.entries(fields)) {
+				if (!Object.hasOwn(input, key)) {
+					if (field.kind === "required") {
+						ok = false;
+						report$1(issues, path, `missing required field ${JSON.stringify(key)}`);
+					} else if (field.kind === "default") {
+						const result = field.shape.parse(field.default, [...path, key], issues);
+						if (result.ok) output[key] = result.value;
+					}
+					continue;
+				}
+				const result = field.shape.parse(input[key], [...path, key], issues);
+				if (result.ok) output[key] = result.value;
+				else ok = false;
+			}
+			return ok ? {
+				ok: true,
+				value: output
+			} : { ok: false };
+		},
+		toJsonSchema() {
+			const properties = {};
+			const requiredNames = [];
+			for (const [key, field] of Object.entries(fields)) {
+				properties[key] = field.kind === "default" ? {
+					...field.shape.toJsonSchema(),
+					default: field.default
+				} : field.shape.toJsonSchema();
+				if (field.kind === "required") requiredNames.push(key);
+			}
+			return withDescription({
+				type: "object",
+				properties,
+				...requiredNames.length > 0 ? { required: requiredNames } : {},
+				additionalProperties: false
+			}, options.description);
+		}
+	};
+}
+
+// src/policy/package-pattern.ts
+const NAME$1 = "[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*";
+const PYTHON_NAME$1 = "[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?";
+/** One part of a Composer name: lowercase, as the schema requires (vendor/name, 04-schema.md#name). */
+const COMPOSER_PART = "[a-z0-9*](?:[a-z0-9._*-]*[a-z0-9*])?";
+const PYPI_PREFIX = "pypi:";
+const COMPOSER_PREFIX = "composer:";
+/** The prefix of each registry but npm, whose names have none. */
+const PREFIXES = {
+	pypi: PYPI_PREFIX,
+	packagist: COMPOSER_PREFIX
+};
+/** Also used as the JSON Schema pattern. The lookaheads reject patterns made only of `*`, which match every package. */
+const PACKAGE_PATTERN = `^(?:${PYPI_PREFIX}(?!\\*+$)${PYTHON_NAME$1}|${COMPOSER_PREFIX}(?!\\*+/\\*+$)${COMPOSER_PART}/${COMPOSER_PART}|(?!\\*+$)(@${NAME$1}/)?${NAME$1})$`;
+const GRAMMAR = new RegExp(PACKAGE_PATTERN, "u");
+const PREFIX_LIST = `${PYPI_PREFIX} and ${COMPOSER_PREFIX}`;
+function validatePythonPattern(pattern) {
+	const name = pattern.slice(5);
+	if (name === "") return `write a Python package name after ${PYPI_PREFIX}, e.g. "${PYPI_PREFIX}requests"`;
+	const versionAt = name.search(/[@=<>!~;[ ]/u);
+	if (versionAt > 0 && !name.startsWith("@")) return `versions are not supported; write "${PYPI_PREFIX}${name.slice(0, versionAt)}"`;
+	if (/^\*+$/u.test(name)) return "it matches every package; list packages explicitly";
+	const example = `e.g. "${PYPI_PREFIX}requests" or "${PYPI_PREFIX}acme-*"`;
+	if (name.startsWith("@")) return `Python package names have no scope; expected a name or a name pattern with *, ${example}`;
+	if (!GRAMMAR.test(pattern)) return `expected a Python package name or a name pattern with *, ${example}`;
+}
+function validateComposerPattern(pattern) {
+	const name = pattern.slice(9);
+	const example = `e.g. "${COMPOSER_PREFIX}monolog/monolog" or "${COMPOSER_PREFIX}acme/*"`;
+	if (name === "") return `write a Composer package name after ${COMPOSER_PREFIX}, ${example}`;
+	const versionAt = name.search(/[:=@<>^~ ]/u);
+	if (versionAt > 0) return `versions are not supported; write "${COMPOSER_PREFIX}${name.slice(0, versionAt)}"`;
+	if (/^\*+(?:\/\*+)?$/u.test(name)) return "it matches every package; list packages explicitly";
+	if (!name.includes("/")) return `Composer package names are vendor/name; expected a name or a name pattern with *, ${example}`;
+	if (name !== name.toLowerCase() && GRAMMAR.test(`${"composer:"}${name.toLowerCase()}`)) return `Composer package names are lowercase; write "${COMPOSER_PREFIX}${name.toLowerCase()}"`;
+	if (!GRAMMAR.test(pattern)) return `expected a Composer package name or a name pattern with *, ${example}`;
+}
+/** Returns why the pattern is invalid, or undefined when it is valid. */
+function validatePackagePattern(pattern) {
+	if (pattern === "") return "must not be empty";
+	if (/\s/u.test(pattern)) return "must not contain spaces";
+	if (pattern.startsWith("pypi:")) return validatePythonPattern(pattern);
+	if (pattern.startsWith("composer:")) return validateComposerPattern(pattern);
+	const prefix = /^([A-Za-z][A-Za-z0-9+.-]*):/u.exec(pattern);
+	if (prefix !== null) {
+		const rest = pattern.slice(prefix[0].length);
+		const word = prefix[1] ?? "";
+		const meant = word.toLowerCase() === "packagist" ? "composer" : suggest(word.toLowerCase(), ["pypi", "composer"]);
+		if (meant === "pypi") return `the ecosystem prefixes are ${PREFIX_LIST}; write Python packages as "${PYPI_PREFIX}${rest}"`;
+		if (meant === "composer") return `the ecosystem prefixes are ${PREFIX_LIST}; write Composer packages as "${COMPOSER_PREFIX}${rest.toLowerCase()}"`;
+		return `the ecosystem prefixes are ${PREFIX_LIST}; write npm packages without a prefix, e.g. "${rest}"`;
+	}
+	const nameStart = pattern.startsWith("@") ? pattern.indexOf("/") + 1 : 0;
+	const versionAt = pattern.indexOf("@", Math.max(nameStart, 1));
+	if (versionAt > 0) return `versions are not supported; write "${pattern.slice(0, versionAt)}"`;
+	if (/^\*+$/u.test(pattern)) return "it matches every package; list packages explicitly";
+	if (!GRAMMAR.test(pattern)) {
+		if (/^[a-z0-9][a-z0-9._-]*\/[a-z0-9*][a-z0-9._*-]*$/u.test(pattern)) return `npm names have a scope (@scope/name); write Composer packages as "${COMPOSER_PREFIX}${pattern}"`;
+		return "expected a package name or a name pattern with *, e.g. \"esbuild\", \"@scope/name\" or \"@scope/*\"";
+	}
+}
+/** The ecosystem a policy pattern belongs to. */
+function ecosystemOf(pattern) {
+	if (pattern.startsWith("pypi:")) return "pypi";
+	return pattern.startsWith("composer:") ? "packagist" : "npm";
+}
+/** The prefix of an ecosystem's names in the policy: pypi:, composer:, or none for npm. */
+function prefixOf(ecosystem) {
+	return ecosystem === "npm" ? "" : PREFIXES[ecosystem];
+}
+/** The patterns of one ecosystem, without their prefix. */
+function patternsFor(patterns, ecosystem) {
+	const prefix = prefixOf(ecosystem);
+	return patterns.filter((pattern) => ecosystemOf(pattern) === ecosystem).map((pattern) => pattern.slice(prefix.length));
+}
+
 // src/apply/requirements.ts
 /** "a", "a and b", "a, b and c". */
 function listing$1(items) {
@@ -17201,877 +17845,6 @@ function describeRequirements(requirements) {
 	]);
 	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing$1(group.settings)} (added in ${since})`).join(", ");
 	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;
-}
-
-// src/policy/package-pattern.ts
-const NAME$1 = "[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*";
-const PYTHON_NAME$1 = "[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?";
-const PYPI_PREFIX = "pypi:";
-/** Also used as the JSON Schema pattern. The lookaheads reject patterns made only of `*`, which match every package. */
-const PACKAGE_PATTERN = `^(?:${PYPI_PREFIX}(?!\\*+$)${PYTHON_NAME$1}|(?!\\*+$)(@${NAME$1}/)?${NAME$1})$`;
-const GRAMMAR = new RegExp(PACKAGE_PATTERN, "u");
-function validatePythonPattern(pattern) {
-	const name = pattern.slice(5);
-	if (name === "") return `write a Python package name after ${PYPI_PREFIX}, e.g. "${PYPI_PREFIX}requests"`;
-	const versionAt = name.search(/[@=<>!~;[ ]/u);
-	if (versionAt > 0 && !name.startsWith("@")) return `versions are not supported; write "${PYPI_PREFIX}${name.slice(0, versionAt)}"`;
-	if (/^\*+$/u.test(name)) return "it matches every package; list packages explicitly";
-	const example = `e.g. "${PYPI_PREFIX}requests" or "${PYPI_PREFIX}acme-*"`;
-	if (name.startsWith("@")) return `Python package names have no scope; expected a name or a name pattern with *, ${example}`;
-	if (!GRAMMAR.test(pattern)) return `expected a Python package name or a name pattern with *, ${example}`;
-}
-/** Returns why the pattern is invalid, or undefined when it is valid. */
-function validatePackagePattern(pattern) {
-	if (pattern === "") return "must not be empty";
-	if (/\s/u.test(pattern)) return "must not contain spaces";
-	if (pattern.startsWith("pypi:")) return validatePythonPattern(pattern);
-	const prefix = /^([A-Za-z][A-Za-z0-9+.-]*):/u.exec(pattern);
-	if (prefix !== null) {
-		const rest = pattern.slice(prefix[0].length);
-		return prefix[1]?.toLowerCase() === "pypi" ? `the only ecosystem prefix is ${PYPI_PREFIX}; write Python packages as "${PYPI_PREFIX}${rest}"` : `the only ecosystem prefix is ${PYPI_PREFIX}; write npm packages without a prefix, e.g. "${rest}"`;
-	}
-	const nameStart = pattern.startsWith("@") ? pattern.indexOf("/") + 1 : 0;
-	const versionAt = pattern.indexOf("@", Math.max(nameStart, 1));
-	if (versionAt > 0) return `versions are not supported; write "${pattern.slice(0, versionAt)}"`;
-	if (/^\*+$/u.test(pattern)) return "it matches every package; list packages explicitly";
-	if (!GRAMMAR.test(pattern)) return "expected a package name or a name pattern with *, e.g. \"esbuild\", \"@scope/name\" or \"@scope/*\"";
-}
-/** The ecosystem a policy pattern belongs to. */
-function ecosystemOf(pattern) {
-	return pattern.startsWith("pypi:") ? "pypi" : "npm";
-}
-/** The patterns of one ecosystem, without the pypi: prefix. */
-function patternsFor(patterns, ecosystem) {
-	return patterns.filter((pattern) => ecosystemOf(pattern) === ecosystem).map((pattern) => ecosystem === "pypi" ? pattern.slice(5) : pattern);
-}
-
-// src/policy/ecosystem.ts
-function ecosystemOfTool(tool) {
-	return tool.ecosystem ?? "npm";
-}
-/** The policy with cooldown.exclude, installScripts.allow and installScripts.deny reduced to the patterns of one ecosystem. */
-function policyFor(policy, ecosystem) {
-	return {
-		...policy,
-		...policy.cooldown === void 0 ? {} : { cooldown: {
-			...policy.cooldown,
-			exclude: patternsFor(policy.cooldown.exclude, ecosystem)
-		} },
-		...policy.installScripts === void 0 ? {} : { installScripts: {
-			...policy.installScripts,
-			allow: patternsFor(policy.installScripts.allow, ecosystem),
-			deny: patternsFor(policy.installScripts.deny, ecosystem)
-		} }
-	};
-}
-
-// src/doctor/python-lockfiles.ts
-const WHEEL = evidenceOf(environment.python.wheelExtension)[0]?.value ?? ".whl";
-const SDISTS = evidenceOf(environment.python.sourceDistributionExtensions)[0]?.value ?? [];
-/**
-* Whether a Python lockfile shows which packages are built from source because it lists the files of each package
-* (wheels and source distributions): uv.lock, poetry.lock and pdm.lock (extra.lockfileFormat with wheels or files), and
-* pylock.toml (pip's format, also when another tool wrote it). Pipfile.lock and pip requirements files list hashes only,
-* so they cannot tell a package without wheels from one with them (decision D-107).
-*/
-function showsBuilds(tool, file, tools) {
-	const pip = tools.find((entry) => entry.id === "pip");
-	const names = pip?.project?.lockfiles === void 0 ? [] : values$1(pip.project.lockfiles).flatMap((list) => list.flatMap((entry) => [...entry.value]));
-	const pattern = pip?.extra?.["lockfilePattern"] === void 0 ? void 0 : values$1(pip.extra["lockfilePattern"])[0];
-	const pylock = names.includes(file) || typeof pattern === "string" && new RegExp(pattern, "u").test(file);
-	if (!pylock && tool.id === "pip") return false;
-	const fact = (pylock ? pip : tool)?.extra?.["lockfileFormat"];
-	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	return isRecord(format) && (typeof format["wheels"] === "string" || typeof format["files"] === "string");
-}
-/** Whether a package manager of the project has a lockfile that showsBuilds, or records install scripts (the npm ecosystem). */
-function hasBuildRecords(managers, tools, ecosystem = "any") {
-	return managers.some((manager) => {
-		const tool = tools.find((entry) => entry.id === manager.id);
-		if (!manager.supported || tool === void 0) return false;
-		const python = ecosystemOfTool(tool) === "pypi";
-		if (ecosystem === "pypi" && !python) return false;
-		return manager.evidence.some((evidence) => evidence.kind === "lockfile" && (!python || showsBuilds(tool, evidence.file, tools)));
-	});
-}
-function text$1(value) {
-	return typeof value === "string" ? value : void 0;
-}
-function list$1(value) {
-	return Array.isArray(value) ? value : [];
-}
-function strings$1(value) {
-	return list$1(value).filter((item) => typeof item === "string");
-}
-function isWheel(location) {
-	return (location.split(/[?#]/u, 1)[0] ?? "").toLowerCase().endsWith(WHEEL);
-}
-/** A pinned version as doctor --osv looks it up (decision D-129): one word, no wildcard. */
-const PINNED = /^[^\s,;*<>=!~]+$/u;
-function entry(name, spec, source, builds, line, version) {
-	const pinned = source === "registry" && typeof version === "string" && PINNED.test(version) ? { version } : {};
-	return {
-		name: normalizePythonName(name),
-		spec,
-		source,
-		installScript: builds,
-		anchor: name,
-		...line === void 0 ? {} : { line },
-		...pinned
-	};
-}
-/** uv.lock: [[package]] with source = { registry | git | url | path | directory | editable | virtual = ... }. */
-function uvEntries(input, format, workspaces) {
-	const document = parseToml(input);
-	const keys = isRecord(format["sources"]) ? format["sources"] : {};
-	const kind = (source) => Object.entries(keys).flatMap(([name, key]) => typeof key === "string" && typeof source[key] === "string" ? [[name, source[key]]] : [])[0];
-	const members = /* @__PURE__ */ new Set([".", ...workspaces]);
-	return list$1(document.root[String(format["packages"])]).flatMap((item, index) => {
-		if (!isRecord(item) || typeof item["name"] !== "string") return [];
-		const line = document.lineOf([String(format["packages"]), index]);
-		const found = isRecord(item["source"]) ? kind(item["source"]) : void 0;
-		if (found === void 0) return [entry(item["name"], "no source given", "unknown", void 0, line)];
-		const [name, location] = found;
-		const wheels = list$1(item[String(format["wheels"])]);
-		switch (name) {
-			case "registry": return [entry(item["name"], location, "registry", item[String(format["sdist"])] !== void 0 && wheels.length === 0, line, item["version"])];
-			case "git": return [entry(item["name"], location, "git", true, line)];
-			case "remoteTarball": return [entry(item["name"], location, "remoteTarball", !isWheel(location), line)];
-			case "file": return [entry(item["name"], location, "file", !isWheel(location), line)];
-			case "directory":
-			case "editable": return members.has(location) ? [entry(item["name"], location, "workspace", false, line)] : [entry(item["name"], location, "directory", true, line)];
-			case "virtual": return [entry(item["name"], location, "workspace", false, line)];
-			default: return [entry(item["name"], location, "unknown", void 0, line)];
-		}
-	});
-}
-/** poetry.lock: [[package]] without [package.source] comes from PyPI; files list every distribution. */
-function poetryEntries(input, format) {
-	const document = parseToml(input);
-	const types = isRecord(format["sources"]) ? format["sources"] : {};
-	const kindOf = (type) => Object.entries(types).find(([, value]) => value === type)?.[0];
-	return list$1(document.root[String(format["packages"])]).flatMap((item, index) => {
-		if (!isRecord(item) || typeof item["name"] !== "string") return [];
-		const line = document.lineOf([String(format["packages"]), index]);
-		const files = list$1(item[String(format["files"])]).map((file) => isRecord(file) ? text$1(file["file"]) : void 0).filter((file) => file !== void 0);
-		const source = item[String(format["source"])];
-		if (!isRecord(source)) return [entry(item["name"], "PyPI", "registry", files.length > 0 && !files.some(isWheel), line, item["version"])];
-		const url = text$1(source["url"]) ?? "";
-		const kind = kindOf(text$1(source["type"]) ?? "");
-		switch (kind) {
-			case "registry": return [entry(item["name"], text$1(source["reference"]) ?? url, "registry", files.length > 0 && !files.some(isWheel), line, item["version"])];
-			case "git": return [entry(item["name"], url, "git", true, line)];
-			case "remoteTarball":
-			case "file": return [entry(item["name"], url, kind, !isWheel(url), line)];
-			case "directory": return [entry(item["name"], url, "directory", true, line)];
-			default: return [entry(item["name"], `${text$1(source["type"]) ?? "unknown"} ${url}`.trim(), "unknown", void 0, line)];
-		}
-	});
-}
-/** pdm.lock: [[package]] with files from an index, or a VCS repository (git = …), a url or a local path instead. */
-function pdmEntries(input, format) {
-	const document = parseToml(input);
-	const key = (name) => String(format[name]);
-	const vcs = strings$1(format["vcs"]);
-	return list$1(document.root[key("packages")]).flatMap((item, index) => {
-		if (!isRecord(item) || typeof item["name"] !== "string") return [];
-		const line = document.lineOf([key("packages"), index]);
-		const repository = vcs.find((name) => typeof item[name] === "string");
-		if (repository !== void 0) return [entry(item["name"], String(item[repository]), repository === "git" ? "git" : "unknown", true, line)];
-		const url = text$1(item[key("url")]);
-		if (url !== void 0) return [entry(item["name"], url, "remoteTarball", !isWheel(url), line)];
-		const path = text$1(item[key("path")]);
-		if (path !== void 0) {
-			const archive = [WHEEL, ...SDISTS].some((extension) => path.toLowerCase().endsWith(extension));
-			return [entry(item["name"], path, archive ? "file" : "directory", archive ? !isWheel(path) : true, line)];
-		}
-		const files = list$1(item[key("files")]).map((file) => isRecord(file) ? text$1(file[key("file")]) : void 0).filter((file) => file !== void 0);
-		return [entry(item["name"], "an index", "registry", files.length > 0 && !files.some(isWheel), line, item["version"])];
-	});
-}
-/**
-* Pipfile.lock: every key but _meta is a category of packages. Git, remote file and local path entries are built;
-* for index packages the hashes do not tell wheels from source distributions, so whether they are built is unknown.
-*/
-function pipfileLockEntries(input, format) {
-	const document = JSON.parse(input);
-	if (!isRecord(document)) throw new Error("Pipfile.lock is not a JSON object");
-	const key = (name) => String(format[name]);
-	const entries = [];
-	for (const [category, packages] of Object.entries(document)) {
-		if (category === key("meta") || !isRecord(packages)) continue;
-		for (const [name, item] of Object.entries(packages)) {
-			if (!isRecord(item)) continue;
-			const git = text$1(item[key("git")]);
-			const file = text$1(item[key("file")]);
-			const path = text$1(item[key("path")]);
-			const anchored = (found) => ({
-				...found,
-				anchor: JSON.stringify(name)
-			});
-			if (git !== void 0) entries.push(anchored(entry(name, git, "git", true, void 0)));
-			else if (file !== void 0) entries.push(anchored(entry(name, file, "remoteTarball", !isWheel(file), void 0)));
-			else if (path !== void 0 && isProject(path)) entries.push(anchored(entry(name, path, "workspace", false, void 0)));
-			else if (path !== void 0) entries.push(anchored(entry(name, path, "directory", true, void 0)));
-			else entries.push(anchored(entry(name, "an index", "registry", void 0, void 0, /^==(?!=)(.+)$/u.exec(text$1(item[key("version")]) ?? "")?.[1])));
-		}
-	}
-	return entries;
-}
-/** "." or "./": the project itself, relative to the lockfile at its root. */
-function isProject(path) {
-	return /^\.\/?$/u.test(path);
-}
-/**
-* pylock.toml (PEP 751): each [[packages]] has one of vcs, directory, archive, or sdist and wheels from an index. A
-* directory path is relative to the lock file, so "." is the project itself, which, like a workspace member, is part
-* of the work on the project rather than a dependency built from source.
-*/
-function pylockEntries(input, format, workspaces = []) {
-	const document = parseToml(input);
-	const key = (name) => String(format[name]);
-	return list$1(document.root[key("packages")]).flatMap((item, index) => {
-		if (!isRecord(item) || typeof item["name"] !== "string") return [];
-		const line = document.lineOf([key("packages"), index]);
-		const location = (value) => isRecord(value) ? text$1(value["url"]) ?? text$1(value["path"]) ?? "" : "";
-		const vcs = item[key("vcs")];
-		if (isRecord(vcs)) return [entry(item["name"], location(vcs), text$1(vcs["type"]) === "git" ? "git" : "unknown", true, line)];
-		const directory = item[key("directory")];
-		if (isRecord(directory)) {
-			const path = location(directory);
-			const relative = path.replaceAll("\\", "/").replace(/^\.\//u, "").replace(/\/+$/u, "");
-			const member = isProject(path) || relative === "" || workspaces.includes(relative);
-			return [entry(item["name"], path, member ? "workspace" : "directory", !member, line)];
-		}
-		const archive = item[key("archive")];
-		if (isRecord(archive)) {
-			const where = location(archive);
-			return [entry(item["name"], where, text$1(archive["url"]) !== void 0 ? "remoteTarball" : "file", !isWheel(where), line)];
-		}
-		const wheels = list$1(item[key("wheels")]);
-		const sdist = item[key("sdist")];
-		if (wheels.length === 0 && !isRecord(sdist)) return [entry(item["name"], "no source given", "unknown", void 0, line)];
-		return [entry(item["name"], text$1(item[key("index")]) ?? "an index", "registry", isRecord(sdist) && wheels.length === 0, line, item["version"])];
-	});
-}
-/** The logical lines of a requirements file: continuations joined, comments removed, with the line each starts on. */
-function requirementsLines(input, format) {
-	const comment = String(format["comment"]);
-	const continuation = String(format["continuation"]);
-	const commentPattern = new RegExp(`(^|\\s)${comment.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}.*$`, "u");
-	const lines = input.split(/\r?\n/u);
-	const result = [];
-	for (let index = 0; index < lines.length; index++) {
-		const start = index;
-		const parts = [(lines[index] ?? "").replace(commentPattern, "")];
-		const trimEnd = () => {
-			while (parts.length > 0) {
-				const last = (parts.at(-1) ?? "").trimEnd();
-				if (last !== "") {
-					parts[parts.length - 1] = last;
-					return;
-				}
-				parts.pop();
-			}
-		};
-		trimEnd();
-		while ((parts.at(-1) ?? "").endsWith(continuation) && index + 1 < lines.length) {
-			index += 1;
-			parts[parts.length - 1] = (parts.at(-1) ?? "").slice(0, -continuation.length);
-			parts.push(" ", (lines[index] ?? "").replace(commentPattern, ""));
-			trimEnd();
-		}
-		const text = parts.join("").trim();
-		if (text !== "") result.push({
-			text,
-			line: start + 1
-		});
-	}
-	return result;
-}
-const PYTHON_NAME = new RegExp(evidenceOf(environment.python.namePattern)[0]?.value ?? "^[A-Za-z0-9][A-Za-z0-9._-]*$", "iu");
-/** The facts about pip requirements files in one record: syntax, includes (-r, -c) and how pip tells paths and URLs. */
-function requirementsFormatOf(tool) {
-	const record = (key) => {
-		const fact = tool.extra?.[key];
-		const value = fact === void 0 ? void 0 : values$1(fact)[0];
-		return isRecord(value) ? value : {};
-	};
-	return {
-		...record("requirementsFormat"),
-		includes: record("requirementsIncludes"),
-		paths: record("requirementsPaths"),
-		parser: record("requirementsParser")
-	};
-}
-function escapeRegExp$1(text) {
-	return text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-}
-/** The requirements and constraints files a requirements file includes (-r, -c), as written, with their lines. */
-function requirementsIncludes(input, format) {
-	const includes = isRecord(format["includes"]) ? format["includes"] : {};
-	const options = [...strings$1(includes["requirements"]), ...strings$1(includes["constraints"])];
-	const short = options.filter((option) => !option.startsWith("--")).map(escapeRegExp$1);
-	const long = options.filter((option) => option.startsWith("--")).map(escapeRegExp$1);
-	const pattern = new RegExp(`^(?:(?:${short.join("|") || "(?!)"})\\s*|(?:${long.join("|") || "(?!)"})(?:\\s+|=))(\\S+)`, "u");
-	return requirementsLines(input, format).flatMap(({ text: body, line }) => {
-		const path = pattern.exec(body)?.[1];
-		return path === void 0 ? [] : [{
-			path,
-			line
-		}];
-	});
-}
-/**
-* Classifies one requirement (without options or environment markers): a VCS URL, a URL, a local archive or
-* directory, the project itself, or a registry package. `editable` is set for the value of -e, which is always a path
-* or a VCS URL.
-*/
-function requirementSource(requirement, format, editable) {
-	const vcs = isRecord(format["vcs"]) ? format["vcs"] : {};
-	const gitPrefixes = strings$1(vcs["git"]);
-	const otherPrefixes = strings$1(vcs["other"]);
-	const egg = new RegExp(`${escapeRegExp$1(String(format["egg"]))}([^&\\s]+)`, "u");
-	const paths = isRecord(format["paths"]) ? format["paths"] : {};
-	const separators = strings$1(paths["separators"]);
-	const currentDirectory = String(paths["currentDirectory"]);
-	const archives = strings$1(paths["archiveExtensions"]);
-	const urlSchemes = new RegExp(`^(?:${strings$1(paths["urlSchemes"]).map(escapeRegExp$1).join("|") || "(?!)"})://`, "iu");
-	const fileScheme = new RegExp(`^${escapeRegExp$1(String(paths["fileScheme"]))}(//)?`, "iu");
-	const reference = new RegExp(`^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\\[[^\\]]*\\])?\\s*${escapeRegExp$1(String(format["direct"]).trim())}\\s*(.+)$`, "u");
-	const looksLikePath = (text) => separators.some((separator) => text.includes(separator)) || text.startsWith(currentDirectory);
-	const isArchive = (text) => archives.some((extension) => text.toLowerCase().endsWith(extension));
-	const named = reference.exec(requirement);
-	const target = named?.[2] ?? requirement;
-	const name = named?.[1] ?? egg.exec(target)?.[1];
-	const located = (source, location, builds) => ({
-		source,
-		target: location,
-		...name !== void 0 && PYTHON_NAME.test(name) ? { name } : {},
-		builds
-	});
-	if (gitPrefixes.some((prefix) => target.startsWith(prefix))) return located("git", target, true);
-	if (otherPrefixes.some((prefix) => target.startsWith(prefix))) return located("unknown", target, true);
-	if (urlSchemes.test(target)) return located("remoteTarball", target, !isWheel(target));
-	if (fileScheme.test(target) || looksLikePath(target) || isArchive(target) || editable) {
-		const path = target.replace(fileScheme, "");
-		if (/^\.\/?$/u.test(path)) return {
-			source: "workspace",
-			target,
-			name: ".",
-			builds: false
-		};
-		const archive = isArchive(path);
-		return located(archive ? "file" : "directory", path, archive ? !isWheel(path) : true);
-	}
-	const registryName = /^[A-Za-z0-9][A-Za-z0-9._-]*/u.exec(requirement)?.[0];
-	return {
-		source: "registry",
-		target: requirement,
-		...registryName === void 0 ? {} : { name: registryName },
-		builds: void 0
-	};
-}
-/** A pip requirements file: VCS and URL requirements, local paths and registry requirements (which may or may not have wheels). */
-function requirementsEntries(input, format) {
-	const editable = strings$1(format["editable"]);
-	const entries = [];
-	for (const { text: body, line: lineNumber } of requirementsLines(input, format)) {
-		let requirement = body;
-		const flag = editable.find((option) => requirement.startsWith(`${option} `) || requirement.startsWith(`${option}=`));
-		if (flag !== void 0) requirement = requirement.slice(flag.length + 1).trim();
-		else if (requirement.startsWith("-")) continue;
-		requirement = (requirement.split(/\s+--?[a-z]/u, 1)[0] ?? requirement).split(";", 1)[0]?.trim() ?? requirement;
-		const found = requirementSource(requirement, format, flag !== void 0);
-		if (found.source === "workspace") entries.push({
-			...entry("", found.target, "workspace", false, lineNumber),
-			name: "."
-		});
-		else if (found.source === "registry") {
-			const pinned = /^[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[^\]]*\])?\s*===?\s*(\S+)$/u.exec(requirement)?.[1];
-			if (found.name !== void 0) entries.push(entry(found.name, requirement, "registry", void 0, lineNumber, pinned));
-		} else if (found.name !== void 0) entries.push(entry(found.name, found.target, found.source, found.builds, lineNumber));
-		else entries.push({
-			...entry("", found.target, found.source, found.builds, lineNumber),
-			name: found.target,
-			unnamed: true
-		});
-	}
-	return entries;
-}
-
-// src/doctor/lockfiles.ts
-/** Lockfiles are often larger than configuration files. */
-const MAX_LOCKFILE_SIZE = 67108864;
-/**
-* YAML lockfiles (pnpm-lock.yaml, Yarn Berry's yarn.lock) are parsed into a syntax tree that takes about 60 times the
-* size of the file in memory: a 16 MiB one about 1 GiB of the 2 GiB that Node.js gives itself on a CI runner with
-* 7 GB of memory. A larger one is reported as not checked instead of ending doctor without a report.
-*/
-const MAX_YAML_LOCKFILE_SIZE = 16777216;
-/**
-* Finds the 1-based line of each anchor. Rules ask in the order the entries were parsed, which is the order of the
-* file, so each search continues where the last one stopped and a large lockfile is not scanned once per entry.
-*/
-function lineFinder(text, start = 0) {
-	let newlines;
-	let cursor = start;
-	return (anchor) => {
-		let offset = text.indexOf(anchor, cursor);
-		if (offset === -1) offset = text.indexOf(anchor);
-		if (offset === -1) return void 0;
-		cursor = offset + anchor.length;
-		if (newlines === void 0) {
-			newlines = [];
-			for (let index = text.indexOf("\n"); index !== -1; index = text.indexOf("\n", index + 1)) newlines.push(index);
-		}
-		let low = 0;
-		let high = newlines.length;
-		while (low < high) {
-			const middle = low + high >> 1;
-			if ((newlines[middle] ?? 0) < offset) low = middle + 1;
-			else high = middle;
-		}
-		return low + 1;
-	};
-}
-function strings(value) {
-	return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
-}
-/** Splits name@spec, where the name may be scoped and the spec may contain @ (git@host). */
-function splitSpec(key) {
-	const at = key.startsWith("@") ? key.indexOf("@", key.indexOf("/") + 1) : key.indexOf("@");
-	return at <= 0 ? {
-		name: key,
-		spec: ""
-	} : {
-		name: key.slice(0, at),
-		spec: key.slice(at + 1)
-	};
-}
-const HTTP = /^https?:\/\//u;
-const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
-/** `{ version }` for an exact version of a registry package, else nothing: what doctor --osv looks up. */
-function exactVersion(source, version) {
-	return source === "registry" && version !== void 0 && EXACT_VERSION.test(version) ? { version } : {};
-}
-/** Where npm installs the dependency `name` of the package at `from`: its own node_modules, else the nearest parent's. */
-function installedAt(packages, from, name) {
-	for (let base = from;;) {
-		const location = base === "" ? `node_modules/${name}` : `${base}/node_modules/${name}`;
-		if (location in packages) return location;
-		if (base === "") return void 0;
-		const parent = base.lastIndexOf("/node_modules/");
-		base = parent === -1 ? "" : base.slice(0, parent);
-	}
-}
-function urlPath(url) {
-	try {
-		return new URL(url).pathname;
-	} catch {
-		return "";
-	}
-}
-/** Packages that overrides (npm, root package.json only) replace with a tarball URL, at any depth of nesting. */
-function urlOverrides(overrides, parent, selfKey, found = []) {
-	if (!isRecord(overrides)) return found;
-	for (const [key, value] of Object.entries(overrides)) {
-		const name = key === selfKey ? parent : splitSpec(key).name;
-		if (typeof value === "string") {
-			const path = HTTP.test(value) ? urlPath(value) : "";
-			if (name !== void 0 && path !== "") found.push({
-				name,
-				path
-			});
-		} else urlOverrides(value, name, selfKey, found);
-	}
-	return found;
-}
-function npmEntries(text, format, workspaces, manifest, overridesFormat) {
-	const document = JSON.parse(text);
-	if (!isRecord(document) || !isRecord(document["packages"])) throw new UnsupportedLockfile("it has no \"packages\" section (lockfileVersion 1 is not read)");
-	const packages = document["packages"];
-	const registry = new RegExp(String(format["registryTarball"]), "u");
-	const scriptsKey = String(format["installScripts"]);
-	const fields = strings(format["dependencyFields"]);
-	const fromUrl = /* @__PURE__ */ new Set();
-	for (const [key, value] of Object.entries(packages)) {
-		if (!isRecord(value)) continue;
-		for (const field of fields) {
-			const dependencies = value[field];
-			if (!isRecord(dependencies)) continue;
-			for (const [name, spec] of Object.entries(dependencies)) {
-				const location = typeof spec === "string" && HTTP.test(spec) ? installedAt(packages, key, name) : void 0;
-				if (location !== void 0) fromUrl.add(location);
-			}
-		}
-	}
-	const overrides = overridesFormat !== void 0 && isRecord(manifest) ? urlOverrides(manifest[String(overridesFormat["field"])], void 0, String(overridesFormat["selfKey"])) : [];
-	const entries = [];
-	for (const [key, value] of Object.entries(packages)) {
-		if (!key.includes("node_modules/") || !isRecord(value)) continue;
-		const name = typeof value["name"] === "string" ? value["name"] : key.slice(key.lastIndexOf("node_modules/") + 13);
-		const resolved = typeof value["resolved"] === "string" ? value["resolved"] : "";
-		const version = typeof value["version"] === "string" ? value["version"] : "";
-		const spec = resolved !== "" || format["specWithoutResolved"] !== "version" ? resolved : version;
-		let source = "unknown";
-		if (value[String(format["linkFlag"])] === true) source = workspaces.includes(resolved) ? "workspace" : "directory";
-		else if (strings(format["gitPrefixes"]).some((prefix) => spec.startsWith(prefix))) source = "git";
-		else if (spec.startsWith(String(format["filePrefix"]))) source = /\.(?:tgz|tar\.gz)$/u.test(spec) ? "file" : "directory";
-		else if (HTTP.test(spec)) {
-			const overridden = overrides.some((override) => override.name === name && urlPath(spec).endsWith(override.path));
-			source = registry.test(spec) && !fromUrl.has(key) && !overridden ? "registry" : "remoteTarball";
-		} else if (resolved === "" && (spec === "" || EXACT_VERSION.test(spec))) source = "registry";
-		entries.push({
-			name,
-			spec,
-			source,
-			installScript: value[scriptsKey] === true,
-			anchor: `${JSON.stringify(key)}: {`,
-			...exactVersion(source, version)
-		});
-	}
-	return entries;
-}
-/** The project lockfile of a pnpm-lock.yaml and where it starts: the last document when a boot document comes first. */
-function pnpmGraph(text, documents) {
-	const marker = documents?.["bootMarker"];
-	if (typeof marker !== "string" || documents?.["graph"] !== "last" || text.split(/\r?\n/u, 1)[0] !== marker) return {
-		document: parseYaml(text),
-		start: 0
-	};
-	const all = parseYamlDocuments(text);
-	for (const document of all) if (document.errors.length > 0) throw document.errors[0];
-	const last = all.at(-1);
-	return {
-		document: last?.toJS(),
-		start: last?.range[0] ?? 0
-	};
-}
-function pnpmEntries(text, format, documents) {
-	const { document, start } = pnpmGraph(text, documents);
-	if (!isRecord(document)) return {
-		entries: [],
-		start
-	};
-	if (!String(document["lockfileVersion"]).startsWith("9")) throw new UnsupportedLockfile(`its lockfileVersion ${String(document["lockfileVersion"])} is not read; depcurfew reads 9.0`);
-	const hosts = strings(format["gitHostedTarballHosts"]);
-	const entries = [];
-	const packages = isRecord(document["packages"]) ? document["packages"] : {};
-	for (const [key, value] of Object.entries(packages)) {
-		const { name, spec } = splitSpec(key);
-		const resolution = isRecord(value) && isRecord(value["resolution"]) ? value["resolution"] : {};
-		const tarball = typeof resolution["tarball"] === "string" ? resolution["tarball"] : "";
-		let host = "";
-		try {
-			host = HTTP.test(tarball) ? new URL(tarball).hostname : HTTP.test(spec) ? new URL(spec).hostname : "";
-		} catch {
-			host = "";
-		}
-		let source = "registry";
-		if (spec.startsWith(String(format["gitKeyPrefix"])) || resolution["type"] === format["gitType"]) source = "git";
-		else if (resolution[String(format["gitHostedFlag"])] === true || host !== "" && hosts.includes(host)) source = "git";
-		else if (resolution["type"] === format["directoryType"]) source = "directory";
-		else if (spec.startsWith("file:")) source = "file";
-		else if (HTTP.test(spec)) source = "remoteTarball";
-		entries.push({
-			name,
-			spec,
-			source,
-			installScript: void 0,
-			anchor: key,
-			...exactVersion(source, spec.split("(", 1)[0])
-		});
-	}
-	const importers = isRecord(document["importers"]) ? document["importers"] : {};
-	for (const importer of Object.values(importers)) {
-		if (!isRecord(importer)) continue;
-		for (const group of [
-			"dependencies",
-			"devDependencies",
-			"optionalDependencies"
-		]) {
-			const dependencies = isRecord(importer[group]) ? importer[group] : {};
-			for (const [name, dependency] of Object.entries(dependencies)) {
-				if (!isRecord(dependency) || typeof dependency["version"] !== "string") continue;
-				const specifier = typeof dependency["specifier"] === "string" ? dependency["specifier"] : "";
-				if (dependency["version"].startsWith("link:") && !specifier.startsWith("workspace:")) entries.push({
-					name,
-					spec: specifier,
-					source: "directory",
-					installScript: void 0,
-					anchor: `specifier: ${specifier}`
-				});
-			}
-		}
-	}
-	return {
-		entries,
-		start
-	};
-}
-function yarnSource(locator, format) {
-	if (locator.startsWith(String(format["workspace"]))) return "workspace";
-	if (locator.startsWith(String(format["registry"]))) return "registry";
-	if (locator.startsWith(String(format["patch"]))) return yarnSource(splitSpec(decodeURIComponent(locator.slice(String(format["patch"]).length).split("#")[0] ?? "")).spec, format);
-	if (locator.startsWith(String(format["file"]))) {
-		const path = locator.slice(String(format["file"]).length).split("#")[0]?.split("::")[0] ?? "";
-		return new RegExp(String(format["tarball"]), "u").test(path) ? "file" : "directory";
-	}
-	if (strings(format["directory"]).some((prefix) => locator.startsWith(prefix))) return "directory";
-	if (locator.includes(String(format["gitCommit"])) || /^(git\+|git:|ssh:|git@|github:)/u.test(locator)) return "git";
-	if (HTTP.test(locator)) return "remoteTarball";
-	return "unknown";
-}
-function yarnEntries(text, format) {
-	const document = parseYaml(text);
-	if (!isRecord(document)) return [];
-	return Object.entries(document).filter(([key, value]) => key !== "__metadata" && isRecord(value) && typeof value["resolution"] === "string").map(([, value]) => {
-		const resolution = value["resolution"];
-		const { name, spec } = splitSpec(resolution);
-		const source = yarnSource(spec, format);
-		const version = value["version"];
-		return {
-			name,
-			spec,
-			source,
-			installScript: void 0,
-			anchor: `resolution: "${resolution}"`,
-			...exactVersion(source, typeof version === "string" ? version : void 0)
-		};
-	});
-}
-function bunEntries(text, format) {
-	const document = parseJsonc(text);
-	const packages = isRecord(document) && isRecord(document["packages"]) ? document["packages"] : {};
-	const tarball = new RegExp(String(format["tarball"]), "u");
-	const scriptsKey = String(format["installScripts"]);
-	const entries = [];
-	for (const [key, value] of Object.entries(packages)) {
-		if (!Array.isArray(value) || typeof value[0] !== "string") continue;
-		const { name, spec } = splitSpec(value[0]);
-		let source = "registry";
-		if (strings(format["git"]).some((prefix) => spec.startsWith(prefix))) source = "git";
-		else if (spec.startsWith(String(format["workspace"]))) source = "workspace";
-		else if (strings(format["directory"]).some((prefix) => spec.startsWith(prefix))) source = "directory";
-		else if (HTTP.test(spec)) source = "remoteTarball";
-		else if (/^(\.{1,2}\/|\/)/u.test(spec) && tarball.test(spec)) source = "file";
-		const info = value.find((item) => isRecord(item));
-		entries.push({
-			name,
-			spec,
-			source,
-			installScript: isRecord(info) && info[scriptsKey] === true,
-			anchor: `${JSON.stringify(key)}: [`,
-			...exactVersion(source, spec)
-		});
-	}
-	return entries;
-}
-function denoEntries(text, format) {
-	const document = JSON.parse(text);
-	if (!isRecord(document)) return {
-		entries: [],
-		recordsScripts: false
-	};
-	const recordsScripts = Number(document["version"]) >= Number(format["installScriptsSinceLockfile"]);
-	const npm = isRecord(document["npm"]) ? document["npm"] : {};
-	const scriptsKey = String(format["installScripts"]);
-	return {
-		entries: Object.entries(npm).map(([key, value]) => {
-			const { name, spec } = splitSpec(key);
-			const peers = typeof format["peerSeparator"] === "string" ? format["peerSeparator"] : void 0;
-			return {
-				name,
-				spec,
-				source: "registry",
-				installScript: recordsScripts ? isRecord(value) && value[scriptsKey] === true : void 0,
-				anchor: `${JSON.stringify(key)}: {`,
-				...exactVersion("registry", peers === void 0 ? spec : spec.split(peers, 1)[0])
-			};
-		}),
-		recordsScripts
-	};
-}
-/** A lockfile in a version or shape depcurfew does not read; the message says why. */
-var UnsupportedLockfile = class extends Error {};
-function documentsOf(tool) {
-	const fact = tool.extra?.["lockfileDocuments"];
-	const value = fact === void 0 ? void 0 : values$1(fact)[0];
-	return isRecord(value) ? value : void 0;
-}
-/** The package.json next to a lockfile, or undefined when it is missing or not JSON. */
-function readManifest(repository, lockfile) {
-	const text = repository.readText(posix.join(posix.dirname(lockfile), "package.json"));
-	if (text === void 0) return void 0;
-	try {
-		return JSON.parse(text);
-	} catch {
-		return;
-	}
-}
-function overridesFormatOf(tool) {
-	const fact = tool.extra?.["overrides"];
-	const value = fact === void 0 ? void 0 : values$1(fact)[0];
-	return isRecord(value) ? value : void 0;
-}
-const URL_LIKE = /^[a-z][a-z0-9+.-]+:/iu;
-/**
-* pip reads the files a requirements file includes with -r and -c too, relative to the including file, and their
-* global options apply to the whole install. For each requirements file of the trees under `roots`: every file of its
-* tree. An include that cannot be read (a URL, a missing file, a path outside the repository) is reported.
-*/
-function requirementsTrees(repository, roots, format) {
-	const trees = /* @__PURE__ */ new Map();
-	for (const root of roots) {
-		const tree = [];
-		const queue = [root];
-		while (queue.length > 0) {
-			const file = queue.shift();
-			if (tree.includes(file)) continue;
-			tree.push(file);
-			const text = repository.readText(file, MAX_LOCKFILE_SIZE);
-			if (text === void 0) continue;
-			const unreadable = [];
-			for (const { path, line } of requirementsIncludes(text, format)) {
-				const target = posix.normalize(posix.join(posix.dirname(file), path.replaceAll("\\", "/")));
-				const reason = URL_LIKE.test(path) ? "a URL" : isAbsoluteAnywhere(path) || target === ".." || target.startsWith("../") ? "outside the repository" : repository.isFile(target) ? void 0 : "missing";
-				if (reason === void 0) queue.push(target);
-				else unreadable.push(`${path} (line ${line}, ${reason})`);
-			}
-			if (unreadable.length > 0) repository.warn("unreadable-include", `cannot read the files that ${file} includes: ${listing$1(unreadable)}`, [file]);
-		}
-		for (const file of tree) trees.set(file, [.../* @__PURE__ */ new Set([...trees.get(file) ?? [], ...tree])]);
-	}
-	return trees;
-}
-/** A tool's extra.lockfileFormat. */
-function lockfileFormatOf(tool) {
-	const fact = tool?.extra?.["lockfileFormat"];
-	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	return isRecord(format) ? format : void 0;
-}
-/** pylock.toml and pylock.<name>.toml, which pip's knowledge names; detection gives one to the tool that wrote it. */
-function isPylock(pip, file) {
-	const lockfiles = pip?.project?.lockfiles;
-	const names = lockfiles === void 0 ? [] : values$1(lockfiles).flatMap((list) => list.flatMap((entry) => [...entry.value]));
-	const pattern = pip?.extra?.["lockfilePattern"] === void 0 ? void 0 : values$1(pip.extra["lockfilePattern"])[0];
-	return names.includes(file) || typeof pattern === "string" && new RegExp(pattern, "u").test(file);
-}
-/**
-* The 1-based line of every entry, found in one pass in the order of the entries (the order of the file) the first
-* time a line is asked for, so that two rules asking for different entries get the same lines.
-*/
-function entryLines(text, start, entries) {
-	let lines;
-	return (entry) => {
-		if (entry.line !== void 0) return entry.line;
-		if (lines === void 0) {
-			const find = lineFinder(text, start);
-			lines = new Map(entries.map((item) => [item, item.line ?? find(item.anchor)]));
-		}
-		return lines.has(entry) ? lines.get(entry) : lineFinder(text, start)(entry.anchor);
-	};
-}
-/** Lockfiles already read in a doctor run (one Repository): both lockfile rules read the same ones. */
-const READ = /* @__PURE__ */ new WeakMap();
-/** The lockfiles a package manager uses, each read and parsed once per Repository. */
-function readLockfiles(repository, manager, tool, workspaces, tools = []) {
-	let read = READ.get(repository);
-	if (read === void 0) {
-		read = /* @__PURE__ */ new Map();
-		READ.set(repository, read);
-	}
-	let results = read.get(manager);
-	if (results === void 0) {
-		results = parseLockfiles(repository, manager, tool, workspaces, tools);
-		read.set(manager, results);
-	}
-	return results;
-}
-/** A pnpm-lock.yaml or a Yarn Berry yarn.lock, which are parsed as YAML. */
-function isYamlLockfile(tool, file) {
-	return (tool.id === "pnpm" || tool.id === "yarn") && /\.ya?ml$|(?:^|\/)yarn\.lock$/u.test(file);
-}
-function parseLockfiles(repository, manager, tool, workspaces, tools) {
-	const format = lockfileFormatOf(tool);
-	if (format === void 0) return [];
-	const pip = tool.id === "pip" ? tool : tools.find((entry) => entry.id === "pip");
-	const pylockFormat = lockfileFormatOf(pip);
-	const lockfiles = manager.evidence.filter((item) => item.kind === "lockfile").map((item) => item.file);
-	const requirements = tool.id === "pip" ? requirementsTrees(repository, manager.configFiles, requirementsFormatOf(tool)) : /* @__PURE__ */ new Map();
-	return [.../* @__PURE__ */ new Set([...lockfiles, ...requirements.keys()])].map((file) => {
-		if (file.endsWith(".lockb")) return {
-			ok: false,
-			file,
-			reason: "it is a binary file in an undocumented format",
-			unreadable: false
-		};
-		const text = repository.readText(file, MAX_LOCKFILE_SIZE);
-		if (text === void 0) {
-			if (!repository.warnings.some((warning) => warning.files.includes(file))) repository.warn("invalid-file", `cannot read ${file}`, [file]);
-			return {
-				ok: false,
-				file,
-				reason: "it cannot be read",
-				unreadable: true
-			};
-		}
-		if (isYamlLockfile(tool, file) && Buffer.byteLength(text) > 16777216) {
-			const limit = MAX_YAML_LOCKFILE_SIZE / 1048576;
-			repository.warn("lockfile-too-large", `${file} is larger than ${limit} MiB, the limit for YAML lockfiles (parsing a larger one needs more memory than a CI runner gives Node.js), and was not read`, [file]);
-			return {
-				ok: false,
-				file,
-				reason: "it is too large",
-				unreadable: true
-			};
-		}
-		try {
-			let entries;
-			let recordsScripts = format["installScripts"] !== null;
-			let start = 0;
-			if (tool.id === "npm") entries = npmEntries(text, format, workspaces, readManifest(repository, file), overridesFormatOf(tool));
-			else if (tool.id === "pnpm") ({entries, start} = pnpmEntries(text, format, documentsOf(tool)));
-			else if (tool.id === "yarn") entries = yarnEntries(text, format);
-			else if (tool.id === "bun") entries = bunEntries(text, format);
-			else if (pylockFormat !== void 0 && lockfiles.includes(file) && isPylock(pip, file)) {
-				entries = pylockEntries(text, pylockFormat, workspaces);
-				recordsScripts = pylockFormat["installScripts"] !== null;
-			} else if (tool.id === "uv") entries = uvEntries(text, format, workspaces);
-			else if (tool.id === "poetry") entries = poetryEntries(text, format);
-			else if (tool.id === "pdm") entries = pdmEntries(text, format);
-			else if (tool.id === "pipenv") entries = pipfileLockEntries(text, format);
-			else if (tool.id === "pip") entries = requirementsEntries(text, requirementsFormatOf(tool));
-			else ({entries, recordsScripts} = denoEntries(text, format));
-			const optionFiles = requirements.get(file);
-			return {
-				ok: true,
-				lockfile: {
-					file,
-					entries,
-					recordsScripts,
-					lineOf: entryLines(text, start, entries),
-					...optionFiles === void 0 ? {} : { optionFiles }
-				}
-			};
-		} catch (error) {
-			if (error instanceof UnsupportedLockfile) return {
-				ok: false,
-				file,
-				reason: error.message,
-				unreadable: false
-			};
-			const message = error instanceof Error ? error.message.split("\n")[0] ?? "" : String(error);
-			repository.warn("invalid-file", `cannot parse ${file}: ${message}`, [file]);
-			return {
-				ok: false,
-				file,
-				reason: `it cannot be parsed (${message})`,
-				unreadable: true
-			};
-		}
-	});
 }
 
 // src/apply/expected.ts
@@ -18828,7 +18601,1012 @@ function lineOf$1(text, needle) {
 	return offset === -1 ? void 0 : lineAt$1(text, offset);
 }
 
+// src/doctor/composer.ts
+const COMPOSER_MANIFEST = "composer.json";
+const isStrings$3 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isRepositoryTypes = (value) => isRecord(value) && isStrings$3(value["vcs"]) && isStrings$3(value["directory"]) && isStrings$3(value["file"]) && isStrings$3(value["inline"]) && typeof value["disable"] === "string";
+function repositoryTypes(tool) {
+	return extraOf(tool, "repositoryTypes", isRepositoryTypes);
+}
+function parseJson(text) {
+	return JSON.parse(text);
+}
+/** The root composer.json, parsed once per run; undefined when it is missing or invalid (unreadable-config reports it). */
+function composerManifest(repository) {
+	if (!repository.isFile("composer.json")) return void 0;
+	const parsed = repository.parseOnce(COMPOSER_MANIFEST, parseJson);
+	return isRecord(parsed) ? parsed : void 0;
+}
+/** The source kind of an inline package: its dist when it downloads from a URL, else its source (a VCS checkout). */
+function inlineKind(definition) {
+	const packages = Array.isArray(definition) ? definition : [definition];
+	for (const item of packages) {
+		if (!isRecord(item)) continue;
+		const dist = item["dist"];
+		if (isRecord(dist) && typeof dist["url"] === "string") return /^https?:\/\//iu.test(dist["url"]) ? "remoteTarball" : "file";
+		if (isRecord(item["source"])) return "git";
+	}
+	return "unknown";
+}
+function inlineNames(definition) {
+	return (Array.isArray(definition) ? definition : [definition]).flatMap((item) => isRecord(item) && typeof item["name"] === "string" ? [item["name"].toLowerCase()] : []);
+}
+/** The repositories of the root composer.json, in order; entries depcurfew cannot read are left out. */
+function declaredRepositories(repository, tool) {
+	const text = repository.readText(COMPOSER_MANIFEST);
+	const manifest = composerManifest(repository);
+	if (text === void 0 || manifest === void 0) return [];
+	const types = repositoryTypes(tool);
+	const list = manifest["repositories"];
+	return (Array.isArray(list) ? list.map((item, index) => [index, item]) : isRecord(list) ? Object.entries(list) : []).flatMap(([key, entry]) => {
+		const line = jsonSetting(text, ["repositories", key])?.line ?? jsonSetting(text, ["repositories"])?.line ?? 1;
+		if (!isRecord(entry)) return [];
+		if (entry[types.disable] === false) return [{
+			key,
+			type: types.disable,
+			url: void 0,
+			kind: "disable",
+			names: [],
+			line
+		}];
+		const type = typeof entry["type"] === "string" ? entry["type"].toLowerCase() : "";
+		const url = typeof entry["url"] === "string" ? entry["url"] : void 0;
+		let kind = "unknown";
+		if (types.vcs.includes(type)) kind = "git";
+		else if (types.directory.includes(type)) kind = "directory";
+		else if (types.file.includes(type)) kind = "file";
+		else if (types.inline.includes(type)) kind = inlineKind(entry["package"]);
+		else if (types.registry.includes(type)) kind = "registry";
+		return [{
+			key,
+			type,
+			url,
+			kind,
+			names: types.inline.includes(type) ? inlineNames(entry["package"]) : [],
+			line
+		}];
+	});
+}
+/** A repository URL as host and path, so that https://github.com/a/b, git@github.com:a/b.git and the like compare equal. */
+function normalizedUrl(url) {
+	const scp = /^[\w.-]+@([^:/]+):(.*)$/u.exec(url);
+	return (scp === null ? url : `${scp[1] ?? ""}/${scp[2] ?? ""}`).replace(/^[a-z][a-z0-9+.-]*:\/\//iu, "").replace(/^[^/@]*@/u, "").replace(/\/+$/u, "").replace(/\.git$/iu, "").toLowerCase();
+}
+const REMOTE = /^[a-z][a-z0-9+.-]*:\/\//iu;
+/** Whether a dist URL is a file on this machine: no scheme (a path, also C:/…) or file://. */
+function isLocal(url) {
+	return /^file:\/\//iu.test(url) || !REMOTE.test(url);
+}
+const isFormat = (value) => isRecord(value) && isStrings$3(value["sections"]) && typeof value["name"] === "string" && typeof value["version"] === "string" && typeof value["pluginType"] === "string" && typeof value["pathType"] === "string";
+const isBranches = (value) => isRecord(value) && typeof value["prefix"] === "string" && typeof value["suffix"] === "string";
+function describe$2(location) {
+	return isRecord(location) ? [location["type"], location["url"]].filter((part) => typeof part === "string").join(" ") : "";
+}
+/**
+* The packages of composer.lock with the source each comes from: a path repository (dist type path), an artifact
+* repository (an archive at a local path), a package repository of the root composer.json (by the names it defines),
+* a VCS repository of the root composer.json (by its URL), else Packagist or another Composer repository. Plugins
+* (type composer-plugin) are the packages whose code Composer runs.
+*/
+function composerEntries(text, tool, repositories) {
+	const format = extraOf(tool, "lockfileFormat", isFormat);
+	const branches = extraOf(tool, "branchVersions", isBranches);
+	const document = JSON.parse(text);
+	if (!isRecord(document)) throw new Error("composer.lock is not a JSON object");
+	const vcs = new Map(repositories.filter((entry) => entry.kind === "git" && entry.url !== void 0).map((entry) => [normalizedUrl(entry.url ?? ""), entry]));
+	const inline = repositories.filter((entry) => entry.names.length > 0);
+	const entries = [];
+	for (const section of format.sections) {
+		const packages = document[section];
+		if (!Array.isArray(packages)) continue;
+		for (const item of packages) {
+			if (!isRecord(item) || typeof item[format.name] !== "string") continue;
+			const name = item[format.name];
+			const dist = isRecord(item[format.dist]) ? item[format.dist] : void 0;
+			const source = isRecord(item[format.source]) ? item[format.source] : void 0;
+			const distUrl = typeof dist?.["url"] === "string" ? dist["url"] : void 0;
+			const sourceUrl = typeof source?.["url"] === "string" ? source["url"] : void 0;
+			let kind = "registry";
+			let spec = describe$2(dist) || describe$2(source);
+			const fromInline = inline.find((entry) => entry.names.includes(name.toLowerCase()));
+			if (dist?.["type"] === format.pathType) kind = "directory";
+			else if (distUrl !== void 0 && isLocal(distUrl) && format.archiveTypes.includes(String(dist?.["type"]))) kind = "file";
+			else if (fromInline !== void 0) kind = fromInline.kind === "registry" || fromInline.kind === "disable" ? "unknown" : fromInline.kind;
+			else if ([sourceUrl, distUrl].some((url) => url !== void 0 && vcs.has(normalizedUrl(url)))) {
+				kind = "git";
+				spec = describe$2(source) || spec;
+			}
+			const locked = item[format.version];
+			const release = kind === "registry" && typeof locked === "string" && locked !== "" && !locked.startsWith(branches.prefix) && !locked.endsWith(branches.suffix);
+			entries.push({
+				name,
+				spec,
+				source: kind,
+				installScript: item[format.installScripts] === format.pluginType,
+				anchor: `"${format.name}": ${JSON.stringify(name)}`,
+				...release ? { version: locked } : {}
+			});
+		}
+	}
+	return entries;
+}
+/** The repositories of a kind the policy denies that no entry of composer.lock comes from, as far as depcurfew can tell. */
+function unmatchedRepositories(repositories, entries) {
+	return repositories.filter((repository) => {
+		if (repository.kind === "git") return !entries.some((entry) => entry.source === "git" && repository.url !== void 0 && entry.spec.toLowerCase().includes(normalizedUrl(repository.url)));
+		if (repository.names.length > 0) return !entries.some((entry) => repository.names.includes(entry.name.toLowerCase()));
+		if (repository.kind === "directory" || repository.kind === "file") return !entries.some((entry) => entry.source === repository.kind);
+		return false;
+	});
+}
+/** Whether a key of allow-plugins covers a package: * stands for any characters, case is ignored (BasePackage::packageNameToRegexp). */
+function pluginPatternMatches(name, pattern) {
+	return matchSegment$1(name.toLowerCase(), pattern.toLowerCase());
+}
+/**
+* What config.allow-plugins of composer.json decides for a plugin: true (allowed), false (blocked) or undefined (not
+* listed, so Composer asks, or fails without a terminal), with the key that decides. Composer takes the first key that
+* matches; true for the whole setting allows every plugin and false none.
+*/
+function pluginDecision(manifest, name) {
+	const config = manifest?.["config"];
+	const setting = isRecord(config) ? config["allow-plugins"] : void 0;
+	if (setting === true || setting === false) return { allowed: setting };
+	if (!isRecord(setting)) return { allowed: void 0 };
+	const key = Object.keys(setting).find((pattern) => pluginPatternMatches(name, pattern));
+	return key === void 0 ? { allowed: void 0 } : {
+		allowed: setting[key] === true,
+		key
+	};
+}
+/** plugin-api-version of composer.lock: the plugin API of the Composer that wrote it. */
+function lockedPluginApi(repository, tool, lockfile) {
+	const fact = extraOf(tool, "pluginApiVersion", (value) => isRecord(value) && typeof value["key"] === "string");
+	const text = repository.readText(lockfile, 67108864);
+	if (text === void 0) return void 0;
+	const found = jsonSetting(text, [fact.key]);
+	return typeof found?.value === "string" ? {
+		file: lockfile,
+		version: found.value,
+		line: found.line
+	} : void 0;
+}
+
+// src/policy/ecosystem.ts
+function ecosystemOfTool(tool) {
+	return tool.ecosystem ?? "npm";
+}
+/** The policy with cooldown.exclude, installScripts.allow and installScripts.deny reduced to the patterns of one ecosystem. */
+function policyFor(policy, ecosystem) {
+	return {
+		...policy,
+		...policy.cooldown === void 0 ? {} : { cooldown: {
+			...policy.cooldown,
+			exclude: patternsFor(policy.cooldown.exclude, ecosystem)
+		} },
+		...policy.installScripts === void 0 ? {} : { installScripts: {
+			...policy.installScripts,
+			allow: patternsFor(policy.installScripts.allow, ecosystem),
+			deny: patternsFor(policy.installScripts.deny, ecosystem)
+		} }
+	};
+}
+
+// src/doctor/python-lockfiles.ts
+const WHEEL = evidenceOf(environment.python.wheelExtension)[0]?.value ?? ".whl";
+const SDISTS = evidenceOf(environment.python.sourceDistributionExtensions)[0]?.value ?? [];
+/**
+* Whether a Python lockfile shows which packages are built from source because it lists the files of each package
+* (wheels and source distributions): uv.lock, poetry.lock and pdm.lock (extra.lockfileFormat with wheels or files), and
+* pylock.toml (pip's format, also when another tool wrote it). Pipfile.lock and pip requirements files list hashes only,
+* so they cannot tell a package without wheels from one with them (decision D-107).
+*/
+function showsBuilds(tool, file, tools) {
+	const pip = tools.find((entry) => entry.id === "pip");
+	const names = pip?.project?.lockfiles === void 0 ? [] : values$1(pip.project.lockfiles).flatMap((list) => list.flatMap((entry) => [...entry.value]));
+	const pattern = pip?.extra?.["lockfilePattern"] === void 0 ? void 0 : values$1(pip.extra["lockfilePattern"])[0];
+	const pylock = names.includes(file) || typeof pattern === "string" && new RegExp(pattern, "u").test(file);
+	if (!pylock && tool.id === "pip") return false;
+	const fact = (pylock ? pip : tool)?.extra?.["lockfileFormat"];
+	const format = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord(format) && (typeof format["wheels"] === "string" || typeof format["files"] === "string");
+}
+/** Whether a package manager of the project has a lockfile that showsBuilds, or records install scripts (the npm ecosystem). */
+function hasBuildRecords(managers, tools, ecosystem = "any") {
+	return managers.some((manager) => {
+		const tool = tools.find((entry) => entry.id === manager.id);
+		if (!manager.supported || tool === void 0) return false;
+		const python = ecosystemOfTool(tool) === "pypi";
+		if (ecosystem === "pypi" && !python) return false;
+		return manager.evidence.some((evidence) => evidence.kind === "lockfile" && (!python || showsBuilds(tool, evidence.file, tools)));
+	});
+}
+function text(value) {
+	return typeof value === "string" ? value : void 0;
+}
+function list(value) {
+	return Array.isArray(value) ? value : [];
+}
+function strings$1(value) {
+	return list(value).filter((item) => typeof item === "string");
+}
+function isWheel(location) {
+	return (location.split(/[?#]/u, 1)[0] ?? "").toLowerCase().endsWith(WHEEL);
+}
+/** A pinned version as doctor --osv looks it up (decision D-129): one word, no wildcard. */
+const PINNED = /^[^\s,;*<>=!~]+$/u;
+function entry(name, spec, source, builds, line, version) {
+	const pinned = source === "registry" && typeof version === "string" && PINNED.test(version) ? { version } : {};
+	return {
+		name: normalizePythonName(name),
+		spec,
+		source,
+		installScript: builds,
+		anchor: name,
+		...line === void 0 ? {} : { line },
+		...pinned
+	};
+}
+/** uv.lock: [[package]] with source = { registry | git | url | path | directory | editable | virtual = ... }. */
+function uvEntries(input, format, workspaces) {
+	const document = parseToml(input);
+	const keys = isRecord(format["sources"]) ? format["sources"] : {};
+	const kind = (source) => Object.entries(keys).flatMap(([name, key]) => typeof key === "string" && typeof source[key] === "string" ? [[name, source[key]]] : [])[0];
+	const members = /* @__PURE__ */ new Set([".", ...workspaces]);
+	return list(document.root[String(format["packages"])]).flatMap((item, index) => {
+		if (!isRecord(item) || typeof item["name"] !== "string") return [];
+		const line = document.lineOf([String(format["packages"]), index]);
+		const found = isRecord(item["source"]) ? kind(item["source"]) : void 0;
+		if (found === void 0) return [entry(item["name"], "no source given", "unknown", void 0, line)];
+		const [name, location] = found;
+		const wheels = list(item[String(format["wheels"])]);
+		switch (name) {
+			case "registry": return [entry(item["name"], location, "registry", item[String(format["sdist"])] !== void 0 && wheels.length === 0, line, item["version"])];
+			case "git": return [entry(item["name"], location, "git", true, line)];
+			case "remoteTarball": return [entry(item["name"], location, "remoteTarball", !isWheel(location), line)];
+			case "file": return [entry(item["name"], location, "file", !isWheel(location), line)];
+			case "directory":
+			case "editable": return members.has(location) ? [entry(item["name"], location, "workspace", false, line)] : [entry(item["name"], location, "directory", true, line)];
+			case "virtual": return [entry(item["name"], location, "workspace", false, line)];
+			default: return [entry(item["name"], location, "unknown", void 0, line)];
+		}
+	});
+}
+/** poetry.lock: [[package]] without [package.source] comes from PyPI; files list every distribution. */
+function poetryEntries(input, format) {
+	const document = parseToml(input);
+	const types = isRecord(format["sources"]) ? format["sources"] : {};
+	const kindOf = (type) => Object.entries(types).find(([, value]) => value === type)?.[0];
+	return list(document.root[String(format["packages"])]).flatMap((item, index) => {
+		if (!isRecord(item) || typeof item["name"] !== "string") return [];
+		const line = document.lineOf([String(format["packages"]), index]);
+		const files = list(item[String(format["files"])]).map((file) => isRecord(file) ? text(file["file"]) : void 0).filter((file) => file !== void 0);
+		const source = item[String(format["source"])];
+		if (!isRecord(source)) return [entry(item["name"], "PyPI", "registry", files.length > 0 && !files.some(isWheel), line, item["version"])];
+		const url = text(source["url"]) ?? "";
+		const kind = kindOf(text(source["type"]) ?? "");
+		switch (kind) {
+			case "registry": return [entry(item["name"], text(source["reference"]) ?? url, "registry", files.length > 0 && !files.some(isWheel), line, item["version"])];
+			case "git": return [entry(item["name"], url, "git", true, line)];
+			case "remoteTarball":
+			case "file": return [entry(item["name"], url, kind, !isWheel(url), line)];
+			case "directory": return [entry(item["name"], url, "directory", true, line)];
+			default: return [entry(item["name"], `${text(source["type"]) ?? "unknown"} ${url}`.trim(), "unknown", void 0, line)];
+		}
+	});
+}
+/** pdm.lock: [[package]] with files from an index, or a VCS repository (git = …), a url or a local path instead. */
+function pdmEntries(input, format) {
+	const document = parseToml(input);
+	const key = (name) => String(format[name]);
+	const vcs = strings$1(format["vcs"]);
+	return list(document.root[key("packages")]).flatMap((item, index) => {
+		if (!isRecord(item) || typeof item["name"] !== "string") return [];
+		const line = document.lineOf([key("packages"), index]);
+		const repository = vcs.find((name) => typeof item[name] === "string");
+		if (repository !== void 0) return [entry(item["name"], String(item[repository]), repository === "git" ? "git" : "unknown", true, line)];
+		const url = text(item[key("url")]);
+		if (url !== void 0) return [entry(item["name"], url, "remoteTarball", !isWheel(url), line)];
+		const path = text(item[key("path")]);
+		if (path !== void 0) {
+			const archive = [WHEEL, ...SDISTS].some((extension) => path.toLowerCase().endsWith(extension));
+			return [entry(item["name"], path, archive ? "file" : "directory", archive ? !isWheel(path) : true, line)];
+		}
+		const files = list(item[key("files")]).map((file) => isRecord(file) ? text(file[key("file")]) : void 0).filter((file) => file !== void 0);
+		return [entry(item["name"], "an index", "registry", files.length > 0 && !files.some(isWheel), line, item["version"])];
+	});
+}
+/**
+* Pipfile.lock: every key but _meta is a category of packages. Git, remote file and local path entries are built;
+* for index packages the hashes do not tell wheels from source distributions, so whether they are built is unknown.
+*/
+function pipfileLockEntries(input, format) {
+	const document = JSON.parse(input);
+	if (!isRecord(document)) throw new Error("Pipfile.lock is not a JSON object");
+	const key = (name) => String(format[name]);
+	const entries = [];
+	for (const [category, packages] of Object.entries(document)) {
+		if (category === key("meta") || !isRecord(packages)) continue;
+		for (const [name, item] of Object.entries(packages)) {
+			if (!isRecord(item)) continue;
+			const git = text(item[key("git")]);
+			const file = text(item[key("file")]);
+			const path = text(item[key("path")]);
+			const anchored = (found) => ({
+				...found,
+				anchor: JSON.stringify(name)
+			});
+			if (git !== void 0) entries.push(anchored(entry(name, git, "git", true, void 0)));
+			else if (file !== void 0) entries.push(anchored(entry(name, file, "remoteTarball", !isWheel(file), void 0)));
+			else if (path !== void 0 && isProject(path)) entries.push(anchored(entry(name, path, "workspace", false, void 0)));
+			else if (path !== void 0) entries.push(anchored(entry(name, path, "directory", true, void 0)));
+			else entries.push(anchored(entry(name, "an index", "registry", void 0, void 0, /^==(?!=)(.+)$/u.exec(text(item[key("version")]) ?? "")?.[1])));
+		}
+	}
+	return entries;
+}
+/** "." or "./": the project itself, relative to the lockfile at its root. */
+function isProject(path) {
+	return /^\.\/?$/u.test(path);
+}
+/**
+* pylock.toml (PEP 751): each [[packages]] has one of vcs, directory, archive, or sdist and wheels from an index. A
+* directory path is relative to the lock file, so "." is the project itself, which, like a workspace member, is part
+* of the work on the project rather than a dependency built from source.
+*/
+function pylockEntries(input, format, workspaces = []) {
+	const document = parseToml(input);
+	const key = (name) => String(format[name]);
+	return list(document.root[key("packages")]).flatMap((item, index) => {
+		if (!isRecord(item) || typeof item["name"] !== "string") return [];
+		const line = document.lineOf([key("packages"), index]);
+		const location = (value) => isRecord(value) ? text(value["url"]) ?? text(value["path"]) ?? "" : "";
+		const vcs = item[key("vcs")];
+		if (isRecord(vcs)) return [entry(item["name"], location(vcs), text(vcs["type"]) === "git" ? "git" : "unknown", true, line)];
+		const directory = item[key("directory")];
+		if (isRecord(directory)) {
+			const path = location(directory);
+			const relative = path.replaceAll("\\", "/").replace(/^\.\//u, "").replace(/\/+$/u, "");
+			const member = isProject(path) || relative === "" || workspaces.includes(relative);
+			return [entry(item["name"], path, member ? "workspace" : "directory", !member, line)];
+		}
+		const archive = item[key("archive")];
+		if (isRecord(archive)) {
+			const where = location(archive);
+			return [entry(item["name"], where, text(archive["url"]) !== void 0 ? "remoteTarball" : "file", !isWheel(where), line)];
+		}
+		const wheels = list(item[key("wheels")]);
+		const sdist = item[key("sdist")];
+		if (wheels.length === 0 && !isRecord(sdist)) return [entry(item["name"], "no source given", "unknown", void 0, line)];
+		return [entry(item["name"], text(item[key("index")]) ?? "an index", "registry", isRecord(sdist) && wheels.length === 0, line, item["version"])];
+	});
+}
+/** The logical lines of a requirements file: continuations joined, comments removed, with the line each starts on. */
+function requirementsLines(input, format) {
+	const comment = String(format["comment"]);
+	const continuation = String(format["continuation"]);
+	const commentPattern = new RegExp(`(^|\\s)${comment.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}.*$`, "u");
+	const lines = input.split(/\r?\n/u);
+	const result = [];
+	for (let index = 0; index < lines.length; index++) {
+		const start = index;
+		const parts = [(lines[index] ?? "").replace(commentPattern, "")];
+		const trimEnd = () => {
+			while (parts.length > 0) {
+				const last = (parts.at(-1) ?? "").trimEnd();
+				if (last !== "") {
+					parts[parts.length - 1] = last;
+					return;
+				}
+				parts.pop();
+			}
+		};
+		trimEnd();
+		while ((parts.at(-1) ?? "").endsWith(continuation) && index + 1 < lines.length) {
+			index += 1;
+			parts[parts.length - 1] = (parts.at(-1) ?? "").slice(0, -continuation.length);
+			parts.push(" ", (lines[index] ?? "").replace(commentPattern, ""));
+			trimEnd();
+		}
+		const text = parts.join("").trim();
+		if (text !== "") result.push({
+			text,
+			line: start + 1
+		});
+	}
+	return result;
+}
+const PYTHON_NAME = new RegExp(evidenceOf(environment.python.namePattern)[0]?.value ?? "^[A-Za-z0-9][A-Za-z0-9._-]*$", "iu");
+/** The facts about pip requirements files in one record: syntax, includes (-r, -c) and how pip tells paths and URLs. */
+function requirementsFormatOf(tool) {
+	const record = (key) => {
+		const fact = tool.extra?.[key];
+		const value = fact === void 0 ? void 0 : values$1(fact)[0];
+		return isRecord(value) ? value : {};
+	};
+	return {
+		...record("requirementsFormat"),
+		includes: record("requirementsIncludes"),
+		paths: record("requirementsPaths"),
+		parser: record("requirementsParser")
+	};
+}
+function escapeRegExp$1(text) {
+	return text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+/** The requirements and constraints files a requirements file includes (-r, -c), as written, with their lines. */
+function requirementsIncludes(input, format) {
+	const includes = isRecord(format["includes"]) ? format["includes"] : {};
+	const options = [...strings$1(includes["requirements"]), ...strings$1(includes["constraints"])];
+	const short = options.filter((option) => !option.startsWith("--")).map(escapeRegExp$1);
+	const long = options.filter((option) => option.startsWith("--")).map(escapeRegExp$1);
+	const pattern = new RegExp(`^(?:(?:${short.join("|") || "(?!)"})\\s*|(?:${long.join("|") || "(?!)"})(?:\\s+|=))(\\S+)`, "u");
+	return requirementsLines(input, format).flatMap(({ text: body, line }) => {
+		const path = pattern.exec(body)?.[1];
+		return path === void 0 ? [] : [{
+			path,
+			line
+		}];
+	});
+}
+/**
+* Classifies one requirement (without options or environment markers): a VCS URL, a URL, a local archive or
+* directory, the project itself, or a registry package. `editable` is set for the value of -e, which is always a path
+* or a VCS URL.
+*/
+function requirementSource(requirement, format, editable) {
+	const vcs = isRecord(format["vcs"]) ? format["vcs"] : {};
+	const gitPrefixes = strings$1(vcs["git"]);
+	const otherPrefixes = strings$1(vcs["other"]);
+	const egg = new RegExp(`${escapeRegExp$1(String(format["egg"]))}([^&\\s]+)`, "u");
+	const paths = isRecord(format["paths"]) ? format["paths"] : {};
+	const separators = strings$1(paths["separators"]);
+	const currentDirectory = String(paths["currentDirectory"]);
+	const archives = strings$1(paths["archiveExtensions"]);
+	const urlSchemes = new RegExp(`^(?:${strings$1(paths["urlSchemes"]).map(escapeRegExp$1).join("|") || "(?!)"})://`, "iu");
+	const fileScheme = new RegExp(`^${escapeRegExp$1(String(paths["fileScheme"]))}(//)?`, "iu");
+	const reference = new RegExp(`^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\\[[^\\]]*\\])?\\s*${escapeRegExp$1(String(format["direct"]).trim())}\\s*(.+)$`, "u");
+	const looksLikePath = (text) => separators.some((separator) => text.includes(separator)) || text.startsWith(currentDirectory);
+	const isArchive = (text) => archives.some((extension) => text.toLowerCase().endsWith(extension));
+	const named = reference.exec(requirement);
+	const target = named?.[2] ?? requirement;
+	const name = named?.[1] ?? egg.exec(target)?.[1];
+	const located = (source, location, builds) => ({
+		source,
+		target: location,
+		...name !== void 0 && PYTHON_NAME.test(name) ? { name } : {},
+		builds
+	});
+	if (gitPrefixes.some((prefix) => target.startsWith(prefix))) return located("git", target, true);
+	if (otherPrefixes.some((prefix) => target.startsWith(prefix))) return located("unknown", target, true);
+	if (urlSchemes.test(target)) return located("remoteTarball", target, !isWheel(target));
+	if (fileScheme.test(target) || looksLikePath(target) || isArchive(target) || editable) {
+		const path = target.replace(fileScheme, "");
+		if (/^\.\/?$/u.test(path)) return {
+			source: "workspace",
+			target,
+			name: ".",
+			builds: false
+		};
+		const archive = isArchive(path);
+		return located(archive ? "file" : "directory", path, archive ? !isWheel(path) : true);
+	}
+	const registryName = /^[A-Za-z0-9][A-Za-z0-9._-]*/u.exec(requirement)?.[0];
+	return {
+		source: "registry",
+		target: requirement,
+		...registryName === void 0 ? {} : { name: registryName },
+		builds: void 0
+	};
+}
+/** A pip requirements file: VCS and URL requirements, local paths and registry requirements (which may or may not have wheels). */
+function requirementsEntries(input, format) {
+	const editable = strings$1(format["editable"]);
+	const entries = [];
+	for (const { text: body, line: lineNumber } of requirementsLines(input, format)) {
+		let requirement = body;
+		const flag = editable.find((option) => requirement.startsWith(`${option} `) || requirement.startsWith(`${option}=`));
+		if (flag !== void 0) requirement = requirement.slice(flag.length + 1).trim();
+		else if (requirement.startsWith("-")) continue;
+		requirement = (requirement.split(/\s+--?[a-z]/u, 1)[0] ?? requirement).split(";", 1)[0]?.trim() ?? requirement;
+		const found = requirementSource(requirement, format, flag !== void 0);
+		if (found.source === "workspace") entries.push({
+			...entry("", found.target, "workspace", false, lineNumber),
+			name: "."
+		});
+		else if (found.source === "registry") {
+			const pinned = /^[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[^\]]*\])?\s*===?\s*(\S+)$/u.exec(requirement)?.[1];
+			if (found.name !== void 0) entries.push(entry(found.name, requirement, "registry", void 0, lineNumber, pinned));
+		} else if (found.name !== void 0) entries.push(entry(found.name, found.target, found.source, found.builds, lineNumber));
+		else entries.push({
+			...entry("", found.target, found.source, found.builds, lineNumber),
+			name: found.target,
+			unnamed: true
+		});
+	}
+	return entries;
+}
+
+// src/doctor/lockfiles.ts
+/** Lockfiles are often larger than configuration files. */
+const MAX_LOCKFILE_SIZE = 67108864;
+/**
+* YAML lockfiles (pnpm-lock.yaml, Yarn Berry's yarn.lock) are parsed into a syntax tree that takes about 60 times the
+* size of the file in memory: a 16 MiB one about 1 GiB of the 2 GiB that Node.js gives itself on a CI runner with
+* 7 GB of memory. A larger one is reported as not checked instead of ending doctor without a report.
+*/
+const MAX_YAML_LOCKFILE_SIZE = 16777216;
+/**
+* Finds the 1-based line of each anchor. Rules ask in the order the entries were parsed, which is the order of the
+* file, so each search continues where the last one stopped and a large lockfile is not scanned once per entry.
+*/
+function lineFinder(text, start = 0) {
+	let newlines;
+	let cursor = start;
+	return (anchor) => {
+		let offset = text.indexOf(anchor, cursor);
+		if (offset === -1) offset = text.indexOf(anchor);
+		if (offset === -1) return void 0;
+		cursor = offset + anchor.length;
+		if (newlines === void 0) {
+			newlines = [];
+			for (let index = text.indexOf("\n"); index !== -1; index = text.indexOf("\n", index + 1)) newlines.push(index);
+		}
+		let low = 0;
+		let high = newlines.length;
+		while (low < high) {
+			const middle = low + high >> 1;
+			if ((newlines[middle] ?? 0) < offset) low = middle + 1;
+			else high = middle;
+		}
+		return low + 1;
+	};
+}
+function strings(value) {
+	return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+}
+/** Splits name@spec, where the name may be scoped and the spec may contain @ (git@host). */
+function splitSpec(key) {
+	const at = key.startsWith("@") ? key.indexOf("@", key.indexOf("/") + 1) : key.indexOf("@");
+	return at <= 0 ? {
+		name: key,
+		spec: ""
+	} : {
+		name: key.slice(0, at),
+		spec: key.slice(at + 1)
+	};
+}
+const HTTP = /^https?:\/\//u;
+const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
+/** `{ version }` for an exact version of a registry package, else nothing: what doctor --osv looks up. */
+function exactVersion(source, version) {
+	return source === "registry" && version !== void 0 && EXACT_VERSION.test(version) ? { version } : {};
+}
+/** Where npm installs the dependency `name` of the package at `from`: its own node_modules, else the nearest parent's. */
+function installedAt(packages, from, name) {
+	for (let base = from;;) {
+		const location = base === "" ? `node_modules/${name}` : `${base}/node_modules/${name}`;
+		if (location in packages) return location;
+		if (base === "") return void 0;
+		const parent = base.lastIndexOf("/node_modules/");
+		base = parent === -1 ? "" : base.slice(0, parent);
+	}
+}
+function urlPath(url) {
+	try {
+		return new URL(url).pathname;
+	} catch {
+		return "";
+	}
+}
+/** Packages that overrides (npm, root package.json only) replace with a tarball URL, at any depth of nesting. */
+function urlOverrides(overrides, parent, selfKey, found = []) {
+	if (!isRecord(overrides)) return found;
+	for (const [key, value] of Object.entries(overrides)) {
+		const name = key === selfKey ? parent : splitSpec(key).name;
+		if (typeof value === "string") {
+			const path = HTTP.test(value) ? urlPath(value) : "";
+			if (name !== void 0 && path !== "") found.push({
+				name,
+				path
+			});
+		} else urlOverrides(value, name, selfKey, found);
+	}
+	return found;
+}
+function npmEntries(text, format, workspaces, manifest, overridesFormat) {
+	const document = JSON.parse(text);
+	if (!isRecord(document) || !isRecord(document["packages"])) throw new UnsupportedLockfile("it has no \"packages\" section (lockfileVersion 1 is not read)");
+	const packages = document["packages"];
+	const registry = new RegExp(String(format["registryTarball"]), "u");
+	const scriptsKey = String(format["installScripts"]);
+	const fields = strings(format["dependencyFields"]);
+	const fromUrl = /* @__PURE__ */ new Set();
+	for (const [key, value] of Object.entries(packages)) {
+		if (!isRecord(value)) continue;
+		for (const field of fields) {
+			const dependencies = value[field];
+			if (!isRecord(dependencies)) continue;
+			for (const [name, spec] of Object.entries(dependencies)) {
+				const location = typeof spec === "string" && HTTP.test(spec) ? installedAt(packages, key, name) : void 0;
+				if (location !== void 0) fromUrl.add(location);
+			}
+		}
+	}
+	const overrides = overridesFormat !== void 0 && isRecord(manifest) ? urlOverrides(manifest[String(overridesFormat["field"])], void 0, String(overridesFormat["selfKey"])) : [];
+	const entries = [];
+	for (const [key, value] of Object.entries(packages)) {
+		if (!key.includes("node_modules/") || !isRecord(value)) continue;
+		const name = typeof value["name"] === "string" ? value["name"] : key.slice(key.lastIndexOf("node_modules/") + 13);
+		const resolved = typeof value["resolved"] === "string" ? value["resolved"] : "";
+		const version = typeof value["version"] === "string" ? value["version"] : "";
+		const spec = resolved !== "" || format["specWithoutResolved"] !== "version" ? resolved : version;
+		let source = "unknown";
+		if (value[String(format["linkFlag"])] === true) source = workspaces.includes(resolved) ? "workspace" : "directory";
+		else if (strings(format["gitPrefixes"]).some((prefix) => spec.startsWith(prefix))) source = "git";
+		else if (spec.startsWith(String(format["filePrefix"]))) source = /\.(?:tgz|tar\.gz)$/u.test(spec) ? "file" : "directory";
+		else if (HTTP.test(spec)) {
+			const overridden = overrides.some((override) => override.name === name && urlPath(spec).endsWith(override.path));
+			source = registry.test(spec) && !fromUrl.has(key) && !overridden ? "registry" : "remoteTarball";
+		} else if (resolved === "" && (spec === "" || EXACT_VERSION.test(spec))) source = "registry";
+		entries.push({
+			name,
+			spec,
+			source,
+			installScript: value[scriptsKey] === true,
+			anchor: `${JSON.stringify(key)}: {`,
+			...exactVersion(source, version)
+		});
+	}
+	return entries;
+}
+/** The project lockfile of a pnpm-lock.yaml and where it starts: the last document when a boot document comes first. */
+function pnpmGraph(text, documents) {
+	const marker = documents?.["bootMarker"];
+	if (typeof marker !== "string" || documents?.["graph"] !== "last" || text.split(/\r?\n/u, 1)[0] !== marker) return {
+		document: parseYaml(text),
+		start: 0
+	};
+	const all = parseYamlDocuments(text);
+	for (const document of all) if (document.errors.length > 0) throw document.errors[0];
+	const last = all.at(-1);
+	return {
+		document: last?.toJS(),
+		start: last?.range[0] ?? 0
+	};
+}
+function pnpmEntries(text, format, documents) {
+	const { document, start } = pnpmGraph(text, documents);
+	if (!isRecord(document)) return {
+		entries: [],
+		start
+	};
+	if (!String(document["lockfileVersion"]).startsWith("9")) throw new UnsupportedLockfile(`its lockfileVersion ${String(document["lockfileVersion"])} is not read; depcurfew reads 9.0`);
+	const hosts = strings(format["gitHostedTarballHosts"]);
+	const entries = [];
+	const packages = isRecord(document["packages"]) ? document["packages"] : {};
+	for (const [key, value] of Object.entries(packages)) {
+		const { name, spec } = splitSpec(key);
+		const resolution = isRecord(value) && isRecord(value["resolution"]) ? value["resolution"] : {};
+		const tarball = typeof resolution["tarball"] === "string" ? resolution["tarball"] : "";
+		let host = "";
+		try {
+			host = HTTP.test(tarball) ? new URL(tarball).hostname : HTTP.test(spec) ? new URL(spec).hostname : "";
+		} catch {
+			host = "";
+		}
+		let source = "registry";
+		if (spec.startsWith(String(format["gitKeyPrefix"])) || resolution["type"] === format["gitType"]) source = "git";
+		else if (resolution[String(format["gitHostedFlag"])] === true || host !== "" && hosts.includes(host)) source = "git";
+		else if (resolution["type"] === format["directoryType"]) source = "directory";
+		else if (spec.startsWith("file:")) source = "file";
+		else if (HTTP.test(spec)) source = "remoteTarball";
+		entries.push({
+			name,
+			spec,
+			source,
+			installScript: void 0,
+			anchor: key,
+			...exactVersion(source, spec.split("(", 1)[0])
+		});
+	}
+	const importers = isRecord(document["importers"]) ? document["importers"] : {};
+	for (const importer of Object.values(importers)) {
+		if (!isRecord(importer)) continue;
+		for (const group of [
+			"dependencies",
+			"devDependencies",
+			"optionalDependencies"
+		]) {
+			const dependencies = isRecord(importer[group]) ? importer[group] : {};
+			for (const [name, dependency] of Object.entries(dependencies)) {
+				if (!isRecord(dependency) || typeof dependency["version"] !== "string") continue;
+				const specifier = typeof dependency["specifier"] === "string" ? dependency["specifier"] : "";
+				if (dependency["version"].startsWith("link:") && !specifier.startsWith("workspace:")) entries.push({
+					name,
+					spec: specifier,
+					source: "directory",
+					installScript: void 0,
+					anchor: `specifier: ${specifier}`
+				});
+			}
+		}
+	}
+	return {
+		entries,
+		start
+	};
+}
+function yarnSource(locator, format) {
+	if (locator.startsWith(String(format["workspace"]))) return "workspace";
+	if (locator.startsWith(String(format["registry"]))) return "registry";
+	if (locator.startsWith(String(format["patch"]))) return yarnSource(splitSpec(decodeURIComponent(locator.slice(String(format["patch"]).length).split("#")[0] ?? "")).spec, format);
+	if (locator.startsWith(String(format["file"]))) {
+		const path = locator.slice(String(format["file"]).length).split("#")[0]?.split("::")[0] ?? "";
+		return new RegExp(String(format["tarball"]), "u").test(path) ? "file" : "directory";
+	}
+	if (strings(format["directory"]).some((prefix) => locator.startsWith(prefix))) return "directory";
+	if (locator.includes(String(format["gitCommit"])) || /^(git\+|git:|ssh:|git@|github:)/u.test(locator)) return "git";
+	if (HTTP.test(locator)) return "remoteTarball";
+	return "unknown";
+}
+function yarnEntries(text, format) {
+	const document = parseYaml(text);
+	if (!isRecord(document)) return [];
+	return Object.entries(document).filter(([key, value]) => key !== "__metadata" && isRecord(value) && typeof value["resolution"] === "string").map(([, value]) => {
+		const resolution = value["resolution"];
+		const { name, spec } = splitSpec(resolution);
+		const source = yarnSource(spec, format);
+		const version = value["version"];
+		return {
+			name,
+			spec,
+			source,
+			installScript: void 0,
+			anchor: `resolution: "${resolution}"`,
+			...exactVersion(source, typeof version === "string" ? version : void 0)
+		};
+	});
+}
+function bunEntries(text, format) {
+	const document = parseJsonc(text);
+	const packages = isRecord(document) && isRecord(document["packages"]) ? document["packages"] : {};
+	const tarball = new RegExp(String(format["tarball"]), "u");
+	const scriptsKey = String(format["installScripts"]);
+	const entries = [];
+	for (const [key, value] of Object.entries(packages)) {
+		if (!Array.isArray(value) || typeof value[0] !== "string") continue;
+		const { name, spec } = splitSpec(value[0]);
+		let source = "registry";
+		if (strings(format["git"]).some((prefix) => spec.startsWith(prefix))) source = "git";
+		else if (spec.startsWith(String(format["workspace"]))) source = "workspace";
+		else if (strings(format["directory"]).some((prefix) => spec.startsWith(prefix))) source = "directory";
+		else if (HTTP.test(spec)) source = "remoteTarball";
+		else if (/^(\.{1,2}\/|\/)/u.test(spec) && tarball.test(spec)) source = "file";
+		const info = value.find((item) => isRecord(item));
+		entries.push({
+			name,
+			spec,
+			source,
+			installScript: isRecord(info) && info[scriptsKey] === true,
+			anchor: `${JSON.stringify(key)}: [`,
+			...exactVersion(source, spec)
+		});
+	}
+	return entries;
+}
+function denoEntries(text, format) {
+	const document = JSON.parse(text);
+	if (!isRecord(document)) return {
+		entries: [],
+		recordsScripts: false
+	};
+	const recordsScripts = Number(document["version"]) >= Number(format["installScriptsSinceLockfile"]);
+	const npm = isRecord(document["npm"]) ? document["npm"] : {};
+	const scriptsKey = String(format["installScripts"]);
+	return {
+		entries: Object.entries(npm).map(([key, value]) => {
+			const { name, spec } = splitSpec(key);
+			const peers = typeof format["peerSeparator"] === "string" ? format["peerSeparator"] : void 0;
+			return {
+				name,
+				spec,
+				source: "registry",
+				installScript: recordsScripts ? isRecord(value) && value[scriptsKey] === true : void 0,
+				anchor: `${JSON.stringify(key)}: {`,
+				...exactVersion("registry", peers === void 0 ? spec : spec.split(peers, 1)[0])
+			};
+		}),
+		recordsScripts
+	};
+}
+/** A lockfile in a version or shape depcurfew does not read; the message says why. */
+var UnsupportedLockfile = class extends Error {};
+function documentsOf(tool) {
+	const fact = tool.extra?.["lockfileDocuments"];
+	const value = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord(value) ? value : void 0;
+}
+/** The package.json next to a lockfile, or undefined when it is missing or not JSON. */
+function readManifest(repository, lockfile) {
+	const text = repository.readText(posix.join(posix.dirname(lockfile), "package.json"));
+	if (text === void 0) return void 0;
+	try {
+		return JSON.parse(text);
+	} catch {
+		return;
+	}
+}
+function overridesFormatOf(tool) {
+	const fact = tool.extra?.["overrides"];
+	const value = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord(value) ? value : void 0;
+}
+const URL_LIKE = /^[a-z][a-z0-9+.-]+:/iu;
+/**
+* pip reads the files a requirements file includes with -r and -c too, relative to the including file, and their
+* global options apply to the whole install. For each requirements file of the trees under `roots`: every file of its
+* tree. An include that cannot be read (a URL, a missing file, a path outside the repository) is reported.
+*/
+function requirementsTrees(repository, roots, format) {
+	const trees = /* @__PURE__ */ new Map();
+	for (const root of roots) {
+		const tree = [];
+		const queue = [root];
+		while (queue.length > 0) {
+			const file = queue.shift();
+			if (tree.includes(file)) continue;
+			tree.push(file);
+			const text = repository.readText(file, MAX_LOCKFILE_SIZE);
+			if (text === void 0) continue;
+			const unreadable = [];
+			for (const { path, line } of requirementsIncludes(text, format)) {
+				const target = posix.normalize(posix.join(posix.dirname(file), path.replaceAll("\\", "/")));
+				const reason = URL_LIKE.test(path) ? "a URL" : isAbsoluteAnywhere(path) || target === ".." || target.startsWith("../") ? "outside the repository" : repository.isFile(target) ? void 0 : "missing";
+				if (reason === void 0) queue.push(target);
+				else unreadable.push(`${path} (line ${line}, ${reason})`);
+			}
+			if (unreadable.length > 0) repository.warn("unreadable-include", `cannot read the files that ${file} includes: ${listing$1(unreadable)}`, [file]);
+		}
+		for (const file of tree) trees.set(file, [.../* @__PURE__ */ new Set([...trees.get(file) ?? [], ...tree])]);
+	}
+	return trees;
+}
+/** A tool's extra.lockfileFormat. */
+function lockfileFormatOf(tool) {
+	const fact = tool?.extra?.["lockfileFormat"];
+	const format = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord(format) ? format : void 0;
+}
+/** pylock.toml and pylock.<name>.toml, which pip's knowledge names; detection gives one to the tool that wrote it. */
+function isPylock(pip, file) {
+	const lockfiles = pip?.project?.lockfiles;
+	const names = lockfiles === void 0 ? [] : values$1(lockfiles).flatMap((list) => list.flatMap((entry) => [...entry.value]));
+	const pattern = pip?.extra?.["lockfilePattern"] === void 0 ? void 0 : values$1(pip.extra["lockfilePattern"])[0];
+	return names.includes(file) || typeof pattern === "string" && new RegExp(pattern, "u").test(file);
+}
+/**
+* The 1-based line of every entry, found in one pass in the order of the entries (the order of the file) the first
+* time a line is asked for, so that two rules asking for different entries get the same lines.
+*/
+function entryLines(text, start, entries) {
+	let lines;
+	return (entry) => {
+		if (entry.line !== void 0) return entry.line;
+		if (lines === void 0) {
+			const find = lineFinder(text, start);
+			lines = new Map(entries.map((item) => [item, item.line ?? find(item.anchor)]));
+		}
+		return lines.has(entry) ? lines.get(entry) : lineFinder(text, start)(entry.anchor);
+	};
+}
+/** Lockfiles already read in a doctor run (one Repository): both lockfile rules read the same ones. */
+const READ = /* @__PURE__ */ new WeakMap();
+/** The lockfiles a package manager uses, each read and parsed once per Repository. */
+function readLockfiles(repository, manager, tool, workspaces, tools = []) {
+	let read = READ.get(repository);
+	if (read === void 0) {
+		read = /* @__PURE__ */ new Map();
+		READ.set(repository, read);
+	}
+	let results = read.get(manager);
+	if (results === void 0) {
+		results = parseLockfiles(repository, manager, tool, workspaces, tools);
+		read.set(manager, results);
+	}
+	return results;
+}
+/** A pnpm-lock.yaml or a Yarn Berry yarn.lock, which are parsed as YAML. */
+function isYamlLockfile(tool, file) {
+	return (tool.id === "pnpm" || tool.id === "yarn") && /\.ya?ml$|(?:^|\/)yarn\.lock$/u.test(file);
+}
+function parseLockfiles(repository, manager, tool, workspaces, tools) {
+	const format = lockfileFormatOf(tool);
+	if (format === void 0) return [];
+	const pip = tool.id === "pip" ? tool : tools.find((entry) => entry.id === "pip");
+	const pylockFormat = lockfileFormatOf(pip);
+	const lockfiles = manager.evidence.filter((item) => item.kind === "lockfile").map((item) => item.file);
+	const requirements = tool.id === "pip" ? requirementsTrees(repository, manager.configFiles, requirementsFormatOf(tool)) : /* @__PURE__ */ new Map();
+	return [.../* @__PURE__ */ new Set([...lockfiles, ...requirements.keys()])].map((file) => {
+		if (file.endsWith(".lockb")) return {
+			ok: false,
+			file,
+			reason: "it is a binary file in an undocumented format",
+			unreadable: false
+		};
+		const text = repository.readText(file, MAX_LOCKFILE_SIZE);
+		if (text === void 0) {
+			if (!repository.warnings.some((warning) => warning.files.includes(file))) repository.warn("invalid-file", `cannot read ${file}`, [file]);
+			return {
+				ok: false,
+				file,
+				reason: "it cannot be read",
+				unreadable: true
+			};
+		}
+		if (isYamlLockfile(tool, file) && Buffer.byteLength(text) > 16777216) {
+			const limit = MAX_YAML_LOCKFILE_SIZE / 1048576;
+			repository.warn("lockfile-too-large", `${file} is larger than ${limit} MiB, the limit for YAML lockfiles (parsing a larger one needs more memory than a CI runner gives Node.js), and was not read`, [file]);
+			return {
+				ok: false,
+				file,
+				reason: "it is too large",
+				unreadable: true
+			};
+		}
+		try {
+			let entries;
+			let recordsScripts = format["installScripts"] !== null;
+			let start = 0;
+			if (tool.id === "npm") entries = npmEntries(text, format, workspaces, readManifest(repository, file), overridesFormatOf(tool));
+			else if (tool.id === "pnpm") ({entries, start} = pnpmEntries(text, format, documentsOf(tool)));
+			else if (tool.id === "yarn") entries = yarnEntries(text, format);
+			else if (tool.id === "bun") entries = bunEntries(text, format);
+			else if (pylockFormat !== void 0 && lockfiles.includes(file) && isPylock(pip, file)) {
+				entries = pylockEntries(text, pylockFormat, workspaces);
+				recordsScripts = pylockFormat["installScripts"] !== null;
+			} else if (tool.id === "uv") entries = uvEntries(text, format, workspaces);
+			else if (tool.id === "poetry") entries = poetryEntries(text, format);
+			else if (tool.id === "pdm") entries = pdmEntries(text, format);
+			else if (tool.id === "pipenv") entries = pipfileLockEntries(text, format);
+			else if (tool.id === "pip") entries = requirementsEntries(text, requirementsFormatOf(tool));
+			else if (tool.id === "composer") entries = composerEntries(text, tool, declaredRepositories(repository, tool));
+			else ({entries, recordsScripts} = denoEntries(text, format));
+			const optionFiles = requirements.get(file);
+			return {
+				ok: true,
+				lockfile: {
+					file,
+					entries,
+					recordsScripts,
+					lineOf: entryLines(text, start, entries),
+					...optionFiles === void 0 ? {} : { optionFiles }
+				}
+			};
+		} catch (error) {
+			if (error instanceof UnsupportedLockfile) return {
+				ok: false,
+				file,
+				reason: error.message,
+				unreadable: false
+			};
+			const message = error instanceof Error ? error.message.split("\n")[0] ?? "" : String(error);
+			repository.warn("invalid-file", `cannot parse ${file}: ${message}`, [file]);
+			return {
+				ok: false,
+				file,
+				reason: `it cannot be parsed (${message})`,
+				unreadable: true
+			};
+		}
+	});
+}
+
 // src/doctor/allow-lists.ts
+/** The package of an entry as depcurfew.json writes it. */
+function policyName(entry) {
+	return entry.policyName ?? entry.package;
+}
 function read(repository, file) {
 	return repository.readText(file);
 }
@@ -18926,12 +19704,33 @@ function listEntries(repository, manager, configFiles, options, allowed) {
 		case "bun":
 			if (allowed && manifest !== void 0) entries.push(...fromList(manifest, "package.json", "trustedDependencies", json(["trustedDependencies"]), "", jsonLine(manifest, "package.json", ["trustedDependencies"])));
 			break;
-		case "deno": for (const file of configFiles.filter((name) => /^deno\.jsonc?$/u.test(name))) {
-			const text = read(repository, file);
-			if (text === void 0) continue;
-			const value = jsonSetting(text, ["allowScripts"])?.value;
-			if (allowed) entries.push(...fromList(text, file, "allowScripts", isRecord(value) ? value["allow"] : value, "npm:", jsonLine(text, file, isRecord(value) ? ["allowScripts", "allow"] : ["allowScripts"])));
-			else if (isRecord(value)) entries.push(...fromList(text, file, "allowScripts.deny", value["deny"], "npm:", jsonLine(text, file, ["allowScripts", "deny"])));
+		case "deno":
+			for (const file of configFiles.filter((name) => /^deno\.jsonc?$/u.test(name))) {
+				const text = read(repository, file);
+				if (text === void 0) continue;
+				const value = jsonSetting(text, ["allowScripts"])?.value;
+				if (allowed) entries.push(...fromList(text, file, "allowScripts", isRecord(value) ? value["allow"] : value, "npm:", jsonLine(text, file, isRecord(value) ? ["allowScripts", "allow"] : ["allowScripts"])));
+				else if (isRecord(value)) entries.push(...fromList(text, file, "allowScripts.deny", value["deny"], "npm:", jsonLine(text, file, ["allowScripts", "deny"])));
+			}
+			break;
+		case "composer": {
+			const text = read(repository, "composer.json");
+			if (text === void 0) break;
+			const found = jsonSetting(text, ["config", "allow-plugins"]);
+			const keys = [];
+			if (found?.value === true && allowed) keys.push({
+				name: "*",
+				package: "*",
+				file: "composer.json",
+				line: found.line,
+				setting: "allow-plugins"
+			});
+			keys.push(...fromKeys(text, "composer.json", "allow-plugins", found?.value, (entry) => entry === true === allowed, jsonLine(text, "composer.json", ["config", "allow-plugins"])));
+			entries.push(...keys.map((entry) => ({
+				...entry,
+				policyName: `${COMPOSER_PREFIX}${entry.package}`
+			})));
+			break;
 		}
 	}
 	return entries;
@@ -18992,11 +19791,11 @@ function denyConflictText(conflict, line = false) {
 	const where = `${entry.setting} in ${entry.file}${line && entry.line !== void 0 ? ` (line ${entry.line})` : ""}`;
 	if (conflict.kind === "denied") return {
 		message: `${where} lets ${entry.name} run its install scripts, although installScripts.deny in ${POLICY_FILE} says they must not run`,
-		fix: `Remove ${entry.name} from ${entry.setting} in ${entry.file}, or move ${entry.package} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing its scripts`
+		fix: `Remove ${entry.name} from ${entry.setting} in ${entry.file}, or move ${policyName(entry)} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing its scripts`
 	};
 	return {
 		message: `${where} blocks the install scripts of ${entry.name}, but installScripts.allow in ${POLICY_FILE} allows them`,
-		fix: `Remove ${entry.name} from ${entry.setting} in ${entry.file}, or move ${entry.package} from installScripts.allow to installScripts.deny in ${POLICY_FILE} if it works without its scripts`
+		fix: `Remove ${entry.name} from ${entry.setting} in ${entry.file}, or move ${policyName(entry)} from installScripts.allow to installScripts.deny in ${POLICY_FILE} if it works without its scripts`
 	};
 }
 /** Whether a package name matches a policy pattern; `*` stands for any characters except `/`. */
@@ -19288,6 +20087,10 @@ const SYNTAX = {
 		}
 		return total;
 	},
+	"unit-word": (text) => {
+		const match = /^(\d+)\s*(second|minute|hour|day|week)s?$/u.exec(text);
+		return match === null ? void 0 : Number(match[1]) * (MINUTES$2[match[2] ?? ""] ?? NaN);
+	},
 	"words-or-iso8601": (text) => SYNTAX["iso8601"]?.(text) ?? SYNTAX["words"]?.(text),
 	iso8601: (text) => {
 		const match = /^P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/u.exec(text);
@@ -19296,6 +20099,12 @@ const SYNTAX = {
 		return (weeks ?? 0) * 10080 + (days ?? 0) * 1440 + (hours ?? 0) * 60 + (minutes ?? 0) + (seconds ?? 0) / 60;
 	}
 };
+/** The unit of a plain number where the tool's unit is a duration string (extra.durationStrings.numbers). */
+function numberUnit(tool) {
+	const fact = tool.extra?.["durationStrings"];
+	const format = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord(format) && typeof format["numbers"] === "string" ? format["numbers"] : void 0;
+}
 /** A delay as written for `tool` at `version` (undefined: the latest version). null and 0 mean no delay. */
 function delayMinutes(tool, value, version) {
 	if (value === null || value === void 0 || value === false) return {
@@ -19312,7 +20121,8 @@ function delayMinutes(tool, value, version) {
 	};
 	if (typeof value === "number") {
 		const unit = values$1(tool.cooldown.unit)[0];
-		const factor = unit === null || unit === void 0 ? void 0 : UNIT_MINUTES[unit];
+		const numbers = unit === "duration-string" ? numberUnit(tool) : void 0;
+		const factor = numbers !== void 0 ? UNIT_MINUTES[numbers] : unit === null || unit === void 0 ? void 0 : UNIT_MINUTES[unit];
 		return factor === void 0 ? {
 			ok: false,
 			reason: `${tool.name} takes no number here`
@@ -20191,7 +21001,7 @@ const SOURCE_LABEL = {
 	"github-actions": "GitHub Actions",
 	dockerfile: "Dockerfile"
 };
-const RULE$2 = "manager-version-too-old";
+const RULE$3 = "manager-version-too-old";
 /** Where developers choose their Node.js; anyone can install another npm, so these give warnings. */
 const DEVELOPER_SOURCES = /* @__PURE__ */ new Set([
 	"nvmrc",
@@ -20863,7 +21673,7 @@ function installOn(place, version, facts) {
 	const note = `npm ${text} runs on Node.js ${engines.range} only`;
 	return install.endsWith(")") ? `${install.slice(0, -1)}; ${note})` : `${install} (${note})`;
 }
-function report$1(context, helpers, check, place, resolution, facts) {
+function report(context, helpers, check, place, resolution, facts) {
 	const name = check.tool.name;
 	const low = resolution.bundled[0];
 	const high = newest(resolution.bundled);
@@ -20915,7 +21725,7 @@ function report$1(context, helpers, check, place, resolution, facts) {
 	});
 }
 function unknown(context, subject, reason, file) {
-	context.notice(`${RULE$2} cannot tell which npm or pip comes with ${subject}: ${reason}`, file);
+	context.notice(`${RULE$3} cannot tell which npm or pip comes with ${subject}: ${reason}`, file);
 }
 /**
 * The npm an npm install -g npm@X puts in place, checked against the settings of the directory its installs run in, as
@@ -20929,7 +21739,7 @@ function checkUpgrade(context, helpers, check, place, facts) {
 	const where = place.label === place.file ? place.label : `${place.label} (${place.file})`;
 	const lowest = lowestVersion(spec);
 	if (lowest.kind === "unknown") {
-		context.notice(`${RULE$2} cannot evaluate ${name} version "${spec}" in ${place.file}`, place.file);
+		context.notice(`${RULE$3} cannot evaluate ${name} version "${spec}" in ${place.file}`, place.file);
 		return;
 	}
 	const missing = helpers.missing(placeFeatures(check.features, place.of), (since) => belowVersion(lowest, since));
@@ -20995,7 +21805,7 @@ function checkJobs(context, helpers, checkFor, facts) {
 			unknown(context, subject, resolution.reason, declaration.file);
 			continue;
 		}
-		report$1(context, helpers, check, {
+		report(context, helpers, check, {
 			subject,
 			file: declaration.file,
 			...declaration.line === void 0 ? {} : { line: declaration.line },
@@ -21056,7 +21866,7 @@ function checkDockerfiles(context, helpers, checkFor, tool, facts) {
 					file: file.file,
 					line: root.line
 				},
-				message: `${RULE$2} cannot tell which ${tool} comes with ${subject}: ${runtime.unknown ?? "the tag names no version"}`,
+				message: `${RULE$3} cannot tell which ${tool} comes with ${subject}: ${runtime.unknown ?? "the tag names no version"}`,
 				fix: `Use a ${runtimeTool} image tag that names the ${runtimeName} version (such as ${runtimeTool}:${runtimeTool === "node" ? "24-alpine" : "3.13-slim"}, with the digest after it: ${runtimeTool}:<tag>@sha256:…), or check by hand that the ${tool} of that image supports ${list}`
 			});
 			continue;
@@ -21067,7 +21877,7 @@ function checkDockerfiles(context, helpers, checkFor, tool, facts) {
 			continue;
 		}
 		const replace = tool === "npm" ? (target) => `npm install -g npm@${target}` : (target) => `pip install pip==${target}`;
-		report$1(context, helpers, check, {
+		report(context, helpers, check, {
 			subject,
 			file: file.file,
 			line: root.line,
@@ -21097,7 +21907,7 @@ function checkDeveloperFiles(context, helpers, check, declarations, facts, proje
 			continue;
 		}
 		const line = helpers.line(declaration);
-		report$1(context, helpers, check, {
+		report(context, helpers, check, {
 			subject,
 			file: declaration.file,
 			...line === void 0 ? {} : { line },
@@ -21247,6 +22057,7 @@ const TOOL_IDS = [
 	"poetry",
 	"pdm",
 	"pipenv",
+	"composer",
 	"renovate",
 	"dependabot"
 ];
@@ -21447,11 +22258,51 @@ function checkManager(context, manager, tool, features) {
 		});
 	}
 }
+/**
+* Composer has no setting that pins its version in the project, so the repository says nothing about the Composer that
+* runs it but composer.lock: plugin-api-version, the plugin API of the Composer that wrote it, which is 2.11.0 from
+* Composer 2.11.0 on (extra.pluginApiVersion). A lower one was written by an older Composer, which ignores the cooldown
+* without a word (a warning); otherwise the version is not known, and a note says what the cooldown needs.
+*/
+function checkComposer(context, manager, tool, features) {
+	const fact = extraOf(tool, "pluginApiVersion", (value) => isRecord(value) && typeof value["cooldownApi"] === "string");
+	const api = parseVersion(fact.cooldownApi);
+	const missing = features.filter((item) => compareVersions$1(parseVersion(item.since), api) >= 0);
+	if (missing.length === 0) return;
+	const list = describeRequirements(missing);
+	const needed = formatVersion(missing.map((item) => parseVersion(item.since)).reduce((a, b) => compareVersions$1(a, b) >= 0 ? a : b));
+	const lockfile = manager.evidence.find((entry) => entry.kind === "lockfile")?.file;
+	const locked = lockfile === void 0 ? void 0 : lockedPluginApi(context.repository, tool, lockfile);
+	const version = locked === void 0 ? void 0 : parseVersion(locked.version);
+	if (locked !== void 0 && version !== void 0 && compareVersions$1(version, api) < 0) {
+		context.report({
+			level: "warning",
+			location: locked.line === void 0 ? { file: locked.file } : {
+				file: locked.file,
+				line: locked.line
+			},
+			message: `${locked.file} was written by a ${tool.name} older than ${needed} (${fact.key} ${locked.version}), which does not support ${list}, so ${tool.name} applies no cooldown where that version runs`,
+			fix: `Update ${tool.name} to ${needed} or later wherever the project is installed (composer self-update), then run composer update --lock and commit ${locked.file}`
+		});
+		return;
+	}
+	const setting = missing[0]?.setting;
+	const found = setting === void 0 ? void 0 : readSetting(context.repository, COMPOSER_MANIFEST, setting);
+	context.report({
+		level: "note",
+		location: found === void 0 ? { file: COMPOSER_MANIFEST } : {
+			file: COMPOSER_MANIFEST,
+			line: found.line
+		},
+		message: `depcurfew cannot tell which ${tool.name} runs this project (${tool.name} has no setting that pins its version${locked === void 0 ? "" : `; ${locked.file} was written by ${tool.name} ${fact.cooldownApi} or later`}), and ${tool.name} older than ${needed} ignores ${list} without a word`,
+		fix: `Use ${tool.name} ${needed} or later wherever composer update or composer require runs (composer self-update), CI and Dockerfiles included`
+	});
+}
 const managerVersionTooOld = {
 	id: "manager-version-too-old",
 	checks: "The declared package manager versions, and the npm and pip that come with the declared Node.js and Python versions, support the settings the repository relies on",
 	summary: "A declared package manager version, or the npm or pip that comes with a declared Node.js or Python version, is older than a setting the repository relies on.",
-	description: "Package managers ignore settings they do not know yet; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, a CI step or a Dockerfile pins an older version, the setting is silently not applied there. The same holds for the npm that comes with the Node.js a CI job, a Dockerfile stage or a version file (.nvmrc, .node-version) chooses, and for the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age.",
+	description: "Package managers ignore settings they do not know yet; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, a CI step or a Dockerfile pins an older version, the setting is silently not applied there. The same holds for the npm that comes with the Node.js a CI job, a Dockerfile stage or a version file (.nvmrc, .node-version) chooses, and for the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age. Composer cannot pin its own version: a composer.lock whose plugin-api-version shows that a Composer older than 2.11 wrote it gives a warning, and otherwise a note says that the cooldown needs Composer 2.11.",
 	help: "Raise the declared version to at least the version that introduced the setting, everywhere it is declared, or install a newer npm or pip before installing packages.",
 	level: "error",
 	requiresPolicy: false,
@@ -21459,7 +22310,9 @@ const managerVersionTooOld = {
 	check(context) {
 		for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
 			const tool = context.tools.find((entry) => entry.id === manager.id);
-			if (tool !== void 0) checkManager(context, manager, tool, featuresOf(context, tool));
+			if (tool === void 0) continue;
+			if (tool.id === "composer") checkComposer(context, manager, tool, featuresOf(context, tool));
+			else checkManager(context, manager, tool, featuresOf(context, tool));
 		}
 		checkBundledVersions(context, {
 			features: (tool, where) => featuresOf(where, tool),
@@ -21856,290 +22709,8 @@ function isInsideProject(outer, inner) {
 	return inner.startsWith(`${outer}/`);
 }
 
-// src/policy/shape.ts
-const IDENTIFIER = /^[A-Za-z_$][\w$]*$/u;
-function formatPath(path) {
-	let text = "";
-	for (const segment of path) if (typeof segment === "number") text += `[${segment}]`;
-	else if (IDENTIFIER.test(segment)) text += text === "" ? segment : `.${segment}`;
-	else text += `[${JSON.stringify(segment)}]`;
-	return text === "" ? "(root)" : text;
-}
-function jsonTypeOf(value) {
-	if (value === null) return "null";
-	if (Array.isArray(value)) return "array";
-	const type = typeof value;
-	return type === "object" || type === "string" || type === "number" || type === "boolean" ? type : "null";
-}
-/** Shows what was found: scalars as JSON, compound values by kind. */
-function describeValue(value) {
-	switch (jsonTypeOf(value)) {
-		case "array": return "a list";
-		case "object": return "an object";
-		default: return JSON.stringify(value) ?? String(value);
-	}
-}
-/** Optimal string alignment distance: insertions, deletions, substitutions and adjacent transpositions. */
-function editDistance(a, b) {
-	const rows = Array.from({ length: a.length + 1 }, (_, i) => Array.from({ length: b.length + 1 }, (_, j) => i === 0 ? j : j === 0 ? i : 0));
-	const at = (i, j) => rows[i]?.[j] ?? Number.POSITIVE_INFINITY;
-	for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
-		const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-		let best = Math.min(at(i - 1, j) + 1, at(i, j - 1) + 1, at(i - 1, j - 1) + cost);
-		if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) best = Math.min(best, at(i - 2, j - 2) + 1);
-		rows[i][j] = best;
-	}
-	return at(a.length, b.length);
-}
-/** The closest candidate to a mistyped name, if one is close enough to be a likely typo. */
-function suggest(input, candidates) {
-	const normalize = (text) => text.toLowerCase().replace(/[-_\s]/gu, "");
-	const wanted = normalize(input);
-	const exact = candidates.find((candidate) => normalize(candidate) === wanted);
-	if (exact !== void 0) return exact;
-	const prefix = candidates.find((candidate) => {
-		const name = normalize(candidate);
-		return Math.min(name.length, wanted.length) >= 3 && (name.startsWith(wanted) || wanted.startsWith(name));
-	});
-	if (prefix !== void 0) return prefix;
-	let best;
-	let bestDistance = Number.POSITIVE_INFINITY;
-	for (const candidate of candidates) {
-		const distance = editDistance(wanted, normalize(candidate));
-		if (distance <= Math.max(1, Math.floor(candidate.length / 3)) && distance < bestDistance) {
-			best = candidate;
-			bestDistance = distance;
-		}
-	}
-	return best;
-}
-function didYouMean(value, candidates) {
-	if (typeof value !== "string" || candidates === void 0) return "";
-	const match = suggest(value, candidates);
-	return match === void 0 ? "" : `; did you mean ${JSON.stringify(match)}?`;
-}
-function report(issues, path, message) {
-	issues.push({
-		path: formatPath(path),
-		message
-	});
-	return { ok: false };
-}
-function mismatch(issues, path, label, value, candidates) {
-	return report(issues, path, `must be ${label}, got ${describeValue(value)}${didYouMean(value, candidates)}`);
-}
-function withDescription(schema, description) {
-	return description === void 0 ? schema : {
-		description,
-		...schema
-	};
-}
-function literal(value, options = {}) {
-	const label = JSON.stringify(value);
-	return {
-		label,
-		jsonTypes: [typeof value === "string" ? "string" : "number"],
-		...typeof value === "string" ? { suggestions: [value] } : {},
-		parse: (input, path, issues) => input === value ? {
-			ok: true,
-			value
-		} : mismatch(issues, path, label, input, typeof value === "string" ? [value] : void 0),
-		toJsonSchema: () => {
-			return withDescription({
-				type: typeof value === "string" ? "string" : Number.isInteger(value) ? "integer" : "number",
-				const: value
-			}, options.description);
-		}
-	};
-}
-function oneOfStrings(values, options = {}) {
-	const label = `one of ${values.map((value) => JSON.stringify(value)).join(", ")}`;
-	return {
-		label,
-		jsonTypes: ["string"],
-		suggestions: values,
-		parse: (input, path, issues) => typeof input === "string" && values.includes(input) ? {
-			ok: true,
-			value: input
-		} : mismatch(issues, path, label, input, values),
-		toJsonSchema: () => withDescription({
-			type: "string",
-			enum: values
-		}, options.description)
-	};
-}
-/** A string with its own syntax; the JSON Schema `pattern` must accept exactly the canonical form. */
-function text(options) {
-	return {
-		label: options.label,
-		jsonTypes: ["string"],
-		parse(input, path, issues) {
-			if (typeof input !== "string") return mismatch(issues, path, options.label, input);
-			const result = options.parse(input);
-			return result.ok ? result : report(issues, path, `${options.kind} ${JSON.stringify(input)}: ${result.message}`);
-		},
-		toJsonSchema: () => withDescription({
-			type: "string",
-			pattern: options.pattern,
-			...options.examples === void 0 ? {} : { examples: options.examples }
-		}, options.description)
-	};
-}
-function anyString(options = {}) {
-	return {
-		label: "a string",
-		jsonTypes: ["string"],
-		parse: (input, path, issues) => typeof input === "string" ? {
-			ok: true,
-			value: input
-		} : mismatch(issues, path, "a string", input),
-		toJsonSchema: () => withDescription({ type: "string" }, options.description)
-	};
-}
-function list(item, options = {}) {
-	const label = options.label ?? "a list";
-	return {
-		label,
-		jsonTypes: ["array"],
-		parse(input, path, issues) {
-			if (!Array.isArray(input)) return mismatch(issues, path, label, input);
-			if (options.nonEmpty !== void 0 && input.length === 0) return report(issues, path, `must not be an empty list; ${options.nonEmpty}`);
-			const values = [];
-			const firstIndex = /* @__PURE__ */ new Map();
-			let ok = true;
-			input.forEach((element, index) => {
-				const result = item.parse(element, [...path, index], issues);
-				if (!result.ok) {
-					ok = false;
-					return;
-				}
-				if (options.unique === true) {
-					const key = JSON.stringify(element);
-					const first = firstIndex.get(key);
-					if (first !== void 0) {
-						ok = false;
-						report(issues, [...path, index], `duplicate entry ${describeValue(element)} (first at index ${first})`);
-						return;
-					}
-					firstIndex.set(key, index);
-				}
-				values.push(result.value);
-			});
-			return ok ? {
-				ok: true,
-				value: values
-			} : { ok: false };
-		},
-		toJsonSchema: () => withDescription({
-			type: "array",
-			items: item.toJsonSchema(),
-			...options.unique === true ? { uniqueItems: true } : {},
-			...options.nonEmpty === void 0 ? {} : { minItems: 1 }
-		}, options.description)
-	};
-}
-/** Alternatives told apart by JSON type, e.g. `"auto"` or a list of tools. */
-function anyOf(shapes, options = {}) {
-	const types = shapes.flatMap((shape) => shape.jsonTypes);
-	if (new Set(types).size !== types.length) throw new Error("anyOf alternatives must accept different JSON types");
-	const label = shapes.map((shape) => shape.label).join(" or ");
-	const suggestions = shapes.flatMap((shape) => shape.suggestions ?? []);
-	return {
-		label,
-		jsonTypes: types,
-		suggestions,
-		parse(input, path, issues) {
-			const shape = shapes.find((candidate) => candidate.jsonTypes.includes(jsonTypeOf(input)));
-			if (shape === void 0) return mismatch(issues, path, label, input, suggestions);
-			const own = [];
-			const result = shape.parse(input, path, own);
-			if (own.some((issue) => issue.path === formatPath(path) && issue.message.startsWith("must be "))) return mismatch(issues, path, label, input, suggestions);
-			issues.push(...own);
-			return result;
-		},
-		toJsonSchema: () => withDescription({ anyOf: shapes.map((shape) => shape.toJsonSchema()) }, options.description)
-	};
-}
-function required(shape) {
-	return {
-		kind: "required",
-		shape
-	};
-}
-/** Absent fields stay absent in the output. */
-function optional(shape) {
-	return {
-		kind: "optional",
-		shape
-	};
-}
-/** Absent fields get the default, parsed like a written value. */
-function withDefault(shape, value) {
-	return {
-		kind: "default",
-		shape,
-		default: value
-	};
-}
-function isPlainObject(value) {
-	return jsonTypeOf(value) === "object";
-}
-/** An object with known fields only; unknown fields are reported, with a suggestion when one looks like a typo. */
-function object(fields, options = {}) {
-	const names = Object.keys(fields);
-	return {
-		label: "an object",
-		jsonTypes: ["object"],
-		parse(input, path, issues) {
-			if (!isPlainObject(input)) return mismatch(issues, path, "an object", input);
-			let ok = true;
-			for (const key of Object.keys(input)) if (!Object.hasOwn(fields, key)) {
-				ok = false;
-				report(issues, path, `unknown field ${JSON.stringify(key)}${didYouMean(key, names)}`);
-			}
-			const output = {};
-			for (const [key, field] of Object.entries(fields)) {
-				if (!Object.hasOwn(input, key)) {
-					if (field.kind === "required") {
-						ok = false;
-						report(issues, path, `missing required field ${JSON.stringify(key)}`);
-					} else if (field.kind === "default") {
-						const result = field.shape.parse(field.default, [...path, key], issues);
-						if (result.ok) output[key] = result.value;
-					}
-					continue;
-				}
-				const result = field.shape.parse(input[key], [...path, key], issues);
-				if (result.ok) output[key] = result.value;
-				else ok = false;
-			}
-			return ok ? {
-				ok: true,
-				value: output
-			} : { ok: false };
-		},
-		toJsonSchema() {
-			const properties = {};
-			const requiredNames = [];
-			for (const [key, field] of Object.entries(fields)) {
-				properties[key] = field.kind === "default" ? {
-					...field.shape.toJsonSchema(),
-					default: field.default
-				} : field.shape.toJsonSchema();
-				if (field.kind === "required") requiredNames.push(key);
-			}
-			return withDescription({
-				type: "object",
-				properties,
-				...requiredNames.length > 0 ? { required: requiredNames } : {},
-				additionalProperties: false
-			}, options.description);
-		}
-	};
-}
-
 // src/policy/schema.ts
-const duration = text({
+const duration = text$1({
 	label: "a duration such as \"3d\"",
 	kind: "invalid duration",
 	pattern: DURATION_PATTERN,
@@ -22157,11 +22728,11 @@ const duration = text({
 		} : result;
 	}
 });
-const packagePatterns = (description) => list(text({
+const packagePatterns = (description) => list$1(text$1({
 	label: "a package name or pattern",
 	kind: "invalid package pattern",
 	pattern: PACKAGE_PATTERN,
-	description: "An npm package name such as \"esbuild\" or \"@scope/name\", or a pattern with *, such as \"@scope/*\". Python packages take the prefix pypi:, e.g. \"pypi:requests\" or \"pypi:acme-*\". No versions.",
+	description: "An npm package name such as \"esbuild\" or \"@scope/name\", or a pattern with *, such as \"@scope/*\". Python packages take the prefix pypi:, e.g. \"pypi:requests\" or \"pypi:acme-*\", and Composer packages the prefix composer:, e.g. \"composer:monolog/monolog\" or \"composer:acme/*\". No versions.",
 	parse: (input) => {
 		const message = validatePackagePattern(input);
 		return message === void 0 ? {
@@ -22183,23 +22754,23 @@ const cooldownShape = object({
 	securityUpdates: withDefault(oneOfStrings(["bypass", "delay"], { description: "Whether security updates skip the delay (\"bypass\") or wait like other updates (\"delay\"), where the tool can tell them apart." }), "bypass")
 }, { description: "Release-age delay (cooldown): freshly published versions wait before they are used." });
 const installScriptsShape = object({
-	default: required(access("Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default; for Python, whether packages may be built from source.")),
-	allow: withDefault(packagePatterns("Packages whose lifecycle scripts may run when the default is \"deny\"; Python packages listed here are always built from source."), []),
-	deny: withDefault(packagePatterns("Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example \"fsevents\", which ships a prebuilt binary. depcurfew init fills it with the packages of the lockfile whose scripts depcurfew knows to be unneeded (esbuild, fsevents) or to do only a task of the project (lefthook). A package cannot be in both lists, also not through two patterns that match the same name. Python packages listed here must not be built from source: doctor reports a tool that would still build one."), [])
-}, { description: "Code that dependencies run when they are installed: lifecycle scripts in npm, building from source in Python." });
+	default: required(access("Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default; for Python, whether packages may be built from source; for Composer, whether plugins may run.")),
+	allow: withDefault(packagePatterns("Packages whose lifecycle scripts may run when the default is \"deny\"; Python packages listed here are always built from source; Composer packages listed here are the plugins allow-plugins lets run."), []),
+	deny: withDefault(packagePatterns("Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example \"fsevents\", which ships a prebuilt binary. depcurfew init fills it with the packages of the lockfile whose scripts depcurfew knows to be unneeded (esbuild, fsevents) or to do only a task of the project (lefthook). A package cannot be in both lists, also not through two patterns that match the same name. Python packages listed here must not be built from source: doctor reports a tool that would still build one. Composer packages listed here are plugins that allow-plugins disallows."), [])
+}, { description: "Code that dependencies run when they are installed: lifecycle scripts in npm, building from source in Python, plugins in Composer." });
 const sourcesShape = object({
 	git: optional(access("Dependencies installed from git repositories.")),
 	remoteTarball: optional(access("Dependencies installed from tarball URLs outside the registry.")),
 	file: optional(access("Dependencies installed from local tarball files.")),
 	directory: optional(access("Dependencies installed from local directories."))
 }, { description: "Where dependencies may come from besides the registry. An absent field is not managed." });
-const targetsShape = anyOf([literal("auto", { description: "Configure the tools detected in the repository." }), list(oneOfStrings(TOOL_IDS, { description: "A tool depcurfew can configure." }), {
+const targetsShape = anyOf([literal("auto", { description: "Configure the tools detected in the repository." }), list$1(oneOfStrings(TOOL_IDS, { description: "A tool depcurfew can configure." }), {
 	label: "a list of tools",
 	unique: true,
 	nonEmpty: "use \"auto\" to detect tools",
 	description: "Configure exactly these tools."
 })], { description: "Tools to configure: \"auto\" detects them in the repository, or list them explicitly." });
-const projectsShape = list(text({
+const projectsShape = list$1(text$1({
 	label: "a directory path such as \"frontend\"",
 	kind: "invalid project directory",
 	pattern: PROJECT_DIRECTORY_PATTERN,
@@ -22231,7 +22802,7 @@ const policyShape = object({
 	targets: withDefault(targetsShape, "auto"),
 	projects: withDefault(projectsShape, []),
 	doctor: optional(doctorShape)
-}, { description: "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Renovate and Dependabot." });
+}, { description: "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Composer, Renovate and Dependabot." });
 
 // src/policy/validate.ts
 /** Parses one section on its own, so rules spanning several fields still run when another part of the file is invalid. */
@@ -22440,6 +23011,12 @@ const SOURCE_LABELS = {
 		remoteTarball: "URL",
 		file: "local archive",
 		directory: "local directory"
+	},
+	packagist: {
+		git: "VCS repository",
+		remoteTarball: "package repository",
+		file: "artifact repository",
+		directory: "path repository"
 	}
 };
 /** The cooldown in the tool's unit, or undefined (with a warning) when it cannot be written. */
@@ -22665,8 +23242,8 @@ const dependabot = (context, duration, repository) => {
 	const updates = yaml.get(["updates"]);
 	const patternsOf = (ecosystem) => {
 		const covered = Array.isArray(managers[ecosystem]) ? managers[ecosystem] : [];
-		const python = context.tools.some((entry) => covered.includes(entry.id) && ecosystemOfTool(entry) === "pypi");
-		return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], python ? "pypi" : "npm")) ?? [];
+		const tool = context.tools.find((entry) => covered.includes(entry.id));
+		return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], tool === void 0 ? "npm" : ecosystemOfTool(tool))) ?? [];
 	};
 	let configured = 0;
 	let configuredActions = 0;
@@ -23738,6 +24315,165 @@ const bun = (context) => {
 	}
 	eachSource(context, () => void 0);
 	if (entries.length > 0 || hasManagedLines(context.read(file))) context.toml(file, table, entries, managed);
+	return minutes;
+};
+
+// src/apply/generators/composer.ts
+const isContentHash = (value) => isRecord(value) && typeof value["file"] === "string" && Array.isArray(value["settings"]) && typeof value["command"] === "string" && typeof value["since"] === "string";
+/** The reason apply writes for a name it adds to an ignore object, whose values are reasons. */
+const IGNORE_REASON = `cooldown.exclude in ${POLICY_FILE}`;
+/** The value at `path`, and the first part of it that holds something other than an object (where apply cannot write below). */
+function blocking(json, path) {
+	for (let length = 1; length < path.length; length++) {
+		const at = path.slice(0, length);
+		const value = json.get(at);
+		if (value !== void 0 && !isRecord(value)) return {
+			at,
+			value
+		};
+	}
+}
+function cannotWrite(context, file, path, value, what) {
+	context.warn({
+		code: "unexpected-value",
+		location: { file },
+		message: `${context.name}: ${path.join(".")} in ${file} is ${JSON.stringify(value)}, not an object, so depcurfew apply does not write ${what} below it`,
+		fix: value === false ? `${path.join(".")}: false turns that part of the policy off; remove it from ${file} (depcurfew doctor reports it), then run depcurfew apply again` : `Write ${path.join(".")} in ${file} as an object, such as {}, then run depcurfew apply again`
+	});
+}
+function writeCooldown(context, json, file) {
+	const { tool } = context;
+	const setting = settingOf(tool.cooldown.setting) ?? "config.policy.cooldown.period";
+	const path = setting.split(".");
+	const cooldown = cooldownValue(context);
+	if (cooldown === void 0) return void 0;
+	const blocked = blocking(json, path);
+	if (blocked !== void 0) {
+		cannotWrite(context, file, blocked.at, blocked.value, setting);
+		return;
+	}
+	json.set(path, cooldown.value);
+	const excludeSetting = settingOf(tool.cooldown.exclude.setting);
+	const patterns = exclusions(context);
+	if (excludeSetting === null || patterns === void 0 || patterns.length === 0) return cooldown.minutes;
+	const ignorePath = excludeSetting.split(".");
+	const current = json.get(ignorePath);
+	if (current === void 0) json.set(ignorePath, patterns);
+	else if (Array.isArray(current)) {
+		for (const pattern of patterns) if (!current.includes(pattern)) json.append(ignorePath, pattern);
+	} else if (isRecord(current)) {
+		for (const pattern of patterns) if (!Object.hasOwn(current, pattern)) json.set([...ignorePath, pattern], IGNORE_REASON);
+	} else context.warn({
+		code: "unexpected-value",
+		location: { file },
+		message: `${context.name}: ${excludeSetting} in ${file} is ${JSON.stringify(current)}, neither a list nor an object, so depcurfew apply does not add ${listing$1(patterns)} to it`,
+		fix: `Write ${excludeSetting} in ${file} as a list of package names, such as ${JSON.stringify(patterns)}, then run depcurfew apply again`
+	});
+	return cooldown.minutes;
+}
+/**
+* installScripts for Composer is about plugins, the dependency code Composer runs: "deny" lists the allowed ones in
+* allow-plugins (true) and the denied ones (false, which also stops Composer from asking); "allow" sets allow-plugins
+* to true where nothing is set. Patterns are written as they are, because Composer takes them.
+*/
+function writePlugins(context, json, file) {
+	const { tool, policy } = context;
+	const scripts = policy.installScripts;
+	if (scripts === void 0) return;
+	const setting = settingOf(tool.installScripts.allowList.setting) ?? "config.allow-plugins";
+	if (!context.supports(sinceOf(tool.installScripts.allowList.availableSince), setting)) return;
+	const path = setting.split(".");
+	const blocked = blocking(json, path);
+	if (blocked !== void 0) {
+		cannotWrite(context, file, blocked.at, blocked.value, setting);
+		return;
+	}
+	const current = json.get(path);
+	if (scripts.default === "allow") {
+		if (current === void 0) json.set(path, true);
+		if (current === void 0 || current === true) context.writes("installScripts", setting, file);
+		return;
+	}
+	const allowed = scripts.allow;
+	const denied = scripts.deny;
+	if (current === false) {
+		if (allowed.length > 0) context.warn({
+			code: "deny-conflicts-with-file",
+			location: { file },
+			message: `${context.name}: ${setting} in ${file} is false, which blocks every plugin, also ${listing$1(allowed.map((name) => `${COMPOSER_PREFIX}${name}`))} that installScripts.allow in ${POLICY_FILE} allows; depcurfew apply does not change entries it did not write`,
+			fix: `Replace false with an object that lists the plugins to allow, or remove them from installScripts.allow in ${POLICY_FILE}`
+		});
+		return;
+	}
+	if (current === true) context.warn({
+		code: "allow-all-replaced",
+		location: { file },
+		message: `${context.name}: ${setting} in ${file} allowed every plugin; replaced with the plugins installScripts.allow lists`,
+		fix: `Add the plugins that must run to installScripts.allow in ${POLICY_FILE} (with the prefix ${COMPOSER_PREFIX}), then run depcurfew apply again`
+	});
+	else if (current !== void 0 && !isRecord(current)) {
+		cannotWrite(context, file, path, current, "the plugins of installScripts");
+		return;
+	}
+	const keys = isRecord(current) ? Object.keys(current) : [];
+	const decides = (name) => keys.find((key) => pluginPatternMatches(name, key));
+	const wanted = [];
+	for (const name of allowed) {
+		const first = decides(name);
+		if (first === void 0) wanted.push([name, true]);
+		else if (isRecord(current) && current[first] !== true && first !== name) context.warn({
+			code: "deny-conflicts-with-file",
+			location: { file },
+			message: `${context.name}: ${setting} in ${file} blocks the plugin ${name} with "${first}": ${JSON.stringify(current[first])}, but installScripts.allow in ${POLICY_FILE} allows it; depcurfew apply does not change entries it did not write`,
+			fix: `Set "${first}" to true in ${setting} of ${file} if every plugin it covers may run, or move ${COMPOSER_PREFIX}${name} from installScripts.allow to installScripts.deny in ${POLICY_FILE}`
+		});
+	}
+	const denial = denyListSince(context);
+	for (const name of denied) {
+		const first = decides(name);
+		if (first === void 0) {
+			if (denial === void 0 || context.supports(denial, setting)) wanted.push([name, false]);
+		} else if (isRecord(current) && current[first] === true && first !== name) context.warn({
+			code: "deny-conflicts-with-file",
+			location: { file },
+			message: `${context.name}: ${setting} in ${file} lets the plugin ${name} run with "${first}": true, although installScripts.deny in ${POLICY_FILE} says it must not run; depcurfew apply does not change entries it did not write`,
+			fix: `Remove "${first}" from ${setting} in ${file} or narrow it, or move ${COMPOSER_PREFIX}${name} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing the plugin`
+		});
+	}
+	if (allowed.length > 0 || denied.length > 0) context.writes("installScripts", setting, file);
+	if (wanted.length === 0 && current !== true) return;
+	if (current === true || current === void 0) {
+		json.set(path, Object.fromEntries(wanted));
+		return;
+	}
+	for (const [name, value] of wanted) json.set([...path, name], value);
+}
+function denyListSince(context) {
+	const fact = context.tool.extra?.["denyList"];
+	const value = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord(value) && typeof value["since"] === "string" ? value["since"] : void 0;
+}
+/** composer.lock hashes config.policy (2.11.0+): after a change there composer install warns and composer validate fails until it is locked again. */
+function relockWarning$1(context, file, before, after) {
+	const hash = extraOf(context.tool, "contentHash", isContentHash);
+	if (JSON.stringify(before) === JSON.stringify(after) || !context.exists(hash.file) || !context.atLeast(hash.since)) return;
+	context.warn({
+		code: "lockfile-out-of-date",
+		location: { file: hash.file },
+		message: `${context.name}: ${hash.file} records a hash of ${listing$1(hash.settings)} in ${file}, which this change alters, so ${hash.file} is out of date: composer install warns about it and composer validate fails`,
+		fix: `Run ${hash.command}, which writes the new hash without updating packages, and commit ${hash.file}`
+	});
+}
+const composer = (context) => {
+	const file = firstFile(context.tool.cooldown.configFiles) ?? "composer.json";
+	const json = context.json(file);
+	const hash = extraOf(context.tool, "contentHash", isContentHash);
+	const hashed = (setting) => context.exists(file) ? json.get(setting.split(".")) : void 0;
+	const before = hash.settings.map(hashed);
+	const minutes = context.policy.cooldown === void 0 ? void 0 : writeCooldown(context, json, file);
+	writePlugins(context, json, file);
+	eachSource(context, () => void 0);
+	relockWarning$1(context, file, before, hash.settings.map(hashed));
 	return minutes;
 };
 
@@ -25296,9 +26032,10 @@ function renovateDelay(bot, config, on) {
 // src/apply/generators/renovate.ts
 const RULE_DESCRIPTION = "depcurfew: packages excluded from minimumReleaseAge";
 const PYTHON_RULE_DESCRIPTION = "depcurfew: Python packages excluded from minimumReleaseAge";
+const COMPOSER_RULE_DESCRIPTION = "depcurfew: Composer packages excluded from minimumReleaseAge";
 const isString = (value) => typeof value === "string";
 const isRule = (value) => isRecord(value) && typeof value["list"] === "string" && typeof value["match"] === "string";
-const isPath$1 = (value) => Array.isArray(value) && value.every(isString);
+const isPath$2 = (value) => Array.isArray(value) && value.every(isString);
 const renovate = (context, duration, repository) => {
 	const { tool, policy } = context;
 	if (policy.cooldown === void 0 || duration === void 0) return;
@@ -25314,16 +26051,18 @@ const renovate = (context, duration, repository) => {
 	const setting = settingOf(tool.cooldown.setting) ?? "minimumReleaseAge";
 	const rule = extraOf(tool, "excludeRule", isRule);
 	const descriptionKey = extraOf(tool, "ruleDescription", isString);
-	const securityPath = extraOf(tool, "securityUpdatesSetting", isPath$1);
+	const securityPath = extraOf(tool, "securityUpdatesSetting", isPath$2);
 	const datasources = extraOf(tool, "datasources", isRecord);
 	const excluded = policy.cooldown.exclude;
 	const patterns = exclusions(context, patternsFor(excluded, "npm")) ?? [];
 	const pythonPatterns = exclusions(context, patternsFor(excluded, "pypi")) ?? [];
+	const composerPatterns = exclusions(context, patternsFor(excluded, "packagist")) ?? [];
 	const negative = extraOf(tool, "negativeMatch", isString);
-	const python = context.tools.some((entry) => entry.kind === "package-manager" && ecosystemOfTool(entry) === "pypi" && context.targets.has(entry.id));
+	const uses = (ecosystem) => context.tools.some((entry) => entry.kind === "package-manager" && ecosystemOfTool(entry) === ecosystem && context.targets.has(entry.id));
+	const others = ["pypi", "packagist"].filter(uses).map((ecosystem) => `${negative}${String(datasources[ecosystem])}`);
 	const exclusionRule = {
 		[descriptionKey]: RULE_DESCRIPTION,
-		...python ? { matchDatasources: [`${negative}${String(datasources["pypi"])}`] } : {},
+		...others.length > 0 ? { matchDatasources: others } : {},
 		[rule.match]: patterns,
 		[setting]: rule.value
 	};
@@ -25333,15 +26072,29 @@ const renovate = (context, duration, repository) => {
 		[rule.match]: pythonPatterns,
 		[setting]: rule.value
 	};
-	const managedRules = [{
-		description: RULE_DESCRIPTION,
-		rule: exclusionRule,
-		wanted: patterns.length > 0
-	}, {
-		description: PYTHON_RULE_DESCRIPTION,
-		rule: pythonRule,
-		wanted: pythonPatterns.length > 0
-	}];
+	const composerRule = {
+		[descriptionKey]: COMPOSER_RULE_DESCRIPTION,
+		matchDatasources: [datasources["packagist"]],
+		[rule.match]: composerPatterns,
+		[setting]: rule.value
+	};
+	const managedRules = [
+		{
+			description: RULE_DESCRIPTION,
+			rule: exclusionRule,
+			wanted: patterns.length > 0
+		},
+		{
+			description: PYTHON_RULE_DESCRIPTION,
+			rule: pythonRule,
+			wanted: pythonPatterns.length > 0
+		},
+		{
+			description: COMPOSER_RULE_DESCRIPTION,
+			rule: composerRule,
+			wanted: composerPatterns.length > 0
+		}
+	];
 	const security = policy.cooldown.securityUpdates === "delay" ? result.value : null;
 	const file = (values$1(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
 	const snippet = () => JSON.stringify({
@@ -25391,7 +26144,8 @@ const renovate = (context, duration, repository) => {
 };
 const ECOSYSTEM_LABELS = {
 	npm: "npm",
-	pypi: "Python"
+	pypi: "Python",
+	packagist: "Composer"
 };
 /**
 * packageRules entries that apply does not manage and that give every package of a package manager in use (by
@@ -25404,7 +26158,11 @@ const ECOSYSTEM_LABELS = {
 function shorterRules(context, file, written, list, descriptionKey, repository) {
 	const { tool } = context;
 	const config = readRenovateConfig(context.read(file), file, []);
-	const own = /* @__PURE__ */ new Set([RULE_DESCRIPTION, PYTHON_RULE_DESCRIPTION]);
+	const own = /* @__PURE__ */ new Set([
+		RULE_DESCRIPTION,
+		PYTHON_RULE_DESCRIPTION,
+		COMPOSER_RULE_DESCRIPTION
+	]);
 	const planned = {
 		...config,
 		top: {
@@ -26718,7 +27476,8 @@ const MANAGERS = {
 	pip,
 	poetry,
 	pdm,
-	pipenv
+	pipenv,
+	composer
 };
 const BOTS = {
 	renovate,
@@ -26794,7 +27553,7 @@ function allowListWarnings(root, workspace, policy, detection, targets, tools) {
 				tool: manager.id,
 				location,
 				message: `${entry.setting} in ${entry.file}${entry.line === void 0 ? "" : ` (line ${entry.line})`} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depcurfew apply does not remove entries it did not write`,
-				fix: `Remove ${entry.name} from ${entry.setting} by hand, or add ${entry.package} to installScripts.allow in ${POLICY_FILE}`
+				fix: `Remove ${entry.name} from ${entry.setting} by hand, or add ${policyName(entry)} to installScripts.allow in ${POLICY_FILE}`
 			};
 			const text = denyConflictText({
 				kind: conflict.kind,
@@ -28276,7 +29035,7 @@ const botCooldownMismatch = {
 	id: "bot-cooldown-mismatch",
 	checks: "Update bots wait at least as long as the package manager, and for the actions of workflows as long as the policy, before proposing a new version",
 	summary: "An update bot waits less than the package manager, or for the actions of workflows less than the policy, before proposing a new version.",
-	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or bring in a version younger than the manager allows; security updates that skip the bot delay fail the same way. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category or update type, and one with a matcher depcurfew cannot read gets a note. With workflows and a cooldown in depcurfew.json, the bot must wait at least cooldown.minimum for the actions they run. A bot file depcurfew cannot read or parse, or a Renovate file in JSON5, gets a note for each package manager that waits. With projects in depcurfew.json, a bot file inside a project gets a note, as bots read only the one at the root, and a project that the Dependabot configuration of the root leaves out while it updates other projects gets a warning.",
+	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or bring in a version younger than the manager allows; security updates that skip the bot delay fail the same way. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category or update type, and one with a matcher depcurfew cannot read gets a note. With workflows and a cooldown in depcurfew.json, the bot must wait at least cooldown.minimum for the actions they run. An unreadable bot file or a JSON5 Renovate file gets a note per package manager that waits. With projects in depcurfew.json, a bot file inside a project gets a note, as bots read only the one at the root, and a project the root's Dependabot configuration leaves out while it updates others gets a warning. A Dependabot composer entry gets a note: it counts from the release time the author sets.",
 	help: "Give the bot a delay at least as long as the package manager's, and for the actions of workflows as long as cooldown.minimum (depcurfew apply does this).",
 	level: "error",
 	requiresPolicy: false,
@@ -28318,17 +29077,40 @@ const botCooldownMismatch = {
 					...found,
 					origin: source.relocate(found.origin)
 				};
-				if (compare(context, delay, managerReference(tool, own))) continue;
+				const timeNote = () => {
+					if (delay.bot.id === "dependabot" && manager.id === "composer" && own.minutes > 0 && delay.unreadableFile === void 0) composerTimeNote(context, delay, tool.name);
+				};
+				if (compare(context, delay, managerReference(tool, own))) {
+					timeNote();
+					continue;
+				}
 				if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager) && !exemptsSecurityFixes(delay.bot, tool.id, found.location?.file)) context.report({
 					level: "warning",
 					location: delay.location,
 					message: `${delay.bot.name} security updates skip its delay, but ${tool.name} re-checks the lockfile and waits ${describe$1(own.minutes)} (${own.origin}); a security fix younger than that fails to install`,
 					fix: `When a security update fails, exempt the fixed package in the ${tool.name} exclusion list until the delay has passed`
 				});
+				timeNote();
 			}
 		}
 	}
 };
+const isReleaseTime = (value) => isRecord(value) && typeof value["field"] === "string" && typeof value["ignores"] === "string" && typeof value["composerVersion"] === "string";
+/**
+* Dependabot counts its composer cooldown from the time the package author sets (extra.composerReleaseTime), and
+* updates composer.lock with a Composer that has no cooldown policy; composer install then installs the locked version
+* without Composer's cooldown, which counts from Packagist's published-time.
+*/
+function composerTimeNote(context, delay, manager) {
+	if (delay.bot.extra?.["composerReleaseTime"] === void 0 || delay.location === void 0) return;
+	const fact = extraOf(delay.bot, "composerReleaseTime", isReleaseTime);
+	context.report({
+		level: "note",
+		location: delay.location,
+		message: `${delay.bot.name} counts the cooldown of ${delay.scope} from ${fact.field}, the release time the package author writes, not from ${fact.ignores}, when Packagist received the version, and it updates composer.lock with Composer ${fact.composerVersion}, which has no cooldown; a version published with an older ${fact.field} is proposed at once, and composer install takes it from composer.lock without ${manager}'s cooldown`,
+		fix: `Check the publication date on Packagist before merging ${delay.bot.name}'s composer pull requests, or update Composer packages with a bot that counts from ${fact.ignores}`
+	});
+}
 
 // src/doctor/rules/broad-exclusion.ts
 /** Patterns that match every package (or every scoped package): *, **, @*\/*, npm:*, and regexes like /.*\/. */
@@ -28363,8 +29145,10 @@ function checkManagers(context) {
 		const files = manager.id === "deno" ? manager.configFiles.filter((file) => /^deno\.jsonc?$/u.test(file)) : (values$1(knowledge.cooldown.configFiles)[0] ?? []).slice(0, 1);
 		for (const file of files) {
 			const found = readSetting(context.repository, file, setting);
-			if (found === void 0 || !Array.isArray(found.value)) continue;
-			for (const pattern of found.value.filter((item) => typeof item === "string" && isBroad(item))) context.report({
+			const items = Array.isArray(found?.value) ? found.value : isRecord(found?.value) ? Object.keys(found.value) : void 0;
+			if (found === void 0 || items === void 0) continue;
+			const broad = (item) => isBroad(item) || ecosystemOfTool(knowledge) === "packagist" && /^\*+(?:\/\*+)?$/u.test(item);
+			for (const pattern of items.filter((item) => typeof item === "string" && broad(item))) context.report({
 				location: {
 					file,
 					line: found.line
@@ -28543,6 +29327,221 @@ const broadExclusion = {
 			if (bot.id === "dependabot") checkDependabot(context, file);
 			if (bot.id === "renovate") checkRenovate(context, file);
 		}
+	}
+};
+
+// src/doctor/rules/composer-config.ts
+const RULE$2 = "composer-config-weakens";
+const isList = (check) => (value) => Array.isArray(value) && value.every(check);
+const isPath$1 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+/** PHP's (bool) cast of a JSON value. */
+function phpBool(value) {
+	if (Array.isArray(value)) return value.length > 0;
+	return !(value === false || value === null || value === 0 || value === "" || value === "0");
+}
+/** Config::get for secure-http and disable-tls: $value !== 'false' && (bool) $value. */
+function composerBool(value) {
+	return value !== "false" && phpBool(value);
+}
+function weakens(when, value) {
+	if (when === "false") return value === false;
+	if (when === "php-false") return value !== null && value !== void 0 && !phpBool(value);
+	return value === when;
+}
+/** Whether the cooldown part of the policy is in use, which some settings only matter for. */
+function cooldownInPolicy(context) {
+	return context.policy?.cooldown !== void 0;
+}
+function checkManifest(context, tool, text) {
+	const settings = extraOf(tool, "weakeningSettings", isList((item) => isRecord(item) && isPath$1(item["path"]) && typeof item["when"] === "string"));
+	for (const setting of settings) {
+		const found = jsonSetting(text, setting.path);
+		if (found === void 0 || !weakens(setting.when, found.value)) continue;
+		const cooldown = setting.path.includes("cooldown");
+		if (cooldown && !cooldownInPolicy(context)) continue;
+		context.report({
+			level: setting.path.includes("malware") ? "warning" : "error",
+			location: {
+				file: COMPOSER_MANIFEST,
+				line: found.line
+			},
+			message: `${setting.path.join(".")} in ${COMPOSER_MANIFEST} is ${JSON.stringify(found.value)}, which ${setting.effect}`,
+			fix: `Remove ${setting.path.at(-1) ?? ""} from ${setting.path.slice(0, -1).join(".")} in ${COMPOSER_MANIFEST}${cooldown || setting.path.length === 2 ? ", then run depcurfew apply" : ""}`
+		});
+	}
+	const transport = extraOf(tool, "transportSettings", isList((item) => isRecord(item) && isPath$1(item["path"]) && typeof item["weakensWhen"] === "boolean"));
+	for (const setting of transport) {
+		const found = jsonSetting(text, setting.path);
+		if (found === void 0 || composerBool(found.value) !== setting.weakensWhen) continue;
+		context.report({
+			level: "error",
+			location: {
+				file: COMPOSER_MANIFEST,
+				line: found.line
+			},
+			message: `${setting.path.join(".")} in ${COMPOSER_MANIFEST} is ${JSON.stringify(found.value)}, which ${setting.effect}: a package or its metadata can be changed on the way`,
+			fix: `Remove ${setting.path.at(-1) ?? ""} from config in ${COMPOSER_MANIFEST}, and serve the repository that needs it over HTTPS`
+		});
+	}
+	if (context.policy?.installScripts?.default !== "deny") return;
+	const all = extraOf(tool, "allowAllPlugins", (value) => isRecord(value) && typeof value["setting"] === "string" && Array.isArray(value["patterns"]));
+	const path = all.setting.split(".");
+	const found = jsonSetting(text, path);
+	const broad = isRecord(found?.value) ? Object.keys(found.value).filter((key) => /^\*+$/u.test(key) && (found?.value)[key] === true) : [];
+	if (found?.value === true || broad.length > 0) {
+		const at = broad.length > 0 ? jsonSetting(text, [...path, broad[0] ?? ""])?.line : found?.line;
+		context.report({
+			level: "error",
+			location: {
+				file: COMPOSER_MANIFEST,
+				line: at ?? found?.line ?? 1
+			},
+			message: `${all.setting} in ${COMPOSER_MANIFEST} ${found?.value === true ? "is true" : `has "${broad[0] ?? ""}": true`}, which lets every Composer plugin run its code, but installScripts in ${POLICY_FILE} denies dependency code by default`,
+			fix: `List the plugins that may run in installScripts.allow in ${POLICY_FILE} (with the prefix composer:) and run depcurfew apply, ${found?.value === true ? "which replaces true with them" : `then remove "${broad[0] ?? ""}" from ${all.setting}`}`
+		});
+	}
+}
+function checkRepositories(context, tool) {
+	const options = extraOf(tool, "repositoryWeakening", isList((item) => isRecord(item) && typeof item["key"] === "string"));
+	const list = composerManifest(context.repository)?.["repositories"];
+	const entries = Array.isArray(list) ? list.map((item, index) => [index, item]) : isRecord(list) ? Object.entries(list) : [];
+	const lines = new Map(declaredRepositories(context.repository, tool).map((entry) => [String(entry.key), entry.line]));
+	for (const [key, entry] of entries) {
+		if (!isRecord(entry)) continue;
+		for (const option of options) {
+			const value = entry[option.key];
+			if (!(value === false || option.list !== void 0 && isRecord(value) && value[option.list] === false)) continue;
+			if (option.key !== "filter" && !cooldownInPolicy(context)) continue;
+			const url = typeof entry["url"] === "string" ? ` (${entry["url"]})` : "";
+			context.report({
+				level: "warning",
+				location: {
+					file: COMPOSER_MANIFEST,
+					line: lines.get(String(key)) ?? 1
+				},
+				message: `repositories[${String(key)}]${url} in ${COMPOSER_MANIFEST} sets ${option.key} to ${JSON.stringify(value)}, which ${option.effect}`,
+				fix: `Remove ${option.key} from repositories[${String(key)}] in ${COMPOSER_MANIFEST}, or move the packages that need it to a repository that does not`
+			});
+		}
+	}
+}
+/** The text of a variable as the runner passes it (a YAML true is "true"). */
+function variableText(value) {
+	return typeof value === "string" ? value : typeof value === "number" || typeof value === "boolean" ? String(value) : void 0;
+}
+/** What a value of a variable does: weakens, may weaken (an expression), or nothing. */
+function variableEffect(context, tool, variable, value) {
+	if (value.includes("${{")) return {
+		level: "warning",
+		detail: "may"
+	};
+	if (variable.values === "delay") {
+		if (value === "") return void 0;
+		const minutes = delayMinutes(tool, value, latestVersion$1(tool));
+		const wanted = context.policy?.cooldown?.minimum.minutes;
+		if (!minutes.ok || wanted === void 0) return void 0;
+		return minutes.minutes < wanted ? {
+			level: "error",
+			detail: minutes.minutes === 0 ? "no delay" : formatMinutes(minutes.minutes)
+		} : void 0;
+	}
+	const values = variable.values;
+	return (Array.isArray(values) ? values.includes(value) : !values.except.includes(value)) ? { level: variable.name.includes("MALWARE") ? "warning" : "error" } : void 0;
+}
+/** The env maps of a workflow: the workflow's, each job's and its container's, and each step's. */
+function environments(text) {
+	const found = [{
+		path: ["env"],
+		where: "the workflow"
+	}];
+	const jobs = yamlSetting(text, ["jobs"])?.value;
+	if (!isRecord(jobs)) return found;
+	for (const [id, job] of Object.entries(jobs)) {
+		if (!isRecord(job)) continue;
+		found.push({
+			path: [
+				"jobs",
+				id,
+				"env"
+			],
+			where: `job ${id}`
+		}, {
+			path: [
+				"jobs",
+				id,
+				"container",
+				"env"
+			],
+			where: `the container of job ${id}`
+		});
+		const steps = job["steps"];
+		if (!Array.isArray(steps)) continue;
+		steps.forEach((_, index) => found.push({
+			path: [
+				"jobs",
+				id,
+				"steps",
+				String(index),
+				"env"
+			],
+			where: `step ${index + 1} of job ${id}`
+		}));
+	}
+	return found;
+}
+function checkWorkflows(context, tool) {
+	const variables = extraOf(tool, "environmentOverrides", isList((item) => isRecord(item) && typeof item["name"] === "string"));
+	for (const file of context.detection.workflows) {
+		const text = context.repository.readText(file);
+		if (text === void 0) continue;
+		for (const { path, where } of environments(text)) {
+			const env = yamlSetting(text, path)?.value;
+			if (!isRecord(env)) continue;
+			for (const variable of variables) {
+				if (!Object.hasOwn(env, variable.name)) continue;
+				const value = variableText(env[variable.name]);
+				if (value === void 0) continue;
+				if (variable.name.includes("COOLDOWN") && !cooldownInPolicy(context)) continue;
+				const effect = variableEffect(context, tool, variable, value);
+				if (effect === void 0) continue;
+				const line = yamlSetting(text, [...path, variable.name])?.line;
+				const verb = effect.detail === "may" ? `may ${variable.effect.replace(/^(\w+)s\b/u, "$1")}` : effect.detail === void 0 ? variable.effect : `${variable.effect} with ${effect.detail}, shorter than the ${context.policy?.cooldown?.minimum.text ?? ""} of ${POLICY_FILE}`;
+				const reading = Array.isArray(variable.values) || variable.values === "delay" || [
+					"1",
+					"true",
+					"on"
+				].includes(value) ? "" : " (Composer takes every value but \"\" and \"0\" for yes)";
+				context.report({
+					level: effect.level,
+					location: line === void 0 ? { file } : {
+						file,
+						line
+					},
+					message: `${variable.name}=${value} in the env of ${where} in ${file} reaches every Composer command there and ${verb}${reading}`,
+					fix: `Remove ${variable.name} from that env in ${file}, or set it only for a run that needs it after reviewing the packages`
+				});
+			}
+		}
+	}
+}
+const composerConfigWeakens = {
+	id: RULE$2,
+	checks: "composer.json and the env of CI workflows keep Composer protections on",
+	summary: "composer.json or the env of a CI workflow turns a Composer protection off: the cooldown, malware blocking, allow-plugins, secure-http or TLS.",
+	description: "Composer 2.11 withholds new versions with config.policy.cooldown and runs only the plugins config.allow-plugins allows. \"policy\": false, \"cooldown\": false or \"block\": false under it, a repository with \"require-published-time\": false (the cooldown then counts from the time the package author wrote) or \"filter\": false (no malware list), \"allow-plugins\": true (or a \"*\" key) and \"secure-http\": false or \"disable-tls\": true turn such a protection off while the configuration still looks right; so do COMPOSER_POLICY=0, COMPOSER_NO_BLOCKING, COMPOSER_POLICY_COOLDOWN_PERIOD with a shorter period and COMPOSER_POLICY_COOLDOWN_BLOCK=0 in the env of a CI workflow. Settings of the cooldown are reported when depcurfew.json sets one, allow-plugins when it denies dependency code; malware blocking and filter give warnings, because depcurfew.json does not manage them. COMPOSER_HOME/config.json on a machine is not read.",
+	help: "Remove the setting or the variable, or limit it to the repository or the run that needs it.",
+	level: "error",
+	requiresPolicy: false,
+	applies: (scope) => usesManager(scope, ["composer"]),
+	check(context) {
+		const tool = context.tools.find((entry) => entry.id === "composer");
+		if (tool === void 0 || !context.detection.packageManagers.some((entry) => entry.id === "composer" && entry.supported)) return;
+		const text = context.repository.readText(COMPOSER_MANIFEST);
+		if (text !== void 0) {
+			checkManifest(context, tool, text);
+			checkRepositories(context, tool);
+		}
+		checkWorkflows(context, tool);
 	}
 };
 
@@ -28764,7 +29763,7 @@ function checkAllowLists(context, plan) {
 				level: "warning",
 				location,
 				message: `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it`,
-				fix: `Remove ${entry.name} from ${entry.setting}, or add ${entry.name === entry.package ? "it" : entry.package} to installScripts.allow in ${POLICY_FILE}`
+				fix: `Remove ${entry.name} from ${entry.setting}, or add ${entry.policyName ?? (entry.name === entry.package ? "it" : entry.package)} to installScripts.allow in ${POLICY_FILE}`
 			});
 		}
 	}
@@ -29441,7 +30440,7 @@ const knownMalicious = {
 	id: "known-malicious",
 	checks: "With --osv: no locked package version is a known malicious version in OSV.dev",
 	summary: "With --osv: a lockfile locks a package version that OSV.dev lists as malicious.",
-	description: "With --osv, doctor sends the name and version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml and requirements pinned with ==) to api.osv.dev in batch queries, and reports each version that has a record of the OpenSSF malicious-packages database there (an id starting with MAL-). Such a version was published to steal or damage, and installing from the lockfile brings it back. Only reported malware is found, and the database admits false positives. Without --osv nothing is sent and the rule does not run; when OSV.dev cannot be reached it gives a warning instead of passing.",
+	description: "With --osv, doctor sends the name and version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) to api.osv.dev in batch queries, and reports each version that has a record of the OpenSSF malicious-packages database there (an id starting with MAL-). Such a version was published to steal or damage, and installing from the lockfile brings it back. Only reported malware is found, and the database admits false positives. Without --osv nothing is sent and the rule does not run; when OSV.dev cannot be reached it gives a warning instead of passing.",
 	help: "Remove or replace the package version and lock again; if it was installed anywhere, read the record on OSV.dev and treat that machine as exposed.",
 	level: "error",
 	requiresPolicy: false,
@@ -29505,7 +30504,8 @@ const knownMalicious = {
 				}
 				if ("collect" in osv) continue;
 				reportUnchecked(context, lockfile.file, locked, unchecked);
-				if (unpinned > 0) context.notice(`known-malicious did not check ${plural(unpinned, "package")} of ${lockfile.file}, which pins no exact version of ${unpinned === 1 ? "it" : "them"}`, lockfile.file, "Pin exact versions (name==version), for example with a lockfile exported by the tool that resolves them, so that doctor --osv can check them");
+				if (unpinned > 0 && ecosystem === "packagist") context.notice(`known-malicious did not check ${plural(unpinned, "package")} of ${lockfile.file}, which locks a branch of ${unpinned === 1 ? "it" : "them"} (a dev- or -dev version), not a release`, lockfile.file, `Require tagged releases of ${unpinned === 1 ? "this package" : "these packages"} in composer.json and run composer update, so that doctor --osv can check ${unpinned === 1 ? "it" : "them"}`);
+				else if (unpinned > 0) context.notice(`known-malicious did not check ${plural(unpinned, "package")} of ${lockfile.file}, which pins no exact version of ${unpinned === 1 ? "it" : "them"}`, lockfile.file, "Pin exact versions (name==version), for example with a lockfile exported by the tool that resolves them, so that doctor --osv can check them");
 			}
 		}
 	}
@@ -29536,6 +30536,12 @@ const LABELS = {
 		remoteTarball: "a URL",
 		file: "a local archive",
 		directory: "a local directory"
+	},
+	packagist: {
+		git: "a VCS repository",
+		remoteTarball: "a package repository at a URL",
+		file: "an artifact repository",
+		directory: "a path repository"
 	}
 };
 /** Why a Python package is built from source, for messages. */
@@ -29568,7 +30574,7 @@ const lockfileForbiddenSource = {
 	id: "lockfile-forbidden-source",
 	checks: "The lockfile installs no package from a source depcurfew.json denies",
 	summary: "The lockfile installs a package from a source depcurfew.json denies.",
-	description: "A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say.",
+	description: "A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say. For Composer, whose lockfile does not name the repository of a package, packages of a path or artifact repository are told by their dist, those of a VCS or package repository by the repositories of composer.json, and a repository of a denied kind that no package of composer.lock comes from is reported at its declaration (a warning).",
 	help: "Replace the dependency with a registry version, or allow that source in depcurfew.json.",
 	level: "error",
 	requiresPolicy: true,
@@ -29596,9 +30602,63 @@ const lockfileForbiddenSource = {
 					fix: `Use a registry version ${entry.unnamed === true ? "instead" : `of ${entry.name}`}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`
 				});
 			}
+			if (tool.id === "composer") reportComposerRepositories(context, tool, lockfile, sources);
 		});
 	}
 };
+/**
+* Composer: a repository of composer.json of a kind the policy denies whose packages depcurfew cannot find in
+* composer.lock (a VCS repository at another URL than the lock records, a path or artifact repository not locked yet).
+* Composer installs from it on the next update, so it is reported at its declaration, as a warning (fail closed).
+*/
+function reportComposerRepositories(context, tool, lockfile, sources) {
+	for (const repository of unmatchedRepositories(declaredRepositories(context.repository, tool), lockfile.entries)) {
+		const kind = repository.kind;
+		if (kind !== "git" && kind !== "remoteTarball" && kind !== "file" && kind !== "directory") continue;
+		if (sources[kind] !== "deny") continue;
+		const what = repository.url === void 0 ? `a ${repository.type} repository` : `the ${repository.type} repository ${repository.url}`;
+		context.report({
+			level: "warning",
+			location: {
+				file: COMPOSER_MANIFEST,
+				line: repository.line
+			},
+			message: `${COMPOSER_MANIFEST} declares ${what} (repositories[${String(repository.key)}]), ${LABELS.packagist[kind]}, which ${POLICY_FILE} denies (sources.${kind}); ${lockfile.file} shows no package from it that depcurfew can tell, so Composer may install from it on the next update`,
+			fix: `Remove the repository from ${COMPOSER_MANIFEST} and require the packages from Packagist, or set sources.${kind} to "allow" in ${POLICY_FILE}`
+		});
+	}
+}
+/**
+* Composer plugins (type composer-plugin) are the dependency code Composer runs. allow-plugins in composer.json decides
+* which may run (the first key that matches, true or false; true or false for the whole setting): one it allows that the
+* policy does not is an error; one it does not list makes Composer ask, or fail without a terminal (a warning).
+*/
+function reportComposerPlugins(context, lockfile, allow, deny) {
+	const manifest = composerManifest(context.repository);
+	for (const entry of lockfile.entries.filter((item) => item.installScript === true)) {
+		if (allow.some((pattern) => matchesPattern$1(entry.name, pattern))) continue;
+		const isDenied = deny.some((pattern) => matchesPattern$1(entry.name, pattern));
+		const decision = pluginDecision(manifest, entry.name);
+		const by = decision.key === void 0 ? "config.allow-plugins" : `"${decision.key}" in config.allow-plugins`;
+		if (decision.allowed === true) {
+			const block = decision.key === void 0 ? `replace true in config.allow-plugins of ${COMPOSER_MANIFEST} with the plugins that may run` : decision.key === entry.name ? `set it to false in config.allow-plugins of ${COMPOSER_MANIFEST}` : `put "${entry.name}": false before "${decision.key}" in config.allow-plugins of ${COMPOSER_MANIFEST}, because Composer takes the first key that matches`;
+			context.report({
+				level: "error",
+				location: location(lockfile, entry),
+				message: `${entry.name} is a Composer plugin, whose code runs during Composer commands, and ${by} in ${COMPOSER_MANIFEST} lets Composer run it, but ${POLICY_FILE} ${isDenied ? "denies it" : "does not allow it"}`,
+				fix: isDenied ? `${block.charAt(0).toUpperCase()}${block.slice(1)}, or move ${COMPOSER_PREFIX}${entry.name} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing the plugin` : `Review the plugin and add ${COMPOSER_PREFIX}${entry.name} to installScripts.allow in ${POLICY_FILE}, or ${block}`
+			});
+			continue;
+		}
+		if (decision.allowed === false || isDenied) continue;
+		context.report({
+			level: "warning",
+			location: location(lockfile, entry),
+			message: `${entry.name} is a Composer plugin that config.allow-plugins in ${COMPOSER_MANIFEST} does not list, so Composer asks whether to run it, and a run without a terminal (CI) fails; ${POLICY_FILE} does not allow it`,
+			fix: `Review the plugin: add ${COMPOSER_PREFIX}${entry.name} to installScripts.allow in ${POLICY_FILE} if the project needs it, or to installScripts.deny if it works without it, then run depcurfew apply`
+		});
+	}
+}
 /** A lockfile spec for messages, without Yarn's locator parameters (::hash=…&locator=…) and repeated local paths. */
 function shownSpec(spec) {
 	const text = spec.split("::")[0] ?? spec;
@@ -29740,8 +30800,8 @@ const lockfileInstallScripts = {
 	id: "lockfile-install-scripts",
 	checks: "The lockfile has no install scripts or source builds that depcurfew.json does not allow",
 	summary: "The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.",
-	description: "Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or its own allow-list lets them run, they run code the policy does not allow; where it blocks them, a package may not work. A package in installScripts.deny works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed (a Python package without wheels, esbuild without optional dependencies). Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index (depcurfew check pypi:<name> shows whether one has wheels), only to requirements from a repository, a URL or a local path.",
-	help: "Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can). For packages whose scripts depcurfew knows (esbuild, fsevents, lefthook) the finding names the fix: installScripts.deny, and for lefthook \"prepare\": \"lefthook install\" in the scripts of package.json.",
+	description: "Install scripts run arbitrary code during installation, and so do building a Python package from source (a source distribution, a git repository or a local directory) and loading a Composer plugin. Where the package manager runs them by default, or its own allow-list lets them run, they run code the policy does not allow; where it blocks them, a package may not work. A package in installScripts.deny works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed (a Python package without wheels, esbuild without optional dependencies). npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile and composer.lock records plugins; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index, only to requirements from a repository, a URL or a local path.",
+	help: "Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:, Composer plugins with composer:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can). For packages whose scripts depcurfew knows (esbuild, fsevents, lefthook) the finding names the fix: installScripts.deny, and for lefthook \"prepare\": \"lefthook install\" in the scripts of package.json.",
 	level: "error",
 	requiresPolicy: true,
 	applies: (scope) => hasBuildRecords(scope.detection.packageManagers, scope.tools),
@@ -29752,6 +30812,10 @@ const lockfileInstallScripts = {
 			const view = policyFor(policy, ecosystemOfTool(tool)).installScripts;
 			const allow = view?.allow ?? [];
 			const deny = view?.deny ?? [];
+			if (ecosystemOfTool(tool) === "packagist") {
+				reportComposerPlugins(context, lockfile, allow, deny);
+				return;
+			}
 			if (ecosystemOfTool(tool) === "pypi") {
 				reportPythonBuilds(context, lockfile, tool, allow, deny);
 				if (!showsBuilds(tool, lockfile.file, context.tools) && lockfile.entries.some((entry) => entry.source === "registry" && entry.installScript === void 0)) context.notice(`lockfile-install-scripts cannot tell from ${lockfile.file} which packages from the index are built from source: it lists no wheels or source distributions; depcurfew check pypi:<name> shows whether a package has wheels`, lockfile.file);
@@ -30929,6 +31993,7 @@ const RULES = [
 	npmrcOverridesPolicy,
 	pnpmSharedWorkspaceLockfile,
 	pythonConfigIgnored,
+	composerConfigWeakens,
 	configDrift,
 	botCooldownMismatch,
 	broadExclusion,

@@ -434,7 +434,7 @@ export const botCooldownMismatch: Rule = {
   checks: 'Update bots wait at least as long as the package manager, and for the actions of workflows as long as the policy, before proposing a new version',
   summary: 'An update bot waits less than the package manager, or for the actions of workflows less than the policy, before proposing a new version.',
   description:
-    'The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or bring in a version younger than the manager allows; security updates that skip the bot delay fail the same way. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category or update type, and one with a matcher depcurfew cannot read gets a note. With workflows and a cooldown in depcurfew.json, the bot must wait at least cooldown.minimum for the actions they run. A bot file depcurfew cannot read or parse, or a Renovate file in JSON5, gets a note for each package manager that waits. With projects in depcurfew.json, a bot file inside a project gets a note, as bots read only the one at the root, and a project that the Dependabot configuration of the root leaves out while it updates other projects gets a warning.',
+    'The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or bring in a version younger than the manager allows; security updates that skip the bot delay fail the same way. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category or update type, and one with a matcher depcurfew cannot read gets a note. With workflows and a cooldown in depcurfew.json, the bot must wait at least cooldown.minimum for the actions they run. An unreadable bot file or a JSON5 Renovate file gets a note per package manager that waits. With projects in depcurfew.json, a bot file inside a project gets a note, as bots read only the one at the root, and a project the root\'s Dependabot configuration leaves out while it updates others gets a warning. A Dependabot composer entry gets a note: it counts from the release time the author sets.',
   help: 'Give the bot a delay at least as long as the package manager\'s, and for the actions of workflows as long as cooldown.minimum (depcurfew apply does this).',
   level: 'error',
   requiresPolicy: false,
@@ -471,7 +471,14 @@ export const botCooldownMismatch: Rule = {
         // A project's manager is named with its directory, and the file of its delay relative to the root.
         const tool = source.project === undefined ? knowledge : { ...knowledge, name: `${knowledge.name} in ${source.project}` };
         const own = { ...found, origin: source.relocate(found.origin) };
-        if (compare(context, delay, managerReference(tool, own))) continue;
+        // Dependabot's composer delay counts from the author's time: a note also when the delay is long enough or too short.
+        const timeNote = () => {
+          if (delay.bot.id === 'dependabot' && manager.id === 'composer' && own.minutes > 0 && delay.unreadableFile === undefined) composerTimeNote(context, delay, tool.name);
+        };
+        if (compare(context, delay, managerReference(tool, own))) {
+          timeNote();
+          continue;
+        }
         if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager) && !exemptsSecurityFixes(delay.bot, tool.id, found.location?.file)) {
           context.report({
             level: 'warning',
@@ -480,7 +487,27 @@ export const botCooldownMismatch: Rule = {
             fix: `When a security update fails, exempt the fixed package in the ${tool.name} exclusion list until the delay has passed`,
           });
         }
+        timeNote();
       }
     }
   },
 };
+
+const isReleaseTime = (value: unknown): value is { field: string; ignores: string; composerVersion: string } =>
+  isRecord(value) && typeof value['field'] === 'string' && typeof value['ignores'] === 'string' && typeof value['composerVersion'] === 'string';
+
+/**
+ * Dependabot counts its composer cooldown from the time the package author sets (extra.composerReleaseTime), and
+ * updates composer.lock with a Composer that has no cooldown policy; composer install then installs the locked version
+ * without Composer's cooldown, which counts from Packagist's published-time.
+ */
+function composerTimeNote(context: RuleContext, delay: BotDelay, manager: string): void {
+  if (delay.bot.extra?.['composerReleaseTime'] === undefined || delay.location === undefined) return;
+  const fact = extraOf(delay.bot, 'composerReleaseTime', isReleaseTime);
+  context.report({
+    level: 'note',
+    location: delay.location,
+    message: `${delay.bot.name} counts the cooldown of ${delay.scope} from ${fact.field}, the release time the package author writes, not from ${fact.ignores}, when Packagist received the version, and it updates composer.lock with Composer ${fact.composerVersion}, which has no cooldown; a version published with an older ${fact.field} is proposed at once, and composer install takes it from composer.lock without ${manager}'s cooldown`,
+    fix: `Check the publication date on Packagist before merging ${delay.bot.name}'s composer pull requests, or update Composer packages with a bot that counts from ${fact.ignores}`,
+  });
+}

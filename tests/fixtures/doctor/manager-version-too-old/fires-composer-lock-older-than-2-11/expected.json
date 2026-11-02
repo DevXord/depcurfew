@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "composer.lock",
+      "line": 31
+    },
+    "message": "composer.lock was written by a Composer older than 2.11.0 (plugin-api-version 2.9.0), which does not support config.policy.cooldown.period (added in 2.11.0), so Composer applies no cooldown where that version runs",
+    "fix": "Update Composer to 2.11.0 or later wherever the project is installed (composer self-update), then run composer update --lock and commit composer.lock"
+  }
+]

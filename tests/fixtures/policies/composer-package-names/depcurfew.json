@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "cooldown": { "minimum": "3d", "exclude": ["composer:acme/*", "composer:symfony/security-bundle", "@acme/*"] },
+  "installScripts": { "default": "deny", "allow": ["composer:php-http/discovery", "composer:acme/*-plugin"], "deny": ["composer:symfony/flex"] },
+  "targets": ["composer", "npm"]
+}

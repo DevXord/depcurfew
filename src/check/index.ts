@@ -9,6 +9,7 @@ import { formatMinutes } from '../doctor/durations.ts';
 import { environment } from '../knowledge/environment.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import { policyFor } from '../policy/ecosystem.ts';
+import { COMPOSER_PREFIX } from '../policy/package-pattern.ts';
 import { CHECK_BY_HAND, describeAge, insecureFinding, quoted, sourceFindings, type CheckFinding, type CheckOptions, type CheckRequest, type PackageReport } from './findings.ts';
 import { checkPythonSpec, isPythonSpec } from './python.ts';
 import { cachedLookup, fetchPackument, type Packument } from './registry.ts';
@@ -214,6 +215,21 @@ export const DEPRECATED_FIX = 'Pick a version or package that is not deprecated;
 export async function checkSpec(request: string | CheckRequest, options: CheckOptions): Promise<PackageReport> {
   const { spec: raw, ...chosen } = typeof request === 'string' ? { spec: request } : request;
   if (isPythonSpec(raw)) return checkPythonSpec(raw, options, chosen);
+  // Composer packages are named in depcurfew.json, but not looked up: without this they would read as npm specs.
+  if (raw.trim().startsWith(COMPOSER_PREFIX)) {
+    return {
+      spec: raw,
+      kind: 'invalid',
+      findings: [
+        {
+          level: 'error',
+          code: 'unverified',
+          message: 'depcurfew check does not look up Composer packages',
+          fix: 'Check the package on packagist.org yourself (its publication date, security advisories and whether it is a plugin); Composer 2.11 withholds young versions itself once depcurfew apply has written the cooldown into composer.json',
+        },
+      ],
+    };
+  }
   const spec = parseSpec(raw);
   if (spec === undefined) {
     const finding: CheckFinding = { level: 'error', code: 'invalid-spec', message: `"${raw}" is not a package spec`, fix: 'Write it as name, name@version, name@range or name@tag' };

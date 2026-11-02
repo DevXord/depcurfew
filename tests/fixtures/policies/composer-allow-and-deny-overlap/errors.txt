@@ -1,0 +1,2 @@
+installScripts.deny: "composer:acme/tool" is also covered by "composer:acme/*" in installScripts.allow; a package is either allowed or denied, so remove it from one list
+installScripts.allow: "composer:foo/bar" is also covered by "composer:foo/*" in installScripts.deny; a package is either allowed or denied, so remove it from one list

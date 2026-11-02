@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # managed by depcurfew
+    cooldown:
+      default-days: 3
+      exclude:
+        - "@acme/*"
+  - package-ecosystem: composer
+    directory: /
+    schedule:
+      interval: weekly
+    # managed by depcurfew
+    cooldown:
+      default-days: 3
+      exclude:
+        - acme/*
+        - laravel/framework

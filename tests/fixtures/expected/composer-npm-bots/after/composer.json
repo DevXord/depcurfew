@@ -1,0 +1,19 @@
+{
+    "require": {
+        "laravel/framework": "^12.0"
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        },
+        "policy": {
+            "cooldown": {
+                "period": "3 days",
+                "ignore": [
+                    "acme/*",
+                    "laravel/framework"
+                ]
+            }
+        }
+    }
+}

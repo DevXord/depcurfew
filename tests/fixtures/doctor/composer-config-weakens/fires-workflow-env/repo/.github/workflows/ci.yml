@@ -1,0 +1,16 @@
+name: ci
+on: push
+env:
+  COMPOSER_POLICY: 0
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      COMPOSER_POLICY_COOLDOWN_PERIOD: "1 day"
+      COMPOSER_POLICY_MALWARE_BLOCK: "off"
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+      - run: composer install
+        env:
+          COMPOSER_NO_BLOCKING: "false"
+          COMPOSER_POLICY_COOLDOWN_BLOCK: ${{ matrix.block }}

@@ -1,9 +1,10 @@
 // Renovate: minimumReleaseAge, packageRules entries for exclusions (recognized by their descriptions) and the delay
-// for security updates. pypi: names get their own rule limited to the pypi datasource; when the repository also has
-// Python packages, the rule for npm names leaves out that datasource, so an npm exception never reaches a Python
-// package of the same name. JSON5 files and the deprecated package.json key are not edited; a snippet is printed.
-// The top-level minimumReleaseAge covers every Renovate manager, the github-actions manager of the workflows'
-// actions included (decision D-130), so the actions need no rule of their own.
+// for security updates. pypi: and composer: names get rules of their own, limited to the pypi and packagist
+// datasources; when the repository also has Python or Composer packages, the rule for npm names leaves out those
+// datasources, so an npm exception never reaches a package of the same name in another registry. JSON5 files and the
+// deprecated package.json key are not edited; a snippet is printed. The top-level minimumReleaseAge covers every
+// Renovate manager, the github-actions manager of the workflows' actions included (decision D-130), so the actions
+// need no rule of their own.
 import { delayMinutes, formatMinutes } from '../../doctor/durations.ts';
 import { latestVersion } from '../../doctor/effective.ts';
 import { actionsTarget, managerTargets, readRenovateConfig, renovateDelay, type RenovateTarget } from '../../doctor/renovate.ts';
@@ -18,6 +19,7 @@ import type { BotGenerator, BotRepository } from './context.ts';
 
 export const RULE_DESCRIPTION = 'depcurfew: packages excluded from minimumReleaseAge';
 export const PYTHON_RULE_DESCRIPTION = 'depcurfew: Python packages excluded from minimumReleaseAge';
+export const COMPOSER_RULE_DESCRIPTION = 'depcurfew: Composer packages excluded from minimumReleaseAge';
 
 interface ExcludeRule {
   list: string;
@@ -45,18 +47,23 @@ export const renovate: BotGenerator = (context, duration, repository) => {
   const excluded = policy.cooldown.exclude;
   const patterns = exclusions(context, patternsFor(excluded, 'npm')) ?? [];
   const pythonPatterns = exclusions(context, patternsFor(excluded, 'pypi')) ?? [];
+  const composerPatterns = exclusions(context, patternsFor(excluded, 'packagist')) ?? [];
   const negative = extraOf(tool, 'negativeMatch', isString);
-  const python = context.tools.some((entry) => entry.kind === 'package-manager' && ecosystemOfTool(entry) === 'pypi' && context.targets.has(entry.id));
+  const uses = (ecosystem: Ecosystem) => context.tools.some((entry) => entry.kind === 'package-manager' && ecosystemOfTool(entry) === ecosystem && context.targets.has(entry.id));
+  // The rule for npm names leaves out the datasources of the other registries in use.
+  const others = (['pypi', 'packagist'] as const).filter(uses).map((ecosystem) => `${negative}${String(datasources[ecosystem])}`);
   const exclusionRule = {
     [descriptionKey]: RULE_DESCRIPTION,
-    ...(python ? { matchDatasources: [`${negative}${String(datasources['pypi'])}`] } : {}),
+    ...(others.length > 0 ? { matchDatasources: others } : {}),
     [rule.match]: patterns,
     [setting]: rule.value,
   };
   const pythonRule = { [descriptionKey]: PYTHON_RULE_DESCRIPTION, matchDatasources: [datasources['pypi']], [rule.match]: pythonPatterns, [setting]: rule.value };
+  const composerRule = { [descriptionKey]: COMPOSER_RULE_DESCRIPTION, matchDatasources: [datasources['packagist']], [rule.match]: composerPatterns, [setting]: rule.value };
   const managedRules = [
     { description: RULE_DESCRIPTION, rule: exclusionRule, wanted: patterns.length > 0 },
     { description: PYTHON_RULE_DESCRIPTION, rule: pythonRule, wanted: pythonPatterns.length > 0 },
+    { description: COMPOSER_RULE_DESCRIPTION, rule: composerRule, wanted: composerPatterns.length > 0 },
   ];
   const security = policy.cooldown.securityUpdates === 'delay' ? result.value : null;
 
@@ -119,7 +126,7 @@ export const renovate: BotGenerator = (context, duration, repository) => {
   json.set(securityPath, security);
 };
 
-const ECOSYSTEM_LABELS: Readonly<Record<Ecosystem, string>> = { npm: 'npm', pypi: 'Python' };
+const ECOSYSTEM_LABELS: Readonly<Record<Ecosystem, string>> = { npm: 'npm', pypi: 'Python', packagist: 'Composer' };
 
 /**
  * packageRules entries that apply does not manage and that give every package of a package manager in use (by
@@ -132,7 +139,7 @@ const ECOSYSTEM_LABELS: Readonly<Record<Ecosystem, string>> = { npm: 'npm', pypi
 function shorterRules(context: Parameters<BotGenerator>[0], file: string, written: unknown, list: string, descriptionKey: string, repository: BotRepository): void {
   const { tool } = context;
   const config = readRenovateConfig(context.read(file), file, []);
-  const own = new Set<unknown>([RULE_DESCRIPTION, PYTHON_RULE_DESCRIPTION]);
+  const own = new Set<unknown>([RULE_DESCRIPTION, PYTHON_RULE_DESCRIPTION, COMPOSER_RULE_DESCRIPTION]);
   const planned = { ...config, top: { value: written, line: config.top?.line ?? 1 }, rules: config.rules.filter((entry) => !own.has(entry.rule[descriptionKey])) };
   const wanted = delayMinutes(tool, written, latestVersion(tool));
   if (!wanted.ok) return;

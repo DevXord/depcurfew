@@ -33,6 +33,17 @@ describe('package names per registry', () => {
     expect(patternsFor(['esbuild', 'pypi:docopt', '@acme/*', 'pypi:acme-*'], 'pypi')).toEqual(['docopt', 'acme-*']);
   });
 
+  it('gives Composer the composer: names without the prefix, and no other registry sees them (decision D-126)', () => {
+    const names = ['esbuild', 'pypi:docopt', 'composer:acme/*', 'composer:monolog/monolog'];
+    expect(ecosystemOf('composer:monolog/monolog')).toBe('packagist');
+    expect(patternsFor(names, 'packagist')).toEqual(['acme/*', 'monolog/monolog']);
+    expect(patternsFor(names, 'npm')).toEqual(['esbuild']);
+    expect(patternsFor(names, 'pypi')).toEqual(['docopt']);
+    const parsed = parsePolicy(JSON.stringify({ version: 1, installScripts: { default: 'deny', allow: names } }));
+    if (!parsed.ok) throw new Error('invalid policy');
+    expect(policyFor(parsed.policy, 'packagist').installScripts?.allow).toEqual(['acme/*', 'monolog/monolog']);
+  });
+
   it('gives each registry its own view of the lists and leaves the rest alone', () => {
     const parsed = parsePolicy(
       JSON.stringify({

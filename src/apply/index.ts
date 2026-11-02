@@ -4,7 +4,7 @@
 import { join } from 'node:path';
 import { detectProject } from '../detect/index.ts';
 import { Repository } from '../detect/repository.ts';
-import { denyConflictText, remainingConflicts } from '../doctor/allow-lists.ts';
+import { denyConflictText, policyName, remainingConflicts } from '../doctor/allow-lists.ts';
 import { UNREADABLE_WARNINGS } from '../doctor/unreadable-warnings.ts';
 import type { Detection, VersionDeclaration, WorkflowJob } from '../detect/types.ts';
 import { jobsInProject, npmInUse, rootPlaces, type NpmInUse, type RootPlaces } from '../doctor/rules/bundled-versions.ts';
@@ -23,6 +23,7 @@ import { shortenedDelays } from './delays.ts';
 import { isRecord, sinceOf, values } from './facts.ts';
 import { foldCase, ignoredByGit, ignoresCase, trackedFiles } from './gitignore.ts';
 import { bun } from './generators/bun.ts';
+import { composer } from './generators/composer.ts';
 import { workspaceText } from './generators/common.ts';
 import { createContext, EditFailed, type BotGenerator, type EditFailure, type ManagerGenerator, type Snippet } from './generators/context.ts';
 import { deno } from './generators/deno.ts';
@@ -110,7 +111,7 @@ export function planDetails(report: ApplyReport): PlanDetails | undefined {
   return DETAILS.get(report);
 }
 
-const MANAGERS: Partial<Record<ToolId, ManagerGenerator>> = { npm, pnpm, yarn, bun, deno, uv, pip, poetry, pdm, pipenv };
+const MANAGERS: Partial<Record<ToolId, ManagerGenerator>> = { npm, pnpm, yarn, bun, deno, uv, pip, poetry, pdm, pipenv, composer };
 const BOTS: Partial<Record<ToolId, BotGenerator>> = { renovate, dependabot };
 
 function latestVersion(tool: ToolKnowledge): string | undefined {
@@ -176,7 +177,7 @@ function allowListWarnings(root: string, workspace: ManifestGuard, policy: Resol
             tool: manager.id,
             location,
             message: `${entry.setting} in ${entry.file}${entry.line === undefined ? '' : ` (line ${entry.line})`} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depcurfew apply does not remove entries it did not write`,
-            fix: `Remove ${entry.name} from ${entry.setting} by hand, or add ${entry.package} to installScripts.allow in ${POLICY_FILE}`,
+            fix: `Remove ${entry.name} from ${entry.setting} by hand, or add ${policyName(entry)} to installScripts.allow in ${POLICY_FILE}`,
           };
         }
         const text = denyConflictText({ kind: conflict.kind, entry }, true);

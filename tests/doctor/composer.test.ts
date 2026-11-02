@@ -1,0 +1,115 @@
+// Composer in doctor (decision D-126): the delay as Composer reads it, where composer.lock says a package comes from,
+// what allow-plugins decides for a plugin, and that check names Composer packages it does not look up.
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, describe, expect, it } from 'vitest';
+import { checkSpecs } from '../../src/check/index.ts';
+import { Repository } from '../../src/detect/repository.ts';
+import { composerEntries, declaredRepositories, normalizedUrl, pluginDecision } from '../../src/doctor/composer.ts';
+import { delayMinutes } from '../../src/doctor/durations.ts';
+import { knowledgeBase } from '../../src/knowledge/index.ts';
+import { DEFAULT_POLICY } from '../../src/policy/defaults.ts';
+import { validatePolicy } from '../../src/policy/validate.ts';
+import type { ToolKnowledge } from '../../src/knowledge/types.ts';
+
+const composer = knowledgeBase.find((tool) => tool.id === 'composer') as ToolKnowledge;
+const temporary: string[] = [];
+afterAll(() => {
+  for (const directory of temporary) rmSync(directory, { recursive: true, force: true });
+});
+
+describe('the Composer cooldown as Composer reads it', () => {
+  it.each([
+    ['7 days', 10080],
+    ['1 week', 10080],
+    ['24 hours', 1440],
+    ['30 minutes', 30],
+    ['1day', 1440],
+    [259200, 4320],
+    ['259200', 4320],
+    [null, 0],
+  ])('%s', (value, minutes) => {
+    expect(delayMinutes(composer, value, undefined)).toEqual({ ok: true, minutes });
+  });
+
+  it.each(['7 Days', '1 day 2 hours', '3d', 'P7D', 'next week'])('does not read %s, which Composer rejects', (value) => {
+    expect(delayMinutes(composer, value, undefined).ok).toBe(false);
+  });
+});
+
+describe('composer.lock and the repositories of composer.json', () => {
+  it('compares repository URLs by host and path', () => {
+    expect(normalizedUrl('https://github.com/Acme/Fork.git')).toBe('github.com/acme/fork');
+    expect(normalizedUrl('git@github.com:acme/fork.git')).toBe('github.com/acme/fork');
+    expect(normalizedUrl('ssh://git@github.com/acme/fork/')).toBe('github.com/acme/fork');
+  });
+
+  it('reads the deprecated object form of repositories and a package repository without a dist', () => {
+    const root = mkdtempSync(join(tmpdir(), 'depcurfew-composer-doctor-'));
+    temporary.push(root);
+    const manifest = {
+      repositories: {
+        fork: { type: 'github', url: 'https://github.com/acme/fork' },
+        legacy: { type: 'package', package: [{ name: 'Legacy/Lib', version: '1.0.0', source: { type: 'svn', url: 'https://svn.example.com/lib', reference: 'trunk' } }] },
+        packagist: { 'packagist.org': false },
+      },
+    };
+    writeFileSync(join(root, 'composer.json'), JSON.stringify(manifest));
+    const repositories = declaredRepositories(new Repository(root), composer);
+    expect(repositories.map(({ key, kind, names }) => ({ key, kind, names }))).toEqual([
+      { key: 'fork', kind: 'git', names: [] },
+      { key: 'legacy', kind: 'git', names: ['legacy/lib'] },
+      { key: 'packagist', kind: 'disable', names: [] },
+    ]);
+    const lock = {
+      packages: [
+        { name: 'acme/fork', source: { type: 'git', url: 'git@github.com:acme/fork.git' } },
+        { name: 'legacy/lib', source: { type: 'svn', url: 'https://svn.example.com/lib' } },
+        { name: 'acme/archive', dist: { type: 'tar', url: 'C:/artifacts/acme-archive.tar' } },
+        { name: 'acme/remote', dist: { type: 'zip', url: 'file:///srv/artifacts/acme-remote.zip' } },
+        { name: 'psr/log', dist: { type: 'zip', url: 'https://api.github.com/repos/php-fig/log/zipball/1' } },
+      ],
+      'packages-dev': [{ name: 'acme/plugin', type: 'composer-plugin', dist: { type: 'path', url: '../plugin' } }],
+    };
+    expect(composerEntries(JSON.stringify(lock), composer, repositories).map(({ name, source, installScript }) => ({ name, source, installScript }))).toEqual([
+      { name: 'acme/fork', source: 'git', installScript: false },
+      { name: 'legacy/lib', source: 'git', installScript: false },
+      { name: 'acme/archive', source: 'file', installScript: false },
+      { name: 'acme/remote', source: 'file', installScript: false },
+      { name: 'psr/log', source: 'registry', installScript: false },
+      { name: 'acme/plugin', source: 'directory', installScript: true },
+    ]);
+  });
+
+  it('takes the first key of allow-plugins that matches, in any case, and true or false for every plugin', () => {
+    const plugins = (setting: unknown) => ({ config: { 'allow-plugins': setting } });
+    expect(pluginDecision(plugins({ 'acme/*': false, 'acme/plugin': true }), 'acme/plugin')).toEqual({ allowed: false, key: 'acme/*' });
+    expect(pluginDecision(plugins({ 'Acme/Plugin': true }), 'acme/plugin')).toEqual({ allowed: true, key: 'Acme/Plugin' });
+    expect(pluginDecision(plugins({ '*': 1 }), 'acme/plugin')).toEqual({ allowed: false, key: '*' });
+    expect(pluginDecision(plugins(true), 'acme/plugin')).toEqual({ allowed: true });
+    expect(pluginDecision(plugins({}), 'acme/plugin')).toEqual({ allowed: undefined });
+    expect(pluginDecision(undefined, 'acme/plugin')).toEqual({ allowed: undefined });
+  });
+});
+
+describe('check and Composer packages', () => {
+  it('says that it does not look up a composer: package instead of reading it as an npm spec', async () => {
+    const result = validatePolicy(DEFAULT_POLICY);
+    if (!result.ok) throw new Error('default policy');
+    const fetch = () => Promise.reject(new Error('no network in tests'));
+    const [report] = await checkSpecs(['composer:monolog/monolog'], { policy: result.policy, fetch } as unknown as Parameters<typeof checkSpecs>[1]);
+    expect(report).toEqual({
+      spec: 'composer:monolog/monolog',
+      kind: 'invalid',
+      findings: [
+        {
+          level: 'error',
+          code: 'unverified',
+          message: 'depcurfew check does not look up Composer packages',
+          fix: 'Check the package on packagist.org yourself (its publication date, security advisories and whether it is a plugin); Composer 2.11 withholds young versions itself once depcurfew apply has written the cooldown into composer.json',
+        },
+      ],
+    });
+  });
+});

@@ -6,6 +6,7 @@ import type { PackageManagerId } from '../detect/types.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import { wildcardMatch } from '../detect/wildcard.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
+import { COMPOSER_PREFIX } from '../policy/package-pattern.ts';
 import { splitSpec } from './lockfiles.ts';
 import { jsonSetting, lineOf, yamlSetting } from './settings.ts';
 
@@ -24,6 +25,13 @@ export interface AllowEntry {
   line: number | undefined;
   /** The setting as written, e.g. "allowBuilds" or "dependenciesMeta". */
   setting: string;
+  /** The package as depcurfew.json names it, where its registry takes a prefix there (composer:vendor/name). */
+  policyName?: string;
+}
+
+/** The package of an entry as depcurfew.json writes it. */
+export function policyName(entry: AllowEntry): string {
+  return entry.policyName ?? entry.package;
 }
 
 function read(repository: TextSource, file: string): string | undefined {
@@ -130,6 +138,18 @@ function listEntries(repository: TextSource, manager: PackageManagerId, configFi
         else if (isRecord(value)) entries.push(...fromList(text, file, 'allowScripts.deny', value['deny'], 'npm:', jsonLine(text, file, ['allowScripts', 'deny'])));
       }
       break;
+    case 'composer': {
+      // config.allow-plugins: Composer allows a plugin only with true (PluginManager::isPluginAllowed); its keys may be
+      // patterns. true for the whole setting allows every plugin, which stands here as the pattern *.
+      const text = read(repository, 'composer.json');
+      if (text === undefined) break;
+      const found = jsonSetting(text, ['config', 'allow-plugins']);
+      const keys: AllowEntry[] = [];
+      if (found?.value === true && allowed) keys.push({ name: '*', package: '*', file: 'composer.json', line: found.line, setting: 'allow-plugins' });
+      keys.push(...fromKeys(text, 'composer.json', 'allow-plugins', found?.value, (entry) => (entry === true) === allowed, jsonLine(text, 'composer.json', ['config', 'allow-plugins'])));
+      entries.push(...keys.map((entry) => ({ ...entry, policyName: `${COMPOSER_PREFIX}${entry.package}` })));
+      break;
+    }
   }
   return entries;
 }
@@ -209,12 +229,12 @@ export function denyConflictText(conflict: ListConflict & { kind: 'denied' | 'al
   if (conflict.kind === 'denied') {
     return {
       message: `${where} lets ${entry.name} run its install scripts, although installScripts.deny in ${POLICY_FILE} says they must not run`,
-      fix: `Remove ${entry.name} from ${entry.setting} in ${entry.file}, or move ${entry.package} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing its scripts`,
+      fix: `Remove ${entry.name} from ${entry.setting} in ${entry.file}, or move ${policyName(entry)} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing its scripts`,
     };
   }
   return {
     message: `${where} blocks the install scripts of ${entry.name}, but installScripts.allow in ${POLICY_FILE} allows them`,
-    fix: `Remove ${entry.name} from ${entry.setting} in ${entry.file}, or move ${entry.package} from installScripts.allow to installScripts.deny in ${POLICY_FILE} if it works without its scripts`,
+    fix: `Remove ${entry.name} from ${entry.setting} in ${entry.file}, or move ${policyName(entry)} from installScripts.allow to installScripts.deny in ${POLICY_FILE} if it works without its scripts`,
   };
 }
 

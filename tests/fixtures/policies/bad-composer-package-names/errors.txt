@@ -1,0 +1,12 @@
+cooldown.exclude[0]: invalid package pattern "composer:": write a Composer package name after composer:, e.g. "composer:monolog/monolog" or "composer:acme/*"
+cooldown.exclude[1]: invalid package pattern "composer:*/*": it matches every package; list packages explicitly
+cooldown.exclude[2]: invalid package pattern "composer:*": it matches every package; list packages explicitly
+cooldown.exclude[3]: invalid package pattern "composer:monolog": Composer package names are vendor/name; expected a name or a name pattern with *, e.g. "composer:monolog/monolog" or "composer:acme/*"
+cooldown.exclude[4]: invalid package pattern "composer:Monolog/Monolog": Composer package names are lowercase; write "composer:monolog/monolog"
+cooldown.exclude[5]: invalid package pattern "composer:monolog/monolog:^3.0": versions are not supported; write "composer:monolog/monolog"
+cooldown.exclude[6]: invalid package pattern "composer:monolog/monolog@dev": versions are not supported; write "composer:monolog/monolog"
+cooldown.exclude[7]: invalid package pattern "composer:-acme/x": expected a Composer package name or a name pattern with *, e.g. "composer:monolog/monolog" or "composer:acme/*"
+installScripts.allow[0]: invalid package pattern "Composer:monolog/monolog": the ecosystem prefixes are pypi: and composer:; write Composer packages as "composer:monolog/monolog"
+installScripts.allow[1]: invalid package pattern "packagist:monolog/monolog": the ecosystem prefixes are pypi: and composer:; write Composer packages as "composer:monolog/monolog"
+installScripts.allow[2]: invalid package pattern "compser:acme/x": the ecosystem prefixes are pypi: and composer:; write Composer packages as "composer:acme/x"
+installScripts.allow[3]: invalid package pattern "monolog/monolog": npm names have a scope (@scope/name); write Composer packages as "composer:monolog/monolog"

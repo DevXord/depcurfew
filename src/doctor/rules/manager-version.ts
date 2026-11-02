@@ -11,6 +11,7 @@ import type { Fact, ToolKnowledge } from '../../knowledge/types.ts';
 import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
 import type { ResolvedPolicy } from '../../policy/schema.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
+import { COMPOSER_MANIFEST, lockedPluginApi } from '../composer.ts';
 import { readPythonSetting } from '../python.ts';
 import { lineOf, readSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
@@ -225,12 +226,48 @@ function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: T
   }
 }
 
+/**
+ * Composer has no setting that pins its version in the project, so the repository says nothing about the Composer that
+ * runs it but composer.lock: plugin-api-version, the plugin API of the Composer that wrote it, which is 2.11.0 from
+ * Composer 2.11.0 on (extra.pluginApiVersion). A lower one was written by an older Composer, which ignores the cooldown
+ * without a word (a warning); otherwise the version is not known, and a note says what the cooldown needs.
+ */
+function checkComposer(context: RuleContext, manager: PackageManagerInfo, tool: ToolKnowledge, features: readonly Feature[]): void {
+  const fact = extraOf(tool, 'pluginApiVersion', (value): value is { key: string; cooldownApi: string } => isRecord(value) && typeof value['cooldownApi'] === 'string');
+  const api = parseVersion(fact.cooldownApi) as Version;
+  // Only the settings Composer added with that plugin API; allow-plugins (2.2.0) is older than any lock that records the API.
+  const missing = features.filter((item) => compareVersions(parseVersion(item.since) as Version, api) >= 0);
+  if (missing.length === 0) return;
+  const list = describeRequirements(missing);
+  const needed = formatVersion(missing.map((item) => parseVersion(item.since) as Version).reduce((a, b) => (compareVersions(a, b) >= 0 ? a : b)));
+  const lockfile = manager.evidence.find((entry) => entry.kind === 'lockfile')?.file;
+  const locked = lockfile === undefined ? undefined : lockedPluginApi(context.repository, tool, lockfile);
+  const version = locked === undefined ? undefined : parseVersion(locked.version);
+  if (locked !== undefined && version !== undefined && compareVersions(version, api) < 0) {
+    context.report({
+      level: 'warning',
+      location: locked.line === undefined ? { file: locked.file } : { file: locked.file, line: locked.line },
+      message: `${locked.file} was written by a ${tool.name} older than ${needed} (${fact.key} ${locked.version}), which does not support ${list}, so ${tool.name} applies no cooldown where that version runs`,
+      fix: `Update ${tool.name} to ${needed} or later wherever the project is installed (composer self-update), then run composer update --lock and commit ${locked.file}`,
+    });
+    return;
+  }
+  const setting = missing[0]?.setting;
+  const found = setting === undefined ? undefined : readSetting(context.repository, COMPOSER_MANIFEST, setting);
+  context.report({
+    level: 'note',
+    location: found === undefined ? { file: COMPOSER_MANIFEST } : { file: COMPOSER_MANIFEST, line: found.line },
+    message: `depcurfew cannot tell which ${tool.name} runs this project (${tool.name} has no setting that pins its version${locked === undefined ? '' : `; ${locked.file} was written by ${tool.name} ${fact.cooldownApi} or later`}), and ${tool.name} older than ${needed} ignores ${list} without a word`,
+    fix: `Use ${tool.name} ${needed} or later wherever composer update or composer require runs (composer self-update), CI and Dockerfiles included`,
+  });
+}
+
 export const managerVersionTooOld: Rule = {
   id: 'manager-version-too-old',
   checks: 'The declared package manager versions, and the npm and pip that come with the declared Node.js and Python versions, support the settings the repository relies on',
   summary: 'A declared package manager version, or the npm or pip that comes with a declared Node.js or Python version, is older than a setting the repository relies on.',
   description:
-    'Package managers ignore settings they do not know yet; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, a CI step or a Dockerfile pins an older version, the setting is silently not applied there. The same holds for the npm that comes with the Node.js a CI job, a Dockerfile stage or a version file (.nvmrc, .node-version) chooses, and for the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age.',
+    'Package managers ignore settings they do not know yet; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, a CI step or a Dockerfile pins an older version, the setting is silently not applied there. The same holds for the npm that comes with the Node.js a CI job, a Dockerfile stage or a version file (.nvmrc, .node-version) chooses, and for the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age. Composer cannot pin its own version: a composer.lock whose plugin-api-version shows that a Composer older than 2.11 wrote it gives a warning, and otherwise a note says that the cooldown needs Composer 2.11.',
   help: 'Raise the declared version to at least the version that introduced the setting, everywhere it is declared, or install a newer npm or pip before installing packages.',
   level: 'error',
   requiresPolicy: false,
@@ -239,7 +276,9 @@ export const managerVersionTooOld: Rule = {
   check(context) {
     for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
       const tool = context.tools.find((entry) => entry.id === manager.id);
-      if (tool !== undefined) checkManager(context, manager, tool, featuresOf(context, tool));
+      if (tool === undefined) continue;
+      if (tool.id === 'composer') checkComposer(context, manager, tool, featuresOf(context, tool));
+      else checkManager(context, manager, tool, featuresOf(context, tool));
     }
     // The npm that comes with the declared Node.js, and the pip of a python image, where nothing replaces them.
     checkBundledVersions(context, {

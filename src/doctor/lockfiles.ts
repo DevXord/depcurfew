@@ -10,6 +10,7 @@ import type { ToolKnowledge } from '../knowledge/types.ts';
 import { listing } from '../apply/requirements.ts';
 import { isAbsoluteAnywhere } from '../paths.ts';
 import { parseYaml, parseYamlDocuments } from '../yaml-parse.ts';
+import { composerEntries, declaredRepositories } from './composer.ts';
 import { pdmEntries, pipfileLockEntries, poetryEntries, pylockEntries, requirementsEntries, requirementsFormatOf, requirementsIncludes, uvEntries } from './python-lockfiles.ts';
 
 /** Lockfiles are often larger than configuration files. */
@@ -493,6 +494,7 @@ function parseLockfiles(
       else if (tool.id === 'pdm') entries = pdmEntries(text, format);
       else if (tool.id === 'pipenv') entries = pipfileLockEntries(text, format);
       else if (tool.id === 'pip') entries = requirementsEntries(text, requirementsFormatOf(tool));
+      else if (tool.id === 'composer') entries = composerEntries(text, tool, declaredRepositories(repository, tool));
       else ({ entries, recordsScripts } = denoEntries(text, format));
       const optionFiles = requirements.get(file);
       return { ok: true, lockfile: { file, entries, recordsScripts, lineOf: entryLines(text, start, entries), ...(optionFiles === undefined ? {} : { optionFiles }) } };

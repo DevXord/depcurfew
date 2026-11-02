@@ -21,7 +21,7 @@ export const knownMalicious: Rule = {
   checks: 'With --osv: no locked package version is a known malicious version in OSV.dev',
   summary: 'With --osv: a lockfile locks a package version that OSV.dev lists as malicious.',
   description:
-    'With --osv, doctor sends the name and version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml and requirements pinned with ==) to api.osv.dev in batch queries, and reports each version that has a record of the OpenSSF malicious-packages database there (an id starting with MAL-). Such a version was published to steal or damage, and installing from the lockfile brings it back. Only reported malware is found, and the database admits false positives. Without --osv nothing is sent and the rule does not run; when OSV.dev cannot be reached it gives a warning instead of passing.',
+    'With --osv, doctor sends the name and version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) to api.osv.dev in batch queries, and reports each version that has a record of the OpenSSF malicious-packages database there (an id starting with MAL-). Such a version was published to steal or damage, and installing from the lockfile brings it back. Only reported malware is found, and the database admits false positives. Without --osv nothing is sent and the rule does not run; when OSV.dev cannot be reached it gives a warning instead of passing.',
   help: 'Remove or replace the package version and lock again; if it was installed anywhere, read the record on OSV.dev and treat that machine as exposed.',
   level: 'error',
   requiresPolicy: false,
@@ -76,7 +76,14 @@ export const knownMalicious: Rule = {
         }
         if ('collect' in osv) continue;
         reportUnchecked(context, lockfile.file, locked, unchecked);
-        if (unpinned > 0) {
+        if (unpinned > 0 && ecosystem === 'packagist') {
+          // composer.lock locks a commit of a branch (dev-main, 1.x-dev); OSV.dev records list releases.
+          context.notice(
+            `known-malicious did not check ${plural(unpinned, 'package')} of ${lockfile.file}, which locks a branch of ${unpinned === 1 ? 'it' : 'them'} (a dev- or -dev version), not a release`,
+            lockfile.file,
+            `Require tagged releases of ${unpinned === 1 ? 'this package' : 'these packages'} in composer.json and run composer update, so that doctor --osv can check ${unpinned === 1 ? 'it' : 'them'}`,
+          );
+        } else if (unpinned > 0) {
           context.notice(
             `known-malicious did not check ${plural(unpinned, 'package')} of ${lockfile.file}, which pins no exact version of ${unpinned === 1 ? 'it' : 'them'}`,
             lockfile.file,

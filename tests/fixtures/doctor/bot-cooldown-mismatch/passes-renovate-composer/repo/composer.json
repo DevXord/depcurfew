@@ -1,0 +1,12 @@
+{
+    "require": {
+        "psr/log": "^3.0"
+    },
+    "config": {
+        "policy": {
+            "cooldown": {
+                "period": "72 hours"
+            }
+        }
+    }
+}

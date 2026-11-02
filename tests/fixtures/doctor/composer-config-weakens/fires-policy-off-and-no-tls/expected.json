@@ -1,0 +1,29 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.json",
+      "line": 6
+    },
+    "message": "config.disable-tls in composer.json is \"yes\", which downloads without TLS and turns off secure-http: a package or its metadata can be changed on the way",
+    "fix": "Remove disable-tls from config in composer.json, and serve the repository that needs it over HTTPS"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.json",
+      "line": 8
+    },
+    "message": "config.allow-plugins in composer.json has \"*\": true, which lets every Composer plugin run its code, but installScripts in depcurfew.json denies dependency code by default",
+    "fix": "List the plugins that may run in installScripts.allow in depcurfew.json (with the prefix composer:) and run depcurfew apply, then remove \"*\" from config.allow-plugins"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.json",
+      "line": 10
+    },
+    "message": "config.policy in composer.json is false, which turns off every dependency policy, the cooldown and malware blocking included",
+    "fix": "Remove policy from config in composer.json, then run depcurfew apply"
+  }
+]

@@ -1,0 +1,17 @@
+{
+    "require": {
+        "monolog/monolog": "^3.12",
+        "php-http/discovery": "^1.20",
+        "symfony/flex": "^2.8"
+    },
+    "require-dev": {
+        "phpstan/extension-installer": "^1.4"
+    },
+    "config": {
+        "allow-plugins": {
+            "symfony/flex": true,
+            "php-http/discovery": true,
+            "phpstan/extension-installer": false
+        }
+    }
+}

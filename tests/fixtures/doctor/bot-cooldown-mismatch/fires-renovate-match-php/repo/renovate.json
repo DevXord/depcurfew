@@ -1,0 +1,6 @@
+{
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    { "matchCategories": ["php"], "minimumReleaseAge": "1 hour" }
+  ]
+}

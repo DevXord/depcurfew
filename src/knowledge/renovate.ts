@@ -7,6 +7,7 @@ const reviewed = verifiedOn('2026-10-30');
 const rules = verifiedOn('2026-10-30');
 const projects = verifiedOn('2026-11-01');
 const bots = verifiedOn('2026-11-02');
+const composer = verifiedOn('2026-11-02');
 
 const AT = 'https://github.com/renovatebot/renovate/blob/44.198.2';
 
@@ -151,10 +152,15 @@ export const renovate: ToolKnowledge = {
       'config:best-practices extends security:minimumReleaseAgeNpm (since 42.0.0): "3 days" and internalChecksFilter "strict" for the npm datasource, except pin, replacement, lockFileMaintenance, bump, lockfileUpdate and rollback',
       'https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm',
     ),
-    datasources: python.verified(
-      { npm: 'npm', pypi: 'pypi' },
+    datasources: composer.verified(
+      { npm: 'npm', pypi: 'pypi', packagist: 'packagist' },
       'https://docs.renovatebot.com/modules/datasource/pypi/',
-      'Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version\'s files.',
+      'Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version\'s files. Composer packages come from packagist, the datasource of the composer manager (static readonly id = \'packagist\' in lib/modules/datasource/packagist/index.ts and supportedDatasources in lib/modules/manager/composer/index.ts at 44.199.2, read 2026-11-02).',
+    ),
+    packagistReleaseTime: composer.verified(
+      { field: 'published-time', fallback: 'time' },
+      'https://github.com/renovatebot/renovate/blob/44.199.2/lib/modules/datasource/packagist/schema.ts',
+      'The release timestamp of a Composer version is composerRelease[\'published-time\'] ?? composerRelease.time: Packagist\'s publication date, the author-set time only when it is missing. The releaseTimestampNote of lib/modules/datasource/packagist/index.ts at the same tag still says "determined from the time field".',
     ),
     negativeMatch: python.verified(
       '!',

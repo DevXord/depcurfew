@@ -1,0 +1,11 @@
+[
+  {
+    "level": "note",
+    "location": {
+      "file": "composer.json",
+      "line": 8
+    },
+    "message": "depcurfew cannot tell which Composer runs this project (Composer has no setting that pins its version), and Composer older than 2.11.0 ignores config.policy.cooldown.period and config.policy.cooldown.ignore (added in 2.11.0) without a word",
+    "fix": "Use Composer 2.11.0 or later wherever composer update or composer require runs (composer self-update), CI and Dockerfiles included"
+  }
+]

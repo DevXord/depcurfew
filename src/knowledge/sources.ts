@@ -28,6 +28,8 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   poetry: [{ host: 'python-poetry.org' }, { host: 'github.com', pathPrefix: '/python-poetry/' }, { host: 'github.com', pathPrefix: '/tox-dev/' }],
   pdm: [{ host: 'pdm-project.org' }, { host: 'github.com', pathPrefix: '/pdm-project/' }, { host: 'github.com', pathPrefix: '/tox-dev/' }],
   pipenv: [{ host: 'pipenv.pypa.io' }, { host: 'github.com', pathPrefix: '/pypa/' }],
+  // Packagist.org is Composer's default repository; its API documentation and the files it serves describe it.
+  composer: [{ host: 'getcomposer.org' }, { host: 'github.com', pathPrefix: '/composer/' }, { host: 'packagist.org' }, { host: 'repo.packagist.org' }],
   renovate: [{ host: 'docs.renovatebot.com' }, { host: 'github.com', pathPrefix: '/renovatebot/' }],
   dependabot: [
     { host: 'docs.github.com' },

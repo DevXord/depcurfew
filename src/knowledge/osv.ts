@@ -48,8 +48,8 @@ export const osv: OsvKnowledge = {
     'The prefix table of the OSV schema lists MAL for the "Malicious Packages Repository" (github.com/ossf/malicious-packages/tree/main/osv/); OSV.dev imports it under Apache 2.0 (google/osv.dev docs/data.md). Its README (github.com/ossf/malicious-packages/blob/main/README.md) says false positives "may be present in our dataset from time-to-time": a report that is wholly a false positive is moved to osv/withdrawn/ with a withdrawn time, and for false-positive versions of a report those versions move into a database_specific array; reports are not removed. Its CONTRIBUTING.md says ids are assigned automatically and the summary is replaced by a standard one ("Malicious code in <name> (<ecosystem>)" in the records).',
   ),
   ecosystems: verified(
-    { npm: 'npm', pypi: 'PyPI', composer: 'Packagist' },
+    { npm: 'npm', pypi: 'PyPI', packagist: 'Packagist' },
     `${OSV_SCHEMA}#affectedpackage-field`,
-    'Keys are the ecosystems of depcurfew (the prefix of a package name: none for npm, pypi: and composer:), values the ecosystem names of the OSV schema: "npm" (an NPM package name), "PyPI" (a normalized PyPI package name), "Packagist" (a PHP package name; without a :<REMOTE-REPO-URL> suffix it means https://packagist.org). OSV.dev covers all three (google/osv.dev docs/data.md, Covered Ecosystems).',
+    'Keys are the ecosystems of depcurfew (npm, pypi and packagist; in package names of the policy no prefix, pypi: and composer:), values the ecosystem names of the OSV schema: "npm" (an NPM package name), "PyPI" (a normalized PyPI package name), "Packagist" (a PHP package name; without a :<REMOTE-REPO-URL> suffix it means https://packagist.org). OSV.dev covers all three (google/osv.dev docs/data.md, Covered Ecosystems). It compares Packagist versions as PHP does, with a leading v left out (PackagistVersion in osv/ecosystems/packagist.py of google/osv.dev at b7449847246af793439d06284d340af40cdae854), so a version of composer.lock is sent as Composer wrote it.',
   ),
 };
