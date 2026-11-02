@@ -551,7 +551,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: DevXord/depcurfew@25fb6165f2d19767eb4d35c92606500e104b09f9 # v1.2.0
+      - uses: DevXord/depcurfew@acb23f6f7e85ffce7190593a7fc98cfb73231549 # v1.3.0
 ```
 <!-- END GENERATED: action-workflow -->
 

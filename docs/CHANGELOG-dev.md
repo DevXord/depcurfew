@@ -2,6 +2,11 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-11-02 · Wydanie 1.3.0 i przykład Action z SHA wydania
+
+- `depcurfew@1.3.0` opublikowana 07:12 UTC z tagu `v1.3.0` (commit acb23f6) przez trusted publishing, z proweniencją SLSA; pliki w rejestrze są bajt w bajt takie same jak kompilacja z tego tagu.
+- Przykład Action w README przypina `DevXord/depcurfew@acb23f6f7e85ffce7190593a7fc98cfb73231549 # v1.3.0` (`ACTION_RELEASE` w `src/docs/readme.ts`).
+
 ## 2026-11-01 · 1.3.0: MCP, `doctor --strict`, `projects`, npm z wersji Node i Dockerfile, `--user` i Action (D-096–D-104)
 
 - Dla zespołu z kilkoma niezależnymi katalogami, npm 10 w obrazach i backendem w Pythonie (np. frontend z `Dockerfile.ssr` na `node:20-alpine`, backend z `python:3.12-slim`): `projects` (D-100), npm i pip z wersji Node i Pythona, pliki wersji Node i Dockerfile (D-099), README o hooku przed instalacją depcurfew, przypięciu wersji i granicach narzędzia, uwaga o budowaniu Pythona w `init` (D-102), najniższy Node dla CLI (D-103).
@@ -13,7 +18,7 @@ Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/
 - Poprawki: D-109 (`strict-allow-scripts` ze wszystkich miejsc npm, pliki wersji Node z korzenia dla projektów, duplikaty znalezisk, brzmienie), D-110 (hook: polityka projektu i bliższa naraz po `realpath`, zastąpiony wpis check run, SARIF przy błędzie użycia) i D-111 (npm każdego wydania Node, nieznany npm jak uruchamiający skrypty, ścieżki `COPY`, dziedziczenie plików wersji według rodzaju, `explain` z przypisaniem, `--json=x`).
 - Poprawki: D-113 (hook, `check`, MCP: polityka projektu albo najbliższa, `.npmrc` z katalogu npm i rejestry Yarn, Bun, uv, zniekształcone zdarzenia blokują, pliki do 1 MiB, limit wersji), D-114 (skaner poleceń: `trap`, aliasy, `env -S`, skrypty menedżerów, `sudo -s`, CRLF, osłabianie polityki i zmiany konfiguracji w samym poleceniu), D-115 (npm z CI i Dockerfile'ów dla projektów, `npm ci` bez wymogu opóźnienia, `--ignore-scripts`, submoduły, kontenery zadań, `lts/-n`, pip bez opóźnienia, `doctor <projekt>`), D-116 (`lockfile-out-of-date`, `bot-rule-shortens-delay`, notatki według kontraktu komunikatów, linia i kolumna w położeniu, drobiazgi `--user` i Action), D-117 (`explain` mówi, co `installScripts` i `sources` znaczą dla każdego narzędzia), D-118 (katalog każdej instalacji w hooku: `cd`, `pushd`, `--prefix`). CHANGELOG ma sekcję „Upgrading from 1.2.0”.
 - Poprawki: D-119 (zmiana katalogu w hooku tylko zaostrza, `$'…'`, aliasy bez wybuchu, `--no-` w skrótach nopt, `env -C`, `find -execdir`, `\` w PowerShell), D-120 (wzorce workspace'ów bez wykładniczego dopasowania, źródła Poetry, PDM i Pipenv, jawne indeksy uv, brak paczki przy niesprawdzonym rejestrze pyta), D-121 (czas liniowy dla skryptów CI i RUN, hash pdm.lock, config-drift, poprawki npm według engines, `unreadable-config` bez polityki), D-122 (`doctor --user` każde miejsce, linia błędnej polityki w tekście, poziomy w logu Action, `init --json`); poprawione uwagi o aktualizacji i README o wersji Action.
-- Poprawki: D-123 (`env -S` jak GNU env, stos katalogów jak w bash, nazwy zmiennych budowane przez powłokę, `trap` DEBUG/ERR, `source`, aliasy z odstępem na końcu, `PIPENV_PIPFILE`, aktywacja venv bez pytania, linia poleceń do 1 MiB poniżej 2 s), D-124 (linia `script-not-followed`, bomba aliasów YAML bez polityki, nieczytelny plik bota, położenia błędów, `.npmrc` pakietu workspace'u).
+- Poprawki: D-123 (`env -S` jak GNU env, stos katalogów jak w bash, nazwy zmiennych budowane przez powłokę, `trap` DEBUG/ERR, `source`, aliasy z odstępem na końcu, `PIPENV_PIPFILE`, aktywacja venv bez pytania, linia poleceń do 1 MiB w czasie liniowym), D-124 (linia `script-not-followed`, bomba aliasów YAML bez polityki, nieczytelny plik bota, położenia błędów, `.npmrc` pakietu workspace'u).
 - Wersja 1.3.0 w `package.json`.
 
 ## 2026-10-31 · Wydanie 1.2.0 i przykład Action z SHA wydania
