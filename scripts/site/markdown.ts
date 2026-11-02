@@ -193,7 +193,8 @@ export function renderMarkdown(markdown: string, options: MarkdownOptions = {}):
       }
       out.push(
         [
-          '<div class="table"><table>',
+          // A table of five or more columns may use the whole width of the page (decision D-147).
+          `<div class="${header.length >= WIDE_TABLE ? 'table wide' : 'table'}"><table>`,
           '<thead>',
           row(header, 'th'),
           '</thead>',
@@ -530,6 +531,9 @@ function cellCode(value: string): string {
   if (!/\s/u.test(value) && !pieces.some((piece) => piece.split)) return `<code>${escapeHtml(value)}</code>`;
   return `<code class="words">${pieces.map((piece) => piece.html).join('')}</code>`;
 }
+
+/** The number of columns from which a table is wide (decision D-147). */
+const WIDE_TABLE = 5;
 
 /** Words of table code up to this length stay whole; longer ones may wrap after a dot or a slash (decision D-145). */
 const LONG_WORD = 16;

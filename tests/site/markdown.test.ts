@@ -113,6 +113,11 @@ describe('tables', () => {
     expect(html('run `npm ci <name>` and `min-release-age`')).toBe('<p>run <code>npm ci &lt;name&gt;</code> and <code>min-release-age</code></p>\n');
   });
 
+  it('marks a table of five or more columns as wide', () => {
+    expect(html('| a | b | c | d |\n| - | - | - | - |\n| 1 | 2 | 3 | 4 |')).toContain('<div class="table"><table>');
+    expect(html('| a | b | c | d | e |\n| - | - | - | - | - |\n| 1 | 2 | 3 | 4 | 5 |')).toContain('<div class="table wide"><table>');
+  });
+
   it('keeps a date in a table cell whole, with the dash of a range after it', () => {
     expect(html('| Verified |\n| --- |\n| 2026-10-28 – 2026-11-02 |\n\nOn 2026-11-02.')).toBe(
       '<div class="table"><table>\n<thead>\n<tr><th>Verified</th></tr>\n</thead>\n<tbody>\n<tr><td><span class="date">2026-10-28 –</span> <span class="date">2026-11-02</span></td></tr>\n</tbody>\n</table></div>\n<p>On 2026-11-02.</p>\n',

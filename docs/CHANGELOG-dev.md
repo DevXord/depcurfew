@@ -2,6 +2,11 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-11-02 · Strona dokumentacji: szerokie tabele i adres arkusza stylów (D-147)
+
+- Tabele z co najmniej pięcioma kolumnami (`wide`) zajmują całą szerokość strony, a lista „On this page” stoi wtedy nad treścią; przy 1440 px w bok przewija się jedna tabela zamiast pięciu.
+- `style.css?v=<SHA-256>` w szablonie, więc po wdrożeniu przeglądarka pobiera zmieniony arkusz zamiast starego z pamięci.
+
 ## 2026-11-02 · Hook: przesunięcia w czasie liniowym; `corepack-unavailable` porównuje wydania (D-146)
 
 - `offsetSets` w `src/check/command.ts` czyta arytmetykę przesunięć `${s:offset}` w jednym przejściu (słowo 1 MiB z wieloma `${a:` w cudzysłowie: 5,5 s, teraz kilka milisekund), z tym samym wynikiem co dotychczasowe wyrażenie.

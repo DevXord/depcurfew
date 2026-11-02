@@ -539,6 +539,69 @@ footer.site p {
   .toc a {
     margin-left: -1px;
   }
+
+  /* A page with a table of five or more columns: its "On this page" list stands above the content, as on narrower
+     screens, so that such a table may use the whole width of the page; only a table wider than that scrolls sideways
+     (decision D-147). Text keeps its measure, and other blocks the width of a page without such a table. */
+  .page:has(.table.wide) {
+    display: block;
+    max-width: none;
+  }
+
+  .page:has(.table.wide) .content > * {
+    max-width: 66rem;
+  }
+
+  .page:has(.table.wide) .content > :is(p, ul, ol, h1, h2, h3, h4, h5, h6) {
+    max-width: 72ch;
+  }
+
+  .page:has(.table.wide) .content > .table.wide {
+    width: fit-content;
+    min-width: min(100%, 66rem);
+    max-width: 100%;
+  }
+
+  .page:has(.table.wide) .toc-toggle {
+    display: block;
+  }
+
+  .page:has(.table.wide) .toc {
+    position: static;
+    display: none;
+    max-height: none;
+    overflow: visible;
+    border-left: 0;
+  }
+
+  .page:has(.table.wide) .toc-title {
+    display: none;
+  }
+
+  .page:has(.table.wide) .toc a {
+    margin-left: 0;
+  }
+
+  .page:has(.table.wide) .toc-toggle[open] {
+    margin-bottom: 0;
+    border-bottom-right-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .page:has(.table.wide) .toc-toggle[open] + .toc {
+    display: block;
+    max-width: 66rem;
+    margin: 0 0 1.5rem;
+    padding: 0.25rem 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-top: 0;
+    border-radius: 0 0 0.625rem 0.625rem;
+    background: var(--surface);
+  }
+
+  .page:has(.table.wide) .toc-toggle {
+    max-width: 66rem;
+  }
 }
 
 /* Hero of the start page */

@@ -2,9 +2,16 @@
 // HTML document with one h1, the top bar with the icon and the version, and the navigation right after the toggle that
 // opens it on narrow screens; every internal link and anchor resolves with a relative path, and nothing is loaded
 // from another host.
+import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, posix, relative, sep } from 'node:path';
 import { expect } from 'vitest';
+
+/**
+ * The first 12 hexadecimal digits of the SHA-256 of site/style.css, which every page puts in the address of the
+ * stylesheet, so that a browser fetches a changed stylesheet instead of a cached one (decision D-147).
+ */
+export const STYLE_STAMP = createHash('sha256').update(readFileSync(new URL('../../site/style.css', import.meta.url))).digest('hex').slice(0, 12);
 
 /** The files under a directory, as paths with `/`. */
 export function files(directory: string): string[] {
@@ -37,7 +44,7 @@ export const rootOf = (name: string) => '../'.repeat(name.split('/').length - 1)
 export const loads = (name: string) => {
   const root = rootOf(name);
   return {
-    stylesheet: `<link rel="stylesheet" href="${root}style.css">`,
+    stylesheet: `<link rel="stylesheet" href="${root}style.css?v=${STYLE_STAMP}">`,
     icon: `<link rel="icon" href="${root}favicon.svg" type="image/svg+xml">`,
     brand: `<a class="brand" href="${root}index.html"><img src="${root}favicon.svg" alt="" width="20" height="20">depcurfew</a>`,
     image: `<img src="${root}favicon.svg" alt="" width="20" height="20">`,
@@ -101,7 +108,9 @@ export function checkLinks(directory: string, name: string, all: readonly string
     const value = unescape(raw);
     if (isExternal(value)) continue;
     expect(value.startsWith('/'), `${name}: ${value} is not relative`).toBe(false);
-    const [path = '', fragment] = value.split('#');
+    const [address = '', fragment] = value.split('#');
+    // A static server ignores the query, such as the stamp in the address of the stylesheet (decision D-147).
+    const path = address.split('?')[0] ?? '';
     const target = path === '' ? name : posix.normalize(posix.join(posix.dirname(name), path));
     expect(all, `${name}: ${value}`).toContain(target);
     if (fragment !== undefined) {
