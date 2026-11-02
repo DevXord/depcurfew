@@ -12,15 +12,19 @@
 <body>
 <a class="skip" href="#content">Skip to content</a>
 <header class="site">
-<div class="bar">
 <a class="brand" href="{{root}}index.html"><img src="{{root}}favicon.svg" alt="" width="20" height="20">depcurfew</a>
-<nav aria-label="Pages">
+<span class="version">v{{version}}</span>
+</header>
+<details class="menu"><summary>Menu</summary></details>
+<nav class="pages" aria-label="Pages">
 {{nav}}
 </nav>
-</div>
-</header>
 <main id="content">
-{{banner}}{{content}}
+{{banner}}{{hero}}<div class="page">
+{{toc}}<div class="content">
+{{content}}
+</div>
+</div>
 </main>
 <footer class="site">
 {{footer}}

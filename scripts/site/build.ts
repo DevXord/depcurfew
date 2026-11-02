@@ -4,7 +4,9 @@
 // that puts README sections and the README tables of its tools together. Hand-written text is limited to
 // navigation. Links are relative, so the site works at the root of a domain (https://depcurfew.github.io/, decision
 // D-139) and under a path; the only things loaded are its own stylesheet and icon. With earlier versions (D-139) the
-// site also has a Versions page and a directory /<version>/ for each earlier release.
+// site also has a Versions page and a directory /<version>/ for each earlier release. The design (D-140): the pages in
+// groups of the navigation (PAGE_GROUPS), a hero on the start page, an "On this page" list on long pages and the
+// levels of doctor rules and codes as pills, all without JavaScript.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, posix } from 'node:path';
 import { KNOWLEDGE_DOCUMENT, readmeSections, renderReadme, type ReadmeInputs } from '../../src/docs/readme.ts';
@@ -38,6 +40,8 @@ export interface ReadmePage extends Page {
   extra?: string;
   /** Ends with the list of the other pages of the site. */
   contents?: boolean;
+  /** Shows its first README section, the title of the README with its introduction, as the hero (D-140). */
+  hero?: boolean;
 }
 
 export interface StartPage extends Page {
@@ -62,6 +66,7 @@ export const README_PAGES: readonly ReadmePage[] = [
     summary: 'What depcurfew does, the five-minute start and the installation.',
     sections: ['depcurfew', 'why', 'five-minute-start', 'installation'],
     contents: true,
+    hero: true,
   },
   {
     file: 'policy.html',
@@ -144,14 +149,38 @@ function startPages(tools: readonly ToolKnowledge[]): StartPage[] {
 
 export const START_PAGES: readonly StartPage[] = startPages(knowledgeBase);
 
-/** Every page, in the order of the navigation. */
-export const SITE_PAGES: readonly Page[] = [
-  ...README_PAGES.slice(0, 1),
-  ...START_PAGES,
-  ...README_PAGES.slice(1, -1),
-  KNOWLEDGE_PAGE,
-  ...README_PAGES.slice(-1),
+/** A group of the navigation (D-140): its title and the files of its pages, in the order of the navigation. */
+export interface PageGroup {
+  title: string;
+  files: readonly string[];
+}
+
+/**
+ * The group of every page of the current version, in one place (D-140). The navigation, the order of SITE_PAGES and the
+ * list of pages on the start page follow it, and a page that is in no group stops the build: a new ecosystem in the
+ * knowledge base gets a start page `<ecosystem>.html`, which has to be added here.
+ */
+export const PAGE_GROUPS: readonly PageGroup[] = [
+  { title: 'Start', files: ['index.html', 'npm.html', 'python.html', 'php.html', 'bots.html'] },
+  { title: 'Reference', files: ['policy.html', 'commands.html', 'codes.html', 'doctor.html', 'tools.html', 'knowledge.html'] },
+  { title: 'Integrations', files: ['action.html', 'check.html', 'claude-code.html', 'mcp.html', 'machine.html'] },
+  { title: 'Project', files: ['about.html', 'versions.html'] },
 ];
+
+/** The pages in their groups, in the order of PAGE_GROUPS, without empty groups; a page in no group stops the build. */
+export function groupPages(pages: readonly Page[], groups: readonly PageGroup[] = PAGE_GROUPS): { title: string; pages: Page[] }[] {
+  for (const page of pages) {
+    const found = groups.filter((group) => group.files.includes(page.file));
+    if (found.length === 0) throw new Error(`site: ${page.file} has no group in PAGE_GROUPS in scripts/site/build.ts`);
+    if (found.length > 1) throw new Error(`site: ${page.file} is in more than one group of PAGE_GROUPS in scripts/site/build.ts`);
+  }
+  return groups
+    .map((group) => ({ title: group.title, pages: group.files.flatMap((file) => pages.filter((page) => page.file === file)) }))
+    .filter((group) => group.pages.length > 0);
+}
+
+/** Every page of the current version without the Versions page, in the order of the navigation. */
+export const SITE_PAGES: readonly Page[] = groupPages([...README_PAGES, ...START_PAGES, KNOWLEDGE_PAGE]).flatMap((group) => group.pages);
 
 /** The page that lists the current version and the earlier ones; only in a site with earlier versions (D-139). */
 export const VERSIONS_PAGE: Page = { file: 'versions.html', nav: 'Versions', title: 'Versions', summary: 'The current version and the documentation of every earlier release.' };
@@ -167,7 +196,8 @@ export function freshReadme(root: URL = REPOSITORY): string {
   return renderReadme(read(root, 'README.md'), readmeInputs(root));
 }
 
-type Part = { markdown: string } | { section: Section; level: number };
+/** A part of a page: Markdown, a README section at a level, or HTML the build writes, with ids from the page's slugger. */
+type Part = { markdown: string } | { section: Section; level: number } | { html: (slug: (text: string) => string) => string };
 
 /** The README sections of each README page, in README order. */
 function assignSections(sections: readonly Section[]): Map<ReadmePage, Section[]> {
@@ -196,6 +226,8 @@ function assignSections(sections: readonly Section[]): Map<ReadmePage, Section[]
 interface Context {
   /** The page of each README section id. */
   anchors: Map<string, string>;
+  /** The name of the package, for its page on npm. */
+  name: string;
   version: string;
   description: string;
   license: string;
@@ -221,10 +253,12 @@ function sectionIds(parts: readonly Part[]): Set<string> {
   return new Set(parts.flatMap((part) => ('section' in part ? [part.section.id] : [])));
 }
 
-function renderParts(parts: readonly Part[], href: (target: string) => string | undefined): string {
-  const slug = createSlugger(['content', ...sectionIds(parts)]);
+/** The HTML of the parts; the ids of the sections in `reserved` (by default those of the parts) are never given twice. */
+function renderParts(parts: readonly Part[], href: (target: string) => string | undefined, reserved: ReadonlySet<string> = sectionIds(parts)): string {
+  const slug = createSlugger(['content', ...reserved]);
   return parts
     .map((part) => {
+      if ('html' in part) return part.html(slug);
       if ('markdown' in part) return renderMarkdown(part.markdown, { slug, href }).html;
       const { section, level } = part;
       return renderMarkdown(`${'#'.repeat(level)} ${section.heading}\n${section.body}`, { slug: () => section.id, href }).html;
@@ -232,10 +266,50 @@ function renderParts(parts: readonly Part[], href: (target: string) => string | 
     .join('');
 }
 
-/** The parts of a page of the current version, with the links of README and knowledge text as they work on the site. */
-function currentParts(parts: readonly Part[], file: string, context: Context): string {
+/**
+ * A page of the current version, with the links of README and knowledge text as they work on the site. The first part
+ * of a page with a hero, the title of the README with its introduction, is in the hero (D-140).
+ */
+function currentPage(page: Page, parts: readonly Part[], context: Context, hero = false): string {
   const local = sectionIds(parts);
-  return renderParts(parts, (target) => siteTarget(target, file, local, context));
+  const href = (target: string) => siteTarget(target, page.file, local, context);
+  const [first, ...rest] = parts;
+  const lead = hero && first !== undefined ? renderParts([first], href, local) : '';
+  const content = renderParts(hero ? rest : parts, href, local);
+  return pageHtml({ ...currentFrame(page, context), hero: hero ? heroHtml(lead, page, context) : '' }, content, context.template);
+}
+
+/** The button of the hero that leads to the five-minute start of the README. */
+const FIVE_MINUTE_START = 'five-minute-start';
+
+/**
+ * The hero of the start page (D-140): the icon, the title of the README with its introduction, buttons to the
+ * five-minute start, the repository and the package on npm, and every tool of the knowledge base as a chip that links
+ * to the start page of its group.
+ */
+function heroHtml(lead: string, page: Page, context: Context): string {
+  if (!lead.startsWith('<h1 ')) throw new Error(`site: the hero of ${page.file} needs the title of README.md as its first section`);
+  if (context.anchors.get(FIVE_MINUTE_START) !== page.file) throw new Error(`site: the button "Start in five minutes" needs the README section #${FIVE_MINUTE_START} on ${page.file}`);
+  const chips = knowledgeBase.map((tool) => {
+    const start = START_PAGES.find((entry) => entry.tools.includes(tool.id));
+    if (start === undefined) throw new Error(`site: ${tool.id} has no start page`);
+    return `<li><a href="${escapeHtml(start.file)}">${escapeHtml(tool.name)}</a></li>`;
+  });
+  return [
+    '<div class="hero">',
+    `<img class="logo" src="${rootOf(page.file)}favicon.svg" alt="" width="96" height="96">`,
+    lead.trimEnd(),
+    '<p class="actions">',
+    `<a class="button primary" href="#${FIVE_MINUTE_START}">Start in five minutes</a>`,
+    ...(context.repository === undefined ? [] : [`<a class="button" href="${escapeHtml(context.repository)}">GitHub</a>`]),
+    `<a class="button" href="${escapeHtml(`https://www.npmjs.com/package/${context.name}`)}">npm</a>`,
+    '</p>',
+    '<ul class="chips" aria-label="Supported tools">',
+    ...chips,
+    '</ul>',
+    '</div>',
+    '',
+  ].join('\n');
 }
 
 function readmeParts(page: ReadmePage, sections: readonly Section[], context: Context): Part[] {
@@ -248,14 +322,24 @@ function readmeParts(page: ReadmePage, sections: readonly Section[], context: Co
     ...(page.heading === true ? [{ markdown: `# ${page.title}` }] : []),
     ...sections.map((section) => ({ section, level: section.level - shift })),
     ...(page.extra === undefined ? [] : [{ markdown: page.extra }]),
-    ...(page.contents === true ? [{ markdown: contents(page, context.pages) }] : []),
+    ...(page.contents === true ? [contents(page, context.pages)] : []),
   ];
 }
 
-/** The other pages of the site with their summaries. */
-function contents(page: Page, pages: readonly Page[]): string {
-  const entries = pages.filter((entry) => entry.file !== page.file).map((entry) => `- [${entry.title}](${entry.file}): ${entry.summary}`);
-  return ['## On this site', '', ...entries].join('\n');
+/** The other pages of the site with their summaries, in the groups of the navigation (D-140). */
+function contents(page: Page, pages: readonly Page[]): Part {
+  return {
+    html: (slug) => {
+      const groups = groupPages(pages.filter((entry) => entry.file !== page.file));
+      const lines = [`<h2 id="${escapeHtml(slug('On this site'))}">On this site</h2>`];
+      for (const group of groups) {
+        lines.push(`<h3 id="${escapeHtml(slug(group.title))}">${escapeHtml(group.title)}</h3>`, '<ul class="cards">');
+        for (const entry of group.pages) lines.push(`<li><a href="${escapeHtml(entry.file)}"><span class="title">${escapeHtml(entry.title)}</span> <span class="summary">${escapeHtml(entry.summary)}</span></a></li>`);
+        lines.push('</ul>');
+      }
+      return `${lines.join('\n')}\n`;
+    },
+  };
 }
 
 function sectionById(sections: readonly Section[], id: string, file: string): Section {
@@ -303,28 +387,117 @@ interface NavEntry {
   current: boolean;
 }
 
+/** A group of the navigation as the page shows it. */
+interface NavGroup {
+  title: string;
+  entries: readonly NavEntry[];
+}
+
 /** What site/template.html puts around the content of a page. */
 interface Frame {
   /** The path of the page from the root of the site, which gives the relative path back to the root. */
   file: string;
   title: string;
   description: string;
-  nav: readonly NavEntry[];
+  /** The version the page documents, in the top bar. */
+  version: string;
+  nav: readonly NavGroup[];
   /** HTML before the content: the banner of an earlier version, empty for the current one. */
   banner: string;
+  /** HTML of the hero above the content (D-140), empty on every page but the start page. */
+  hero: string;
   /** HTML of the footer. */
   footer: string;
 }
 
+/** The relative path from a page to the root of the site: empty at the root, `../` in a version directory. */
+const rootOf = (file: string) => '../'.repeat(file.split('/').length - 1);
+
+function navHtml(groups: readonly NavGroup[]): string {
+  return groups
+    .map((group) =>
+      [
+        '<div class="group">',
+        `<p class="group-title">${escapeHtml(group.title)}</p>`,
+        '<ul>',
+        ...group.entries.map((entry) => `<li><a href="${escapeHtml(entry.href)}"${entry.current ? ' aria-current="page"' : ''}>${escapeHtml(entry.text)}</a></li>`),
+        '</ul>',
+        '</div>',
+      ].join('\n'),
+    )
+    .join('\n');
+}
+
+/** The level words of doctor rules (`**error** · …`) and the labels of the lists of codes of init and apply (D-140). */
+const LEVEL_WORD = /<strong>(error|warning|note)<\/strong>/gu;
+const LEVEL_LIST = /<p>(Errors|Warnings|Notes)((?: \([^)<]*\))?):<\/p>\n<ul>\n([\s\S]*?)\n<\/ul>/gu;
+const LIST_LEVEL: Record<string, string> = { Errors: 'error', Warnings: 'warning', Notes: 'note' };
+
+/**
+ * The levels as pills with their word (D-140): the level of a doctor rule, written in bold, gets the class of its level,
+ * and each code in a list under "Warnings:", "Notes:" or "Errors (…):" gets a pill with the level of the list.
+ */
+export function levelPills(html: string): string {
+  return html.replace(LEVEL_WORD, '<strong class="level level-$1">$1</strong>').replace(LEVEL_LIST, (_match, label: string, rest: string, items: string) => {
+    const level = LIST_LEVEL[label] ?? 'note';
+    return `<p>${label}${rest}:</p>\n<ul class="codes">\n${items.replaceAll('<li>', `<li><span class="level level-${level}">${level}</span> `)}\n</ul>`;
+  });
+}
+
+/** A page lists its headings under "On this page" from this many h2 headings on (D-140). */
+const ON_THIS_PAGE_MINIMUM = 2;
+/** The list has the h3 headings too when the page has at most this many. */
+const ON_THIS_PAGE_H3 = 6;
+
+/**
+ * The "On this page" list of the h2 headings of the content, with the h3 headings under them when the page has few
+ * (D-140), after the details element that opens it on narrow screens; empty for a page with fewer h2 headings.
+ */
+function onThisPage(content: string): string {
+  const headings = [...content.matchAll(/<h([23]) id="([^"]*)">([\s\S]*?)<\/h\1>/gu)].map((match) => ({
+    level: Number(match[1]),
+    id: match[2] ?? '',
+    // Links in a heading would be links in a link.
+    html: (match[3] ?? '').replace(/<\/?a\b[^>]*>/gu, ''),
+  }));
+  const h2 = headings.filter((heading) => heading.level === 2);
+  if (h2.length < ON_THIS_PAGE_MINIMUM) return '';
+  const shown = headings.length - h2.length <= ON_THIS_PAGE_H3 ? headings : h2;
+  // Each h3 heading under the h2 heading before it.
+  const tree: { heading: (typeof headings)[number]; children: typeof headings }[] = [];
+  for (const heading of shown) {
+    const parent = tree.at(-1);
+    if (heading.level === 3 && parent?.heading.level === 2) parent.children.push(heading);
+    else tree.push({ heading, children: [] });
+  }
+  const link = (heading: (typeof headings)[number]) => `<a href="#${heading.id}">${heading.html}</a>`;
+  const lines = tree.map(({ heading, children }) =>
+    children.length === 0 ? `<li>${link(heading)}</li>` : [`<li>${link(heading)}`, '<ul>', ...children.map((child) => `<li>${link(child)}</li>`), '</ul></li>'].join('\n'),
+  );
+  return [
+    '<details class="toc-toggle"><summary>On this page</summary></details>',
+    '<nav class="toc" aria-label="On this page">',
+    '<p class="toc-title">On this page</p>',
+    '<ul>',
+    ...lines,
+    '</ul>',
+    '</nav>',
+    '',
+  ].join('\n');
+}
+
 function pageHtml(frame: Frame, content: string, template: string): string {
-  const nav = frame.nav.map((entry) => `<li><a href="${escapeHtml(entry.href)}"${entry.current ? ' aria-current="page"' : ''}>${escapeHtml(entry.text)}</a></li>`).join('\n');
+  const body = levelPills(content.trimEnd());
   const values: Record<string, string> = {
     title: escapeHtml(frame.title),
     description: escapeHtml(frame.description),
-    root: '../'.repeat(frame.file.split('/').length - 1),
-    nav: `<ul>\n${nav}\n</ul>`,
+    root: rootOf(frame.file),
+    version: escapeHtml(frame.version),
+    nav: navHtml(frame.nav),
     banner: frame.banner,
-    content: content.trimEnd(),
+    hero: frame.hero,
+    toc: onThisPage(body),
+    content: body,
     footer: frame.footer,
   };
   const used = new Set<string>();
@@ -346,8 +519,13 @@ function currentFrame(page: Page, context: Context): Frame {
     file: page.file,
     title: page.title === 'depcurfew' ? 'depcurfew' : `${page.title} · depcurfew`,
     description: context.description,
-    nav: context.pages.map((entry) => ({ href: entry.file, text: entry.nav, current: entry.file === page.file })),
+    version: context.version,
+    nav: groupPages(context.pages).map((group) => ({
+      title: group.title,
+      entries: group.pages.map((entry) => ({ href: entry.file, text: entry.nav, current: entry.file === page.file })),
+    })),
     banner: '',
+    hero: '',
     footer: `<p>depcurfew ${escapeHtml(context.version)} · built from README.md and src/knowledge/ with <code>npm run site</code>${source} · ${escapeHtml(context.license)} license</p>`,
   };
 }
@@ -474,12 +652,18 @@ function archiveFiles(archive: Archive, context: Context, report: (line: string)
   const banner = `<p class="banner">This page documents depcurfew ${version}, an earlier version. The current version is ${escapeHtml(context.version)}: <a href="../index.html">its documentation</a> · <a href="../${VERSIONS_PAGE.file}">all versions</a></p>\n`;
   const files = new Map<string, string | Buffer>();
   for (const page of archive.pages) {
-    const nav: NavEntry[] = [
-      ...archive.pages.map((other) => ({ href: other.file, text: other.nav, current: other.file === page.file })),
-      { href: `../${VERSIONS_PAGE.file}`, text: VERSIONS_PAGE.nav, current: false },
-      { href: '../index.html', text: `Current version (${context.version})`, current: false },
+    // The pages of this version, then the other versions (D-140).
+    const nav: NavGroup[] = [
+      { title: `depcurfew ${entry.version}`, entries: archive.pages.map((other) => ({ href: other.file, text: other.nav, current: other.file === page.file })) },
+      {
+        title: 'Other versions',
+        entries: [
+          { href: `../${VERSIONS_PAGE.file}`, text: VERSIONS_PAGE.nav, current: false },
+          { href: '../index.html', text: `Current version (${context.version})`, current: false },
+        ],
+      },
     ];
-    const frame: Frame = { file: `${entry.version}/${page.file}`, title: page.title, description: entry.description ?? context.description, nav, banner, footer };
+    const frame: Frame = { file: `${entry.version}/${page.file}`, title: page.title, description: entry.description ?? context.description, version: entry.version, nav, banner, hero: '', footer };
     files.set(frame.file, pageHtml(frame, renderParts(page.parts, (target) => archiveTarget(target, page, archive, context, report)), context.template));
   }
   if (entry.schema !== undefined) files.set(`${entry.version}/schema.json`, entry.schema);
@@ -519,7 +703,7 @@ export interface SiteOptions {
 export function renderSite(root: URL = REPOSITORY, options: SiteOptions = {}): Map<string, string | Buffer> {
   const versions = options.versions ?? [];
   const report = options.report ?? (() => undefined);
-  const pkg = JSON.parse(read(root, 'package.json')) as { version: string; description: string; license: string; repository?: unknown };
+  const pkg = JSON.parse(read(root, 'package.json')) as { name: string; version: string; description: string; license: string; repository?: unknown };
   const { preamble, sections } = splitSections(freshReadme(root));
   if (preamble.trim() !== '') throw new Error('site: README.md has text before its first heading, which no page would show');
   const assigned = assignSections(sections);
@@ -527,6 +711,7 @@ export function renderSite(root: URL = REPOSITORY, options: SiteOptions = {}): M
   for (const [page, list] of assigned) for (const section of list) anchors.set(section.id, page.file);
   const context: Context = {
     anchors,
+    name: pkg.name,
     version: pkg.version,
     description: pkg.description,
     license: pkg.license,
@@ -536,7 +721,7 @@ export function renderSite(root: URL = REPOSITORY, options: SiteOptions = {}): M
   };
 
   const files = new Map<string, string | Buffer>();
-  for (const page of README_PAGES) files.set(page.file, pageHtml(currentFrame(page, context), currentParts(readmeParts(page, assigned.get(page) ?? [], context), page.file, context), context.template));
+  for (const page of README_PAGES) files.set(page.file, currentPage(page, readmeParts(page, assigned.get(page) ?? [], context), context, page.hero === true));
 
   const knowledge = renderMarkdown(renderKnowledgeMarkdown(knowledgeBase, environment), {
     slug: createSlugger(['content']),
@@ -547,7 +732,7 @@ export function renderSite(root: URL = REPOSITORY, options: SiteOptions = {}): M
   const knowledgeIds = new Map<string, string>();
   for (const heading of knowledge.headings) if (!knowledgeIds.has(heading.text)) knowledgeIds.set(heading.text, heading.id);
 
-  for (const page of START_PAGES) files.set(page.file, pageHtml(currentFrame(page, context), currentParts(startParts(page, sections, root, knowledgeIds), page.file, context), context.template));
+  for (const page of START_PAGES) files.set(page.file, currentPage(page, startParts(page, sections, root, knowledgeIds), context));
 
   files.set('style.css', read(root, 'site/style.css'));
   files.set('favicon.svg', readFileSync(new URL('site/favicon.svg', root)));

@@ -1,6 +1,7 @@
-// Checks shared by the tests of the documentation site (decisions D-132 and D-139): every page is a complete HTML
-// document with one h1 and the header with the icon, every internal link and anchor resolves with a relative path,
-// and nothing is loaded from another host.
+// Checks shared by the tests of the documentation site (decisions D-132, D-139 and D-140): every page is a complete
+// HTML document with one h1, the top bar with the icon and the version, and the navigation right after the toggle that
+// opens it on narrow screens; every internal link and anchor resolves with a relative path, and nothing is loaded
+// from another host.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, posix, relative, sep } from 'node:path';
 import { expect } from 'vitest';
@@ -40,10 +41,33 @@ export const loads = (name: string) => {
     icon: `<link rel="icon" href="${root}favicon.svg" type="image/svg+xml">`,
     brand: `<a class="brand" href="${root}index.html"><img src="${root}favicon.svg" alt="" width="20" height="20">depcurfew</a>`,
     image: `<img src="${root}favicon.svg" alt="" width="20" height="20">`,
+    // The large icon of the hero, on the start page of the current version only (D-140).
+    logo: `<img class="logo" src="${root}favicon.svg" alt="" width="96" height="96">`,
   };
 };
 
-/** A complete HTML page with one h1, the icon and depcurfew in the header, and the stylesheet. */
+/** The images of a page: the icon in the top bar, and on the start page of the current version the icon of the hero. */
+export const images = (name: string) => (name === 'index.html' ? [loads(name).image, loads(name).logo] : [loads(name).image]);
+
+/** The navigation of a page: each group title with the links under it, in order. */
+export function navigation(html: string): { group: string; links: string[] }[] {
+  const nav = /<nav class="pages" aria-label="Pages">\n([\s\S]*?)\n<\/nav>/u.exec(html)?.[1] ?? '';
+  return [...nav.matchAll(/<div class="group">\n<p class="group-title">([^<]*)<\/p>\n<ul>\n([\s\S]*?)\n<\/ul>\n<\/div>/gu)].map((match) => ({
+    group: unescape(match[1] ?? ''),
+    links: [...(match[2] ?? '').matchAll(/<a href="([^"]*)"/gu)].map((link) => unescape(link[1] ?? '')),
+  }));
+}
+
+/** The "On this page" list of a page: the anchors it links to, or undefined when the page has none. */
+export function onThisPage(html: string): string[] | undefined {
+  const list = /<nav class="toc" aria-label="On this page">\n([\s\S]*?)\n<\/nav>/u.exec(html)?.[1];
+  return list === undefined ? undefined : [...list.matchAll(/<a href="#([^"]*)">/gu)].map((match) => decodeURIComponent(unescape(match[1] ?? '')));
+}
+
+/**
+ * A complete HTML page with one h1, the icon, depcurfew and the version in the top bar, the stylesheet, and the
+ * navigation right after the details element that opens it on narrow screens, as site/style.css expects (D-140).
+ */
 export function checkDocument(html: string, name: string): void {
   const expected = loads(name);
   expect(html.startsWith('<!doctype html>\n<html lang="en">\n'), name).toBe(true);
@@ -52,6 +76,14 @@ export function checkDocument(html: string, name: string): void {
   expect(html).toContain(expected.stylesheet);
   expect(html).toContain(expected.icon);
   expect(html.match(/<a class="brand"[^>]*>.*?<\/a>/gu), name).toEqual([expected.brand]);
+  expect(html, name).toMatch(/<header class="site">\n<a class="brand"[^\n]*<\/a>\n<span class="version">v\d+\.\d+\.\d+<\/span>\n<\/header>\n/u);
+  expect(html, name).toContain('<a class="skip" href="#content">Skip to content</a>');
+  expect(html, name).toContain('<details class="menu"><summary>Menu</summary></details>\n<nav class="pages" aria-label="Pages">\n');
+  expect(navigation(html).length, name).toBeGreaterThan(1);
+  expect(html, name).toContain('<main id="content">\n');
+  // The list of the page's headings follows the toggle that opens it on narrow screens.
+  if (onThisPage(html) !== undefined) expect(html, name).toContain('<details class="toc-toggle"><summary>On this page</summary></details>\n<nav class="toc" aria-label="On this page">\n');
+  else expect(html, name).not.toContain('toc-toggle');
   expect(html).toMatch(/<title>[^<]+<\/title>/u);
   expect(html.match(/<h1[ >]/gu)?.length, name).toBe(1);
   expect(html).not.toMatch(/\{\{\w+\}\}/u);
@@ -79,7 +111,8 @@ export function checkLinks(directory: string, name: string, all: readonly string
 
 /**
  * The page loads nothing from elsewhere: no scripts, frames, forms or styles, external URLs only in links, and the only
- * elements that load something are the stylesheet, the icon and the icon in the header, all of this site.
+ * elements that load something are the stylesheet, the icon, the icon in the top bar and, on the start page, the icon
+ * of the hero, all of this site.
  */
 export function checkLoadsNothing(html: string, name: string): void {
   const expected = loads(name);
@@ -94,5 +127,5 @@ export function checkLoadsNothing(html: string, name: string): void {
     expect(isExternal(unescape(value)), `${name}: <${tag} ${attribute}="${value}">`).toBe(false);
   }
   expect(html.match(/<link\b[^>]*>/gu), name).toEqual([expected.stylesheet, expected.icon]);
-  expect(html.match(/<img\b[^>]*>/gu), name).toEqual([expected.image]);
+  expect(html.match(/<img\b[^>]*>/gu), name).toEqual(images(name));
 }

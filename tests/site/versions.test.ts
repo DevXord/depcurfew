@@ -8,9 +8,9 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildSite, SITE_PAGES, START_PAGES, VERSIONS_PAGE } from '../../scripts/site/build.ts';
+import { buildSite, PAGE_GROUPS, SITE_PAGES, START_PAGES, VERSIONS_PAGE } from '../../scripts/site/build.ts';
 import { readVersions, repositoryUrl, siteArguments, type ArchivedVersion } from '../../scripts/site/versions.ts';
-import { checkDocument, checkLinks, checkLoadsNothing, files, ids, readPage } from './pages.ts';
+import { checkDocument, checkLinks, checkLoadsNothing, files, ids, navigation, readPage } from './pages.ts';
 
 const ROOT = new URL('../../', import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL('package.json', ROOT), 'utf8')) as { version: string; repository: unknown };
@@ -229,13 +229,25 @@ describe('site with earlier versions', () => {
     checkLoadsNothing(html, name);
   });
 
-  it.each(ROOT_PAGES)('%s links to the Versions page', (name) => {
+  it.each(ROOT_PAGES)('%s links to the Versions page in the last group of the navigation and shows the current version', (name) => {
     expect(page(name)).toContain(`<li><a href="${VERSIONS_PAGE.file}"${name === VERSIONS_PAGE.file ? ' aria-current="page"' : ''}>Versions</a></li>`);
     expect(page(name)).not.toContain('class="banner"');
+    expect(navigation(page(name))).toEqual(PAGE_GROUPS.map((group) => ({ group: group.title, links: group.files })));
+    expect(page(name)).toContain(`<span class="version">v${current}</span>`);
   });
 
   it('lists the Versions page on the start page', () => {
-    expect(page('index.html')).toContain(`<li><a href="${VERSIONS_PAGE.file}">${VERSIONS_PAGE.title}</a>: `);
+    expect(page('index.html')).toContain(`<li><a href="${VERSIONS_PAGE.file}"><span class="title">${VERSIONS_PAGE.title}</span> <span class="summary">${VERSIONS_PAGE.summary}</span></a></li>`);
+  });
+
+  it.each(ARCHIVE.filter((name) => name.endsWith('.html')))('%s shows its own pages and the other versions in two groups, and its version in the top bar', (name) => {
+    const version = name.split('/')[0] ?? '';
+    const own = version === '1.1.0' ? ['index.html', 'knowledge.html', 'changelog.html'] : ['index.html', 'changelog.html'];
+    expect(navigation(page(name))).toEqual([
+      { group: `depcurfew ${version}`, links: own },
+      { group: 'Other versions', links: ['../versions.html', '../index.html'] },
+    ]);
+    expect(page(name)).toContain(`<span class="version">v${version}</span>`);
   });
 
   it('lists the current version and every earlier one on the Versions page, newest first', () => {
