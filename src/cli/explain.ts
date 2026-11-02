@@ -1,5 +1,5 @@
 import { detectProject } from '../detect/index.ts';
-import type { Detection, DetectionWarning, DockerStage, ToolCommand, VersionDeclaration } from '../detect/types.ts';
+import type { Detection, DetectionWarning, DockerStage, PackageManagerInfo, ToolCommand, VersionDeclaration } from '../detect/types.ts';
 import { jobLabel } from '../detect/workflows.ts';
 import { WARNING_FIXES } from '../doctor/unreadable-warnings.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
@@ -149,15 +149,13 @@ function cooldownReport(policy: ResolvedPolicy, tools: readonly ToolId[], effect
  * error. With projects, the targets are the ones apply configures in each directory, and the cooldown is converted for
  * every tool of the root and of the projects.
  */
-function policyReport(directory: string, detection: Detection): { policy: PolicyReport | null; projects: ProjectReport[]; errors: InputError[]; withProjects: boolean } {
-  let policy: ResolvedPolicy | undefined;
-  try {
-    policy = loadPolicyIfPresent(directory);
-  } catch (error) {
-    if (!(error instanceof PolicyError)) throw error;
+function policyReport(directory: string, detection: Detection, loaded: LoadedPolicy): { policy: PolicyReport | null; projects: ProjectReport[]; errors: InputError[]; withProjects: boolean } {
+  if ('error' in loaded) {
+    const { error } = loaded;
     const issues = error.issues.length > 0 ? error.issues : [error.message];
     return { policy: { file: POLICY_FILE, valid: false, issues }, projects: [], errors: [policyInputError(error, POLICY_FILE)], withProjects: false };
   }
+  const { policy } = loaded;
   if (policy === undefined) return { policy: null, projects: [], errors: [], withProjects: false };
   const mode = policy.targets === 'auto' ? ('auto' as const) : ('listed' as const);
   const withProjects = policy.projects.length > 0;
@@ -210,9 +208,23 @@ function partReport(effects: PolicyEffects | undefined, policy: ResolvedPolicy, 
   return { tools: tools.map((tool) => effects(project, name, tool)) };
 }
 
+/** depcurfew.json as apply reads it: the policy (undefined without one), or the error that keeps it from being used. */
+type LoadedPolicy = { policy: ResolvedPolicy | undefined } | { error: PolicyError };
+
+function loadedPolicy(directory: string): LoadedPolicy {
+  try {
+    return { policy: loadPolicyIfPresent(directory) };
+  } catch (error) {
+    if (!(error instanceof PolicyError)) throw error;
+    return { error };
+  }
+}
+
 export function buildReport(directory: string): ExplainReport {
-  const detection = detectProject(directory);
-  const { withProjects, ...rest } = policyReport(directory, detection);
+  const loaded = loadedPolicy(directory);
+  // A package manager the root's CI sets up only for the projects is not the root's (decision D-137).
+  const detection = detectProject(directory, knowledgeBase, undefined, { projects: 'policy' in loaded ? (loaded.policy?.projects ?? []) : [] });
+  const { withProjects, ...rest } = policyReport(directory, detection, loaded);
   return { schemaVersion: 1, project: explained(detection, withProjects), ...rest };
 }
 
@@ -256,14 +268,19 @@ function amount(value: number | string, unit: string): string {
 
 const AT_ROOT = 'at the repository root';
 
+function managerLines(managers: readonly PackageManagerInfo[]): string[] {
+  return managers.flatMap((manager) => [
+    `  ${managerName(manager)}`,
+    ...(manager.versions.length > 0 ? [`    versions: ${manager.versions.map(where).join(', ')}`] : []),
+    `    evidence: ${manager.evidence.map((item) => `${item.file} (${item.kind})`).join(', ')}`,
+    ...(manager.configFiles.length > 0 ? [`    config files: ${manager.configFiles.join(', ')}`] : []),
+  ]);
+}
+
 function projectLines(project: ExplainDetection, fromRoot?: { directory: string; places: FromRoot; detection: Pick<Detection, 'dockerfiles'> }): string[] {
-  const lines = [project.packageManagers.length === 0 ? 'Package managers: none' : 'Package managers:'];
-  for (const manager of project.packageManagers) {
-    lines.push(`  ${managerName(manager)}`);
-    if (manager.versions.length > 0) lines.push(`    versions: ${manager.versions.map(where).join(', ')}`);
-    lines.push(`    evidence: ${manager.evidence.map((item) => `${item.file} (${item.kind})`).join(', ')}`);
-    if (manager.configFiles.length > 0) lines.push(`    config files: ${manager.configFiles.join(', ')}`);
-  }
+  const lines = [project.packageManagers.length === 0 ? 'Package managers: none' : 'Package managers:', ...managerLines(project.packageManagers)];
+  // Set up by the root's CI for the directories listed in projects, so not the root's (decision D-137).
+  if (project.ciForProjects !== undefined && project.ciForProjects.length > 0) lines.push('Package managers set up in CI for projects:', ...managerLines(project.ciForProjects));
   // A project also uses the root's version files of the kinds it has none of (decision D-111).
   const versions = [...project.node.versions.map((version) => `  ${where(version)}`), ...(fromRoot?.places.versions ?? []).map((version) => `  ${where(version).replace(/\)$/u, `, ${AT_ROOT})`)}`)];
   if (versions.length === 0) lines.push('Node.js versions: none declared');

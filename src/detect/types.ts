@@ -186,6 +186,13 @@ export interface DetectionWarning {
 
 export interface Detection {
   packageManagers: PackageManagerInfo[];
+  /**
+   * Detected with the directories listed in projects (decision D-137): package managers only CI setup steps of the root
+   * show, while the root holds no manifest of their registry, or every install with them in its workflows runs in a
+   * listed directory and no Dockerfile of the root installs with them. The steps set them up for the projects, so they
+   * are no package managers of the root; the versions the steps install are still checked. Absent when there are none.
+   */
+  ciForProjects?: PackageManagerInfo[];
   node: { versions: VersionDeclaration[] };
   bots: BotInfo[];
   workspaces: WorkspaceInfo | null;

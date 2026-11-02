@@ -1,0 +1,64 @@
+{
+  "policy": {
+    "file": "depcurfew.json",
+    "valid": true,
+    "targets": {
+      "mode": "auto",
+      "tools": [
+        "dependabot"
+      ]
+    },
+    "cooldown": {
+      "minimum": "3d",
+      "tools": [
+        {
+          "tool": "npm",
+          "ok": true,
+          "unit": "days",
+          "value": 3,
+          "exact": true
+        },
+        {
+          "tool": "pnpm",
+          "ok": true,
+          "unit": "minutes",
+          "value": 4320,
+          "exact": true
+        },
+        {
+          "tool": "dependabot",
+          "ok": true,
+          "unit": "days",
+          "value": 3,
+          "exact": true
+        }
+      ]
+    },
+    "installScripts": null,
+    "sources": null
+  },
+  "projects": [
+    {
+      "directory": "web",
+      "targets": {
+        "mode": "auto",
+        "tools": [
+          "npm"
+        ]
+      },
+      "installScripts": null,
+      "sources": null
+    },
+    {
+      "directory": "app",
+      "targets": {
+        "mode": "auto",
+        "tools": [
+          "pnpm"
+        ]
+      },
+      "installScripts": null,
+      "sources": null
+    }
+  ]
+}

@@ -17173,6 +17173,12 @@ function workingDirectory(node) {
 	while (value.endsWith("/")) value = value.slice(0, -1);
 	return value === "" || value === "." ? void 0 : value;
 }
+/** The project (a directory listed in projects) a command's working directory lies in; '' for the root and any other directory. */
+function projectOf(command, projects) {
+	const directory = command.directory;
+	if (directory === void 0) return "";
+	return projects.find((project) => directory === project || directory.startsWith(`${project}/`)) ?? "";
+}
 /** The directory of a command: the working directory of its step joined with the literal cd before it (decision D-115). */
 function commandDirectory(step, cd) {
 	if (cd === void 0) return step;
@@ -17810,7 +17816,7 @@ function configFiles(repository, manager, directories, project) {
 * Describes the repository at `root`. Never executes anything from the repository and never leaves it;
 * problems with individual files become warnings.
 */
-function detectProject(root, tools = knowledgeBase, environment$1 = environment) {
+function detectProject(root, tools = knowledgeBase, environment$1 = environment, options = {}) {
 	const repository = new Repository(root);
 	const facts = detectionFacts(tools, environment$1);
 	const collector = new Collector();
@@ -17842,7 +17848,6 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 		for (const file of manager.configFiles.filter((name) => repository.isFile(name))) collector.addEvidence(manager.id, "config", file);
 	}
 	const workflows = readWorkflows(repository, facts);
-	for (const { tool, file } of workflows.installs) if (managerIds.has(tool)) collector.addEvidence(tool, "ci", file);
 	for (const { tool, declaration } of workflows.versions) {
 		const version = tool === "node" && !("version" in declaration) ? versionFromFile(repository, facts, declaration.versionFile, manifest) : void 0;
 		collector.addVersion(tool, version === void 0 ? declaration : {
@@ -17861,13 +17866,44 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 		for (const { message, line } of reading.notices) repository.warn("script-not-followed", message, [file], line);
 		return [reading.info];
 	});
+	const projects = options.projects ?? [];
+	const installsWith = (id, commands) => commands.filter((command) => command.kind === "install" && command.tool === id);
+	const forProjects = (id) => {
+		if (projects.length === 0 || collector.evidence.has(id)) return false;
+		if (!facts.managers.filter((manager) => manager.ecosystem === ecosystemOf(id)).flatMap((manager) => manager.manifests).some((file) => repository.isFile(file))) return true;
+		if (dockerfiles.some((dockerfile) => dockerfile.stages.some((stage) => installsWith(id, stage.commands).length > 0))) return false;
+		const installs = workflows.jobs.flatMap((job) => installsWith(id, job.commands));
+		return installs.length > 0 && installs.every((command) => projectOf(command, projects) !== "");
+	};
+	const setUp = /* @__PURE__ */ new Map();
+	const steps = workflows.installs.filter(({ tool }) => managerIds.has(tool));
+	for (const id of new Set(steps.map(({ tool }) => tool))) {
+		const files = [...new Set(steps.filter(({ tool }) => tool === id).map(({ file }) => file))].sort(byPath);
+		if (forProjects(id)) setUp.set(id, files.map((file) => ({
+			kind: "ci",
+			file
+		})));
+		else for (const file of files) collector.addEvidence(id, "ci", file);
+	}
 	const hasEvidence = (ecosystem) => [...collector.evidence.keys()].some((id) => ecosystemOf(id) === ecosystem);
 	if (manifest !== void 0 && !hasEvidence("npm")) {
 		collector.addEvidence("npm", "default", "package.json");
 		repository.warn("package-manager-assumed", "no lockfile, packageManager or devEngines found; assuming npm", ["package.json"]);
 	}
 	const packageManagers = [];
+	const ciForProjects = [];
 	for (const manager of facts.managers) {
+		const steps = setUp.get(manager.id);
+		if (steps !== void 0) {
+			const versions = [...collector.versions.get(manager.id) ?? []].sort(compareVersions);
+			ciForProjects.push({
+				id: manager.id,
+				supported: true,
+				evidence: steps,
+				versions,
+				configFiles: configFiles(repository, manager, directories, facts.pythonProject)
+			});
+		}
 		const evidence = collector.evidence.get(manager.id);
 		if (evidence === void 0) continue;
 		const yarn = manager.id === "yarn" ? yarnVariant(repository, facts, collector) : void 0;
@@ -17912,6 +17948,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 	if (manifest === void 0 && packageManagers.length === 0 && !repository.isFile("package.json") && !repository.isFile(facts.pythonProject)) repository.warn("nothing-detected", "no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found", []);
 	return {
 		packageManagers,
+		...ciForProjects.length === 0 ? {} : { ciForProjects },
 		node: { versions: [...collector.versions.get("node") ?? []].sort(compareVersions) },
 		bots,
 		workspaces,
@@ -21921,12 +21958,6 @@ function commandsAfterStep(group, declaration) {
 	group.after.set(step, found);
 	return found;
 }
-/** The project (a directory listed in projects) a command's working directory lies in; '' for the root. */
-function projectOf(command, projects) {
-	const directory = command.directory;
-	if (directory === void 0) return "";
-	return projects.find((project) => directory === project || directory.startsWith(`${project}/`)) ?? "";
-}
 function addInstall(found, command) {
 	if (found === void 0) return {
 		first: command.line,
@@ -23139,9 +23170,9 @@ const managerVersionTooOld = {
 	help: "Raise the declared version to at least the version that introduced the setting, everywhere it is declared, or install a newer npm or pip before installing packages.",
 	level: "error",
 	requiresPolicy: false,
-	applies: (scope) => scope.detection.packageManagers.length > 0,
+	applies: (scope) => scope.detection.packageManagers.length > 0 || (scope.detection.ciForProjects?.length ?? 0) > 0,
 	check(context) {
-		for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
+		for (const manager of [...context.detection.packageManagers, ...context.detection.ciForProjects ?? []].filter((entry) => entry.supported)) {
 			const tool = context.tools.find((entry) => entry.id === manager.id);
 			if (tool === void 0) continue;
 			if (tool.id === "composer") checkComposer(context, manager, tool, featuresOf(context, tool));
@@ -27313,7 +27344,7 @@ function manifestsOf(tool) {
 function autoTargets(root, detection, tools = knowledgeBase) {
 	const repository = new Repository(root);
 	const ciOnly = [];
-	for (const manager of detection.packageManagers) {
+	for (const manager of [...detection.packageManagers, ...detection.ciForProjects ?? []]) {
 		const tool = tools.find((entry) => entry.id === manager.id);
 		if (!manager.supported || tool === void 0 || !manager.evidence.every((item) => item.kind === "ci")) continue;
 		const manifests = manifestsOf(tool);
@@ -33426,8 +33457,8 @@ function runDoctor(root, options = {}) {
 		invalid = true;
 	}
 	const rules = options.rules ?? RULES;
-	const detection = detectProject(root, tools);
 	const listed = policy?.projects ?? [];
+	const detection = detectProject(root, tools, void 0, { projects: listed });
 	const problems = projectProblems(root, listed, detection);
 	const views = listed.filter((project) => !problems.some((problem) => problem.project === project)).map((project) => {
 		const directory = join(root, project);

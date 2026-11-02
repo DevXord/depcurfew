@@ -13,12 +13,13 @@ import type {
   EvidenceKind,
   PackageManagerId,
   PackageManagerInfo,
+  ToolCommand,
   VersionDeclaration,
   VersionSource,
   WorkspaceInfo,
 } from './types.ts';
 import { parseToml, tomlValueAt, type TomlDocument, type TomlValue } from './toml.ts';
-import { readWorkflows } from './workflows.ts';
+import { projectOf, readWorkflows } from './workflows.ts';
 import { dockerfileCandidates, readDockerStages } from './dockerfiles.ts';
 import { expandWorkspaces } from './workspaces.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
@@ -335,6 +336,11 @@ function configFiles(repository: Repository, manager: ManagerFacts, directories:
     .sort(byPath);
 }
 
+export interface DetectOptions {
+  /** The directories listed in projects in depcurfew.json, relative to the root (decision D-137). */
+  projects?: readonly string[];
+}
+
 /**
  * Describes the repository at `root`. Never executes anything from the repository and never leaves it;
  * problems with individual files become warnings.
@@ -343,6 +349,7 @@ export function detectProject(
   root: string,
   tools: readonly ToolKnowledge[] = knowledgeBase,
   environment: EnvironmentKnowledge = environmentKnowledge,
+  options: DetectOptions = {},
 ): Detection {
   const repository = new Repository(root);
   const facts = detectionFacts(tools, environment);
@@ -380,9 +387,6 @@ export function detectProject(
   }
 
   const workflows = readWorkflows(repository, facts);
-  for (const { tool, file } of workflows.installs) {
-    if (managerIds.has(tool)) collector.addEvidence(tool as PackageManagerId, 'ci', file);
-  }
   for (const { tool, declaration } of workflows.versions) {
     const version = tool === 'node' && !('version' in declaration) ? versionFromFile(repository, facts, declaration.versionFile, manifest) : undefined;
     collector.addVersion(tool, version === undefined ? declaration : { version, ...declaration });
@@ -401,6 +405,28 @@ export function detectProject(
     return [reading.info];
   });
 
+  // A setup step shows a package manager the root uses, unless the root lists projects and holds nothing to install with
+  // it (no manifest of its registry) or leaves every install with it to them (decision D-137): then the step sets it up
+  // for the projects, and ciForProjects keeps it with the versions the steps install, apart from the root's managers.
+  const projects = options.projects ?? [];
+  const installsWith = (id: PackageManagerId, commands: readonly ToolCommand[]) => commands.filter((command) => command.kind === 'install' && command.tool === id);
+  const forProjects = (id: PackageManagerId): boolean => {
+    if (projects.length === 0 || collector.evidence.has(id)) return false;
+    const manifests = facts.managers.filter((manager) => manager.ecosystem === ecosystemOf(id)).flatMap((manager) => manager.manifests);
+    if (!manifests.some((file) => repository.isFile(file))) return true;
+    // The directory of a RUN is not one of the repository, so a Dockerfile that installs with it keeps it the root's.
+    if (dockerfiles.some((dockerfile) => dockerfile.stages.some((stage) => installsWith(id, stage.commands).length > 0))) return false;
+    const installs = workflows.jobs.flatMap((job) => installsWith(id, job.commands));
+    return installs.length > 0 && installs.every((command) => projectOf(command, projects) !== '');
+  };
+  const setUp = new Map<PackageManagerId, Evidence[]>();
+  const steps = workflows.installs.filter(({ tool }) => managerIds.has(tool));
+  for (const id of new Set(steps.map(({ tool }) => tool as PackageManagerId))) {
+    const files = [...new Set(steps.filter(({ tool }) => tool === id).map(({ file }) => file))].sort(byPath);
+    if (forProjects(id)) setUp.set(id, files.map((file) => ({ kind: 'ci', file })));
+    else for (const file of files) collector.addEvidence(id, 'ci', file);
+  }
+
   const hasEvidence = (ecosystem: string) => [...collector.evidence.keys()].some((id) => ecosystemOf(id) === ecosystem);
   if (manifest !== undefined && !hasEvidence('npm')) {
     collector.addEvidence('npm', 'default', 'package.json');
@@ -408,7 +434,13 @@ export function detectProject(
   }
 
   const packageManagers: PackageManagerInfo[] = [];
+  const ciForProjects: PackageManagerInfo[] = [];
   for (const manager of facts.managers) {
+    const steps = setUp.get(manager.id);
+    if (steps !== undefined) {
+      const versions = [...(collector.versions.get(manager.id) ?? [])].sort(compareVersions);
+      ciForProjects.push({ id: manager.id, supported: true, evidence: steps, versions, configFiles: configFiles(repository, manager, directories, facts.pythonProject) });
+    }
     const evidence = collector.evidence.get(manager.id);
     if (evidence === undefined) continue;
     const yarn = manager.id === 'yarn' ? yarnVariant(repository, facts, collector) : undefined;
@@ -476,6 +508,7 @@ export function detectProject(
 
   return {
     packageManagers,
+    ...(ciForProjects.length === 0 ? {} : { ciForProjects }),
     node: { versions: [...(collector.versions.get('node') ?? [])].sort(compareVersions) },
     bots,
     workspaces,

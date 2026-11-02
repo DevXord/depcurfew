@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 9
+    },
+    "message": "pnpm 9.15.0 in GitHub Actions (.github/workflows/ci.yml) does not support minimumReleaseAge (added in 10.16.0)",
+    "fix": "Require pnpm 10.16.0 or later in GitHub Actions"
+  }
+]

@@ -1,6 +1,8 @@
 // targets "auto": the tools the repository shows it uses. A package manager seen only in a CI setup step, with no
 // manifest, lockfile or configuration of its own in the repository, installs nothing from it (denoland/std sets up Bun
-// in CI but has no package.json), so it is left out rather than given new files (decision D-075).
+// in CI but has no package.json), so it is left out rather than given new files (decision D-075). One the root's CI sets
+// up only for the projects (ciForProjects, decision D-137) is no target of the root either, and without a manifest of
+// its own in the root it is in ciOnly, so that apply names it in tool-only-in-ci as before.
 import { detectedTargets } from '../cli/describe.ts';
 import { Repository } from '../detect/repository.ts';
 import type { Detection } from '../detect/types.ts';
@@ -23,7 +25,7 @@ export function manifestsOf(tool: ToolKnowledge): string[] {
 export function autoTargets(root: string, detection: Detection, tools: readonly ToolKnowledge[] = knowledgeBase): AutoTargets {
   const repository = new Repository(root);
   const ciOnly: AutoTargets['ciOnly'] = [];
-  for (const manager of detection.packageManagers) {
+  for (const manager of [...detection.packageManagers, ...(detection.ciForProjects ?? [])]) {
     const tool = tools.find((entry) => entry.id === manager.id);
     if (!manager.supported || tool === undefined || !manager.evidence.every((item) => item.kind === 'ci')) continue;
     const manifests = manifestsOf(tool);

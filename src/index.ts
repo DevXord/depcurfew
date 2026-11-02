@@ -12,6 +12,7 @@ export { scanCommandLine } from './check/command.ts';
 export type { CommandDirectory, CommandScan, InstallRequest, KnownDirectory, ScanOptions } from './check/command.ts';
 export { PopularNames } from './check/similar.ts';
 export { detectProject } from './detect/index.ts';
+export type { DetectOptions } from './detect/index.ts';
 export { countLevels, renderText, RULES, runDoctor, toSarif } from './doctor/index.ts';
 export type { DoctorReport, Finding, Level, Location, Notice, Rule } from './doctor/index.ts';
 export { runDoctorWithOsv } from './doctor/osv.ts';

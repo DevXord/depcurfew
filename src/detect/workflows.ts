@@ -10,7 +10,7 @@ import { findToolCommands, overLimitMessages, UNKNOWN_DIRECTORY, withVariables }
 import { imageRuntime } from './dockerfiles.ts';
 import type { DetectionFacts } from './knowledge.ts';
 import { joinPath, type Repository } from './repository.ts';
-import type { VersionDeclaration, WorkflowJob } from './types.ts';
+import type { ToolCommand, VersionDeclaration, WorkflowJob } from './types.ts';
 
 export interface WorkflowFindings {
   files: string[];
@@ -109,6 +109,13 @@ function workingDirectory(node: unknown): string | undefined {
   while (value.startsWith('./')) value = value.slice(2);
   while (value.endsWith('/')) value = value.slice(0, -1);
   return value === '' || value === '.' ? undefined : value;
+}
+
+/** The project (a directory listed in projects) a command's working directory lies in; '' for the root and any other directory. */
+export function projectOf(command: Pick<ToolCommand, 'directory'>, projects: readonly string[]): string {
+  const directory = command.directory;
+  if (directory === undefined) return '';
+  return projects.find((project) => directory === project || directory.startsWith(`${project}/`)) ?? '';
 }
 
 /** The directory of a command: the working directory of its step joined with the literal cd before it (decision D-115). */

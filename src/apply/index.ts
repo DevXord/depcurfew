@@ -498,7 +498,13 @@ function byFile(a: FileChange, b: FileChange): number {
  * used is an error (`problems`), so that nothing is written; the other directories are still planned, so one run
  * reports everything.
  */
-export function planRepository(root: string, policy: ResolvedPolicy, tools: readonly ToolKnowledge[] = knowledgeBase, rootDetection: Detection = detectProject(root, tools)): ApplyReport {
+export function planRepository(
+  root: string,
+  policy: ResolvedPolicy,
+  tools: readonly ToolKnowledge[] = knowledgeBase,
+  // A package manager the root's CI sets up only for the projects is not the root's (decision D-137).
+  rootDetection: Detection = detectProject(root, tools, undefined, { projects: policy.projects }),
+): ApplyReport {
   if (policy.projects.length === 0) return planApply(root, policy, rootDetection, tools);
   const problems = projectProblems(root, policy.projects, rootDetection);
   const projects = policy.projects

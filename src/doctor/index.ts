@@ -182,10 +182,10 @@ export function runDoctor(
     }
   }
   const rules = options.rules ?? RULES;
-  const detection = detectProject(root, tools);
-
   // The listed directories that can be read; invalid-project reports the others.
   const listed = policy?.projects ?? [];
+  // A package manager the root's CI sets up only for the projects is not the root's (decision D-137).
+  const detection = detectProject(root, tools, undefined, { projects: listed });
   const problems = projectProblems(root, listed, detection);
   const views: ProjectView[] = listed
     .filter((project) => !problems.some((problem) => problem.project === project))

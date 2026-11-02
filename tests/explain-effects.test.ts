@@ -30,6 +30,8 @@ const FIXTURES = [
   'pnpm10-monorepo',
   'pnpm11-dependabot',
   'poetry-basic',
+  'projects-ci-setup',
+  'projects-ci-setup-root-npm',
   'volta-renovate',
   'yarn-berry',
 ];

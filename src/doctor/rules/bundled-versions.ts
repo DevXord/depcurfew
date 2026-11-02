@@ -11,7 +11,7 @@ import { npm as npmFacts } from '../../knowledge/npm.ts';
 import type { PlanOptions } from '../../apply/index.ts';
 import { versionedValue } from '../effective.ts';
 import type { Detection, DockerfileInfo, DockerStage, PackageManagerInfo, ToolCommand, VersionDeclaration, WorkflowJob } from '../../detect/types.ts';
-import { declarationJob, jobLabel } from '../../detect/workflows.ts';
+import { declarationJob, jobLabel, projectOf } from '../../detect/workflows.ts';
 import { environment } from '../../knowledge/environment.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { managerSources } from '../projects.ts';
@@ -171,13 +171,6 @@ export function commandsAfterStep(group: JobGroup, declaration: VersionDeclarati
   const found = group.commands.slice(start, Math.max(start, end));
   group.after.set(step, found);
   return found;
-}
-
-/** The project (a directory listed in projects) a command's working directory lies in; '' for the root. */
-function projectOf(command: ToolCommand, projects: readonly string[]): string {
-  const directory = command.directory;
-  if (directory === undefined) return '';
-  return projects.find((project) => directory === project || directory.startsWith(`${project}/`)) ?? '';
 }
 
 /**

@@ -272,9 +272,10 @@ export const managerVersionTooOld: Rule = {
   level: 'error',
   requiresPolicy: false,
   // Any package manager: the rule also says that a policy does nothing for Yarn Classic, which is not supported.
-  applies: (scope) => scope.detection.packageManagers.length > 0,
+  applies: (scope) => scope.detection.packageManagers.length > 0 || (scope.detection.ciForProjects?.length ?? 0) > 0,
   check(context) {
-    for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
+    // A package manager the root's CI sets up only for the projects: the version its step installs (decision D-137).
+    for (const manager of [...context.detection.packageManagers, ...(context.detection.ciForProjects ?? [])].filter((entry) => entry.supported)) {
       const tool = context.tools.find((entry) => entry.id === manager.id);
       if (tool === undefined) continue;
       if (tool.id === 'composer') checkComposer(context, manager, tool, featuresOf(context, tool));
