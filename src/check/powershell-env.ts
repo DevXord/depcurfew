@@ -574,6 +574,11 @@ function segments(path: string): string[] {
 }
 
 /** What a PowerShell line says about environment variables; see the comment at the top. */
+/** Appends without spreading, so that a path of any number of segments does not exhaust the call stack. */
+function append(target: string[], items: readonly string[]): void {
+  for (const item of items) target.push(item);
+}
+
 export function powerShellEnvironment(line: string): PowerShellEnvironment {
   const commands: Command[] = [];
   try {
@@ -602,14 +607,14 @@ export function powerShellEnvironment(line: string): PowerShellEnvironment {
     let fails = roles === false || (name !== undefined && NEW_DRIVE.has(name) && command.words.some((word) => /environment/iu.test(word.raw) || word.values.includes(undefined)));
     for (const word of command.words) {
       if (word.parameter !== undefined) continue;
-      names.push(...word.named);
+      append(names, word.named);
       if ((word.raw.match(SET_VARIABLE)?.length ?? 0) > word.calls || computedEnv(word)) fails = true;
       const role = roles === false ? undefined : roles?.get(word);
       for (const value of word.values) {
         const drive = value === undefined ? null : ENV_PATH.exec(value);
         if (role === 'name') {
           if (value === undefined || /[*?[]/u.test(value)) fails = true;
-          else names.push(...segments(drive === null ? value : value.slice(drive[0].length)));
+          else append(names, segments(drive === null ? value : value.slice(drive[0].length)));
           continue;
         }
         if ((role === 'path' || role === 'literal') && value === undefined) fails = true;
@@ -617,7 +622,7 @@ export function powerShellEnvironment(line: string): PowerShellEnvironment {
         if (value === undefined || (drive === null && !relative)) continue;
         const parts = segments(drive === null ? value : value.slice(drive[0].length));
         if (role === 'path' && cmdlet?.writes === true && parts.some((part) => /[*?[]/u.test(part))) fails = true;
-        names.push(...parts);
+        append(names, parts);
       }
     }
     if (fails) unresolved ??= command.text;

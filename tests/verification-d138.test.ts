@@ -176,4 +176,15 @@ describe('init quotes a dependabot.yml number as written and as Dependabot reads
     const result = applyProject(root, { write: false });
     expect(result.changes.find((entry) => entry.file === '.github/dependabot.yml')?.after ?? '').not.toContain('016');
   });
+
+  it('separates the number Dependabot reads from the rest of the cooldown-shortened warning with a comma', () => {
+    const root = repository({
+      'depcurfew.json': JSON.stringify({ version: 1, cooldown: { minimum: '3d' } }),
+      'package.json': '{"name":"app"}\n',
+      'package-lock.json': '{"name":"app","lockfileVersion":3,"packages":{"":{"name":"app"}}}\n',
+      '.github/dependabot.yml': 'version: 2\nupdates:\n  - package-ecosystem: npm\n    directory: /\n    schedule:\n      interval: daily\n    cooldown:\n      default-days: 016\n',
+    });
+    const warning = applyProject(root, { write: false }).warningDetails.find((item) => item.code === 'cooldown-shortened');
+    expect(warning?.message).toContain('default-days: 016 in .github/dependabot.yml (line 8), which Dependabot reads as 14, waits 2 weeks');
+  });
 });

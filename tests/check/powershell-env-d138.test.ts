@@ -260,3 +260,11 @@ describe('Composer script aliases, which Composer reads only since 2.7.0 (R2)', 
     expect(await decision('composer inst guzzlehttp/guzzle', root, 'Bash')).toBe('none');
   });
 });
+
+describe('very long Env: paths', () => {
+  it('reads a path of 200,000 segments without running out of stack', () => {
+    const line = `Set-Item Env:${'a/'.repeat(200_000)}NPM_CONFIG_REGISTRY https://r.example; npm ci`;
+    const read = powerShellEnvironment(line);
+    expect(read.names).toContain('NPM_CONFIG_REGISTRY');
+  });
+});

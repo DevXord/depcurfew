@@ -25199,7 +25199,7 @@ function shortenedDelays(root, changes, detection, tools, targets, policyMinimum
 			code: "cooldown-shortened",
 			tool: old.tool,
 			location: { ...old.location },
-			message: `${name}: ${describeDelay(old)} waits ${formatMinutes(old.minutes)}${scope}, longer than cooldown.minimum "${policyMinimum}" in ${POLICY_FILE}; depcurfew apply ${action}, so ${name} waits only ${formatMinutes(now.minutes)}`,
+			message: `${name}: ${describeDelay(old)}${old.written === void 0 ? "" : ","} waits ${formatMinutes(old.minutes)}${scope}, longer than cooldown.minimum "${policyMinimum}" in ${POLICY_FILE}; depcurfew apply ${action}, so ${name} waits only ${formatMinutes(now.minutes)}`,
 			fix: `To keep the longer delay, set cooldown.minimum to "${policyDuration(old.minutes)}" in ${POLICY_FILE} and run depcurfew apply again${old.location.file.endsWith(".json") || old.location.file.endsWith(".jsonc") ? `; if an earlier depcurfew apply wrote this value to ${old.location.file} and you lowered cooldown.minimum on purpose, nothing to do` : ""}`
 		}];
 	});
