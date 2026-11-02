@@ -2,6 +2,11 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-11-02 · Aktualizacje zależności repozytorium i pliki dla współtwórców (D-125)
+
+- `.github/dependabot.yml` dla `npm` i `github-actions`, z opóźnieniem 7 dni (dla `npm` z `depcurfew apply`).
+- `CONTRIBUTING.md`, formularze zgłoszeń, szablon pull requesta; nowe słowa kluczowe w `package.json`.
+
 ## 2026-11-02 · Wydanie 1.3.0 i przykład Action z SHA wydania
 
 - `depcurfew@1.3.0` opublikowana 07:12 UTC z tagu `v1.3.0` (commit acb23f6) przez trusted publishing, z proweniencją SLSA; pliki w rejestrze są bajt w bajt takie same jak kompilacja z tego tagu.

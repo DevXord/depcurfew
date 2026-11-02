@@ -816,7 +816,7 @@ The same functions are available from the package: `detectProject`, `planApply` 
 
 ## Contributing
 
-Facts about package managers live only in [`src/knowledge/`](https://github.com/DevXord/depcurfew/tree/main/src/knowledge), each with the official URL it was verified against and the date. A correction is welcome with a link to the official documentation or changelog. `npm test` builds the project and runs every test without network access.
+Facts about package managers live only in [`src/knowledge/`](https://github.com/DevXord/depcurfew/tree/main/src/knowledge), each with the official URL it was verified against and the date. A correction is welcome with a link to the official documentation or changelog. `npm test` builds the project and runs every test without network access. [CONTRIBUTING.md](https://github.com/DevXord/depcurfew/blob/main/CONTRIBUTING.md) has the setup, the commands and the rules for changes, and the issue forms ask for what a report needs; vulnerabilities go through [SECURITY.md](https://github.com/DevXord/depcurfew/blob/main/SECURITY.md).
 
 ## License
 

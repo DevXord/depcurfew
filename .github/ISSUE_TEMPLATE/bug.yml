@@ -1,0 +1,49 @@
+name: Bug
+description: depcurfew crashes, writes a wrong file, or a command does not do what its help or the README says.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A security problem (a policy that is not enforced while depcurfew says it is, files read or written outside the repository, output that can take over the terminal) goes through [a private report](https://github.com/DevXord/depcurfew/security/advisories/new), not an issue. See SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: depcurfew version
+      description: The output of `npx depcurfew --version`.
+      placeholder: 1.3.0
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Node.js, package manager and operating system
+      placeholder: Node.js 24, npm 11, Ubuntu
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: The exact command and the directory it ran in.
+      render: bash
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: What it printed, best with `--json`. Remove tokens and private registry URLs.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Files involved
+      description: The parts of depcurfew.json, package.json, .npmrc, lockfiles or workflows that matter, or a link to a small repository that shows the problem.
