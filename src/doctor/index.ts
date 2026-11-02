@@ -288,6 +288,18 @@ function checkedOf(detection: Detection, repository: Repository, tools: readonly
           ...(declared === undefined || !('version' in declared) ? {} : { version: declared.version, versionFrom: declared.file }),
         };
       }),
+    // A package manager a CI step sets up only for the projects (decision D-137), named so (decision D-141).
+    ...(detection.ciForProjects ?? [])
+      .filter((manager) => manager.supported)
+      .map((manager) => {
+        const declared = manager.versions.find((declaration) => 'version' in declaration);
+        return {
+          id: manager.id,
+          name: name(manager.id),
+          ...(declared === undefined || !('version' in declared) ? {} : { version: declared.version, versionFrom: declared.file }),
+          setUpInCi: true as const,
+        };
+      }),
     ...detection.bots.map((bot) => ({ id: bot.id, name: name(bot.id) })),
   ];
   const files = new Set<string>(repository.read);

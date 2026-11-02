@@ -75,7 +75,8 @@ describe('composer.lock as Composer reads it (decision D-134)', () => {
       repositories,
     );
     expect(entries.map(({ name, source, spec, version }) => ({ name, source, spec, version }))).toEqual([
-      { name: 'evil/x', source: 'git', spec: 'git file:///tmp/x.git', version: undefined },
+      // A release Composer checks out of its source is still looked up by doctor --osv (decision D-141).
+      { name: 'evil/x', source: 'git', spec: 'git file:///tmp/x.git', version: '1.0.0' },
       { name: 'evil/y', source: 'unknown', spec: 'zip https://evil.example/y.zip', version: '1.0.0' },
       { name: 'acme/private', source: 'registry', spec: 'zip https://repo.example.com/acme/dists/acme-private.zip', version: '2.0.0' },
       { name: 'gitlab/lib', source: 'registry', spec: 'zip https://gitlab.com/api/v4/projects/1/repository/archive.zip?sha=abc', version: '1.0.0' },

@@ -36,6 +36,8 @@ const MINIFIER = 'https://github.com/composer/metadata-minifier/blob/1.0.1/src/M
 // symfony/console at the version composer.lock of Composer 2.11.1 locks, which reads its command line.
 const CONSOLE = 'https://github.com/symfony/console/blob/v5.4.55';
 const PACKAGIST_API = 'https://packagist.org/apidoc';
+// WPackagist, the Composer repository of the WordPress plugin and theme directories, at the head of its develop branch.
+const WPACKAGIST = 'https://github.com/outlandishideas/wpackagist/blob/9b5db4a9e7477c97de1c8562498ecfff4cab9678';
 
 /** What composer --no-blocking and the variables that set it turn off (BaseCommand::createPolicyConfig at 2.11.1). */
 /** Where composer config, repository and policy write with --global or --file, which depcurfew does not read (decision D-142). */
@@ -217,6 +219,11 @@ export const composer: ToolKnowledge = {
       `${SRC}/Plugin/PluginManager.php`,
       'parseAllowedPlugins returns no rules when allow-plugins is empty ({} or missing) and composer.lock has a plugin-api-version below 2.2.0, or none (Locker::getPluginApi returns 1.1.0 then). In that mode Composer 2.2 to 2.9 load every plugin without asking when run without a terminal ("if no config is defined we allow all plugins for BC", PluginManager.php at 2.9.8); since 2.10.0-RC1 Composer stops with an error there instead ("Enforce allow-plugins even in non-interactive mode for very old pre-2.2 lock files", #12764 in CHANGELOG.md) and asks in a terminal.',
     ),
+    manifestSyntax: verified(
+      { comments: false, trailingCommas: false },
+      `${SRC}/Json/JsonFile.php`,
+      'JsonFile::parseJson at 2.11.1 reads composer.json with PHP\'s json_decode($json, true) and, when it fails, reports the error with JsonFile::validateSyntax (seld/jsonlint), so a comment or a trailing comma in composer.json stops every Composer command; json_decode takes strict JSON (RFC 8259), which has neither.',
+    ),
     sourceInstall: verified(
       { source: 'source', dist: 'dist' },
       `${SRC}/Downloader/DownloadManager.php`,
@@ -226,6 +233,11 @@ export const composer: ToolKnowledge = {
       ['api.github.com', 'gitlab.com', 'bitbucket.org', 'codeberg.org'],
       `${SRC}/Repository/Vcs/GitHubDriver.php`,
       'The archives Composer\'s VCS drivers give a package of the hosts Composer knows by default (github-domains github.com, gitlab-domains gitlab.com, forgejo-domains codeberg.org in Config.php, and Bitbucket): GitHubDriver::getDist https://api.github.com/repos/<owner>/<repo>/zipball/<ref>, GitLabDriver::getDist <scheme>://gitlab.com/api/v4/projects/<id>/repository/archive.zip, GitBitbucketDriver::getDist https://bitbucket.org/<owner>/<repo>/get/<ref>.zip, ForgejoDriver::getDist <host>/api/v1/repos/<owner>/<repo>/archive/<ref>.zip; GitDriver::getDist gives none.',
+    ),
+    repositoryArchiveHosts: verified(
+      { 'wpackagist.org': ['downloads.wordpress.org'] },
+      `${WPACKAGIST}/src/Entity/Plugin.php`,
+      'The hosts the archives of a Composer repository other than Packagist.org come from, by the host of the repository URL. WPackagist (the Composer repository https://wpackagist.org that its README tells composer.json to declare) gives each plugin version the dist https://downloads.wordpress.org/plugin/<name>.<version>.zip (Plugin::getDownloadUrl) and each theme version https://downloads.wordpress.org/theme/<name>.<version>.zip (Theme::getDownloadUrl in src/Entity/Theme.php), with a dist of type zip and a source of type svn on plugins.svn.wordpress.org or themes.svn.wordpress.org (Package::getPackageVersion in src/Entity/Package.php), all at commit 9b5db4a of the develop branch (the repository has no tags). The archive host of packages.drupal.org could not be read at its source (drupal.org is not reachable from where this was checked), so it is not listed.',
     ),
     branchVersions: verified(
       { prefix: 'dev-', suffix: '-dev' },

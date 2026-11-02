@@ -146,7 +146,7 @@ describe('depcurfew apply', () => {
     const result = await exec('apply', scratch('npm-existing-config'));
     expect(result.code).toBe(EXIT_OK);
     expect(result.stderr).toContain(
-      'warning: allowScripts in package.json (line 6) lets sharp run install scripts, but depcurfew.json does not allow it; depcurfew apply does not remove entries it did not write (allow-list-entry-outside-policy)\n  fix: Remove sharp from allowScripts by hand, or add sharp to installScripts.allow in depcurfew.json\n',
+      'warning: npm: allowScripts in package.json (line 6) lets sharp run install scripts, but depcurfew.json does not allow it; depcurfew apply does not remove entries it did not write (allow-list-entry-outside-policy)\n  fix: Remove sharp from allowScripts by hand, or add sharp to installScripts.allow in depcurfew.json\n',
     );
   });
 

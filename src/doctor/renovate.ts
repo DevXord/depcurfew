@@ -48,6 +48,8 @@ export interface UnreadableRule {
   patterns: unknown;
   /** Its minimumReleaseAge. */
   value: unknown;
+  /** A matcher depcurfew does not model at all (matchBaseBranches, matchJsonata...), not only patterns it cannot read. */
+  unmodelled?: true;
 }
 
 export type RenovateDelay =
@@ -201,7 +203,7 @@ export interface RuleScope {
  * Whether a rule applies to every package of the target: `covers` with the update types, `narrow` when it does not
  * (or only to some packages), `unknown` when a matcher has patterns depcurfew cannot read (decision D-131).
  */
-export type RuleCoverage = { kind: 'covers'; scope: RuleScope } | { kind: 'narrow' } | { kind: 'unknown'; matcher: string };
+export type RuleCoverage = { kind: 'covers'; scope: RuleScope } | { kind: 'narrow' } | { kind: 'unknown'; matcher: string; unmodelled?: true };
 
 function categoriesOf(bot: ToolKnowledge, manager: string | undefined): string[] {
   if (manager === undefined || bot.extra?.['managerCategories'] === undefined) return [];
@@ -287,9 +289,11 @@ export function ruleCoverage(bot: ToolKnowledge, rule: Record<string, unknown>, 
     ...(managerMatching === undefined ? [] : [managerMatching.managerMatcher, managerMatching.categoryMatcher]),
     ...(actionsMatching === undefined ? [] : [actionsMatching.fileMatcher, actionsMatching.depTypeMatcher]),
   ]);
-  if (matchers.some((key) => !known.has(key))) return { kind: 'narrow' };
-  // Every matcher must match: one that does not makes the rule narrow, even when another cannot be read.
-  let unknown: string | undefined;
+  // Every matcher must match: one that does not makes the rule narrow, even when another cannot be read. A matcher
+  // depcurfew does not model (matchBaseBranches, matchJsonata, matchRepositories, matchCurrentAge...) may match every
+  // package, so a rule that has one and that no other matcher narrows is one depcurfew cannot read (decision D-141).
+  const unmodelled = matchers.find((key) => !known.has(key));
+  let unknown: string | undefined = unmodelled;
   const result = (key: string, matches: boolean | undefined): boolean => {
     if (matches === undefined) unknown ??= key;
     return matches !== false;
@@ -341,7 +345,7 @@ export function ruleCoverage(bot: ToolKnowledge, rule: Record<string, unknown>, 
     types = updateTypes.filter((_, index) => matched[index] === true);
     if (types.length === 0 && !result(matching.updateTypeMatcher, patterns === undefined || matched.includes(undefined) ? undefined : false)) return { kind: 'narrow' };
   }
-  if (unknown !== undefined) return { kind: 'unknown', matcher: unknown };
+  if (unknown !== undefined) return { kind: 'unknown', matcher: unknown, ...(unknown === unmodelled ? { unmodelled: true as const } : {}) };
   if (types.length === 0) return { kind: 'narrow' };
   const categoryPatterns = managerMatching === undefined ? undefined : patternsOf(rule[managerMatching.categoryMatcher], stringIsList);
   const categories = categoryPatterns === undefined ? undefined : target.categories.filter((category) => matchesList(category, categoryPatterns, matching.negation) === true);
@@ -388,7 +392,9 @@ export function renovateDelay(bot: ToolKnowledge, config: RenovateConfig, on: Re
   for (const { index, line, rule } of config.rules) {
     if (!('minimumReleaseAge' in rule)) continue;
     const coverage = ruleCoverage(bot, rule, target);
-    if (coverage.kind === 'unknown') unreadable.push({ index, line, matcher: coverage.matcher, patterns: rule[coverage.matcher], value: rule['minimumReleaseAge'] });
+    if (coverage.kind === 'unknown') {
+      unreadable.push({ index, line, matcher: coverage.matcher, patterns: rule[coverage.matcher], value: rule['minimumReleaseAge'], ...(coverage.unmodelled === true ? { unmodelled: true as const } : {}) });
+    }
     if (coverage.kind !== 'covers') continue;
     repositorySets = true;
     set(coverage.scope.updateTypes, { value: rule['minimumReleaseAge'], origin: `minimumReleaseAge: ${JSON.stringify(rule['minimumReleaseAge'])} in packageRules[${index}] of ${config.file}`, line, rule: index });

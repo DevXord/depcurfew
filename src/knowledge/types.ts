@@ -1511,6 +1511,8 @@ export interface EnvironmentKnowledge {
     jobContainer: Fact<{ key: string; imageKey: string; envKey: string }>;
     /** The env maps of a workflow, a job and a step; the most specific one wins (decision D-115). */
     environmentKeys: Fact<{ key: string; levels: readonly ('workflow' | 'job' | 'step')[] }>;
+    /** Whether workflows may use YAML anchors and aliases, which GitHub expands (decision D-141). */
+    yamlAliases: Fact<{ accepted: boolean }>;
     pnpmActionSetup: Fact<SetupActionKnowledge>;
     pnpmSetup: Fact<SetupActionKnowledge>;
     setupBun: Fact<SetupActionKnowledge>;

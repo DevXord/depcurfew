@@ -127,6 +127,23 @@ function addedText(added: readonly string[]): string {
   return `${code(first)} (and ${added.length - 1} more ${added.length === 2 ? 'line' : 'lines'})`;
 }
 
+/**
+ * Removed lines for a message: one line as it is, or a YAML key with the lines below it as the value Dependabot or the
+ * tool reads (`exclude: ["*\/*"]`) when that is short, else the first line and a count (decision D-141).
+ */
+function removedText(file: string, removed: readonly string[]): string {
+  const [first = ''] = removed;
+  if (removed.length === 1) return code(first);
+  const data = /\.ya?ml$/u.test(file) && /:$/u.test(first) ? dataOf(file, removed.join('\n')) : undefined;
+  const entries = isObject(data) ? Object.entries(data) : [];
+  const [entry] = entries;
+  if (entry !== undefined && entries.length === 1) {
+    const text = `${entry[0]}: ${JSON.stringify(entry[1])}`;
+    if (text.length <= 100) return code(text);
+  }
+  return `${code(first)} (and ${removed.length - 1} more ${removed.length === 2 ? 'line' : 'lines'})`;
+}
+
 /** Lines as a list for a message: `a`, `b` and `c`. */
 function codeList(texts: readonly string[]): string {
   const quoted = texts.map(code);
@@ -191,7 +208,7 @@ function describe(file: string, difference: Difference, before: string, after: s
   // Several settings of one block changed: each old line and the line that replaces it (decision D-115).
   const pairs = difference.removed.length > 1 && difference.removed.length === difference.added.length && difference.removed.every((text, index) => keyOf(text) !== undefined && keyOf(text) === keyOf(difference.added[index] ?? ''));
   if (pairs) return difference.removed.map((text, index) => `${code(text)} should be ${code(difference.added[index] ?? '')}${quotedNote(file, text, difference.added[index] ?? '')}`).join(', ');
-  if (removed !== undefined && difference.added.length > 0) return `${code(removed)} should be ${addedText(difference.added)}${quotedNote(file, removed, difference.added[0] ?? '')}`;
+  if (removed !== undefined && difference.added.length > 0) return `${removedText(file, difference.removed)} should be ${addedText(difference.added)}${quotedNote(file, removed, difference.added[0] ?? '')}`;
   if (difference.added.length > 0) {
     // A YAML key the map gets through a merge key (<<): the value apply writes into the map itself wins over it.
     const top = difference.added.length === 1 ? topLevelYaml(file, difference.added[0] ?? '') : undefined;

@@ -85,6 +85,11 @@ export interface ToolCommand {
   delayUnknown?: true;
   line: number;
   /**
+   * A command that installs or runs Corepack comes before it in the same job (an earlier run step, or earlier in its
+   * own) or Dockerfile stage (an earlier RUN, or earlier in its own), also on the same line (decision D-141).
+   */
+  afterCorepack?: true;
+  /**
    * github-actions: the working directory of the run step as written (working-directory of the step, or
    * defaults.run.working-directory of the job or the workflow), without ./ and a trailing /, joined with the literal
    * cd before the command (cd frontend && npm ci); absent for the root. dockerfile: the directory of a literal cd before

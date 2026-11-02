@@ -141,6 +141,8 @@ export interface CheckedTool {
   versionFrom?: string;
   /** A bot configuration in a directory listed in projects, which the bot does not read (it reads the root's, decision D-109). */
   unread?: true;
+  /** A package manager that a CI setup step of the root sets up for the directories listed in projects (decisions D-137 and D-141). */
+  setUpInCi?: true;
 }
 
 /** One check of the list of what doctor checked: a rule and what came of it. */

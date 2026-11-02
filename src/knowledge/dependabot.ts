@@ -98,6 +98,11 @@ export const dependabot: ToolKnowledge = {
       'Keys inside the cooldown block of an updates entry; the semver-* keys override default-days for that kind of update.',
     ),
     excludeWildcards: verified({ since: '0.0.0', trailingOnly: false }, `${OPTIONS}#cooldown`, 'cooldown.exclude accepts * wildcards.'),
+    excludeMatching: composer.verified(
+      { starMatchesSlash: true, caseSensitive: true },
+      'https://github.com/dependabot/dependabot-core/blob/v0.402.0/common/lib/dependabot/package/release_cooldown_options.rb',
+      'ReleaseCooldownOptions#excluded? at v0.402.0 skips the cooldown for a dependency when any exclude pattern matches its name with File.fnmatch?(pattern, dependency_name), and included? matches include the same way, both without flags. Without File::FNM_PATHNAME a * matches / as well ("File.fnmatch(\'c*t\', \'c/a/b/t\') #=> true" in the documentation of File.fnmatch, dir.rb of Ruby 3.4.7, https://github.com/ruby/ruby/blob/v3_4_7/dir.rb), and without File::FNM_CASEFOLD case counts, so "*/*" matches every Composer package (vendor/name) and every scoped npm package.',
+    ),
     cooldownInclude: python.verified(
       { key: 'include', everything: '*' },
       'https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates#setting-up-a-cooldown-period-for-dependency-updates',

@@ -171,12 +171,14 @@ function allowListWarnings(root: string, workspace: ManifestGuard, policy: Resol
       return remainingConflicts(repository, planned, manager.id, manager.configFiles, options, scripts).map((conflict): ApplyWarning => {
         const { entry } = conflict;
         const location = { file: entry.file, ...(entry.line === undefined ? {} : { line: entry.line }) };
+        // The tool's name first, as in the other warnings of apply (decision D-141).
+        const name = `${tool?.name ?? manager.id}: `;
         if (conflict.kind === 'outside') {
           const text = outsideConflictText(entry, true);
-          return { code: 'allow-list-entry-outside-policy', tool: manager.id, location, message: `${text.message}; depcurfew apply does not remove entries it did not write`, fix: text.fix };
+          return { code: 'allow-list-entry-outside-policy', tool: manager.id, location, message: `${name}${text.message}; depcurfew apply does not remove entries it did not write`, fix: text.fix };
         }
         const text = denyConflictText({ kind: conflict.kind, entry }, true);
-        return { code: 'deny-conflicts-with-file', tool: manager.id, location, message: `${text.message}; depcurfew apply does not change entries it did not write`, fix: text.fix };
+        return { code: 'deny-conflicts-with-file', tool: manager.id, location, message: `${name}${text.message}; depcurfew apply does not change entries it did not write`, fix: text.fix };
       });
     });
 }

@@ -1,8 +1,8 @@
 // Reads GitHub Actions workflows: versions passed to the setup actions known to the knowledge base (a
 // ${{ matrix.<key> }} value stands for each value of that matrix key), and what the run steps of each job do with
 // npm and pip (installs, npm install -g npm@<version>).
-import { isMap, isScalar, isSeq, LineCounter, type Node, type YAMLMap } from 'yaml';
-import { parseYamlDocument } from '../yaml-parse.ts';
+import { isAlias, isMap, isScalar, isSeq, LineCounter, type Document, type Node, type YAMLMap } from 'yaml';
+import { MAX_YAML_ALIASES, parseYamlDocument } from '../yaml-parse.ts';
 import { environment as knowledge } from '../knowledge/environment.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import type { RuntimeOrTool, SetupActionKnowledge } from '../knowledge/types.ts';
@@ -125,13 +125,17 @@ function commandDirectory(step: string | undefined, cd: string | undefined): str
   return `${step}/${cd}`;
 }
 
-/** The variables of an env map whose values are scalars, as text (a YAML true is "true"). */
-function environmentOf(node: unknown): Map<string, string> {
+/**
+ * The variables of an env map whose values are scalars, as text (a YAML true is "true"). `resolve` reads an alias
+ * (*name) as the node of its anchor, as GitHub expands aliases in workflows (decision D-141).
+ */
+function environmentOf(node: unknown, resolve: (node: unknown) => unknown = (item) => item): Map<string, string> {
   const found = new Map<string, string>();
-  if (!isMap(node)) return found;
-  for (const pair of node.items) {
+  const map = resolve(node);
+  if (!isMap(map)) return found;
+  for (const pair of map.items) {
     const key = scalarText(pair.key);
-    const value = scalarText(pair.value);
+    const value = scalarText(resolve(pair.value));
     if (key !== undefined && value !== undefined) found.set(key, value);
   }
   return found;
@@ -142,6 +146,30 @@ function defaultDirectory(node: unknown): string | undefined {
   const defaults = isMap(node) ? node.get('defaults') : undefined;
   const run = isMap(defaults) ? defaults.get('run') : undefined;
   return isMap(run) ? workingDirectory(run.get('working-directory', true)) : undefined;
+}
+
+/** Whether GitHub expands YAML aliases in workflows (environment.githubActions.yamlAliases, decision D-141). */
+const EXPANDS_ALIASES = evidenceOf(knowledge.githubActions.yamlAliases)[0]?.value.accepted === true;
+
+/**
+ * Reads an alias (*name) as the node of its anchor, as GitHub expands aliases in workflows (decision D-141): at most
+ * MAX_YAML_ALIASES of them in a file, after which the others are not followed and a notice says so.
+ */
+function aliasResolver(document: Document.Parsed, file: string, repository: Repository, lineOf: (node: Node) => number | undefined): (node: unknown) => unknown {
+  let left = MAX_YAML_ALIASES;
+  return (node) => {
+    if (!EXPANDS_ALIASES || !isAlias(node)) return node;
+    if (left <= 0) {
+      if (left === 0) {
+        const line = lineOf(node);
+        repository.warn('script-not-followed', `${file} uses more than ${MAX_YAML_ALIASES} YAML aliases; depcurfew follows the first ${MAX_YAML_ALIASES}, so it does not see what the others bring into its jobs, steps and env`, [file], ...(line === undefined ? [] : [line]));
+      }
+      left -= 1;
+      return undefined;
+    }
+    left -= 1;
+    return node.resolve(document);
+  };
 }
 
 export function readWorkflows(repository: Repository, facts: DetectionFacts): WorkflowFindings {
@@ -164,15 +192,16 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
     }
     const lineOf = (node: Node) => (node.range === undefined || node.range === null ? undefined : lineCounter.linePos(node.range[0]).line);
 
-    const jobs = document.get('jobs');
+    const resolve = aliasResolver(document, file, repository, lineOf);
+    const jobs = resolve(document.get('jobs'));
     if (!isMap(jobs)) continue;
     const workflowDirectory = defaultDirectory(document.contents);
     const { key: envKey } = facts.workflowEnvironment;
     // Only the variables commands read are kept, so thousands of env entries cost no more per step (decision D-121).
-    const workflowEnvironment = withVariables(facts.commands, environmentOf(isMap(document.contents) ? document.contents.get(envKey) : undefined));
+    const workflowEnvironment = withVariables(facts.commands, environmentOf(isMap(document.contents) ? document.contents.get(envKey) : undefined, resolve));
     for (const pair of jobs.items) {
       const id = scalarText(pair.key);
-      const job = pair.value;
+      const job = resolve(pair.value);
       if (id === undefined || !isMap(job)) continue;
       const keyLine = isScalar(pair.key) ? lineOf(pair.key) : undefined;
       const declare = (tool: RuntimeOrTool, value: { version: string } | { versionFile: string }, node: Node, step: number | undefined) => {
@@ -200,7 +229,7 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
       const jobDirectory = defaultDirectory(job) ?? workflowDirectory;
       // The image of jobs.<id>.container runs the steps: its node image declares the Node.js they use (decision D-115).
       const { key: containerKey, imageKey, envKey: containerEnvKey } = facts.jobContainer;
-      const container = job.get(containerKey, true);
+      const container = resolve(job.get(containerKey, true));
       const imageNode = isMap(container) ? container.get(imageKey, true) : container;
       const image = scalarText(imageNode);
       if (image !== undefined && isScalar(imageNode) && !image.includes('${{')) {
@@ -215,10 +244,11 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
         }
       }
       // The container's env, then the workflow's and the job's, which docker exec passes over it, then each step's.
-      const jobEnvironment = withVariables(facts.commands, environmentOf(isMap(container) ? container.get(containerEnvKey) : undefined), workflowEnvironment, environmentOf(job.get(envKey)));
-      const steps = job.get('steps');
+      const jobEnvironment = withVariables(facts.commands, environmentOf(isMap(container) ? container.get(containerEnvKey) : undefined, resolve), workflowEnvironment, environmentOf(job.get(envKey), resolve));
+      const steps = resolve(job.get('steps'));
       if (!isSeq(steps)) continue;
-      for (const step of steps.items) {
+      for (const item of steps.items) {
+        const step = resolve(item);
         if (!isMap(step)) continue;
         const uses = scalarText(step.get('uses', true));
         const action = uses === undefined ? undefined : findAction(facts.setupActions, uses);
@@ -242,23 +272,26 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
             }
           }
         }
-        const run = step.get('run', true);
+        const run = resolve(step.get('run', true));
         if (isScalar(run) && typeof run.value === 'string' && run.range !== undefined && run.range !== null) {
           // Read the source text of the step, so that commands inside block scalars get their own line.
           const start = run.range[0];
-          const environment = withVariables(facts.commands, jobEnvironment, environmentOf(step.get(envKey)));
+          const environment = withVariables(facts.commands, jobEnvironment, environmentOf(step.get(envKey), resolve));
           const found = findToolCommands(text.slice(start, run.range[1]), facts.commands, 0, environment);
           const runLine = lineCounter.linePos(start).line;
           for (const message of overLimitMessages(found.overLimit, `the run step of ${jobLabel(id, keyLine)} in ${file} (line ${runLine})`)) repository.warn('script-not-followed', message, [file], runLine);
           record.runsNode ||= found.runsNode;
           const configVariable = facts.commands.pip.delay?.configVariable;
           if (found.pipConfig === true || (configVariable !== undefined && (environment.get(configVariable) ?? '') !== '')) record.pipConfig = true;
+          // Commands after a Corepack command of an earlier step or earlier in this one (decision D-141).
+          const seenCorepack = record.corepack !== undefined;
           if (found.corepack !== undefined) record.corepack ??= lineCounter.linePos(start + found.corepack).line;
           const stepDirectory = step.has('working-directory') ? workingDirectory(step.get('working-directory', true)) : jobDirectory;
           for (const { offset, cd, ...command } of found.commands) {
             const line = lineCounter.linePos(start + offset).line;
             const directory = commandDirectory(stepDirectory, cd);
-            record.commands.push({ ...command, line, ...(directory === undefined ? {} : { directory }) });
+            const afterCorepack = seenCorepack || (found.corepack !== undefined && found.corepack < offset);
+            record.commands.push({ ...command, line, ...(directory === undefined ? {} : { directory }), ...(afterCorepack ? { afterCorepack: true as const } : {}) });
             if ((command.tool === 'npm' || command.tool === 'poetry') && command.kind === 'upgrade' && command.version !== undefined) {
               findings.versions.push({ tool: command.tool, declaration: { version: command.version, source: 'github-actions', file, line, job: id } });
             }

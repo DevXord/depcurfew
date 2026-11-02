@@ -16,7 +16,15 @@ export interface YamlOptions {
    * are 10, 1:30 is 5400, and 0o12 or 1e3 are text. Values only; keys are read as YAML 1.2 reads them.
    */
   psychScalars?: boolean;
+  /**
+   * Read through aliases (*name) as the loader expands them (GitHub Actions workflows, decision D-141): a path may pass
+   * an alias, and a value is converted with at most MAX_YAML_ALIASES aliases.
+   */
+  aliases?: boolean;
 }
+
+/** The most aliases depcurfew expands in one value it converts, as for merge keys: more is read as no value. */
+export const MAX_YAML_ALIASES = 100;
 
 /** A plain scalar as Psych reads it, as far as numbers go: an integer, text where YAML 1.2 may read a number, or as YAML 1.2 does. */
 export type PsychReading = { kind: 'integer'; value: number } | { kind: 'string'; value: string } | { kind: 'other' };

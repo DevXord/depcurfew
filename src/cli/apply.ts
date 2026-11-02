@@ -229,7 +229,8 @@ export function apply(directory: string | undefined, options: ApplyOptions, io: 
   const absolute = target.directory;
   // The same notice doctor gives when the directory is a project of a parent policy (decision D-115).
   const notices = target.notice === undefined ? [] : [makeNotice('policy-from-parent', target.notice, POLICY_FILE)];
-  if (!options.json) for (const notice of notices) io.stderr(`note: ${notice.message} (${notice.code})\n`);
+  // Directory names may hold control characters: shown as text, as doctor does (decision D-141).
+  if (!options.json) for (const notice of notices) io.stderr(`note: ${printable(notice.message)} (${notice.code})\n`);
   let report: ApplyReport;
   try {
     report = applyProject(absolute, { write: !dryRun });

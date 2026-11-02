@@ -103,7 +103,7 @@ function parse(text: string): JsonNode {
 }
 
 /** A syntax error with the line and column of the position JSON.parse reports. */
-function invalidJson(text: string, error: unknown): Error {
+export function invalidJson(text: string, error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error);
   const reason = message.replace(/ in JSON at position \d+.*$/u, '');
   const position = /at position (\d+)/u.exec(message);

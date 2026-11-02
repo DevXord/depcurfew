@@ -122,7 +122,8 @@ function usesWithoutCorepack(context: RuleContext, declaration: VersionDeclarati
     if (!group.job.runsNode) return false;
     const install = commandsAfterStep(group, declaration).find(installsWith(tool));
     if (install === undefined) return false;
-    return group.job.corepack === undefined || group.job.corepack > install.line;
+    // Corepack before the install in the job, also on its line (decision D-141).
+    return install.afterCorepack !== true;
   }
   if (declaration.source === 'dockerfile') {
     const file = context.detection.dockerfiles.find((entry) => entry.file === declaration.file);
@@ -131,8 +132,8 @@ function usesWithoutCorepack(context: RuleContext, declaration: VersionDeclarati
     return stagesFrom(file, index).some((chain) => {
       const install = chain.at(-1)?.commands.find(installsWith(tool));
       if (install === undefined) return false;
-      const corepack = chain.flatMap((stage) => (stage.corepack === undefined ? [] : [stage.corepack]));
-      return !corepack.some((line) => line < install.line);
+      // Corepack in an earlier stage of the chain, or before the install in its own (decision D-141).
+      return install.afterCorepack !== true && !chain.slice(0, -1).some((stage) => stage.corepack !== undefined);
     });
   }
   return declaration.source !== 'volta';

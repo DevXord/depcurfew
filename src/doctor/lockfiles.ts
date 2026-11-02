@@ -58,9 +58,10 @@ export interface LockEntry {
   why?: string;
   /**
    * Composer: the entry of config.preferred-install in composer.json that makes Composer check the package out (decision
-   * D-138): the key of a pattern object, none for a string; `value` as written, `why` the cause for messages.
+   * D-138): the key of a pattern object, none for a string; `value` as written, `why` the cause for messages, `cause`
+   * the same without the setting and its file ("gives "source" for symfony/*").
    */
-  preferredInstall?: { key?: string; value: string; why: string };
+  preferredInstall?: { key?: string; value: string; why: string; cause: string };
   /**
    * Composer: an archive from a host of Packagist.org's packages next to a VCS source on a host that is not the one of
    * that archive (decision D-136), which Packagist.org never writes: the source Composer falls back to in some cases.

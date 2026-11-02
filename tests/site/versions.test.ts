@@ -237,7 +237,7 @@ describe('site with earlier versions', () => {
   });
 
   it('lists the Versions page on the start page', () => {
-    expect(page('index.html')).toContain(`<li><a href="${VERSIONS_PAGE.file}"><span class="title">${VERSIONS_PAGE.title}</span> <span class="summary">${VERSIONS_PAGE.summary}</span></a></li>`);
+    expect(page('index.html')).toContain(`<li><a href="${VERSIONS_PAGE.file}"><span class="title">${VERSIONS_PAGE.title}</span><span class="visually-hidden">:</span> <span class="summary">${VERSIONS_PAGE.summary}</span></a></li>`);
   });
 
   it.each(ARCHIVE.filter((name) => name.endsWith('.html')))('%s shows its own pages and the other versions in two groups, and its version in the top bar', (name) => {
@@ -317,7 +317,7 @@ describe('site with earlier versions', () => {
     expect(html).toContain('<title>Knowledge base · depcurfew 1.1.0</title>');
     expect(html).toContain('<h1 id="package-manager-knowledge-base">Package manager knowledge base</h1>');
     expect(html).toContain('<h2 id="release-age-cooldown">Release-age cooldown</h2>');
-    expect(html).toContain('<a href="https://docs.npmjs.com/cli/v11/using-npm/config#min-release-age">↗</a>');
+    expect(html).toContain('<a href="https://docs.npmjs.com/cli/v11/using-npm/config#min-release-age" aria-label="source">↗</a>');
     expect(html).toContain('<a href="index.html#github-action">README</a>');
   });
 

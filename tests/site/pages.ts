@@ -66,7 +66,8 @@ export function onThisPage(html: string): string[] | undefined {
 
 /**
  * A complete HTML page with one h1, the icon, depcurfew and the version in the top bar, the stylesheet, and the
- * navigation right after the details element that opens it on narrow screens, as site/style.css expects (D-140).
+ * navigation with the details element that opens it on narrow screens as its first child, as site/style.css expects
+ * (decisions D-140 and D-141).
  */
 export function checkDocument(html: string, name: string): void {
   const expected = loads(name);
@@ -78,7 +79,8 @@ export function checkDocument(html: string, name: string): void {
   expect(html.match(/<a class="brand"[^>]*>.*?<\/a>/gu), name).toEqual([expected.brand]);
   expect(html, name).toMatch(/<header class="site">\n<a class="brand"[^\n]*<\/a>\n<span class="version">v\d+\.\d+\.\d+<\/span>\n<\/header>\n/u);
   expect(html, name).toContain('<a class="skip" href="#content">Skip to content</a>');
-  expect(html, name).toContain('<details class="menu"><summary>Menu</summary></details>\n<nav class="pages" aria-label="Pages">\n');
+  // The toggle is the first child of the navigation, inside its landmark (decision D-141).
+  expect(html, name).toContain('<nav class="pages" aria-label="Pages">\n<details class="menu"><summary>Menu</summary></details>\n<div class="groups">\n');
   expect(navigation(html).length, name).toBeGreaterThan(1);
   expect(html, name).toContain('<main id="content">\n');
   // The list of the page's headings follows the toggle that opens it on narrow screens.

@@ -63,6 +63,14 @@ export function outsideConflictText(entry: AllowEntry, apply = false): { message
       fix: `Remove ${JSON.stringify(entry.name)} from ${entry.setting} in ${entry.file} by hand and list the plugins that may run in installScripts.allow in ${POLICY_FILE} (with the prefix composer:), then run depcurfew apply`,
     };
   }
+  if (entry.composerKey === true) {
+    // A Composer plugin runs as a whole; it has no install scripts (decision D-141).
+    const what = entry.name.includes('*') ? `every plugin that ${entry.name} matches` : `the Composer plugin ${entry.name}`;
+    return {
+      message: `${where} lets ${what} run, but ${POLICY_FILE} does not allow ${entry.name.includes('*') ? 'them' : 'it'}`,
+      fix: `Remove ${JSON.stringify(entry.name)} from ${entry.setting} in ${entry.file}${apply ? ' by hand' : ''}, or add ${policyName(entry)} to installScripts.allow in ${POLICY_FILE}`,
+    };
+  }
   return {
     message: `${where} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it`,
     fix: apply
@@ -183,8 +191,9 @@ function listEntries(repository: TextSource, manager: PackageManagerId, configFi
       if (text === undefined) break;
       const found = jsonSetting(text, ['config', 'allow-plugins']);
       const keys: AllowEntry[] = [];
-      if (found?.value === true && allowed) keys.push({ name: '*', package: '*', file: 'composer.json', line: found.line, setting: 'allow-plugins' });
-      keys.push(...fromKeys(text, 'composer.json', 'allow-plugins', found?.value, (entry) => (entry === true) === allowed, jsonLine(text, 'composer.json', ['config', 'allow-plugins'])));
+      // Named as the other Composer messages name it, config.allow-plugins (decision D-141).
+      if (found?.value === true && allowed) keys.push({ name: '*', package: '*', file: 'composer.json', line: found.line, setting: 'config.allow-plugins' });
+      keys.push(...fromKeys(text, 'composer.json', 'config.allow-plugins', found?.value, (entry) => (entry === true) === allowed, jsonLine(text, 'composer.json', ['config', 'allow-plugins'])));
       for (const entry of keys) {
         const name = composerPolicyName(entry.name);
         entries.push({ ...entry, package: entry.name.toLowerCase(), composerKey: true, ...(name === undefined || matchesEveryComposerName(entry.name) ? {} : { policyName: name }) });
@@ -266,6 +275,19 @@ export function remainingConflicts(
 export function denyConflictText(conflict: ListConflict & { kind: 'denied' | 'allowed' }, line = false): { message: string; fix: string } {
   const { entry } = conflict;
   const where = `${entry.setting} in ${entry.file}${line && entry.line !== undefined ? ` (line ${entry.line})` : ''}`;
+  if (entry.composerKey === true) {
+    // A Composer plugin runs as a whole; it has no install scripts (decision D-141).
+    const plugin = entry.name.includes('*') ? `every plugin that ${entry.name} matches` : `the Composer plugin ${entry.name}`;
+    return conflict.kind === 'denied'
+      ? {
+          message: `${where} lets ${plugin} run, although installScripts.deny in ${POLICY_FILE} denies ${entry.name.includes('*') ? 'them' : 'it'}`,
+          fix: `Remove ${JSON.stringify(entry.name)} from ${entry.setting} in ${entry.file}, or move ${policyName(entry)} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing the plugin`,
+        }
+      : {
+          message: `${where} blocks ${plugin}, but installScripts.allow in ${POLICY_FILE} allows ${entry.name.includes('*') ? 'them' : 'it'}`,
+          fix: `Remove ${JSON.stringify(entry.name)} from ${entry.setting} in ${entry.file}, or move ${policyName(entry)} from installScripts.allow to installScripts.deny in ${POLICY_FILE} if the project works without it`,
+        };
+  }
   if (conflict.kind === 'denied') {
     return {
       message: `${where} lets ${entry.name} run its install scripts, although installScripts.deny in ${POLICY_FILE} says they must not run`,

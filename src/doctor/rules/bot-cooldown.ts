@@ -14,7 +14,7 @@ import type { PackageManagerId, PackageManagerInfo } from '../../detect/types.ts
 import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion, managerDelay, versionedValue, type Delay } from '../effective.ts';
-import { actionsTarget, managerTargets, readRenovateConfig, renovateDelay, type RenovateTarget, type UnreadableRule } from '../renovate.ts';
+import { actionsTarget, managerTargets, readRenovateConfig, renovateDelay, type RenovateTarget, type UnreadableRule, type UpdateType } from '../renovate.ts';
 import { jsonSetting, rejectsYamlAliases, yamlAliasLine, yamlSetting } from '../settings.ts';
 import { inProject } from '../../apply/projects.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
@@ -51,6 +51,11 @@ interface BotDelay extends Delay {
   unreadableReason?: 'read' | 'parse' | 'alias';
   /** A fix for this delay in place of the general one. */
   fix?: string;
+  /**
+   * Another delay of the same target that a Renovate rule gives some update types, longer than the first one (decision
+   * D-141): compared on its own, without the notes and the security check of the first.
+   */
+  secondary?: true;
 }
 
 const isEcosystems = (value: unknown): value is Record<string, string[]> =>
@@ -169,24 +174,31 @@ function renovateDelays(context: RuleContext, bot: ToolKnowledge, file: string):
       }
       minutes.set(type, value.minutes);
     }
-    const shortest = Math.min(...minutes.values());
-    const types = updateTypes.filter((type) => minutes.get(type) === shortest);
-    const source = delay.byType.get(types[0] ?? '');
-    return [
-      {
+    // One delay for each place that sets some update types their delay, the shortest first: a rule that turns the delay
+    // off for major updates must not hide another that shortens it for minor and patch updates (decision D-141).
+    const groups = new Map<string, UpdateType[]>();
+    for (const type of updateTypes) {
+      const key = delay.byType.get(type)?.origin ?? '';
+      groups.set(key, [...(groups.get(key) ?? []), type]);
+    }
+    const ordered = [...groups.values()].sort((a, b) => (minutes.get(a[0] ?? '') ?? 0) - (minutes.get(b[0] ?? '') ?? 0));
+    return ordered.map((types, index): BotDelay => {
+      const source = delay.byType.get(types[0] ?? '');
+      return {
         bot,
         managers,
         ...flags(target),
-        minutes: shortest,
+        minutes: minutes.get(types[0] ?? '') ?? 0,
         origin: source?.origin ?? 'Renovate has no delay by default',
         location: { file, line: source?.line ?? 1 },
         securityBypass,
         scope: types.length === updateTypes.length ? scopeOf(target, 'updates') : `${listing(types)} ${scopeOf(target, 'updates')}`,
         applies,
         ...(source?.rule === undefined ? {} : { rule: source.rule }),
-        ...(delay.unreadable.length === 0 ? {} : { unreadableRules: delay.unreadable }),
-      },
-    ];
+        ...(index === 0 && delay.unreadable.length > 0 ? { unreadableRules: delay.unreadable } : {}),
+        ...(index === 0 ? {} : { secondary: true as const }),
+      };
+    });
   });
 }
 
@@ -433,7 +445,10 @@ function compare(context: RuleContext, delay: BotDelay, reference: Reference): b
       level: 'note',
       location: { file: delay.location.file, line: rule.line },
       message: `${delay.bot.name} packageRules[${rule.index}] in ${delay.location.file} sets minimumReleaseAge: ${JSON.stringify(rule.value)} for ${rule.matcher} ${JSON.stringify(rule.patterns)}, which depcurfew cannot read, so it cannot tell whether ${delay.bot.name} waits as long as ${reference.asLongAs}`,
-      fix: `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe(reference.minutes)}, or write its ${rule.matcher} with names, * or /regex/ patterns, which depcurfew reads`,
+      fix:
+        rule.unmodelled === true
+          ? `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe(reference.minutes)}; depcurfew does not evaluate ${rule.matcher}, so this note stays while the rule sets a shorter delay`
+          : `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe(reference.minutes)}, or write its ${rule.matcher} with names, * or /regex/ patterns, which depcurfew reads`,
     });
   }
   // A packageRules entry that turns the delay off for every package is reported by broad-exclusion.
@@ -464,7 +479,7 @@ export const botCooldownMismatch: Rule = {
   checks: 'Update bots wait at least as long as the package manager, and for the actions of workflows as long as the policy, before proposing a new version',
   summary: 'An update bot waits less than the package manager, or for the actions of workflows less than the policy, before proposing a new version.',
   description:
-    'The bot then opens pull requests with versions the package manager would not pick yet: they fail where the manager re-checks the lockfile or bring in younger versions, and security updates that skip the bot delay fail too. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category, update type or the files and depType of actions, and one with a matcher depcurfew cannot read gets a note. For the actions of workflows the bot must wait cooldown.minimum. An unreadable bot file, a JSON5 Renovate file or a Dependabot file with a YAML alias gets a note per package manager that waits. With projects, a bot file inside a project gets a note (bots read only the root\'s), and a project the root\'s Dependabot configuration leaves out while it updates others gets a warning. A Dependabot composer entry gets a note: it counts from the release time the author sets.',
+    'The bot then opens pull requests with versions the package manager would not pick yet: they fail where the manager re-checks the lockfile or bring in younger versions, and security updates that skip the bot delay fail too. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category, update type or the files and depType of actions, each such entry is reported, and one with a matcher depcurfew cannot read or does not evaluate gets a note. For the actions of workflows the bot must wait cooldown.minimum. An unreadable bot file, a JSON5 Renovate file or a Dependabot file with a YAML alias gets a note per package manager that waits. With projects, a bot file inside a project gets a note (bots read only the root\'s), and a project the root\'s Dependabot configuration leaves out while it updates others gets a warning. A Dependabot composer entry gets a note: it counts from the release time the author sets.',
   help: 'Give the bot a delay at least as long as the package manager\'s, and for the actions of workflows as long as cooldown.minimum (depcurfew apply does this).',
   level: 'error',
   requiresPolicy: false,
@@ -506,9 +521,10 @@ export const botCooldownMismatch: Rule = {
           if (delay.bot.id === 'dependabot' && manager.id === 'composer' && own.minutes > 0 && delay.unreadableFile === undefined) composerTimeNote(context, delay, knowledge.name, source.project);
         };
         if (compare(context, delay, managerReference(tool, own))) {
-          timeNote();
+          if (delay.secondary !== true) timeNote();
           continue;
         }
+        if (delay.secondary === true) continue;
         if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager) && !exemptsSecurityFixes(delay.bot, tool.id, found.location?.file)) {
           context.report({
             level: 'warning',

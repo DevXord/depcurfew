@@ -20,7 +20,8 @@ import { autoTargets } from '../apply/targets.ts';
 import { listing } from '../apply/requirements.ts';
 import { inProject } from '../apply/projects.ts';
 import { paint, type Paint } from '../color.ts';
-import { jsonSetting } from '../doctor/settings.ts';
+import { jsonSetting, rejectsYamlAliases, yamlAliasLine } from '../doctor/settings.ts';
+import { Repository } from '../detect/repository.ts';
 import { safeJson } from '../json-safe.ts';
 import type { ToolId } from '../knowledge/types.ts';
 import { printable } from '../printable.ts';
@@ -167,6 +168,31 @@ function keptNote(kept: ConfiguredDelay, minimum: string, policy: string, apply:
     message: `cooldown.minimum is ${minimum} instead of ${DEFAULT_POLICY.cooldown.minimum}, to keep the longest release-age delay already set: ${describeDelay(kept)}`,
     fix: `Leave cooldown.minimum as it is to keep that delay, or lower it in ${policy} before you run ${apply}`,
   };
+}
+
+/**
+ * A bot configuration with a YAML alias, which the bot does not accept (Dependabot, extra.yamlAliases): the bot reads
+ * nothing from it, and init, like doctor and apply, does not read the delays it sets (decisions D-135 and D-141).
+ */
+function unreadableBotNotes(root: string, detection: Detection): InitMessage[] {
+  const repository = new Repository(root);
+  return detection.bots.flatMap((bot): InitMessage[] => {
+    const tool = knowledgeBase.find((entry) => entry.id === bot.id);
+    const file = bot.configFiles[0];
+    if (tool === undefined || file === undefined || !rejectsYamlAliases(tool)) return [];
+    const text = repository.readText(file);
+    const line = text === undefined ? undefined : yamlAliasLine(text);
+    if (line === undefined) return [];
+    return [
+      {
+        code: 'bot-config-unreadable',
+        level: 'note',
+        location: { file, line },
+        message: `${file} uses a YAML alias (line ${line}), which ${tool.name} does not accept, so it reads no configuration from the file; init does not read the delays it sets either, so cooldown.minimum does not keep a longer one from it`,
+        fix: `Write the value out in place of the alias on line ${line} of ${file}; if the file sets a longer cooldown than cooldown.minimum in ${POLICY_FILE}, raise cooldown.minimum before you run depcurfew apply`,
+      },
+    ];
+  });
 }
 
 /** A setting of the policy init writes, as a location: depcurfew.json and the line of the setting. */
@@ -348,6 +374,8 @@ export function init(directory: string | undefined, options: InitOptions, io: Cl
     });
   }
   after.push(...scripts.notes);
+  // A bot file with a YAML alias, which the bot does not read and init did not read for longer delays (decision D-141).
+  after.push(...unreadableBotNotes(absolute, detection));
   // composer.lock packages that config.preferred-install checks out, which the sources.git "deny" written here reports (decision D-138).
   if (DEFAULT_POLICY.sources.git === 'deny') after.push(...composerCheckoutNotes(absolute, [{ detection }, ...projects.map((entry) => ({ project: entry.project, detection: entry.detection }))]));
   // In a repository of projects the workflows of the root set up the projects' tools, as apply knows (decision D-100).

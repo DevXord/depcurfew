@@ -512,6 +512,9 @@ function safeTarget(target: string): boolean {
   return scheme === undefined || scheme === 'http' || scheme === 'https' || scheme === 'mailto';
 }
 
+/** The text of a link to the source of a fact in the knowledge base (src/knowledge/render.ts). */
+const SOURCE_ARROW = '↗';
+
 function renderInline(nodes: readonly Inline[], rewrite: (target: string) => string | undefined): string {
   return nodes
     .map((node) => {
@@ -529,7 +532,9 @@ function renderInline(nodes: readonly Inline[], rewrite: (target: string) => str
         case 'link': {
           const children = renderInline(node.children, rewrite);
           const target = rewrite(node.target);
-          return target !== undefined && safeTarget(target) ? `<a href="${escapeHtml(target)}">${children}</a>` : children;
+          // The knowledge base links each fact to its source with an arrow alone, which screen readers name "source" (D-141).
+          const name = children === SOURCE_ARROW ? ' aria-label="source"' : '';
+          return target !== undefined && safeTarget(target) ? `<a href="${escapeHtml(target)}"${name}>${children}</a>` : children;
         }
       }
     })

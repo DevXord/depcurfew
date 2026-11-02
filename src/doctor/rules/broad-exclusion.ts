@@ -77,9 +77,18 @@ function checkDependabot(context: RuleContext, file: string): void {
   if (text === undefined || (bot !== undefined && rejectsYamlAliases(bot) && yamlAliasLine(text) !== undefined)) return;
   const updates = yamlSetting(text, ['updates'], yamlOptionsFor(file, context.tools));
   if (updates === undefined || !Array.isArray(updates.value)) return;
+  // dependabot-core matches with File.fnmatch? without FNM_PATHNAME, so * matches / too (extra.excludeMatching): "*/*"
+  // matches every Composer package (vendor/name), as matchesEveryComposerName says (decision D-141).
+  const slash = bot?.extra?.['excludeMatching'] !== undefined && extraOf(bot, 'excludeMatching', isRecord)['starMatchesSlash'] === true;
+  const ecosystems = bot?.extra?.['ecosystems'] === undefined ? {} : extraOf(bot, 'ecosystems', isRecord);
+  const composerEcosystems = Object.keys(ecosystems).filter((name) => {
+    const managers = ecosystems[name];
+    return Array.isArray(managers) && managers.some((id) => tool(context, String(id)) !== undefined && ecosystemOfTool(tool(context, String(id)) as ToolKnowledge) === 'packagist');
+  });
   (updates.value as unknown[]).forEach((entry, index) => {
     if (!isRecord(entry) || !isRecord(entry['cooldown']) || !Array.isArray(entry['cooldown']['exclude'])) return;
-    const broad = (entry['cooldown']['exclude'] as unknown[]).filter((item): item is string => typeof item === 'string' && isBroad(item));
+    const composer = slash && composerEcosystems.includes(String(entry['package-ecosystem']));
+    const broad = (entry['cooldown']['exclude'] as unknown[]).filter((item): item is string => typeof item === 'string' && (isBroad(item) || (composer && matchesEveryComposerName(item))));
     if (broad.length === 0) return;
     context.report({
       location: { file, line: yamlSetting(text, ['updates', String(index), 'cooldown', 'exclude'])?.line ?? updates.line },

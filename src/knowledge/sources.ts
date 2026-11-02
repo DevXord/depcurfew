@@ -37,6 +37,8 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
     { host: 'repo.packagist.org' },
     { host: 'github.com', pathPrefix: '/symfony/console/' },
     { host: 'github.com', pathPrefix: '/php/php-src/' },
+    // WPackagist serves the WordPress plugin and theme directories as a Composer repository (repositoryArchiveHosts).
+    { host: 'github.com', pathPrefix: '/outlandishideas/wpackagist/' },
   ],
   renovate: [{ host: 'docs.renovatebot.com' }, { host: 'github.com', pathPrefix: '/renovatebot/' }],
   // Psych (ruby/psych) is the YAML library dependabot-core loads dependabot.yml with (extra.yamlScalars).
@@ -45,6 +47,8 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
     { host: 'github.blog', pathPrefix: '/changelog/' },
     { host: 'github.com', pathPrefix: '/dependabot/' },
     { host: 'github.com', pathPrefix: '/ruby/psych/' },
+    // Ruby's File.fnmatch, with which dependabot-core matches cooldown exclude and include (excludeMatching).
+    { host: 'github.com', pathPrefix: '/ruby/ruby/' },
   ],
 };
 

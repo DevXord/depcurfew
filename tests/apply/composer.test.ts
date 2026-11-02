@@ -137,11 +137,12 @@ describe('apply on Composer projects', () => {
   });
 
   it('keeps the formatting of composer.json', () => {
-    const text = '{\n  "name": "acme/app",\n  // not valid for Composer, but kept as it is\n  "config": {\n    "sort-packages": true\n  }\n}\n';
+    // Tabs and a key order of its own; a comment, which Composer does not read, is refused (decision D-141).
+    const text = '{\n\t"config": {\n\t\t"sort-packages": true\n\t},\n\t"name": "acme/app"\n}\n';
     const root = project(undefined, { cooldown: { minimum: '1w' } }, { 'composer.json': text });
     applyProject(root);
     expect(readFileSync(join(root, 'composer.json'), 'utf8')).toBe(
-      '{\n  "name": "acme/app",\n  // not valid for Composer, but kept as it is\n  "config": {\n    "sort-packages": true,\n    "policy": {\n      "cooldown": {\n        "period": "7 days"\n      }\n    }\n  }\n}\n',
+      '{\n\t"config": {\n\t\t"sort-packages": true,\n\t\t"policy": {\n\t\t\t"cooldown": {\n\t\t\t\t"period": "7 days"\n\t\t\t}\n\t\t}\n\t},\n\t"name": "acme/app"\n}\n',
     );
   });
 });
@@ -208,14 +209,14 @@ describe('apply on Composer projects: its own entries, the case of keys and valu
     const blocked = project({ config: { 'allow-plugins': { 'Symfony/Flex': false } } }, { installScripts: { default: 'deny', allow: ['composer:symfony/flex'] } });
     const conflicts = applyProject(blocked).warningDetails.filter((warning) => warning.code === 'deny-conflicts-with-file');
     expect(conflicts.map((warning) => warning.fix)).toEqual([
-      'Remove Symfony/Flex from allow-plugins in composer.json, or move composer:symfony/flex from installScripts.allow to installScripts.deny in depcurfew.json if it works without its scripts',
+      'Remove "Symfony/Flex" from config.allow-plugins in composer.json, or move composer:symfony/flex from installScripts.allow to installScripts.deny in depcurfew.json if the project works without it',
     ]);
 
     for (const key of ['*', '*/*']) {
       const every = project({ config: { 'allow-plugins': { [key]: true } } }, { installScripts: { default: 'deny', allow: ['composer:symfony/flex'] } });
       const warnings = applyProject(every).warningDetails.filter((warning) => warning.code === 'allow-list-entry-outside-policy');
       expect(warnings.map(warningText)).toEqual([
-        `allow-plugins in composer.json (line 4) has "${key}": true, which lets every plugin that no earlier key names run, but depcurfew.json does not allow them; depcurfew apply does not remove entries it did not write. Remove "${key}" from allow-plugins in composer.json by hand and list the plugins that may run in installScripts.allow in depcurfew.json (with the prefix composer:), then run depcurfew apply`,
+        `Composer: config.allow-plugins in composer.json (line 4) has "${key}": true, which lets every plugin that no earlier key names run, but depcurfew.json does not allow them; depcurfew apply does not remove entries it did not write. Remove "${key}" from config.allow-plugins in composer.json by hand and list the plugins that may run in installScripts.allow in depcurfew.json (with the prefix composer:), then run depcurfew apply`,
       ]);
       const fixes = [...warnings, ...runDoctor(every).findings].map((item) => item.fix ?? '');
       expect(fixes.filter((fix) => fix.includes(`composer:${key}`))).toEqual([]);

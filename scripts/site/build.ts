@@ -334,7 +334,8 @@ function contents(page: Page, pages: readonly Page[]): Part {
       const lines = [`<h2 id="${escapeHtml(slug('On this site'))}">On this site</h2>`];
       for (const group of groups) {
         lines.push(`<h3 id="${escapeHtml(slug(group.title))}">${escapeHtml(group.title)}</h3>`, '<ul class="cards">');
-        for (const entry of group.pages) lines.push(`<li><a href="${escapeHtml(entry.file)}"><span class="title">${escapeHtml(entry.title)}</span> <span class="summary">${escapeHtml(entry.summary)}</span></a></li>`);
+        // The colon is for screen readers, which read the link as one name: "Title: summary" (decision D-141).
+        for (const entry of group.pages) lines.push(`<li><a href="${escapeHtml(entry.file)}"><span class="title">${escapeHtml(entry.title)}</span><span class="visually-hidden">:</span> <span class="summary">${escapeHtml(entry.summary)}</span></a></li>`);
         lines.push('</ul>');
       }
       return `${lines.join('\n')}\n`;

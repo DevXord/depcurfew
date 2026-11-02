@@ -11,6 +11,8 @@ import { Repository } from '../detect/repository.ts';
 import type { Detection } from '../detect/types.ts';
 import { checkedOut, checkoutsByPreference, COMPOSER_MANIFEST, composerManifest, isComposerName, listedCheckouts, pluginDecision, preferenceChange, preferenceLine } from '../doctor/composer.ts';
 import { keepFix, knownPackageOf, knownPackages, versionNote, withoutScript } from '../doctor/install-script-packages.ts';
+import { allowEntries, type AllowEntry } from '../doctor/allow-lists.ts';
+import { pinnedVersion } from '../apply/version.ts';
 import { COMPOSER_PREFIX } from '../policy/package-pattern.ts';
 import { readLockfiles, type Lockfile, type LockEntry } from '../doctor/lockfiles.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
@@ -45,9 +47,11 @@ function located(file: string, line: number | undefined): { file: string; line?:
 
 /** The note for a known package init denies: why it does not need its script, and what changes without it. */
 function knownNote(known: InstallScriptPackageKnowledge, entry: LockEntry, lockfile: Lockfile, shown: string, tool: ToolKnowledge): InitMessage {
-  const location = located(shown, lockfile.lineOf(entry));
+  const line = lockfile.lineOf(entry);
+  const location = located(shown, line);
   const what = known.kind === 'project-task' ? 'that only does a task of the project' : 'that it does not need';
-  const message = `${known.name} in ${shown} has an install script (${known.script}) ${what}, so init adds it to installScripts.deny: ${known.does}; ${withoutScript(known)}${versionNote(known, entry.version, shown)}`;
+  // The line in the message too, as the text of init shows no location (decision D-141).
+  const message = `${known.name} in ${shown}${line === undefined ? '' : ` (line ${line})`} has an install script (${known.script}) ${what}, so init adds it to installScripts.deny: ${known.does}; ${withoutScript(known)}${versionNote(known, entry.version, shown)}`;
   const fix = keepFix(known, tool);
   return known.kind === 'project-task'
     ? { code: 'install-script-project-task', level: 'note', location, message, fix }
@@ -55,13 +59,44 @@ function knownNote(known: InstallScriptPackageKnowledge, entry: LockEntry, lockf
 }
 
 /**
+ * The entries of the package managers' own allow-lists (onlyBuiltDependencies, allowBuilds, allowScripts...) of every
+ * directory, by package: a known package one of them already lets run its install script is not denied, since
+ * installScripts.deny would contradict the project's own decision (decision D-141).
+ */
+function ownAllowed(base: string, directories: readonly ScriptDirectory[]): Map<string, AllowEntry[]> {
+  const allowed = new Map<string, AllowEntry[]>();
+  for (const { project, detection } of directories) {
+    const repository = new Repository(project === undefined ? base : join(base, project));
+    for (const manager of detection.packageManagers.filter((entry) => entry.supported)) {
+      const tool = knowledgeBase.find((entry) => entry.id === manager.id);
+      if (tool === undefined || ecosystemOfTool(tool) !== 'npm') continue;
+      const version = pinnedVersion(manager);
+      for (const entry of allowEntries(repository, manager.id, manager.configFiles, { tool, ...(version === undefined ? {} : { version }) })) {
+        const file = project === undefined ? entry.file : inProject(project, entry.file);
+        allowed.set(entry.package, [...(allowed.get(entry.package) ?? []), { ...entry, file }]);
+      }
+    }
+  }
+  return allowed;
+}
+
+/** A known package that a tool's own list allows, for the note: `esbuild (onlyBuiltDependencies in pnpm-workspace.yaml, line 2)`. */
+function allowedLabel(name: string, entries: readonly AllowEntry[]): string {
+  const places = entries.map((entry) => `${entry.setting} in ${entry.file}${entry.line === undefined ? '' : `, line ${entry.line}`}`);
+  return `${name} (${places.join('; ')})`;
+}
+
+/**
  * The packages to deny and the notes about install scripts, for the root and every listed project. A package of
- * several lockfiles is denied and noted once, at the first one.
+ * several lockfiles is denied and noted once, at the first one; a known package that a package manager's own
+ * allow-list already allows is not denied but listed for review (decision D-141).
  */
 export function installScriptHints(base: string, directories: readonly ScriptDirectory[]): ScriptHints {
   const deny = new Set<string>();
   const notes: InitMessage[] = [];
   const review: InitMessage[] = [];
+  const allowedByProject = ownAllowed(base, directories);
+  const reviewed = new Set<string>();
   for (const { project, detection } of directories) {
     const repository = new Repository(project === undefined ? base : join(base, project));
     const shownFile = (file: string) => (project === undefined ? file : inProject(project, file));
@@ -82,6 +117,7 @@ export function installScriptHints(base: string, directories: readonly ScriptDir
         const { lockfile } = result;
         const shown = shownFile(lockfile.file);
         const others: string[] = [];
+        const keptAllowed: string[] = [];
         // Packages depcurfew does not know, whose scripts a lockfile without records cannot show.
         let unknown = 0;
         for (const entry of lockfile.entries) {
@@ -93,9 +129,25 @@ export function installScriptHints(base: string, directories: readonly ScriptDir
             if (entry.installScript === true) others.push(entry.name);
             continue;
           }
+          const allowedHere = allowedByProject.get(known.name);
+          if (allowedHere !== undefined) {
+            if (!reviewed.has(known.name)) keptAllowed.push(allowedLabel(known.name, allowedHere));
+            reviewed.add(known.name);
+            continue;
+          }
           if (deny.has(known.name)) continue;
           deny.add(known.name);
           notes.push(knownNote(known, entry, lockfile, shown, tool));
+        }
+        if (keptAllowed.length > 0) {
+          const one = keptAllowed.length === 1;
+          review.push({
+            code: 'install-scripts-to-review',
+            level: 'note',
+            location: { file: shown },
+            message: `${shown} has ${one ? 'a package' : 'packages'} whose install script depcurfew knows and would add to installScripts.deny, but the package manager's own allow-list already lets ${one ? 'it' : 'them'} run, so init leaves ${one ? 'it' : 'them'} out of installScripts.deny: ${names(keptAllowed)}`,
+            fix: `Review each one before you run depcurfew apply: add it to installScripts.allow in ${POLICY_FILE} if the project needs its install script, or to installScripts.deny if it works without it and remove it from that allow-list; until ${POLICY_FILE} lists it, depcurfew apply and depcurfew doctor report the allow-list entry`,
+          });
         }
         if (!lockfile.recordsScripts) {
           if (unknown > 0) review.push(notRecorded(shown, `${tool.name} does not record install scripts in it`, tool));
@@ -132,7 +184,7 @@ function composerPlugins(repository: Repository, manager: Detection['packageMana
     const named = [...new Set(plugins.map((entry) => entry.name))].map((name) => {
       const label = isComposerName(name) ? `${COMPOSER_PREFIX}${name}` : name;
       const decision = pluginDecision(manifest, name);
-      return decision.allowed === true && decision.key !== undefined ? `${label} (config.allow-plugins in ${COMPOSER_MANIFEST} allows it)` : label;
+      return decision.allowed === true && decision.key !== undefined ? `${label} (config.allow-plugins in ${shownFile(COMPOSER_MANIFEST)} allows it)` : label;
     });
     const one = named.length === 1;
     notes.push({
@@ -162,13 +214,17 @@ export function composerCheckoutNotes(base: string, directories: readonly Script
       for (const result of readLockfiles(repository, manager, tool, [], knowledgeBase)) {
         if (!result.ok) continue;
         const { lockfile } = result;
+        const manifest = shownFile(COMPOSER_MANIFEST);
+        const shownLock = shownFile(lockfile.file);
         for (const { preference, entries } of checkoutsByPreference(lockfile.entries)) {
+          // The file of the project and the line, in the message too (decision D-141).
+          const line = preferenceLine(repository.readText(COMPOSER_MANIFEST), preference);
           notes.push({
             code: 'composer-source-checkouts',
             level: 'note',
-            location: located(shownFile(COMPOSER_MANIFEST), preferenceLine(repository.readText(COMPOSER_MANIFEST), preference)),
-            message: `${preference.why}, so Composer installs ${checkedOut(entries.length, shownFile(lockfile.file))}, which sources.git "deny" in ${POLICY_FILE} does not allow, and depcurfew doctor reports it (lockfile-forbidden-source): ${listedCheckouts(entries, (entry) => lockfile.lineOf(entry), MAX_NAMES)}`,
-            fix: `${preferenceChange(preference)}; or, if the project installs them from source on purpose, set sources.git to "allow" in ${POLICY_FILE} before you run depcurfew apply`,
+            location: located(manifest, line),
+            message: `config.preferred-install in ${manifest}${line === undefined ? '' : ` (line ${line})`} ${preference.cause}, so Composer installs ${checkedOut(entries.length, shownLock)}, which sources.git "deny" in ${POLICY_FILE} does not allow, and depcurfew doctor reports it (lockfile-forbidden-source): ${listedCheckouts(entries, (entry) => lockfile.lineOf(entry), MAX_NAMES)}`,
+            fix: `${preferenceChange(preference, manifest)}; or, if the project installs them from source on purpose, set sources.git to "allow" in ${POLICY_FILE} before you run depcurfew apply`,
           });
         }
       }

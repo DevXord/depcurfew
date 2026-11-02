@@ -10,7 +10,13 @@ import { usesManager } from '../applies.ts';
 import { COMPOSER_MANIFEST, composerManifest, declaredRepositories, matchesEveryComposerName } from '../composer.ts';
 import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion } from '../effective.ts';
-import { jsonSetting, yamlSetting } from '../settings.ts';
+import { jsonSetting, yamlAliasProblem, yamlSetting } from '../settings.ts';
+import { environment } from '../../knowledge/environment.ts';
+import { evidenceOf } from '../../knowledge/facts.ts';
+import type { YamlOptions } from '../../yaml-parse.ts';
+
+/** Workflows as GitHub reads them: with their aliases expanded (environment.githubActions.yamlAliases, decision D-141). */
+const WORKFLOW_YAML: YamlOptions = evidenceOf(environment.githubActions.yamlAliases)[0]?.value.accepted === true ? { aliases: true } : {};
 import type { Level, Rule, RuleContext } from '../types.ts';
 
 const RULE = 'composer-config-weakens';
@@ -158,12 +164,12 @@ function variableEffect(context: RuleContext, tool: ToolKnowledge, variable: Var
 /** The env maps of a workflow: the workflow's, each job's and its container's, and each step's. */
 function environments(text: string): { path: string[]; where: string }[] {
   const found: { path: string[]; where: string }[] = [{ path: ['env'], where: 'the workflow' }];
-  const jobs = yamlSetting(text, ['jobs'])?.value;
+  const jobs = yamlSetting(text, ['jobs'], WORKFLOW_YAML)?.value;
   if (!isRecord(jobs)) return found;
   for (const [id, job] of Object.entries(jobs)) {
     if (!isRecord(job)) continue;
     // A key that is not a GitHub job id is named by its line, never quoted (decision D-135).
-    const label = jobLabel(id, yamlSetting(text, ['jobs', id])?.line);
+    const label = jobLabel(id, yamlSetting(text, ['jobs', id], WORKFLOW_YAML)?.line);
     found.push({ path: ['jobs', id, 'env'], where: label }, { path: ['jobs', id, 'container', 'env'], where: `the container of ${label}` });
     const steps = job['steps'];
     if (!Array.isArray(steps)) continue;
@@ -177,8 +183,14 @@ function checkWorkflows(context: RuleContext, tool: ToolKnowledge): void {
   for (const file of context.detection.workflows) {
     const text = context.repository.readText(file);
     if (text === undefined) continue;
+    // GitHub expands the aliases of a workflow; aliases depcurfew cannot expand leave its env unread (fail closed).
+    const aliases = WORKFLOW_YAML.aliases === true ? yamlAliasProblem(text) : undefined;
+    if (aliases !== undefined) {
+      context.notice(`${RULE} could not read the env of ${file}: its YAML aliases cannot be expanded (${aliases})`, file, `Write the values out in place of the aliases in ${file}, then run depcurfew doctor again`);
+      continue;
+    }
     for (const { path, where } of environments(text)) {
-      const env = yamlSetting(text, path)?.value;
+      const env = yamlSetting(text, path, WORKFLOW_YAML)?.value;
       if (!isRecord(env)) continue;
       for (const variable of variables) {
         if (!Object.hasOwn(env, variable.name)) continue;
@@ -187,7 +199,7 @@ function checkWorkflows(context: RuleContext, tool: ToolKnowledge): void {
         if (variable.name.includes('COOLDOWN') && !cooldownInPolicy(context)) continue;
         const effect = variableEffect(context, tool, variable, value);
         if (effect === undefined) continue;
-        const line = yamlSetting(text, [...path, variable.name])?.line;
+        const line = yamlSetting(text, [...path, variable.name], WORKFLOW_YAML)?.line;
         const verb =
           effect.detail === 'may'
             ? `may ${variable.effect.replace(/^(\w+)s\b/u, '$1')}`

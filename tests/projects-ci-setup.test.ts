@@ -1,7 +1,8 @@
 // A package manager that only a CI setup step of the root shows, in a repository whose depcurfew.json lists projects
 // (decision D-137). When the root holds no manifest of the manager's registry, or every install with it in the root's
 // workflows runs in a listed directory, the step sets it up for the projects: it is no package manager of the root, so
-// apply writes nothing for it there, doctor neither lists it nor compares the bots with it, and explain shows it apart.
+// apply writes nothing for it there, doctor does not compare the bots with it and lists it as set up in CI for the
+// projects (decision D-141), and explain shows it apart.
 // tests/fixtures/repos/projects-ci-setup (the root holds only .github) and projects-ci-setup-root-npm (the root is an npm
 // project) are the repositories of the report; their plans are checked with the other fixtures.
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -81,7 +82,7 @@ describe('a package manager the root CI sets up for the listed projects', () => 
   it('is no tool of the root for doctor, which compares the bots with the projects only', async () => {
     const directory = fixture('projects-ci-setup');
     const report = runDoctor(directory);
-    expect(renderText(report, RULES)).toContain('  Tools: Dependabot, npm in web, pnpm 10.28.0 (app/package.json) in app\n');
+    expect(renderText(report, RULES)).toContain('  Tools: pnpm set up in CI for the projects, Dependabot, npm in web, pnpm 10.28.0 (app/package.json) in app\n');
     expect(report.findings.filter((finding) => finding.rule === 'bot-cooldown-mismatch')).toEqual([]);
     // After apply nothing is left, also when warnings fail doctor.
     const policy = JSON.parse(readFileSync(join(directory, 'depcurfew.json'), 'utf8')) as object;
@@ -109,7 +110,7 @@ describe('a package manager the root CI sets up for the listed projects', () => 
   it('gets no files at a root that is an npm project, and doctor and explain agree', async () => {
     const directory = fixture('projects-ci-setup-root-npm');
     expect(planRepository(directory, policyOf(directory)).changes.map((change) => change.file)).toEqual(['.npmrc', 'web/.npmrc']);
-    expect(tools(directory)).toEqual(['npm', 'dependabot', 'npm in web', 'pnpm in app']);
+    expect(tools(directory)).toEqual(['npm', 'pnpm', 'dependabot', 'npm in web', 'pnpm in app']);
     const report = runDoctor(directory);
     expect(report.findings.filter((finding) => finding.rule === 'bot-cooldown-mismatch' || finding.rule === 'config-drift').map((finding) => finding.message)).toEqual([
       '.npmrc is missing; depcurfew apply would create it with the settings from depcurfew.json',
@@ -133,7 +134,7 @@ describe('a package manager the root CI sets up for the listed projects', () => 
     const directory = fixture('projects-ci-setup', {
       '.github/workflows/ci.yml': WORKFLOW('      - run: pnpm install\n        working-directory: app\n', '      - uses: pnpm/action-setup@v4\n        with:\n          version: 9.15.0\n'),
     });
-    expect(tools(directory)).toEqual(['dependabot', 'npm in web', 'pnpm in app']);
+    expect(tools(directory)).toEqual(['pnpm', 'dependabot', 'npm in web', 'pnpm in app']);
     expect(runDoctor(directory).findings.filter((finding) => finding.rule === 'manager-version-too-old')).toEqual([
       {
         rule: 'manager-version-too-old',

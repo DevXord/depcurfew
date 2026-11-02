@@ -11,7 +11,7 @@ import { COMPOSER_PREFIX } from '../../policy/package-pattern.ts';
 import { extraOf, firstFile, isRecord, settingOf, sinceOf, values } from '../facts.ts';
 import { listing } from '../requirements.ts';
 import { cooldownValue, eachSource, exclusions } from './common.ts';
-import type { Context, JsonFile, ManagerGenerator } from './context.ts';
+import type { Context, JsonFile, ManagerGenerator, StrictJson } from './context.ts';
 import type { ApplyWarningCode } from '../warnings.ts';
 
 interface ContentHash {
@@ -253,10 +253,22 @@ function relockWarning(context: Context, file: string, before: unknown, after: u
   });
 }
 
+/** Composer reads composer.json as strict JSON (extra.manifestSyntax, decision D-141), so apply does not edit one with a comment or trailing comma. */
+function strictness(context: Context, file: string): StrictJson | undefined {
+  const fact = context.tool.extra?.['manifestSyntax'] === undefined ? undefined : extraOf(context.tool, 'manifestSyntax', isRecord);
+  if (fact === undefined || (fact['comments'] !== false && fact['trailingCommas'] !== false)) return undefined;
+  return {
+    reason: `Composer reads ${file} with json_decode, which takes no comments or trailing commas, so every Composer command stops on it`,
+    fix: `Remove the comment or trailing comma from ${file} (composer validate shows where), then run depcurfew apply again`,
+  };
+}
+
 export const composer: ManagerGenerator = (context) => {
   const file = firstFile(context.tool.cooldown.configFiles) ?? 'composer.json';
   const manifest: Manifest = { file, text: context.exists(file) ? context.read(file) : undefined };
-  const json = context.json(file);
+  const json = context.json(file, strictness(context, file));
+  // Refused before anything is planned for the file: get checks the syntax (cannot-edit).
+  if (manifest.text !== undefined) json.get([]);
   const hash = extraOf(context.tool, 'contentHash', isContentHash);
   const hashed = (setting: string) => (context.exists(file) ? json.get(setting.split('.')) : undefined);
   const before = hash.settings.map(hashed);

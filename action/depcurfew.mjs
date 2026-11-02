@@ -308,6 +308,7 @@ const VERSIONS = `${COMPOSER}/doc/articles/versions.md`;
 const MINIFIER = "https://github.com/composer/metadata-minifier/blob/1.0.1/src/MetadataMinifier.php";
 const CONSOLE = "https://github.com/symfony/console/blob/v5.4.55";
 const PACKAGIST_API = "https://packagist.org/apidoc";
+const WPACKAGIST = "https://github.com/outlandishideas/wpackagist/blob/9b5db4a9e7477c97de1c8562498ecfff4cab9678";
 /** What composer --no-blocking and the variables that set it turn off (BaseCommand::createPolicyConfig at 2.11.1). */
 /** Where composer config, repository and policy write with --global or --file, which depcurfew does not read (decision D-142). */
 const GLOBAL_FILES = "COMPOSER_HOME/config.json, or the file --file names";
@@ -503,6 +504,10 @@ const composer$3 = {
 			missing: "1.1.0",
 			allowsAllUntil: "2.10.0"
 		}, `${SRC}/Plugin/PluginManager.php`, "parseAllowedPlugins returns no rules when allow-plugins is empty ({} or missing) and composer.lock has a plugin-api-version below 2.2.0, or none (Locker::getPluginApi returns 1.1.0 then). In that mode Composer 2.2 to 2.9 load every plugin without asking when run without a terminal (\"if no config is defined we allow all plugins for BC\", PluginManager.php at 2.9.8); since 2.10.0-RC1 Composer stops with an error there instead (\"Enforce allow-plugins even in non-interactive mode for very old pre-2.2 lock files\", #12764 in CHANGELOG.md) and asks in a terminal."),
+		manifestSyntax: verified$13({
+			comments: false,
+			trailingCommas: false
+		}, `${SRC}/Json/JsonFile.php`, "JsonFile::parseJson at 2.11.1 reads composer.json with PHP's json_decode($json, true) and, when it fails, reports the error with JsonFile::validateSyntax (seld/jsonlint), so a comment or a trailing comma in composer.json stops every Composer command; json_decode takes strict JSON (RFC 8259), which has neither."),
 		sourceInstall: verified$13({
 			source: "source",
 			dist: "dist"
@@ -513,6 +518,7 @@ const composer$3 = {
 			"bitbucket.org",
 			"codeberg.org"
 		], `${SRC}/Repository/Vcs/GitHubDriver.php`, "The archives Composer's VCS drivers give a package of the hosts Composer knows by default (github-domains github.com, gitlab-domains gitlab.com, forgejo-domains codeberg.org in Config.php, and Bitbucket): GitHubDriver::getDist https://api.github.com/repos/<owner>/<repo>/zipball/<ref>, GitLabDriver::getDist <scheme>://gitlab.com/api/v4/projects/<id>/repository/archive.zip, GitBitbucketDriver::getDist https://bitbucket.org/<owner>/<repo>/get/<ref>.zip, ForgejoDriver::getDist <host>/api/v1/repos/<owner>/<repo>/archive/<ref>.zip; GitDriver::getDist gives none."),
+		repositoryArchiveHosts: verified$13({ "wpackagist.org": ["downloads.wordpress.org"] }, `${WPACKAGIST}/src/Entity/Plugin.php`, "The hosts the archives of a Composer repository other than Packagist.org come from, by the host of the repository URL. WPackagist (the Composer repository https://wpackagist.org that its README tells composer.json to declare) gives each plugin version the dist https://downloads.wordpress.org/plugin/<name>.<version>.zip (Plugin::getDownloadUrl) and each theme version https://downloads.wordpress.org/theme/<name>.<version>.zip (Theme::getDownloadUrl in src/Entity/Theme.php), with a dist of type zip and a source of type svn on plugins.svn.wordpress.org or themes.svn.wordpress.org (Package::getPackageVersion in src/Entity/Package.php), all at commit 9b5db4a of the develop branch (the repository has no tags). The archive host of packages.drupal.org could not be read at its source (drupal.org is not reachable from where this was checked), so it is not listed."),
 		branchVersions: verified$13({
 			prefix: "dev-",
 			suffix: "-dev"
@@ -1435,6 +1441,10 @@ const dependabot$1 = {
 			since: "0.0.0",
 			trailingOnly: false
 		}, `${OPTIONS$1}#cooldown`, "cooldown.exclude accepts * wildcards."),
+		excludeMatching: composer$2.verified({
+			starMatchesSlash: true,
+			caseSensitive: true
+		}, "https://github.com/dependabot/dependabot-core/blob/v0.402.0/common/lib/dependabot/package/release_cooldown_options.rb", "ReleaseCooldownOptions#excluded? at v0.402.0 skips the cooldown for a dependency when any exclude pattern matches its name with File.fnmatch?(pattern, dependency_name), and included? matches include the same way, both without flags. Without File::FNM_PATHNAME a * matches / as well (\"File.fnmatch('c*t', 'c/a/b/t') #=> true\" in the documentation of File.fnmatch, dir.rb of Ruby 3.4.7, https://github.com/ruby/ruby/blob/v3_4_7/dir.rb), and without File::FNM_CASEFOLD case counts, so \"*/*\" matches every Composer package (vendor/name) and every scoped npm package."),
 		cooldownInclude: python$2.verified({
 			key: "include",
 			everything: "*"
@@ -7431,6 +7441,7 @@ const environment = {
 				"step"
 			]
 		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env", "Read from the page source in github/docs (content/actions/reference/workflows-and-actions/workflow-syntax.md and data/reusables/repositories/actions-env-var-note.md, main on 2026-11-01): env is \"A map of variables that are available to the steps of all jobs in the workflow\", jobs.<job_id>.env \"A map of variables that are available to all steps in the job\", and jobs.<job_id>.steps[*].env \"Sets variables for steps to use in the runner environment\"; for the same name GitHub \"uses the most specific variable\": the step's over the job's over the workflow's."),
+		yamlAliases: release14.verified({ accepted: true }, "https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations#yaml-anchors-and-aliases", "Read from the page source in github/docs (content/actions/reference/workflows-and-actions/reusing-workflow-configurations.md, commit 23809bf of main on 2026-11-02), for GitHub.com and GitHub Enterprise Cloud: \"You can use YAML anchors and aliases to reduce repetition in your workflows. An anchor (marked with &) identifies a piece of content that you want to reuse, while an alias (marked with *) repeats that content in another location.\" Its examples reuse the env map of a job (env: *env_vars) and a whole job (alt-test: *base_job), and say that this \"is equivalent to writing the following YAML without anchors and aliases\". The page does not mention merge keys (<<), so depcurfew does not apply them in workflows."),
 		pnpmActionSetup: verified({
 			action: "pnpm/action-setup",
 			installs: ["pnpm"],
@@ -17159,7 +17170,12 @@ function runCommands(instruction, facts, environment) {
 	let pipConfig = found.pipConfig === true;
 	let corepack = found.corepack === void 0 ? void 0 : lineAt$2(instruction, offset + found.corepack);
 	const overLimit = { ...found.overLimit };
-	for (const { offset: at, ...command } of found.commands) commands.push(located(command, lineAt$2(instruction, offset + at)));
+	const after = (corepackAt, at) => corepackAt !== void 0 && corepackAt < at ? { afterCorepack: true } : {};
+	for (const { offset: at, ...command } of found.commands) commands.push({
+		...located(command, lineAt$2(instruction, offset + at)),
+		...after(found.corepack, at)
+	});
+	let corepackBefore = found.corepack !== void 0;
 	for (const heredoc of instruction.heredocs) {
 		if (!isScript(heredoc.command)) continue;
 		const lineStarts = [0];
@@ -17167,6 +17183,8 @@ function runCommands(instruction, facts, environment) {
 		const body = findToolCommands(heredoc.body, facts.commands, 0, environment);
 		pipConfig ||= body.pipConfig === true;
 		if (body.corepack !== void 0) corepack ??= heredoc.line;
+		const seen = corepackBefore;
+		corepackBefore ||= body.corepack !== void 0;
 		if (body.overLimit?.directory !== void 0) overLimit.directory ??= body.overLimit.directory;
 		if (body.overLimit?.variables === true) overLimit.variables = true;
 		for (const { offset: at, ...command } of body.commands) {
@@ -17177,7 +17195,10 @@ function runCommands(instruction, facts, environment) {
 				if ((lineStarts[middle] ?? 0) <= at) low = middle;
 				else high = middle - 1;
 			}
-			commands.push(located(command, heredoc.line + low));
+			commands.push({
+				...located(command, heredoc.line + low),
+				...seen ? { afterCorepack: true } : after(body.corepack, at)
+			});
 		}
 	}
 	return {
@@ -17290,13 +17311,17 @@ function readDockerStages(file, text, facts) {
 		if (instruction.keyword !== "RUN" || stage === void 0) continue;
 		const run = runCommands(instruction, facts, environment ?? /* @__PURE__ */ new Map());
 		if (run.pipConfig === true) stage.pipConfig = true;
+		const seenCorepack = stage.corepack !== void 0;
 		if (run.corepack !== void 0) stage.corepack ??= run.corepack;
 		for (const message of overLimitMessages(run.overLimit, `the RUN instruction in ${file} (line ${instruction.line})`)) notices.push({
 			message,
 			line: instruction.line
 		});
 		for (const command of run.commands) {
-			stage.commands.push(command);
+			stage.commands.push(seenCorepack && command.afterCorepack !== true ? {
+				...command,
+				afterCorepack: true
+			} : command);
 			if (command.kind === "upgrade" && command.version !== void 0 && (command.tool === "npm" || command.tool === "pip" || command.tool === "poetry")) versions.push({
 				tool: command.tool,
 				declaration: {
@@ -17419,13 +17444,17 @@ function commandDirectory(step, cd) {
 	if (cd === "<unknown>" || step === void 0) return cd;
 	return `${step}/${cd}`;
 }
-/** The variables of an env map whose values are scalars, as text (a YAML true is "true"). */
-function environmentOf(node) {
+/**
+* The variables of an env map whose values are scalars, as text (a YAML true is "true"). `resolve` reads an alias
+* (*name) as the node of its anchor, as GitHub expands aliases in workflows (decision D-141).
+*/
+function environmentOf(node, resolve = (item) => item) {
 	const found = /* @__PURE__ */ new Map();
-	if (!(0, import_dist.isMap)(node)) return found;
-	for (const pair of node.items) {
+	const map = resolve(node);
+	if (!(0, import_dist.isMap)(map)) return found;
+	for (const pair of map.items) {
 		const key = scalarText(pair.key);
-		const value = scalarText(pair.value);
+		const value = scalarText(resolve(pair.value));
 		if (key !== void 0 && value !== void 0) found.set(key, value);
 	}
 	return found;
@@ -17435,6 +17464,28 @@ function defaultDirectory(node) {
 	const defaults = (0, import_dist.isMap)(node) ? node.get("defaults") : void 0;
 	const run = (0, import_dist.isMap)(defaults) ? defaults.get("run") : void 0;
 	return (0, import_dist.isMap)(run) ? workingDirectory(run.get("working-directory", true)) : void 0;
+}
+/** Whether GitHub expands YAML aliases in workflows (environment.githubActions.yamlAliases, decision D-141). */
+const EXPANDS_ALIASES = evidenceOf(environment.githubActions.yamlAliases)[0]?.value.accepted === true;
+/**
+* Reads an alias (*name) as the node of its anchor, as GitHub expands aliases in workflows (decision D-141): at most
+* MAX_YAML_ALIASES of them in a file, after which the others are not followed and a notice says so.
+*/
+function aliasResolver(document, file, repository, lineOf) {
+	let left = 100;
+	return (node) => {
+		if (!EXPANDS_ALIASES || !(0, import_dist.isAlias)(node)) return node;
+		if (left <= 0) {
+			if (left === 0) {
+				const line = lineOf(node);
+				repository.warn("script-not-followed", `${file} uses more than ${100} YAML aliases; depcurfew follows the first ${100}, so it does not see what the others bring into its jobs, steps and env`, [file], ...line === void 0 ? [] : [line]);
+			}
+			left -= 1;
+			return;
+		}
+		left -= 1;
+		return node.resolve(document);
+	};
 }
 function readWorkflows(repository, facts) {
 	const { directory, extensions } = facts.workflows;
@@ -17456,14 +17507,15 @@ function readWorkflows(repository, facts) {
 			continue;
 		}
 		const lineOf = (node) => node.range === void 0 || node.range === null ? void 0 : lineCounter.linePos(node.range[0]).line;
-		const jobs = document.get("jobs");
+		const resolve = aliasResolver(document, file, repository, lineOf);
+		const jobs = resolve(document.get("jobs"));
 		if (!(0, import_dist.isMap)(jobs)) continue;
 		const workflowDirectory = defaultDirectory(document.contents);
 		const { key: envKey } = facts.workflowEnvironment;
-		const workflowEnvironment = withVariables(facts.commands, environmentOf((0, import_dist.isMap)(document.contents) ? document.contents.get(envKey) : void 0));
+		const workflowEnvironment = withVariables(facts.commands, environmentOf((0, import_dist.isMap)(document.contents) ? document.contents.get(envKey) : void 0, resolve));
 		for (const pair of jobs.items) {
 			const id = scalarText(pair.key);
-			const job = pair.value;
+			const job = resolve(pair.value);
 			if (id === void 0 || !(0, import_dist.isMap)(job)) continue;
 			const keyLine = (0, import_dist.isScalar)(pair.key) ? lineOf(pair.key) : void 0;
 			const declare = (tool, value, node, step) => {
@@ -17529,7 +17581,7 @@ function readWorkflows(repository, facts) {
 			findings.jobs.push(record);
 			const jobDirectory = defaultDirectory(job) ?? workflowDirectory;
 			const { key: containerKey, imageKey, envKey: containerEnvKey } = facts.jobContainer;
-			const container = job.get(containerKey, true);
+			const container = resolve(job.get(containerKey, true));
 			const imageNode = (0, import_dist.isMap)(container) ? container.get(imageKey, true) : container;
 			const image = scalarText(imageNode);
 			if (image !== void 0 && (0, import_dist.isScalar)(imageNode) && !image.includes("${{")) {
@@ -17554,10 +17606,11 @@ function readWorkflows(repository, facts) {
 					});
 				}
 			}
-			const jobEnvironment = withVariables(facts.commands, environmentOf((0, import_dist.isMap)(container) ? container.get(containerEnvKey) : void 0), workflowEnvironment, environmentOf(job.get(envKey)));
-			const steps = job.get("steps");
+			const jobEnvironment = withVariables(facts.commands, environmentOf((0, import_dist.isMap)(container) ? container.get(containerEnvKey) : void 0, resolve), workflowEnvironment, environmentOf(job.get(envKey), resolve));
+			const steps = resolve(job.get("steps"));
 			if (!(0, import_dist.isSeq)(steps)) continue;
-			for (const step of steps.items) {
+			for (const item of steps.items) {
+				const step = resolve(item);
 				if (!(0, import_dist.isMap)(step)) continue;
 				const uses = scalarText(step.get("uses", true));
 				const action = uses === void 0 ? void 0 : findAction(facts.setupActions, uses);
@@ -17580,25 +17633,28 @@ function readWorkflows(repository, facts) {
 						}
 					}
 				}
-				const run = step.get("run", true);
+				const run = resolve(step.get("run", true));
 				if ((0, import_dist.isScalar)(run) && typeof run.value === "string" && run.range !== void 0 && run.range !== null) {
 					const start = run.range[0];
-					const environment = withVariables(facts.commands, jobEnvironment, environmentOf(step.get(envKey)));
+					const environment = withVariables(facts.commands, jobEnvironment, environmentOf(step.get(envKey), resolve));
 					const found = findToolCommands(text.slice(start, run.range[1]), facts.commands, 0, environment);
 					const runLine = lineCounter.linePos(start).line;
 					for (const message of overLimitMessages(found.overLimit, `the run step of ${jobLabel(id, keyLine)} in ${file} (line ${runLine})`)) repository.warn("script-not-followed", message, [file], runLine);
 					record.runsNode ||= found.runsNode;
 					const configVariable = facts.commands.pip.delay?.configVariable;
 					if (found.pipConfig === true || configVariable !== void 0 && (environment.get(configVariable) ?? "") !== "") record.pipConfig = true;
+					const seenCorepack = record.corepack !== void 0;
 					if (found.corepack !== void 0) record.corepack ??= lineCounter.linePos(start + found.corepack).line;
 					const stepDirectory = step.has("working-directory") ? workingDirectory(step.get("working-directory", true)) : jobDirectory;
 					for (const { offset, cd, ...command } of found.commands) {
 						const line = lineCounter.linePos(start + offset).line;
 						const directory = commandDirectory(stepDirectory, cd);
+						const afterCorepack = seenCorepack || found.corepack !== void 0 && found.corepack < offset;
 						record.commands.push({
 							...command,
 							line,
-							...directory === void 0 ? {} : { directory }
+							...directory === void 0 ? {} : { directory },
+							...afterCorepack ? { afterCorepack: true } : {}
 						});
 						if ((command.tool === "npm" || command.tool === "poetry") && command.kind === "upgrade" && command.version !== void 0) findings.versions.push({
 							tool: command.tool,
@@ -18516,6 +18572,8 @@ function validateComposerPattern(pattern) {
 	if (name !== name.toLowerCase() && GRAMMAR.test(`${"composer:"}${name.toLowerCase()}`)) return `Composer package names are lowercase; write "${COMPOSER_PREFIX}${name.toLowerCase()}"`;
 	if (!GRAMMAR.test(pattern)) return `expected a Composer package name or a name pattern with *, ${example}`;
 }
+/** A vendor/name (or a pattern of one) without a scope, which is how Composer names packages. */
+const COMPOSER_LIKE = /^[a-z0-9][a-z0-9._-]*\/[a-z0-9*][a-z0-9._*-]*$/u;
 /** Returns why the pattern is invalid, or undefined when it is valid. */
 function validatePackagePattern(pattern) {
 	if (pattern === "") return "must not be empty";
@@ -18529,14 +18587,16 @@ function validatePackagePattern(pattern) {
 		const meant = word.toLowerCase() === "packagist" ? "composer" : suggest(word.toLowerCase(), ["pypi", "composer"]);
 		if (meant === "pypi") return `the ecosystem prefixes are ${PREFIX_LIST}; write Python packages as "${PYPI_PREFIX}${rest}"`;
 		if (meant === "composer") return `the ecosystem prefixes are ${PREFIX_LIST}; write Composer packages as "${COMPOSER_PREFIX}${rest.toLowerCase()}"`;
-		return `the ecosystem prefixes are ${PREFIX_LIST}; write npm packages without a prefix, e.g. "${rest}"`;
+		if (COMPOSER_LIKE.test(rest.toLowerCase())) return `the ecosystem prefixes are ${PREFIX_LIST}; write Composer packages as "${COMPOSER_PREFIX}${rest.toLowerCase()}"`;
+		const example = validatePackagePattern(rest) === void 0 ? `"${rest}"` : "\"esbuild\" or \"@scope/name\"";
+		return `the ecosystem prefixes are ${PREFIX_LIST}; write npm packages without a prefix, e.g. ${example}`;
 	}
 	const nameStart = pattern.startsWith("@") ? pattern.indexOf("/") + 1 : 0;
 	const versionAt = pattern.indexOf("@", Math.max(nameStart, 1));
 	if (versionAt > 0) return `versions are not supported; write "${pattern.slice(0, versionAt)}"`;
 	if (/^\*+$/u.test(pattern)) return "it matches every package; list packages explicitly";
 	if (!GRAMMAR.test(pattern)) {
-		if (/^[a-z0-9][a-z0-9._-]*\/[a-z0-9*][a-z0-9._*-]*$/u.test(pattern)) return `npm names have a scope (@scope/name); write Composer packages as "${COMPOSER_PREFIX}${pattern}"`;
+		if (COMPOSER_LIKE.test(pattern)) return `npm names have a scope (@scope/name); write Composer packages as "${COMPOSER_PREFIX}${pattern}"`;
 		return "expected a package name or a name pattern with *, e.g. \"esbuild\", \"@scope/name\" or \"@scope/*\"";
 	}
 }
@@ -19200,12 +19260,14 @@ function yamlNode(text, path, options = {}) {
 	let node = document.contents;
 	let keyOffset = 0;
 	let mergedAt;
+	const resolve = (item) => options.aliases === true && item !== null && (0, import_dist.isAlias)(item) ? item.resolve(document) ?? null : item;
+	node = resolve(node);
 	for (const segment of path) {
 		if (node !== null && (0, import_dist.isSeq)(node) && /^\d+$/u.test(segment)) {
 			const item = node.items[Number(segment)];
 			if (item === void 0) return void 0;
 			keyOffset = item.range?.[0] ?? keyOffset;
-			node = item;
+			node = resolve(item);
 			continue;
 		}
 		if (node === null || !(0, import_dist.isMap)(node)) return void 0;
@@ -19217,7 +19279,7 @@ function yamlNode(text, path, options = {}) {
 		}
 		if (pair === void 0) return void 0;
 		keyOffset = pair.key.range?.[0] ?? 0;
-		node = pair.value;
+		node = resolve(pair.value);
 	}
 	return {
 		node,
@@ -19234,7 +19296,14 @@ function yamlSetting(text, path, options = {}) {
 	const found = yamlNode(text, path, options);
 	if (found === void 0) return void 0;
 	const { node, line, mergedAt, document } = found;
-	const convert = (item) => options.merge === true ? item.toJS(document) : item.toJSON();
+	const convert = (item) => {
+		if (options.aliases === true) try {
+			return item.toJS(document, { maxAliasCount: 100 });
+		} catch {
+			return;
+		}
+		return options.merge === true ? item.toJS(document) : item.toJSON();
+	};
 	const value = node === null ? null : (0, import_dist.isMap)(node) || (0, import_dist.isSeq)(node) || (0, import_dist.isScalar)(node) ? convert(node) : void 0;
 	const written = node !== null && (0, import_dist.isScalar)(node) && node.type === "PLAIN" && typeof node.source === "string" && node.source !== String(value) ? node.source : void 0;
 	return {
@@ -19263,6 +19332,20 @@ function yamlAliasLine(text) {
 		else if ((0, import_dist.isPair)(node)) stack.push(node.key, node.value);
 	}
 	return first === void 0 ? void 0 : lineCounter.linePos(first).line;
+}
+/**
+* Why the aliases of a YAML file cannot be expanded within MAX_YAML_ALIASES (an alias without its anchor, aliases that
+* expand without end), or undefined when they can or the file has none (decision D-141).
+*/
+function yamlAliasProblem(text) {
+	if (yamlAliasLine(text) === void 0) return void 0;
+	const { document } = readYamlDocument(text);
+	try {
+		document.toJS({ maxAliasCount: 100 });
+		return;
+	} catch (thrown) {
+		return (thrown instanceof Error ? thrown.message : String(thrown)).split("\n", 1)[0] ?? "its aliases cannot be expanded";
+	}
 }
 /** Whether the bot's loader rejects YAML aliases (extra.yamlAliases: Dependabot). */
 function rejectsYamlAliases(tool) {
@@ -19480,7 +19563,33 @@ function hostOf(url) {
 */
 function registryHosts(tool, repositories) {
 	const known = extraOf(tool, "registryDistHosts", isStrings$3);
-	return /* @__PURE__ */ new Set([...known, ...repositories.flatMap((entry) => entry.url === void 0 || entry.kind === "disable" ? [] : [hostOf(entry.url)])]);
+	const archives = repositoryArchiveHosts(tool);
+	return /* @__PURE__ */ new Set([...known, ...repositories.flatMap((entry) => {
+		if (entry.url === void 0 || entry.kind === "disable") return [];
+		const host = hostOf(entry.url);
+		return [host, ...entry.kind === "registry" && Object.hasOwn(archives, host) ? archives[host] ?? [] : []];
+	})]);
+}
+const isHostLists = (value) => isRecord(value) && Object.values(value).every(isStrings$3);
+/** The hosts of the archives of Composer repositories other than Packagist.org, by the host of the repository (decision D-141). */
+function repositoryArchiveHosts(tool) {
+	return tool.extra?.["repositoryArchiveHosts"] === void 0 ? {} : extraOf(tool, "repositoryArchiveHosts", isHostLists);
+}
+const isHostNames = (value) => isRecord(value) && Object.values(value).every((host) => typeof host === "string");
+/** The hosts a VCS driver reads as another one: www.github.com is github.com for GitHubDriver (extra.sourceHostAliases, decision D-138). */
+function hostAliases(tool) {
+	return tool.extra?.["sourceHostAliases"] === void 0 ? {} : extraOf(tool, "sourceHostAliases", isHostNames);
+}
+/**
+* A repository URL as Composer's VCS drivers compare it: normalizedUrl, with the host a driver reads as another one
+* replaced by that one (www.github.com/a/b is github.com/a/b), so that a VCS repository of composer.json and a source
+* of composer.lock that name the same repository compare equal (decision D-141).
+*/
+function comparableUrl(tool, url) {
+	const normalized = normalizedUrl(url);
+	const [host = "", ...rest] = normalized.split("/");
+	const aliases = hostAliases(tool);
+	return Object.hasOwn(aliases, host) ? [aliases[host] ?? host, ...rest].join("/") : normalized;
 }
 /** A value at a path of a JSON object. */
 function valueAt(item, path) {
@@ -19501,7 +19610,7 @@ function composerEntries(text, tool, repositories, manifest) {
 	const branches = extraOf(tool, "branchVersions", isBranches);
 	const document = JSON.parse(text);
 	if (!isRecord(document)) throw new Error("composer.lock is not a JSON object");
-	const vcs = new Map(repositories.filter((entry) => entry.kind === "git" && entry.url !== void 0).map((entry) => [normalizedUrl(entry.url ?? ""), entry]));
+	const vcs = new Map(repositories.filter((entry) => entry.kind === "git" && entry.url !== void 0).map((entry) => [comparableUrl(tool, entry.url ?? ""), entry]));
 	const inline = repositories.filter((entry) => entry.names.length > 0);
 	const hosts = registryHosts(tool, repositories);
 	const pluginTypes = new Set(format.pluginTypes.map((type) => type.toLowerCase()));
@@ -19529,20 +19638,23 @@ function composerEntries(text, tool, repositories, manifest) {
 			let why;
 			let preference;
 			let otherSource;
-			if (kind === "registry" && [sourceUrl, distUrl].some((url) => url !== void 0 && vcs.has(normalizedUrl(url)))) {
+			let checkedOutRelease = false;
+			if (kind === "registry" && [sourceUrl, distUrl].some((url) => url !== void 0 && vcs.has(comparableUrl(tool, url)))) {
 				kind = "git";
 				spec = describe$2(source) || spec;
 			} else if (kind === "registry" && sourceUrl !== void 0 && (distUrl === void 0 || !offered(dist))) {
 				kind = "git";
+				checkedOutRelease = true;
 				spec = describe$2(source);
 				if (dist !== void 0) why = "its dist has no type, so Composer cannot download its archive";
 			} else if (kind === "registry" && sourceUrl !== void 0 && offered(source) && (preference = sourcePreference(manifest, tool, name, dev)) !== void 0) {
 				kind = "git";
+				checkedOutRelease = true;
 				spec = describe$2(source);
 				why = preference.why;
 			} else if (kind === "registry" && distUrl !== void 0 && !isLocal(distUrl) && !hosts.has(hostOf(distUrl))) kind = "unknown";
 			else if (kind === "registry" && distUrl !== void 0 && sourceUrl !== void 0 && offered(source)) otherSource = sourceElsewhere(tool, distUrl, sourceUrl, describe$2(source));
-			const release = (kind === "registry" || kind === "unknown" && fromInline === void 0) && typeof locked === "string" && locked !== "" && !locked.startsWith(branches.prefix) && !locked.endsWith(branches.suffix);
+			const release = (kind === "registry" || checkedOutRelease || kind === "unknown" && fromInline === void 0) && typeof locked === "string" && locked !== "" && !locked.startsWith(branches.prefix) && !locked.endsWith(branches.suffix);
 			const type = item[format.installScripts];
 			const plugin = typeof type === "string" && pluginTypes.has(type.toLowerCase());
 			entries.push({
@@ -19584,17 +19696,16 @@ function sourcePreference(manifest, tool, name, dev) {
 	const setting = isRecord(config) ? config[fact.setting] : void 0;
 	const where = `config.${fact.setting} in ${COMPOSER_MANIFEST}`;
 	const forDev = (text) => dev ? `${text}, which installs dev versions from their source` : void 0;
+	const found = (value, cause, key) => cause === void 0 ? void 0 : {
+		...key === void 0 ? {} : { key },
+		value,
+		why: `${where} ${cause}`,
+		cause
+	};
 	if (typeof setting === "string") {
-		if (setting === fact.source) return {
-			value: setting,
-			why: `${where} is "${setting}"`
-		};
+		if (setting === fact.source) return found(setting, `is "${setting}"`);
 		if (setting === fact.dist) return void 0;
-		const why = forDev(`${where} is ${JSON.stringify(setting)}`);
-		return why === void 0 ? void 0 : {
-			value: setting,
-			why
-		};
+		return found(setting, forDev(`is ${JSON.stringify(setting)}`));
 	}
 	if (!isRecord(setting)) return void 0;
 	const keys = [...Object.keys(setting).filter((key) => key !== fact.everything), fact.everything];
@@ -19602,13 +19713,8 @@ function sourcePreference(manifest, tool, name, dev) {
 		if (!pluginPatternMatches(name, key)) continue;
 		const preference = Object.hasOwn(setting, key) ? setting[key] : fact.default;
 		if (preference === fact.dist) return void 0;
-		const given = `${where} gives ${JSON.stringify(preference)} for ${key}`;
-		const why = preference === fact.auto ? forDev(given) : given;
-		return why === void 0 ? void 0 : {
-			key,
-			value: typeof preference === "string" ? preference : JSON.stringify(preference),
-			why
-		};
+		const given = `gives ${JSON.stringify(preference)} for ${key}`;
+		return found(typeof preference === "string" ? preference : JSON.stringify(preference), preference === fact.auto ? forDev(given) : given, key);
 	}
 }
 /** The entries of composer.lock checked out because of config.preferred-install, by its entry, in the order of the lockfile. */
@@ -19646,9 +19752,9 @@ function listedCheckouts(entries, lineOf, most = 10) {
 function checkedOut(count, file) {
 	return count === 1 ? `1 package of ${file} from its VCS repository instead of its archive` : `${count} packages of ${file} from their VCS repositories instead of their archives`;
 }
-/** What to change in composer.json so that Composer takes the archives again. */
-function preferenceChange(preference) {
-	const setting = `config.preferred-install in ${COMPOSER_MANIFEST}`;
+/** What to change in composer.json (`manifest`, as a message names it) so that Composer takes the archives again. */
+function preferenceChange(preference, manifest = COMPOSER_MANIFEST) {
+	const setting = `config.preferred-install in ${manifest}`;
 	return preference.key === void 0 ? `Set ${setting} to "dist", or remove it, so Composer installs packages from their archives` : `Remove ${JSON.stringify(preference.key)} from ${setting}, or set it to "dist", so Composer installs these packages from their archives`;
 }
 /**
@@ -19657,9 +19763,8 @@ function preferenceChange(preference) {
 */
 function sourceElsewhere(tool, distUrl, sourceUrl, spec) {
 	if (tool.extra?.["registrySourceHosts"] === void 0) return void 0;
-	const isHosts = (value) => isRecord(value) && Object.values(value).every((host) => typeof host === "string");
-	const hosts = extraOf(tool, "registrySourceHosts", isHosts);
-	const same = tool.extra["sourceHostAliases"] === void 0 ? {} : extraOf(tool, "sourceHostAliases", isHosts);
+	const hosts = extraOf(tool, "registrySourceHosts", isHostNames);
+	const same = hostAliases(tool);
 	const distHost = hostOf(distUrl);
 	const expected = Object.hasOwn(hosts, distHost) ? hosts[distHost] : void 0;
 	const sourceHost = hostOf(sourceUrl);
@@ -19680,10 +19785,17 @@ function fallbackRemoved(tool) {
 	const fact = tool.extra?.["sourceFallback"] === void 0 ? void 0 : extraOf(tool, "sourceFallback", isRecord);
 	return typeof fact?.["since"] === "string" ? fact["since"] : "2.10.0";
 }
-/** The repositories of a kind the policy denies that no entry of composer.lock comes from, as far as depcurfew can tell. */
-function unmatchedRepositories(repositories, entries) {
+/**
+* The repositories of a kind the policy denies that no entry of composer.lock comes from, as far as depcurfew can tell;
+* a VCS repository matches an entry whose source names it, as Composer's drivers compare URLs (comparableUrl).
+*/
+function unmatchedRepositories(tool, repositories, entries) {
 	return repositories.filter((repository) => {
-		if (repository.kind === "git") return !entries.some((entry) => entry.source === "git" && repository.url !== void 0 && entry.spec.toLowerCase().includes(normalizedUrl(repository.url)));
+		if (repository.kind === "git") {
+			if (repository.url === void 0) return true;
+			const wanted = comparableUrl(tool, repository.url);
+			return !entries.some((entry) => entry.source === "git" && (entry.spec.toLowerCase().includes(normalizedUrl(repository.url ?? "")) || entry.spec.split(/\s+/u).some((word) => word !== "" && comparableUrl(tool, word) === wanted)));
+		}
 		if (repository.names.length > 0) return !entries.some((entry) => repository.names.includes(entry.name.toLowerCase()));
 		if (repository.kind === "directory" || repository.kind === "file") return !entries.some((entry) => entry.source === repository.kind);
 		return false;
@@ -20876,6 +20988,10 @@ function outsideConflictText(entry, apply = false) {
 			fix: `Remove ${JSON.stringify(entry.name)} from ${entry.setting} in ${entry.file} by hand and list the plugins that may run in installScripts.allow in ${POLICY_FILE} (with the prefix composer:), then run depcurfew apply`
 		};
 	}
+	if (entry.composerKey === true) return {
+		message: `${where} lets ${entry.name.includes("*") ? `every plugin that ${entry.name} matches` : `the Composer plugin ${entry.name}`} run, but ${POLICY_FILE} does not allow ${entry.name.includes("*") ? "them" : "it"}`,
+		fix: `Remove ${JSON.stringify(entry.name)} from ${entry.setting} in ${entry.file}${apply ? " by hand" : ""}, or add ${policyName(entry)} to installScripts.allow in ${POLICY_FILE}`
+	};
 	return {
 		message: `${where} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it`,
 		fix: apply ? `Remove ${entry.name} from ${entry.setting} by hand, or add ${policyName(entry)} to installScripts.allow in ${POLICY_FILE}` : `Remove ${entry.name} from ${entry.setting}, or add ${entry.policyName ?? (entry.name === entry.package ? "it" : entry.package)} to installScripts.allow in ${POLICY_FILE}`
@@ -20997,9 +21113,9 @@ function listEntries(repository, manager, configFiles, options, allowed) {
 				package: "*",
 				file: "composer.json",
 				line: found.line,
-				setting: "allow-plugins"
+				setting: "config.allow-plugins"
 			});
-			keys.push(...fromKeys(text, "composer.json", "allow-plugins", found?.value, (entry) => entry === true === allowed, jsonLine(text, "composer.json", ["config", "allow-plugins"])));
+			keys.push(...fromKeys(text, "composer.json", "config.allow-plugins", found?.value, (entry) => entry === true === allowed, jsonLine(text, "composer.json", ["config", "allow-plugins"])));
 			for (const entry of keys) {
 				const name = composerPolicyName(entry.name);
 				entries.push({
@@ -21067,6 +21183,16 @@ function remainingConflicts(now, planned, manager, configFiles, options, scripts
 function denyConflictText(conflict, line = false) {
 	const { entry } = conflict;
 	const where = `${entry.setting} in ${entry.file}${line && entry.line !== void 0 ? ` (line ${entry.line})` : ""}`;
+	if (entry.composerKey === true) {
+		const plugin = entry.name.includes("*") ? `every plugin that ${entry.name} matches` : `the Composer plugin ${entry.name}`;
+		return conflict.kind === "denied" ? {
+			message: `${where} lets ${plugin} run, although installScripts.deny in ${POLICY_FILE} denies ${entry.name.includes("*") ? "them" : "it"}`,
+			fix: `Remove ${JSON.stringify(entry.name)} from ${entry.setting} in ${entry.file}, or move ${policyName(entry)} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing the plugin`
+		} : {
+			message: `${where} blocks ${plugin}, but installScripts.allow in ${POLICY_FILE} allows ${entry.name.includes("*") ? "them" : "it"}`,
+			fix: `Remove ${JSON.stringify(entry.name)} from ${entry.setting} in ${entry.file}, or move ${policyName(entry)} from installScripts.allow to installScripts.deny in ${POLICY_FILE} if the project works without it`
+		};
+	}
 	if (conflict.kind === "denied") return {
 		message: `${where} lets ${entry.name} run its install scripts, although installScripts.deny in ${POLICY_FILE} says they must not run`,
 		fix: `Remove ${entry.name} from ${entry.setting} in ${entry.file}, or move ${policyName(entry)} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing its scripts`
@@ -24505,6 +24631,16 @@ const dependabot = (context, duration, repository) => {
 		});
 		return;
 	}
+	const alias = rejectsYamlAliases(tool) ? yamlAliasLine(context.read(file)) : void 0;
+	if (alias !== void 0) context.warn({
+		code: "bot-config-unreadable",
+		location: {
+			file,
+			line: alias
+		},
+		message: `${context.name}: ${file} uses a YAML alias (line ${alias}), which ${context.name} does not accept, so it reads no configuration from the file, the cooldown depcurfew apply writes included; depcurfew does not read the delays such a file sets either, so it cannot tell whether this change shortens one`,
+		fix: `Write the value out in place of the alias on line ${alias} of ${file}, then run depcurfew apply again`
+	});
 	const keys = extraOf(tool, "cooldownKeys", isKeys);
 	const managers = extraOf(tool, "ecosystems", isRecord);
 	const ecosystems = Object.keys(managers);
@@ -25827,13 +25963,23 @@ function relockWarning$1(context, file, before, after) {
 		fix: `Run ${hash.command}, which writes the new hash without updating packages, and commit ${hash.file}`
 	});
 }
+/** Composer reads composer.json as strict JSON (extra.manifestSyntax, decision D-141), so apply does not edit one with a comment or trailing comma. */
+function strictness(context, file) {
+	const fact = context.tool.extra?.["manifestSyntax"] === void 0 ? void 0 : extraOf(context.tool, "manifestSyntax", isRecord);
+	if (fact === void 0 || fact["comments"] !== false && fact["trailingCommas"] !== false) return void 0;
+	return {
+		reason: `Composer reads ${file} with json_decode, which takes no comments or trailing commas, so every Composer command stops on it`,
+		fix: `Remove the comment or trailing comma from ${file} (composer validate shows where), then run depcurfew apply again`
+	};
+}
 const composer = (context) => {
 	const file = firstFile(context.tool.cooldown.configFiles) ?? "composer.json";
 	const manifest = {
 		file,
 		text: context.exists(file) ? context.read(file) : void 0
 	};
-	const json = context.json(file);
+	const json = context.json(file, strictness(context, file));
+	if (manifest.text !== void 0) json.get([]);
 	const hash = extraOf(context.tool, "contentHash", isContentHash$1);
 	const hashed = (setting) => context.exists(file) ? json.get(setting.split(".")) : void 0;
 	const before = hash.settings.map(hashed);
@@ -26146,6 +26292,23 @@ function topBlock(lines, at, entries, separate, marker) {
 
 // src/apply/generators/context.ts
 let recording;
+/** An edit refused with its own fix. */
+var RefusedEdit = class extends Error {
+	fix;
+	constructor(message, fix) {
+		super(message);
+		this.fix = fix;
+	}
+};
+/** Refuses text that JSON.parse does not take, for a tool that reads the file as strict JSON. */
+function assertStrictJson(text, strict) {
+	if (strict === void 0 || text === "") return;
+	try {
+		JSON.parse(text);
+	} catch (error) {
+		throw new RefusedEdit(`${invalidJson(text, error).message}; ${strict.reason}`, strict.fix);
+	}
+}
 var EditFailed = class extends Error {};
 function createContext(options) {
 	const { tool, workspace, warnings, failures } = options;
@@ -26183,7 +26346,8 @@ function createContext(options) {
 			failures.push({
 				tool: tool.id,
 				file,
-				message
+				message,
+				...error instanceof RefusedEdit ? { fix: error.fix } : {}
 			});
 			throw new EditFailed(message);
 		}
@@ -26256,14 +26420,25 @@ function createContext(options) {
 			});
 		},
 		atLeast,
-		json: (file) => ({
-			get: (path) => guard(file, () => workspace.exists(file) ? jsonGet(workspace.read(file), path) : void 0),
-			set: (path, value) => guard(file, () => workspace.edit(file, (body) => jsonSet(body === "" ? "{}\n" : body, path, value))),
-			append: (path, value) => guard(file, () => workspace.edit(file, (body) => jsonArrayAppend(body, path, value))),
-			replace: (path, index, value) => guard(file, () => workspace.edit(file, (body) => jsonArrayReplace(body, path, index, value))),
-			remove: (path, index) => guard(file, () => workspace.edit(file, (body) => jsonArrayRemove(body, path, index))),
-			removeKey: (path, key) => guard(file, () => workspace.edit(file, (body) => jsonObjectRemove(body, path, key)))
-		}),
+		json: (file, strict) => {
+			const edit = (change) => guard(file, () => workspace.edit(file, (body) => {
+				assertStrictJson(body, strict);
+				return change(body);
+			}));
+			return {
+				get: (path) => guard(file, () => {
+					if (!workspace.exists(file)) return void 0;
+					const text = workspace.read(file);
+					assertStrictJson(text, strict);
+					return jsonGet(text, path);
+				}),
+				set: (path, value) => edit((body) => jsonSet(body === "" ? "{}\n" : body, path, value)),
+				append: (path, value) => edit((body) => jsonArrayAppend(body, path, value)),
+				replace: (path, index, value) => edit((body) => jsonArrayReplace(body, path, index, value)),
+				remove: (path, index) => edit((body) => jsonArrayRemove(body, path, index)),
+				removeKey: (path, key) => edit((body) => jsonObjectRemove(body, path, key))
+			};
+		},
 		yaml: (file) => ({
 			get: (path) => guard(file, () => workspace.exists(file) ? yamlGet(workspace.read(file), path, yamlOptions) : void 0),
 			set: (path, value) => guard(file, () => workspace.edit(file, (body) => yamlSet(body, path, value, yamlOptions))),
@@ -27297,8 +27472,8 @@ function ruleCoverage(bot, rule, on) {
 		...managerMatching === void 0 ? [] : [managerMatching.managerMatcher, managerMatching.categoryMatcher],
 		...actionsMatching === void 0 ? [] : [actionsMatching.fileMatcher, actionsMatching.depTypeMatcher]
 	]);
-	if (matchers.some((key) => !known.has(key))) return { kind: "narrow" };
-	let unknown;
+	const unmodelled = matchers.find((key) => !known.has(key));
+	let unknown = unmodelled;
 	const result = (key, matches) => {
 		if (matches === void 0) unknown ??= key;
 		return matches !== false;
@@ -27368,7 +27543,8 @@ function ruleCoverage(bot, rule, on) {
 	}
 	if (unknown !== void 0) return {
 		kind: "unknown",
-		matcher: unknown
+		matcher: unknown,
+		...unknown === unmodelled ? { unmodelled: true } : {}
 	};
 	if (types.length === 0) return { kind: "narrow" };
 	const categoryPatterns = managerMatching === void 0 ? void 0 : patternsOf(rule[managerMatching.categoryMatcher], stringIsList);
@@ -27432,7 +27608,8 @@ function renovateDelay(bot, config, on) {
 			line,
 			matcher: coverage.matcher,
 			patterns: rule[coverage.matcher],
-			value: rule["minimumReleaseAge"]
+			value: rule["minimumReleaseAge"],
+			...coverage.unmodelled === true ? { unmodelled: true } : {}
 		});
 		if (coverage.kind !== "covers") continue;
 		repositorySets = true;
@@ -28983,13 +29160,14 @@ function allowListWarnings(root, workspace, policy, detection, targets, tools) {
 				file: entry.file,
 				...entry.line === void 0 ? {} : { line: entry.line }
 			};
+			const name = `${tool?.name ?? manager.id}: `;
 			if (conflict.kind === "outside") {
 				const text = outsideConflictText(entry, true);
 				return {
 					code: "allow-list-entry-outside-policy",
 					tool: manager.id,
 					location,
-					message: `${text.message}; depcurfew apply does not remove entries it did not write`,
+					message: `${name}${text.message}; depcurfew apply does not remove entries it did not write`,
 					fix: text.fix
 				};
 			}
@@ -29001,7 +29179,7 @@ function allowListWarnings(root, workspace, policy, detection, targets, tools) {
 				code: "deny-conflicts-with-file",
 				tool: manager.id,
 				location,
-				message: `${text.message}; depcurfew apply does not change entries it did not write`,
+				message: `${name}${text.message}; depcurfew apply does not change entries it did not write`,
 				fix: text.fix
 			};
 		});
@@ -29418,7 +29596,7 @@ function levelColor(level, colors) {
 }
 /** A tool as the log of what was checked names it: npm 11.21.1 (package.json), and in a project npm 11.21.1 (frontend/package.json) in frontend. */
 function checkedTool(tool) {
-	const where = `${tool.project === void 0 ? "" : ` in ${tool.project}`}${tool.unread === true ? ` (not read by ${tool.name})` : ""}`;
+	const where = `${tool.project === void 0 ? "" : ` in ${tool.project}`}${tool.unread === true ? ` (not read by ${tool.name})` : ""}${tool.setUpInCi === true ? " set up in CI for the projects" : ""}`;
 	if (tool.version === void 0) return `${tool.name}${where}`;
 	return `${tool.name} ${tool.version}${tool.versionFrom === void 0 ? "" : ` (${tool.versionFrom})`}${where}`;
 }
@@ -30239,25 +30417,31 @@ function renovateDelays(context, bot, file) {
 			}
 			minutes.set(type, value.minutes);
 		}
-		const shortest = Math.min(...minutes.values());
-		const types = updateTypes.filter((type) => minutes.get(type) === shortest);
-		const source = delay.byType.get(types[0] ?? "");
-		return [{
-			bot,
-			managers,
-			...flags(target),
-			minutes: shortest,
-			origin: source?.origin ?? "Renovate has no delay by default",
-			location: {
-				file,
-				line: source?.line ?? 1
-			},
-			securityBypass,
-			scope: types.length === updateTypes.length ? scopeOf(target, "updates") : `${listing$1(types)} ${scopeOf(target, "updates")}`,
-			applies,
-			...source?.rule === void 0 ? {} : { rule: source.rule },
-			...delay.unreadable.length === 0 ? {} : { unreadableRules: delay.unreadable }
-		}];
+		const groups = /* @__PURE__ */ new Map();
+		for (const type of updateTypes) {
+			const key = delay.byType.get(type)?.origin ?? "";
+			groups.set(key, [...groups.get(key) ?? [], type]);
+		}
+		return [...groups.values()].sort((a, b) => (minutes.get(a[0] ?? "") ?? 0) - (minutes.get(b[0] ?? "") ?? 0)).map((types, index) => {
+			const source = delay.byType.get(types[0] ?? "");
+			return {
+				bot,
+				managers,
+				...flags(target),
+				minutes: minutes.get(types[0] ?? "") ?? 0,
+				origin: source?.origin ?? "Renovate has no delay by default",
+				location: {
+					file,
+					line: source?.line ?? 1
+				},
+				securityBypass,
+				scope: types.length === updateTypes.length ? scopeOf(target, "updates") : `${listing$1(types)} ${scopeOf(target, "updates")}`,
+				applies,
+				...source?.rule === void 0 ? {} : { rule: source.rule },
+				...index === 0 && delay.unreadable.length > 0 ? { unreadableRules: delay.unreadable } : {},
+				...index === 0 ? {} : { secondary: true }
+			};
+		});
 	});
 }
 /** The actions the workflows run, as messages name them. */
@@ -30473,7 +30657,7 @@ function compare(context, delay, reference) {
 				line: rule.line
 			},
 			message: `${delay.bot.name} packageRules[${rule.index}] in ${delay.location.file} sets minimumReleaseAge: ${JSON.stringify(rule.value)} for ${rule.matcher} ${JSON.stringify(rule.patterns)}, which depcurfew cannot read, so it cannot tell whether ${delay.bot.name} waits as long as ${reference.asLongAs}`,
-			fix: `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe$1(reference.minutes)}, or write its ${rule.matcher} with names, * or /regex/ patterns, which depcurfew reads`
+			fix: rule.unmodelled === true ? `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe$1(reference.minutes)}; depcurfew does not evaluate ${rule.matcher}, so this note stays while the rule sets a shorter delay` : `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe$1(reference.minutes)}, or write its ${rule.matcher} with names, * or /regex/ patterns, which depcurfew reads`
 		});
 	}
 	if (delay.rule !== void 0 && delay.minutes === 0) return true;
@@ -30494,7 +30678,7 @@ const botCooldownMismatch = {
 	id: "bot-cooldown-mismatch",
 	checks: "Update bots wait at least as long as the package manager, and for the actions of workflows as long as the policy, before proposing a new version",
 	summary: "An update bot waits less than the package manager, or for the actions of workflows less than the policy, before proposing a new version.",
-	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail where the manager re-checks the lockfile or bring in younger versions, and security updates that skip the bot delay fail too. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category, update type or the files and depType of actions, and one with a matcher depcurfew cannot read gets a note. For the actions of workflows the bot must wait cooldown.minimum. An unreadable bot file, a JSON5 Renovate file or a Dependabot file with a YAML alias gets a note per package manager that waits. With projects, a bot file inside a project gets a note (bots read only the root's), and a project the root's Dependabot configuration leaves out while it updates others gets a warning. A Dependabot composer entry gets a note: it counts from the release time the author sets.",
+	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail where the manager re-checks the lockfile or bring in younger versions, and security updates that skip the bot delay fail too. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category, update type or the files and depType of actions, each such entry is reported, and one with a matcher depcurfew cannot read or does not evaluate gets a note. For the actions of workflows the bot must wait cooldown.minimum. An unreadable bot file, a JSON5 Renovate file or a Dependabot file with a YAML alias gets a note per package manager that waits. With projects, a bot file inside a project gets a note (bots read only the root's), and a project the root's Dependabot configuration leaves out while it updates others gets a warning. A Dependabot composer entry gets a note: it counts from the release time the author sets.",
 	help: "Give the bot a delay at least as long as the package manager's, and for the actions of workflows as long as cooldown.minimum (depcurfew apply does this).",
 	level: "error",
 	requiresPolicy: false,
@@ -30540,9 +30724,10 @@ const botCooldownMismatch = {
 					if (delay.bot.id === "dependabot" && manager.id === "composer" && own.minutes > 0 && delay.unreadableFile === void 0) composerTimeNote(context, delay, knowledge.name, source.project);
 				};
 				if (compare(context, delay, managerReference(tool, own))) {
-					timeNote();
+					if (delay.secondary !== true) timeNote();
 					continue;
 				}
+				if (delay.secondary === true) continue;
 				if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager) && !exemptsSecurityFixes(delay.bot, tool.id, found.location?.file)) context.report({
 					level: "warning",
 					location: delay.location,
@@ -30632,9 +30817,16 @@ function checkDependabot(context, file) {
 	if (text === void 0 || bot !== void 0 && rejectsYamlAliases(bot) && yamlAliasLine(text) !== void 0) return;
 	const updates = yamlSetting(text, ["updates"], yamlOptionsFor(file, context.tools));
 	if (updates === void 0 || !Array.isArray(updates.value)) return;
+	const slash = bot?.extra?.["excludeMatching"] !== void 0 && extraOf(bot, "excludeMatching", isRecord)["starMatchesSlash"] === true;
+	const ecosystems = bot?.extra?.["ecosystems"] === void 0 ? {} : extraOf(bot, "ecosystems", isRecord);
+	const composerEcosystems = Object.keys(ecosystems).filter((name) => {
+		const managers = ecosystems[name];
+		return Array.isArray(managers) && managers.some((id) => tool(context, String(id)) !== void 0 && ecosystemOfTool(tool(context, String(id))) === "packagist");
+	});
 	updates.value.forEach((entry, index) => {
 		if (!isRecord(entry) || !isRecord(entry["cooldown"]) || !Array.isArray(entry["cooldown"]["exclude"])) return;
-		const broad = entry["cooldown"]["exclude"].filter((item) => typeof item === "string" && isBroad(item));
+		const composer = slash && composerEcosystems.includes(String(entry["package-ecosystem"]));
+		const broad = entry["cooldown"]["exclude"].filter((item) => typeof item === "string" && (isBroad(item) || composer && matchesEveryComposerName(item)));
 		if (broad.length === 0) return;
 		context.report({
 			location: {
@@ -30810,6 +31002,8 @@ const broadExclusion = {
 };
 
 // src/doctor/rules/composer-config.ts
+/** Workflows as GitHub reads them: with their aliases expanded (environment.githubActions.yamlAliases, decision D-141). */
+const WORKFLOW_YAML = evidenceOf(environment.githubActions.yamlAliases)[0]?.value.accepted === true ? { aliases: true } : {};
 const RULE$2 = "composer-config-weakens";
 const isList = (check) => (value) => Array.isArray(value) && value.every(check);
 const isPath$1 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
@@ -30933,11 +31127,11 @@ function environments(text) {
 		path: ["env"],
 		where: "the workflow"
 	}];
-	const jobs = yamlSetting(text, ["jobs"])?.value;
+	const jobs = yamlSetting(text, ["jobs"], WORKFLOW_YAML)?.value;
 	if (!isRecord(jobs)) return found;
 	for (const [id, job] of Object.entries(jobs)) {
 		if (!isRecord(job)) continue;
-		const label = jobLabel(id, yamlSetting(text, ["jobs", id])?.line);
+		const label = jobLabel(id, yamlSetting(text, ["jobs", id], WORKFLOW_YAML)?.line);
 		found.push({
 			path: [
 				"jobs",
@@ -30974,8 +31168,13 @@ function checkWorkflows(context, tool) {
 	for (const file of context.detection.workflows) {
 		const text = context.repository.readText(file);
 		if (text === void 0) continue;
+		const aliases = WORKFLOW_YAML.aliases === true ? yamlAliasProblem(text) : void 0;
+		if (aliases !== void 0) {
+			context.notice(`${RULE$2} could not read the env of ${file}: its YAML aliases cannot be expanded (${aliases})`, file, `Write the values out in place of the aliases in ${file}, then run depcurfew doctor again`);
+			continue;
+		}
 		for (const { path, where } of environments(text)) {
-			const env = yamlSetting(text, path)?.value;
+			const env = yamlSetting(text, path, WORKFLOW_YAML)?.value;
 			if (!isRecord(env)) continue;
 			for (const variable of variables) {
 				if (!Object.hasOwn(env, variable.name)) continue;
@@ -30984,7 +31183,7 @@ function checkWorkflows(context, tool) {
 				if (variable.name.includes("COOLDOWN") && !cooldownInPolicy(context)) continue;
 				const effect = variableEffect(context, tool, variable, value);
 				if (effect === void 0) continue;
-				const line = yamlSetting(text, [...path, variable.name])?.line;
+				const line = yamlSetting(text, [...path, variable.name], WORKFLOW_YAML)?.line;
 				const verb = effect.detail === "may" ? `may ${variable.effect.replace(/^(\w+)s\b/u, "$1")}` : effect.detail === void 0 ? variable.effect : `${variable.effect} with ${effect.detail}, shorter than the ${context.policy?.cooldown?.minimum.text ?? ""} of ${POLICY_FILE}`;
 				const reading = Array.isArray(variable.values) && variable.values.includes("true") && variable.values.includes("false") && ["false", "off"].includes(value) ? " (Composer reads false and off as yes for this variable)" : "";
 				context.report({
@@ -31113,6 +31312,22 @@ function addedText(added) {
 	if (/[{[]$/u.test(first) && joined.length <= 100) return code(joined);
 	return `${code(first)} (and ${added.length - 1} more ${added.length === 2 ? "line" : "lines"})`;
 }
+/**
+* Removed lines for a message: one line as it is, or a YAML key with the lines below it as the value Dependabot or the
+* tool reads (`exclude: ["*\/*"]`) when that is short, else the first line and a count (decision D-141).
+*/
+function removedText(file, removed) {
+	const [first = ""] = removed;
+	if (removed.length === 1) return code(first);
+	const data = /\.ya?ml$/u.test(file) && /:$/u.test(first) ? dataOf(file, removed.join("\n")) : void 0;
+	const entries = isObject(data) ? Object.entries(data) : [];
+	const [entry] = entries;
+	if (entry !== void 0 && entries.length === 1) {
+		const text = `${entry[0]}: ${JSON.stringify(entry[1])}`;
+		if (text.length <= 100) return code(text);
+	}
+	return `${code(first)} (and ${removed.length - 1} more ${removed.length === 2 ? "line" : "lines"})`;
+}
 /** Lines as a list for a message: `a`, `b` and `c`. */
 function codeList(texts) {
 	const quoted = texts.map(code);
@@ -31173,7 +31388,7 @@ function describe(file, difference, before, after) {
 	}
 	const [removed] = difference.removed;
 	if (difference.removed.length > 1 && difference.removed.length === difference.added.length && difference.removed.every((text, index) => keyOf(text) !== void 0 && keyOf(text) === keyOf(difference.added[index] ?? ""))) return difference.removed.map((text, index) => `${code(text)} should be ${code(difference.added[index] ?? "")}${quotedNote(file, text, difference.added[index] ?? "")}`).join(", ");
-	if (removed !== void 0 && difference.added.length > 0) return `${code(removed)} should be ${addedText(difference.added)}${quotedNote(file, removed, difference.added[0] ?? "")}`;
+	if (removed !== void 0 && difference.added.length > 0) return `${removedText(file, difference.removed)} should be ${addedText(difference.added)}${quotedNote(file, removed, difference.added[0] ?? "")}`;
 	if (difference.added.length > 0) {
 		const top = difference.added.length === 1 ? topLevelYaml(file, difference.added[0] ?? "") : void 0;
 		const merged = top === void 0 ? void 0 : yamlSetting(before, [top.key], yamlOptionsFor(file));
@@ -31411,7 +31626,7 @@ function usesWithoutCorepack(context, declaration, tool) {
 		if (!group.job.runsNode) return false;
 		const install = commandsAfterStep(group, declaration).find(installsWith(tool));
 		if (install === void 0) return false;
-		return group.job.corepack === void 0 || group.job.corepack > install.line;
+		return install.afterCorepack !== true;
 	}
 	if (declaration.source === "dockerfile") {
 		const file = context.detection.dockerfiles.find((entry) => entry.file === declaration.file);
@@ -31420,7 +31635,7 @@ function usesWithoutCorepack(context, declaration, tool) {
 		return stagesFrom(file, index).some((chain) => {
 			const install = chain.at(-1)?.commands.find(installsWith(tool));
 			if (install === void 0) return false;
-			return !chain.flatMap((stage) => stage.corepack === void 0 ? [] : [stage.corepack]).some((line) => line < install.line);
+			return install.afterCorepack !== true && !chain.slice(0, -1).some((stage) => stage.corepack !== void 0);
 		});
 	}
 	return declaration.source !== "volta";
@@ -32021,7 +32236,7 @@ const knownMalicious = {
 				const unpinned = [];
 				let locked = 0;
 				for (const entry of lockfile.entries) {
-					if (entry.source !== "registry") continue;
+					if (entry.source !== "registry" && entry.version === void 0) continue;
 					if (entry.version === void 0) {
 						unpinned.push(entry);
 						continue;
@@ -32191,7 +32406,7 @@ const lockfileForbiddenSource = {
 	id: "lockfile-forbidden-source",
 	checks: "The lockfile installs no package from a source depcurfew.json denies",
 	summary: "The lockfile installs a package from a source depcurfew.json denies.",
-	description: "A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say. For Composer, whose lockfile does not name the repository of a package, packages of a path or artifact repository are told by their dist, those of a VCS or package repository by the repositories of composer.json; a package without a usable dist, or one that config.preferred-install makes Composer check out, is a VCS checkout. Warnings: an archive from a host that neither the archives of Packagist.org (GitHub, GitLab, Bitbucket, Codeberg) nor a repository of composer.json use, such an archive next to a source on another host, and a repository of a denied kind that no package of composer.lock comes from.",
+	description: "A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say. For Composer, whose lockfile does not name the repository of a package, packages of a path or artifact repository are told by their dist, those of a VCS or package repository by the repositories of composer.json; a package without a usable dist, or one that config.preferred-install makes Composer check out, is a VCS checkout. Warnings: archives from a host that neither the archives of Packagist.org (GitHub, GitLab, Bitbucket, Codeberg) nor a repository of composer.json use (with the archive host depcurfew knows for one, such as downloads.wordpress.org for WPackagist), one per host, such an archive next to a source on another host, and a repository of a denied kind that no package of composer.lock comes from.",
 	help: "Replace the dependency with a registry version, or allow that source in depcurfew.json.",
 	level: "error",
 	requiresPolicy: true,
@@ -32201,7 +32416,13 @@ const lockfileForbiddenSource = {
 		if (sources === void 0) return;
 		const denies = Object.values(sources).includes("deny");
 		eachLockfile(context, "lockfile-forbidden-source", (lockfile, tool) => {
+			const unknownHosts = /* @__PURE__ */ new Map();
 			for (const entry of lockfile.entries) {
+				if (entry.source === "unknown" && denies && tool.id === "composer") {
+					const host = archiveHost(entry.spec);
+					unknownHosts.set(host, [...unknownHosts.get(host) ?? [], entry]);
+					continue;
+				}
 				if (entry.source === "unknown" && denies) {
 					context.report({
 						level: "warning",
@@ -32230,11 +32451,44 @@ const lockfileForbiddenSource = {
 					fix: `Use a registry version ${entry.unnamed === true ? "instead" : `of ${entry.name}`}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`
 				});
 			}
+			for (const [host, entries] of unknownHosts) reportUnknownArchives(context, tool, lockfile, host, entries);
 			if (sources.git === "deny") for (const group of checkoutsByPreference(lockfile.entries)) reportPreferredInstall(context, lockfile, group);
 			if (tool.id === "composer") reportComposerRepositories(context, tool, lockfile, sources);
 		});
 	}
 };
+/** The host of the archive of a composer.lock entry from its spec ("zip https://host/…"), or "" when it names none. */
+function archiveHost(spec) {
+	const url = spec.split(/\s+/u).find((word) => /^[a-z][a-z0-9+.-]*:\/\//iu.test(word));
+	return url === void 0 ? "" : hostOf(url);
+}
+/**
+* Composer: the packages of composer.lock whose archives come from one host that neither Packagist.org's archives nor a
+* repository of composer.json (with the archive hosts the knowledge base knows for it) use (decisions D-134 and D-141):
+* one warning per host, at the first of them, naming the packages with their lines. composer.lock does not record the
+* repository of a package, so when composer.json declares Composer repositories, the message names them and the fix
+* says how to check that one of them serves these archives; the warning stays, since a host depcurfew cannot tie to a
+* repository may be one depcurfew.json denies (fail closed).
+*/
+function reportUnknownArchives(context, tool, lockfile, host, entries) {
+	const lines = (entry) => lockfile.lineOf(entry);
+	const first = entries.map(lines).find((line) => line !== void 0);
+	const one = entries.length === 1;
+	const registries = declaredRepositories(context.repository, tool).filter((repository) => repository.kind === "registry" && repository.url !== void 0);
+	const from = host === "" ? `from ${one ? "a source" : "sources"} depcurfew does not recognize (${shownSpec(entries[0]?.spec ?? "") || "no source given"})` : `from ${one ? `an archive on ${host} (${shownSpec(entries[0]?.spec ?? "")})` : `archives on ${host}`}, a host depcurfew does not recognize`;
+	const declared = registries.map((repository) => `${repository.url ?? ""} (line ${repository.line})`);
+	const repositories = registries.length === 0 ? "" : `; ${COMPOSER_MANIFEST} declares the Composer ${registries.length === 1 ? "repository" : "repositories"} ${listing$1(declared)}, which may keep ${registries.length === 1 ? "its" : "their"} archives there, but ${lockfile.file} does not say which repository a package comes from`;
+	const names = one ? entries[0]?.name ?? "" : "these packages";
+	context.report({
+		level: "warning",
+		location: first === void 0 ? { file: lockfile.file } : {
+			file: lockfile.file,
+			line: first
+		},
+		message: `${lockfile.file} installs ${one ? entries[0]?.name ?? "" : `${entries.length} packages`} ${from}, so ${one ? "it" : "they"} may come from a source ${POLICY_FILE} denies${one ? "" : `: ${listedCheckouts(entries, lines)}`}${repositories}`,
+		fix: registries.length === 0 ? `Check where ${names} ${one ? "comes" : "come"} from: if a Composer repository serves ${one ? "it" : "them"}, declare that repository in ${COMPOSER_MANIFEST}; otherwise lock ${one ? "it" : "them"} again from Packagist with composer update` : `Check that ${registries.length === 1 ? "this repository serves" : "one of these repositories serves"} ${names} with ${host === "" ? "this source" : `archives on ${host}`} (composer show --all ${one ? entries[0]?.name ?? "" : "<package>"} names the dist URL Composer gets); depcurfew cannot tie ${host === "" ? "it" : host} to a repository, so this warning stays while ${lockfile.file} installs from it. If the archives come from elsewhere, lock ${one ? "the package" : "the packages"} again with composer update`
+	});
+}
 /**
 * Composer: one entry of config.preferred-install in composer.json that makes Composer check packages of composer.lock
 * out of their VCS repositories, which the policy denies (decision D-138): one finding at that entry, naming the
@@ -32257,7 +32511,7 @@ function reportPreferredInstall(context, lockfile, { preference, entries }) {
 * Composer installs from it on the next update, so it is reported at its declaration, as a warning (fail closed).
 */
 function reportComposerRepositories(context, tool, lockfile, sources) {
-	for (const repository of unmatchedRepositories(declaredRepositories(context.repository, tool), lockfile.entries)) {
+	for (const repository of unmatchedRepositories(tool, declaredRepositories(context.repository, tool), lockfile.entries)) {
 		const kind = repository.kind;
 		if (kind !== "git" && kind !== "remoteTarball" && kind !== "file" && kind !== "directory") continue;
 		if (sources[kind] !== "deny") continue;
@@ -32363,8 +32617,8 @@ function versionsInUse(context, tool) {
 * runs them all, or, unless strict-allow-scripts is set (`strict`), one that runs them with a notice. `text` names the
 * versions of that place that run them ("npm 11.16.0 (with Node.js 24.18.0 in Dockerfile)"), absent without a place.
 */
-function runsScripts(context, tool, strict) {
-	const runs = (version) => evidenceOf(tool.installScripts.defaultPolicy).some((evidence) => {
+function runsScripts(context, tool, strict, counts = () => true) {
+	const runs = (version) => counts(version) && evidenceOf(tool.installScripts.defaultPolicy).some((evidence) => {
 		const policy = versionedValue(evidence.value, version);
 		return policy === "run" || policy === "run-with-warning" && !strict;
 	});
@@ -32475,7 +32729,7 @@ const lockfileInstallScripts = {
 	id: "lockfile-install-scripts",
 	checks: "The lockfile has no install scripts or source builds that depcurfew.json does not allow",
 	summary: "The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.",
-	description: "Install scripts run arbitrary code during installation, and so do building a Python package from source (a source distribution, a git repository or a local directory) and loading a Composer plugin. Where the package manager runs them by default, or its own allow-list lets them run, they run code the policy does not allow; where it blocks them, a package may not work. A package in installScripts.deny works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed (a Python package without wheels, esbuild without optional dependencies). npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile and composer.lock records plugins; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index, only to requirements from a repository, a URL or a local path.",
+	description: "Install scripts run arbitrary code during installation, and so do building a Python package from source (a source distribution, a git repository or a local directory) and loading a Composer plugin. Where the package manager runs them by default, or its own allow-list lets them run, they run code the policy does not allow; where it blocks them, a package may not work. A package in installScripts.deny works without its scripts, so it is reported only while the package manager in use still runs them (or builds it from source), or when it cannot be installed (a Python package without wheels, esbuild without optional dependencies). npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile and composer.lock records plugins; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index, only to requirements from a repository, a URL or a local path.",
 	help: "Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:, Composer plugins with composer:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can). For packages whose scripts depcurfew knows (esbuild, fsevents, lefthook), from a registry, the finding names the fix: installScripts.deny, and for lefthook running lefthook install after each clone, as its documentation says for projects that do not use its postinstall script.",
 	level: "error",
 	requiresPolicy: true,
@@ -32512,7 +32766,8 @@ const lockfileInstallScripts = {
 			for (const entry of flagged) {
 				if (allow.some((pattern) => matchesPattern$1(entry.name, pattern))) continue;
 				const isDenied = deny.some((pattern) => matchesPattern$1(entry.name, pattern));
-				const blocked = lists.denied.some((item) => item.package === entry.name && item.name === item.package);
+				const blockedBy = lists.denied.find((item) => item.package === entry.name && item.name === item.package);
+				const blocked = blockedBy !== void 0;
 				const lets = disabledBy?.all === true || blocked ? void 0 : lists.allowed.find((item) => item.package === entry.name);
 				if (lets !== void 0) {
 					context.report({
@@ -32524,6 +32779,17 @@ const lockfileInstallScripts = {
 					continue;
 				}
 				if (isDenied) {
+					const ignoring = running && blockedBy !== void 0 ? runsScripts(context, tool, disabledBy !== void 0, (version) => !lists.readsDenial(version)) : void 0;
+					if (ignoring !== void 0 && blockedBy !== void 0) {
+						const npm = ignoring.text === void 0 ? `${tool.name}` : ignoring.text;
+						context.report({
+							level: "error",
+							location: location(lockfile, entry),
+							message: `${entry.name} has install scripts and ${npm} ${ignoring.unknown === true ? "may run" : ignoring.several === true ? "run" : "runs"} them, because ${tool.name} before ${lists.denialSince ?? ""} does not read the denial in ${blockedBy.setting} in ${blockedBy.file}; ${POLICY_FILE} denies them`,
+							fix: `Use ${tool.name} ${lists.denialSince ?? ""} or later wherever the project installs, or make ${tool.name} stop running dependency install scripts there (run depcurfew apply and follow its warnings)`
+						});
+						continue;
+					}
 					if (!running || blocked) {
 						const known = knownPackageOf(entry);
 						if (known?.needsOptionalDependencies !== true) continue;
@@ -32563,7 +32829,8 @@ function ownLists(context, tool) {
 	const manager = context.detection.packageManagers.find((entry) => entry.id === tool.id);
 	if (manager === void 0) return {
 		allowed: [],
-		denied: []
+		denied: [],
+		readsDenial: () => false
 	};
 	const version = pinnedVersion(manager) ?? latestVersion$1(tool);
 	const options = {
@@ -32576,9 +32843,13 @@ function ownLists(context, tool) {
 	};
 	const denial = tool.extra?.["denyList"] === void 0 ? void 0 : evidenceOf(tool.extra["denyList"])[0]?.value;
 	const denialSince = isRecord(denial) && typeof denial["since"] === "string" ? denial["since"] : void 0;
+	const required = denialSince === void 0 ? void 0 : parseVersion(denialSince);
+	const readsDenial = (inUse) => required !== void 0 && inUse !== void 0 && compareVersions$1(inUse, required) >= 0;
 	return {
 		allowed: reads(sinceOf(tool.installScripts.allowList.availableSince)) ? allowEntries(context.repository, manager.id, manager.configFiles, options) : [],
-		denied: reads(denialSince) ? denyEntries(context.repository, manager.id, manager.configFiles, options) : []
+		denied: reads(denialSince) ? denyEntries(context.repository, manager.id, manager.configFiles, options) : [],
+		...denialSince === void 0 ? {} : { denialSince },
+		readsDenial
 	};
 }
 
@@ -34040,20 +34311,35 @@ function readFromRoot(tools, id) {
 /** The tools found and the files read by detection and the rules, for the log of what doctor checked. */
 function checkedOf(detection, repository, tools, policyRead) {
 	const name = (id) => tools.find((tool) => tool.id === id)?.name ?? id;
-	const found = [...detection.packageManagers.filter((manager) => manager.supported).map((manager) => {
-		const declared = manager.versions.find((declaration) => "version" in declaration);
-		return {
-			id: manager.id,
-			name: name(manager.id),
-			...declared === void 0 || !("version" in declared) ? {} : {
-				version: declared.version,
-				versionFrom: declared.file
-			}
-		};
-	}), ...detection.bots.map((bot) => ({
-		id: bot.id,
-		name: name(bot.id)
-	}))];
+	const found = [
+		...detection.packageManagers.filter((manager) => manager.supported).map((manager) => {
+			const declared = manager.versions.find((declaration) => "version" in declaration);
+			return {
+				id: manager.id,
+				name: name(manager.id),
+				...declared === void 0 || !("version" in declared) ? {} : {
+					version: declared.version,
+					versionFrom: declared.file
+				}
+			};
+		}),
+		...(detection.ciForProjects ?? []).filter((manager) => manager.supported).map((manager) => {
+			const declared = manager.versions.find((declaration) => "version" in declaration);
+			return {
+				id: manager.id,
+				name: name(manager.id),
+				...declared === void 0 || !("version" in declared) ? {} : {
+					version: declared.version,
+					versionFrom: declared.file
+				},
+				setUpInCi: true
+			};
+		}),
+		...detection.bots.map((bot) => ({
+			id: bot.id,
+			name: name(bot.id)
+		}))
+	];
 	const files = new Set(repository.read);
 	for (const manager of detection.packageManagers) for (const file of [
 		...manager.evidence.map((evidence) => evidence.file),

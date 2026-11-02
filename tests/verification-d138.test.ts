@@ -110,7 +110,7 @@ describe('lockfile-forbidden-source: one error per entry of config.preferred-ins
         code: 'composer-source-checkouts',
         level: 'note',
         location: { file: 'composer.json', line: 7 },
-        message: `config.preferred-install in composer.json gives "source" for symfony/*, so Composer installs 3 packages of composer.lock from their VCS repositories instead of their archives, which sources.git "deny" in depcurfew.json does not allow, and depcurfew doctor reports it (lockfile-forbidden-source): ${SYMFONY.map((name) => `${name} (line ${lineOf(text, name)})`).join(', ')}`,
+        message: `config.preferred-install in composer.json (line 7) gives "source" for symfony/*, so Composer installs 3 packages of composer.lock from their VCS repositories instead of their archives, which sources.git "deny" in depcurfew.json does not allow, and depcurfew doctor reports it (lockfile-forbidden-source): ${SYMFONY.map((name) => `${name} (line ${lineOf(text, name)})`).join(', ')}`,
         fix: 'Remove "symfony/*" from config.preferred-install in composer.json, or set it to "dist", so Composer installs these packages from their archives; or, if the project installs them from source on purpose, set sources.git to "allow" in depcurfew.json before you run depcurfew apply',
       },
     ]);

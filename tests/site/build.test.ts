@@ -185,11 +185,23 @@ describe('site design (D-140)', () => {
     for (const [foreground, background] of text) expect(contrast(color(foreground), color(background)), `${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5);
     for (const background of ['--background', '--surface']) expect(contrast(color('--focus'), color(background)), `--focus on ${background}`).toBeGreaterThanOrEqual(3);
     expect(contrast(color('--button'), color('--background')), '--button on --background').toBeGreaterThanOrEqual(3);
+    // The borders of buttons and tool links against their own background and the hero around them (decision D-141).
+    for (const background of ['--background', '--hero', '--hero-end']) expect(contrast(color('--control-border'), color(background)), `--control-border on ${background}`).toBeGreaterThanOrEqual(3);
   });
 
   it('opens the navigation and the "On this page" list on narrow screens with details elements, without JavaScript', () => {
-    expect(css()).toMatch(/\.menu\[open\] \+ \.pages\s*\{/u);
+    expect(css()).toMatch(/\.menu\[open\] \+ \.groups\s*\{/u);
     expect(css()).toMatch(/\.toc-toggle\[open\] \+ \.toc\s*\{/u);
+    // Only below the widths at which the navigation and the list are always shown, so that widening the window does
+    // not keep their narrow layout (decision D-141).
+    const narrow = (width: string, selector: RegExp) => {
+      const start = css().indexOf(`@media not all and (min-width: ${width})`);
+      expect(start, width).toBeGreaterThan(-1);
+      const block = css().slice(start, css().indexOf('\n}\n', start));
+      expect(block).toMatch(selector);
+    };
+    narrow('60rem', /\.menu\[open\] \+ \.groups\s*\{/u);
+    narrow('78rem', /\.toc-toggle\[open\] \+ \.toc\s*\{/u);
     expect(css()).toContain(':focus-visible');
     expect(css()).toContain('.skip:focus');
   });
@@ -367,7 +379,7 @@ describe('site content', () => {
     const list = html.slice(html.indexOf('<h2 id="on-this-site">On this site</h2>'));
     expect(list).not.toBe('');
     for (const entry of SITE_PAGES.filter((other) => other.file !== 'index.html')) {
-      expect(list).toContain(`<li><a href="${entry.file}"><span class="title">${escapeHtml(entry.title)}</span> <span class="summary">${escapeHtml(entry.summary)}</span></a></li>`);
+      expect(list).toContain(`<li><a href="${entry.file}"><span class="title">${escapeHtml(entry.title)}</span><span class="visually-hidden">:</span> <span class="summary">${escapeHtml(entry.summary)}</span></a></li>`);
     }
     const groups = [...list.matchAll(/<h3 id="([^"]*)">([^<]*)<\/h3>\n<ul class="cards">/gu)].map((match) => [match[1], match[2]]);
     expect(groups).toEqual(PAGE_GROUPS.map((group) => [group.title.toLowerCase(), group.title]));

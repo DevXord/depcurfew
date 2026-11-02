@@ -1,7 +1,8 @@
 /* The stylesheet of the depcurfew documentation site (decisions D-132, D-139 and D-140): system fonts only, a light and
    a dark color scheme that follow the system setting, colors from the icon (teal as the accent, amber as the
-   highlight) and nothing loaded from elsewhere. Without JavaScript: on narrow screens a details element right before
-   the navigation and one right before the "On this page" list open them (.menu[open] + .pages). */
+   highlight) and nothing loaded from elsewhere. Without JavaScript: on narrow screens a details element at the start
+   of the navigation and one right before the "On this page" list open them (.menu[open] + .groups), only below the
+   widths at which both are always shown (decision D-141). */
 
 :root {
   color-scheme: light dark;
@@ -15,6 +16,8 @@
   --muted: #565e67;
   --border: #e1e4e8;
   --border-strong: #c6ccd2;
+  /* The border of buttons and of the tool links of the start page: 3:1 against what is around them (decision D-141). */
+  --control-border: #7d8791;
   --accent: #0f766e;
   --link: #0f766e;
   --link-hover: #115e59;
@@ -58,6 +61,7 @@
     --muted: #9aa3ab;
     --border: #2a3036;
     --border-strong: #3d454d;
+    --control-border: #6f7a85;
     --accent: #2dd4bf;
     --link: #2dd4bf;
     --link-hover: #5eead4;
@@ -99,14 +103,15 @@ html {
 }
 
 body {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto 1fr auto;
   grid-template-areas:
-    "bar menu"
-    "pages pages"
-    "main main"
-    "footer footer";
+    "bar"
+    "pages"
+    "main"
+    "footer";
   min-height: 100vh;
   margin: 0;
   background: var(--background);
@@ -151,6 +156,16 @@ a:hover {
 
 .skip:focus {
   top: 0.5rem;
+}
+
+/* Text for screen readers only, such as the colon between the title and the summary of a card. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* Top bar */
@@ -199,13 +214,16 @@ header.site {
   font-variant-numeric: tabular-nums;
 }
 
-/* Navigation: a menu on narrow screens, a sidebar on wide ones */
+/* Navigation: a menu on narrow screens, a sidebar on wide ones. The details element that opens the menu is the first
+   child of the navigation, so that it is inside its landmark, and sits in the top bar (decision D-141). */
 
 .menu {
-  grid-area: menu;
-  padding: 0.6875rem 1rem 0 0;
-  border-bottom: 1px solid var(--border);
-  background: var(--background);
+  position: absolute;
+  top: 0;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  height: var(--bar);
 }
 
 .menu summary,
@@ -248,17 +266,22 @@ header.site {
 
 .pages {
   grid-area: pages;
-  display: none;
-  padding: 0.75rem 1rem 1rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
   font-size: 0.9375rem;
 }
 
-.menu[open] + .pages {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
-  gap: 0.5rem 1rem;
+.pages .groups {
+  display: none;
+}
+
+@media not all and (min-width: 60rem) {
+  .menu[open] + .groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+    gap: 0.5rem 1rem;
+    padding: 0.75rem 1rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
 }
 
 .pages .group-title {
@@ -345,13 +368,15 @@ footer.site p {
   .pages {
     position: sticky;
     top: var(--bar);
-    display: block;
     align-self: start;
     height: calc(100vh - var(--bar));
     overflow-y: auto;
     padding: 1.5rem 0.75rem 2rem;
     border-right: 1px solid var(--border);
-    border-bottom: 0;
+  }
+
+  .pages .groups {
+    display: block;
   }
 
   .pages .group + .group {
@@ -414,26 +439,29 @@ footer.site p {
   transform: translateY(0.15rem) rotate(-135deg);
 }
 
-.toc-toggle[open] {
-  margin-bottom: 0;
-  border-bottom-right-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
 .toc {
   display: none;
   font-size: 0.875rem;
   line-height: 1.4;
 }
 
-.toc-toggle[open] + .toc {
-  display: block;
-  margin: 0 0 1.5rem;
-  padding: 0.25rem 0.5rem 0.75rem;
-  border: 1px solid var(--border);
-  border-top: 0;
-  border-radius: 0 0 0.625rem 0.625rem;
-  background: var(--surface);
+/* Only below the width at which the list stands beside the content (decision D-141). */
+@media not all and (min-width: 78rem) {
+  .toc-toggle[open] {
+    margin-bottom: 0;
+    border-bottom-right-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .toc-toggle[open] + .toc {
+    display: block;
+    margin: 0 0 1.5rem;
+    padding: 0.25rem 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-top: 0;
+    border-radius: 0 0 0.625rem 0.625rem;
+    background: var(--surface);
+  }
 }
 
 .toc-title {
@@ -556,7 +584,7 @@ footer.site p {
 .button {
   display: inline-block;
   padding: 0.5rem 0.875rem;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--control-border);
   border-radius: 0.5rem;
   background: var(--background);
   color: var(--text);
@@ -592,16 +620,19 @@ footer.site p {
   list-style: none;
 }
 
+/* Links to the start page of each tool: the color of links and an underline, in a border with 3:1 contrast. */
 .chips a {
   display: inline-block;
   padding: 0.0625rem 0.625rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   border-radius: 999px;
   background: var(--background);
-  color: var(--text);
+  color: var(--link);
   font-size: 0.8125rem;
   font-weight: 550;
-  text-decoration: none;
+  text-decoration: underline;
+  text-decoration-thickness: 0.06em;
+  text-underline-offset: 0.18em;
 }
 
 .chips a:hover {
@@ -814,11 +845,14 @@ pre code {
   font-size: 1em;
 }
 
-/* Tables: scroll inside their own box, with zebra rows and a header that stands out */
+/* Tables: scroll inside their own box, with zebra rows and a header that stands out. A tall table scrolls inside a box
+   at most as high as the window, so that its header stays at the top and its horizontal scrollbar is in sight
+   (decision D-141). */
 
 .table {
   margin: 0 0 1.5rem;
-  overflow-x: auto;
+  max-height: 80vh;
+  overflow: auto;
   border: 1px solid var(--border);
   border-radius: 0.625rem;
 }

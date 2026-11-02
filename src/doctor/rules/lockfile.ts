@@ -1,6 +1,7 @@
 // Lockfile rules. lockfile-forbidden-source: a package from a source depcurfew.json denies. lockfile-install-scripts:
 // a package with install scripts that depcurfew.json does not allow, where the lockfile records scripts.
 import { extraOf, isRecord, isSwitch, sinceOf, values } from '../../apply/facts.ts';
+import { listing } from '../../apply/requirements.ts';
 import { compareVersions, parseVersion, pinnedVersion, type Version } from '../../apply/version.ts';
 import { evidenceOf } from '../../knowledge/facts.ts';
 import type { ScriptPolicy, ToolKnowledge } from '../../knowledge/types.ts';
@@ -14,6 +15,7 @@ import {
   composerManifest,
   declaredRepositories,
   fallbackRemoved,
+  hostOf,
   isComposerName,
   listedCheckouts,
   lockedPluginApi,
@@ -77,7 +79,7 @@ export const lockfileForbiddenSource: Rule = {
   checks: 'The lockfile installs no package from a source depcurfew.json denies',
   summary: 'The lockfile installs a package from a source depcurfew.json denies.',
   description:
-    'A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say. For Composer, whose lockfile does not name the repository of a package, packages of a path or artifact repository are told by their dist, those of a VCS or package repository by the repositories of composer.json; a package without a usable dist, or one that config.preferred-install makes Composer check out, is a VCS checkout. Warnings: an archive from a host that neither the archives of Packagist.org (GitHub, GitLab, Bitbucket, Codeberg) nor a repository of composer.json use, such an archive next to a source on another host, and a repository of a denied kind that no package of composer.lock comes from.',
+    'A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say. For Composer, whose lockfile does not name the repository of a package, packages of a path or artifact repository are told by their dist, those of a VCS or package repository by the repositories of composer.json; a package without a usable dist, or one that config.preferred-install makes Composer check out, is a VCS checkout. Warnings: archives from a host that neither the archives of Packagist.org (GitHub, GitLab, Bitbucket, Codeberg) nor a repository of composer.json use (with the archive host depcurfew knows for one, such as downloads.wordpress.org for WPackagist), one per host, such an archive next to a source on another host, and a repository of a denied kind that no package of composer.lock comes from.',
   help: 'Replace the dependency with a registry version, or allow that source in depcurfew.json.',
   level: 'error',
   requiresPolicy: true,
@@ -87,7 +89,14 @@ export const lockfileForbiddenSource: Rule = {
     if (sources === undefined) return;
     const denies = Object.values(sources).includes('deny');
     eachLockfile(context, 'lockfile-forbidden-source', (lockfile, tool) => {
+      // Composer: the packages from archive hosts depcurfew does not recognize, by host, for one warning each (D-141).
+      const unknownHosts = new Map<string, LockEntry[]>();
       for (const entry of lockfile.entries) {
+        if (entry.source === 'unknown' && denies && tool.id === 'composer') {
+          const host = archiveHost(entry.spec);
+          unknownHosts.set(host, [...(unknownHosts.get(host) ?? []), entry]);
+          continue;
+        }
         if (entry.source === 'unknown' && denies) {
           // Fail closed: a source depcurfew cannot recognize may be one the policy denies.
           context.report({
@@ -124,11 +133,49 @@ export const lockfileForbiddenSource: Rule = {
           fix: `Use a registry version ${entry.unnamed === true ? 'instead' : `of ${entry.name}`}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`,
         });
       }
+      for (const [host, entries] of unknownHosts) reportUnknownArchives(context, tool, lockfile, host, entries);
       if (sources.git === 'deny') for (const group of checkoutsByPreference(lockfile.entries)) reportPreferredInstall(context, lockfile, group);
       if (tool.id === 'composer') reportComposerRepositories(context, tool, lockfile, sources);
     });
   },
 };
+
+/** The host of the archive of a composer.lock entry from its spec ("zip https://host/…"), or "" when it names none. */
+function archiveHost(spec: string): string {
+  const url = spec.split(/\s+/u).find((word) => /^[a-z][a-z0-9+.-]*:\/\//iu.test(word));
+  return url === undefined ? '' : hostOf(url);
+}
+
+/**
+ * Composer: the packages of composer.lock whose archives come from one host that neither Packagist.org's archives nor a
+ * repository of composer.json (with the archive hosts the knowledge base knows for it) use (decisions D-134 and D-141):
+ * one warning per host, at the first of them, naming the packages with their lines. composer.lock does not record the
+ * repository of a package, so when composer.json declares Composer repositories, the message names them and the fix
+ * says how to check that one of them serves these archives; the warning stays, since a host depcurfew cannot tie to a
+ * repository may be one depcurfew.json denies (fail closed).
+ */
+function reportUnknownArchives(context: RuleContext, tool: ToolKnowledge, lockfile: Lockfile, host: string, entries: readonly LockEntry[]): void {
+  const lines = (entry: LockEntry) => lockfile.lineOf(entry);
+  const first = entries.map(lines).find((line) => line !== undefined);
+  const one = entries.length === 1;
+  const registries = declaredRepositories(context.repository, tool).filter((repository) => repository.kind === 'registry' && repository.url !== undefined);
+  const from = host === '' ? `from ${one ? 'a source' : 'sources'} depcurfew does not recognize (${shownSpec(entries[0]?.spec ?? '') || 'no source given'})` : `from ${one ? `an archive on ${host} (${shownSpec(entries[0]?.spec ?? '')})` : `archives on ${host}`}, a host depcurfew does not recognize`;
+  const declared = registries.map((repository) => `${repository.url ?? ''} (line ${repository.line})`);
+  const repositories =
+    registries.length === 0
+      ? ''
+      : `; ${COMPOSER_MANIFEST} declares the Composer ${registries.length === 1 ? 'repository' : 'repositories'} ${listing(declared)}, which may keep ${registries.length === 1 ? 'its' : 'their'} archives there, but ${lockfile.file} does not say which repository a package comes from`;
+  const names = one ? (entries[0]?.name ?? '') : 'these packages';
+  context.report({
+    level: 'warning',
+    location: first === undefined ? { file: lockfile.file } : { file: lockfile.file, line: first },
+    message: `${lockfile.file} installs ${one ? (entries[0]?.name ?? '') : `${entries.length} packages`} ${from}, so ${one ? 'it' : 'they'} may come from a source ${POLICY_FILE} denies${one ? '' : `: ${listedCheckouts(entries, lines)}`}${repositories}`,
+    fix:
+      registries.length === 0
+        ? `Check where ${names} ${one ? 'comes' : 'come'} from: if a Composer repository serves ${one ? 'it' : 'them'}, declare that repository in ${COMPOSER_MANIFEST}; otherwise lock ${one ? 'it' : 'them'} again from Packagist with composer update`
+        : `Check that ${registries.length === 1 ? 'this repository serves' : 'one of these repositories serves'} ${names} with ${host === '' ? 'this source' : `archives on ${host}`} (composer show --all ${one ? (entries[0]?.name ?? '') : '<package>'} names the dist URL Composer gets); depcurfew cannot tie ${host === '' ? 'it' : host} to a repository, so this warning stays while ${lockfile.file} installs from it. If the archives come from elsewhere, lock ${one ? 'the package' : 'the packages'} again with composer update`,
+  });
+}
 
 /**
  * Composer: one entry of config.preferred-install in composer.json that makes Composer check packages of composer.lock
@@ -150,7 +197,7 @@ function reportPreferredInstall(context: RuleContext, lockfile: Lockfile, { pref
  * Composer installs from it on the next update, so it is reported at its declaration, as a warning (fail closed).
  */
 function reportComposerRepositories(context: RuleContext, tool: ToolKnowledge, lockfile: Lockfile, sources: NonNullable<NonNullable<RuleContext['policy']>['sources']>): void {
-  for (const repository of unmatchedRepositories(declaredRepositories(context.repository, tool), lockfile.entries)) {
+  for (const repository of unmatchedRepositories(tool, declaredRepositories(context.repository, tool), lockfile.entries)) {
     const kind = repository.kind;
     if (kind !== 'git' && kind !== 'remoteTarball' && kind !== 'file' && kind !== 'directory') continue;
     if (sources[kind] !== 'deny') continue;
@@ -270,8 +317,9 @@ function versionsInUse(context: RuleContext, tool: ToolKnowledge): { version: Ve
  * runs them all, or, unless strict-allow-scripts is set (`strict`), one that runs them with a notice. `text` names the
  * versions of that place that run them ("npm 11.16.0 (with Node.js 24.18.0 in Dockerfile)"), absent without a place.
  */
-function runsScripts(context: RuleContext, tool: ToolKnowledge, strict: boolean): { text?: string; several?: boolean; unknown?: true } | undefined {
+function runsScripts(context: RuleContext, tool: ToolKnowledge, strict: boolean, counts: (version: Version | undefined) => boolean = () => true): { text?: string; several?: boolean; unknown?: true } | undefined {
   const runs = (version: Version | undefined) =>
+    counts(version) &&
     evidenceOf(tool.installScripts.defaultPolicy).some((evidence) => {
       const policy: ScriptPolicy | undefined = versionedValue(evidence.value, version);
       return policy === 'run' || (policy === 'run-with-warning' && !strict);
@@ -399,7 +447,7 @@ export const lockfileInstallScripts: Rule = {
   checks: 'The lockfile has no install scripts or source builds that depcurfew.json does not allow',
   summary: 'The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.',
   description:
-    'Install scripts run arbitrary code during installation, and so do building a Python package from source (a source distribution, a git repository or a local directory) and loading a Composer plugin. Where the package manager runs them by default, or its own allow-list lets them run, they run code the policy does not allow; where it blocks them, a package may not work. A package in installScripts.deny works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed (a Python package without wheels, esbuild without optional dependencies). npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile and composer.lock records plugins; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index, only to requirements from a repository, a URL or a local path.',
+    'Install scripts run arbitrary code during installation, and so do building a Python package from source (a source distribution, a git repository or a local directory) and loading a Composer plugin. Where the package manager runs them by default, or its own allow-list lets them run, they run code the policy does not allow; where it blocks them, a package may not work. A package in installScripts.deny works without its scripts, so it is reported only while the package manager in use still runs them (or builds it from source), or when it cannot be installed (a Python package without wheels, esbuild without optional dependencies). npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile and composer.lock records plugins; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index, only to requirements from a repository, a URL or a local path.',
   help: 'Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:, Composer plugins with composer:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can). For packages whose scripts depcurfew knows (esbuild, fsevents, lefthook), from a registry, the finding names the fix: installScripts.deny, and for lefthook running lefthook install after each clone, as its documentation says for projects that do not use its postinstall script.',
   level: 'error',
   requiresPolicy: true,
@@ -448,7 +496,8 @@ export const lockfileInstallScripts: Rule = {
         if (allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;
         const isDenied = deny.some((pattern) => matchesPattern(entry.name, pattern));
         // npm and Deno let a denial win over an allow entry of the same package; a name-only denial covers every version.
-        const blocked = lists.denied.some((item) => item.package === entry.name && item.name === item.package);
+        const blockedBy = lists.denied.find((item) => item.package === entry.name && item.name === item.package);
+        const blocked = blockedBy !== undefined;
         const lets = disabledBy?.all === true || blocked ? undefined : lists.allowed.find((item) => item.package === entry.name);
         if (lets !== undefined) {
           context.report({
@@ -465,6 +514,19 @@ export const lockfileInstallScripts: Rule = {
           // Reviewed and blocked on purpose: nothing to report while the tool does not run its scripts, which includes a
           // denial the tool records (npm 11.16+ skips a package set to false in allowScripts, also without strict-allow-scripts).
           // A known package that takes its binary from an optional dependency then needs that dependency (decision D-127).
+          // A recorded denial holds only where every npm in use reads it: one older than the denial list runs the scripts
+          // anyway (decision D-141).
+          const ignoring = running && blockedBy !== undefined ? runsScripts(context, tool, disabledBy !== undefined, (version) => !lists.readsDenial(version)) : undefined;
+          if (ignoring !== undefined && blockedBy !== undefined) {
+            const npm = ignoring.text === undefined ? `${tool.name}` : ignoring.text;
+            context.report({
+              level: 'error',
+              location: location(lockfile, entry),
+              message: `${entry.name} has install scripts and ${npm} ${ignoring.unknown === true ? 'may run' : ignoring.several === true ? 'run' : 'runs'} them, because ${tool.name} before ${lists.denialSince ?? ''} does not read the denial in ${blockedBy.setting} in ${blockedBy.file}; ${POLICY_FILE} denies them`,
+              fix: `Use ${tool.name} ${lists.denialSince ?? ''} or later wherever the project installs, or make ${tool.name} stop running dependency install scripts there (run depcurfew apply and follow its warnings)`,
+            });
+            continue;
+          }
           if (!running || blocked) {
             const known = knownPackageOf(entry);
             if (known?.needsOptionalDependencies !== true) continue;
@@ -507,9 +569,9 @@ export const lockfileInstallScripts: Rule = {
  * The tool's own lists as the version in use reads them: allow entries from the version that has an allow-list,
  * denials (extra.denyList) from the version that records them; empty for older versions.
  */
-function ownLists(context: RuleContext, tool: ToolKnowledge): { allowed: AllowEntry[]; denied: AllowEntry[] } {
+function ownLists(context: RuleContext, tool: ToolKnowledge): { allowed: AllowEntry[]; denied: AllowEntry[]; denialSince?: string; readsDenial: (version: Version | undefined) => boolean } {
   const manager = context.detection.packageManagers.find((entry) => entry.id === tool.id);
-  if (manager === undefined) return { allowed: [], denied: [] };
+  if (manager === undefined) return { allowed: [], denied: [], readsDenial: () => false };
   const version = pinnedVersion(manager) ?? latestVersion(tool);
   const options = { tool, ...(version === undefined ? {} : { version }) };
   const reads = (since: string | undefined) => {
@@ -518,8 +580,13 @@ function ownLists(context: RuleContext, tool: ToolKnowledge): { allowed: AllowEn
   };
   const denial = tool.extra?.['denyList'] === undefined ? undefined : evidenceOf(tool.extra['denyList'])[0]?.value;
   const denialSince = isRecord(denial) && typeof denial['since'] === 'string' ? denial['since'] : undefined;
+  // Whether a version in use reads the denials (an unknown version does not count as one that does).
+  const required = denialSince === undefined ? undefined : parseVersion(denialSince);
+  const readsDenial = (inUse: Version | undefined) => required !== undefined && inUse !== undefined && compareVersions(inUse, required) >= 0;
   return {
     allowed: reads(sinceOf(tool.installScripts.allowList.availableSince)) ? allowEntries(context.repository, manager.id, manager.configFiles, options) : [],
     denied: reads(denialSince) ? denyEntries(context.repository, manager.id, manager.configFiles, options) : [],
+    ...(denialSince === undefined ? {} : { denialSince }),
+    readsDenial,
   };
 }

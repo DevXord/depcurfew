@@ -51,6 +51,9 @@ function validateComposerPattern(pattern: string): string | undefined {
   return undefined;
 }
 
+/** A vendor/name (or a pattern of one) without a scope, which is how Composer names packages. */
+const COMPOSER_LIKE = /^[a-z0-9][a-z0-9._-]*\/[a-z0-9*][a-z0-9._*-]*$/u;
+
 /** Returns why the pattern is invalid, or undefined when it is valid. */
 export function validatePackagePattern(pattern: string): string | undefined {
   if (pattern === '') return 'must not be empty';
@@ -65,7 +68,10 @@ export function validatePackagePattern(pattern: string): string | undefined {
     const meant = word.toLowerCase() === 'packagist' ? 'composer' : suggest(word.toLowerCase(), ['pypi', 'composer']);
     if (meant === 'pypi') return `the ecosystem prefixes are ${PREFIX_LIST}; write Python packages as "${PYPI_PREFIX}${rest}"`;
     if (meant === 'composer') return `the ecosystem prefixes are ${PREFIX_LIST}; write Composer packages as "${COMPOSER_PREFIX}${rest.toLowerCase()}"`;
-    return `the ecosystem prefixes are ${PREFIX_LIST}; write npm packages without a prefix, e.g. "${rest}"`;
+    // vendor/name without a scope is a Composer name; an example is given only when it is a valid npm name (D-141).
+    if (COMPOSER_LIKE.test(rest.toLowerCase())) return `the ecosystem prefixes are ${PREFIX_LIST}; write Composer packages as "${COMPOSER_PREFIX}${rest.toLowerCase()}"`;
+    const example = validatePackagePattern(rest) === undefined ? `"${rest}"` : '"esbuild" or "@scope/name"';
+    return `the ecosystem prefixes are ${PREFIX_LIST}; write npm packages without a prefix, e.g. ${example}`;
   }
   const nameStart = pattern.startsWith('@') ? pattern.indexOf('/') + 1 : 0;
   const versionAt = pattern.indexOf('@', Math.max(nameStart, 1));
@@ -73,7 +79,7 @@ export function validatePackagePattern(pattern: string): string | undefined {
   if (/^\*+$/u.test(pattern)) return 'it matches every package; list packages explicitly';
   if (!GRAMMAR.test(pattern)) {
     // vendor/name without a scope is a Composer name.
-    if (/^[a-z0-9][a-z0-9._-]*\/[a-z0-9*][a-z0-9._*-]*$/u.test(pattern)) {
+    if (COMPOSER_LIKE.test(pattern)) {
       return `npm names have a scope (@scope/name); write Composer packages as "${COMPOSER_PREFIX}${pattern}"`;
     }
     return 'expected a package name or a name pattern with *, e.g. "esbuild", "@scope/name" or "@scope/*"';

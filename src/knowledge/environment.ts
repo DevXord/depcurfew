@@ -386,6 +386,11 @@ export const environment: EnvironmentKnowledge = {
       'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env',
       'Read from the page source in github/docs (content/actions/reference/workflows-and-actions/workflow-syntax.md and data/reusables/repositories/actions-env-var-note.md, main on 2026-11-01): env is "A map of variables that are available to the steps of all jobs in the workflow", jobs.<job_id>.env "A map of variables that are available to all steps in the job", and jobs.<job_id>.steps[*].env "Sets variables for steps to use in the runner environment"; for the same name GitHub "uses the most specific variable": the step\'s over the job\'s over the workflow\'s.',
     ),
+    yamlAliases: release14.verified(
+      { accepted: true },
+      'https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations#yaml-anchors-and-aliases',
+      'Read from the page source in github/docs (content/actions/reference/workflows-and-actions/reusing-workflow-configurations.md, commit 23809bf of main on 2026-11-02), for GitHub.com and GitHub Enterprise Cloud: "You can use YAML anchors and aliases to reduce repetition in your workflows. An anchor (marked with &) identifies a piece of content that you want to reuse, while an alias (marked with *) repeats that content in another location." Its examples reuse the env map of a job (env: *env_vars) and a whole job (alt-test: *base_job), and say that this "is equivalent to writing the following YAML without anchors and aliases". The page does not mention merge keys (<<), so depcurfew does not apply them in workflows.',
+    ),
     pnpmActionSetup: verified(
       { action: 'pnpm/action-setup', installs: ['pnpm'], inputs: [{ name: 'version', kind: 'version', tool: 'pnpm' }] },
       'https://github.com/pnpm/action-setup/blob/master/action.yml',

@@ -11,6 +11,7 @@ import { patternsFor } from '../../policy/package-pattern.ts';
 import { extraOf, isRecord, settingOf, values } from '../facts.ts';
 import { exclusions, sameList } from './common.ts';
 import type { BotGenerator } from './context.ts';
+import { rejectsYamlAliases, yamlAliasLine } from '../../doctor/settings.ts';
 
 interface CooldownKeys {
   days: string;
@@ -57,6 +58,17 @@ export const dependabot: BotGenerator = (context, duration, repository) => {
   if (!result.ok) {
     context.warn({ code: 'cooldown-not-written', message: `${context.name}: cooldown not written: ${result.reason}`, fix: result.fix });
     return;
+  }
+  // Dependabot reads no configuration from a file with a YAML alias (extra.yamlAliases), and depcurfew does not read
+  // the delays of such a file (decision D-135), so apply says so where doctor gives a note (decision D-141).
+  const alias = rejectsYamlAliases(tool) ? yamlAliasLine(context.read(file)) : undefined;
+  if (alias !== undefined) {
+    context.warn({
+      code: 'bot-config-unreadable',
+      location: { file, line: alias },
+      message: `${context.name}: ${file} uses a YAML alias (line ${alias}), which ${context.name} does not accept, so it reads no configuration from the file, the cooldown depcurfew apply writes included; depcurfew does not read the delays such a file sets either, so it cannot tell whether this change shortens one`,
+      fix: `Write the value out in place of the alias on line ${alias} of ${file}, then run depcurfew apply again`,
+    });
   }
   const keys = extraOf(tool, 'cooldownKeys', isKeys);
   const managers = extraOf(tool, 'ecosystems', isRecord);

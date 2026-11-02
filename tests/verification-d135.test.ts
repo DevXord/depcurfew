@@ -175,7 +175,7 @@ describe('Renovate rules for the files and the depType of the actions (finding 1
     ]);
   });
 
-  it('keeps matchFileNames and matchDepTypes narrowing for the packages of a package manager', () => {
+  it('gives a note for matchFileNames and matchDepTypes on the packages of a package manager, which depcurfew does not evaluate there (decision D-141)', () => {
     const root = repository({
       'depcurfew.json': POLICY,
       'package.json': '{"name":"app"}\n',
@@ -183,7 +183,21 @@ describe('Renovate rules for the files and the depType of the actions (finding 1
       '.npmrc': 'min-release-age=3\n',
       'renovate.json': renovate({ matchFileNames: ['**'], matchDepTypes: ['dependencies'], minimumReleaseAge: '1 hour' }),
     });
-    expect(own(runDoctor(root), 'bot-cooldown-mismatch')).toEqual([]);
+    expect(own(runDoctor(root), 'bot-cooldown-mismatch').map((finding) => [finding.level, finding.message])).toEqual([
+      [
+        'note',
+        'Renovate packageRules[0] in renovate.json sets minimumReleaseAge: "1 hour" for matchFileNames ["**"], which depcurfew cannot read, so it cannot tell whether Renovate waits as long as npm (3 days, min-release-age: 3 in .npmrc)',
+      ],
+    ]);
+    // A package matcher that names some packages keeps the rule an exception for them.
+    const named = repository({
+      'depcurfew.json': POLICY,
+      'package.json': '{"name":"app"}\n',
+      'package-lock.json': '{"name":"app","lockfileVersion":3,"packages":{"":{"name":"app"}}}\n',
+      '.npmrc': 'min-release-age=3\n',
+      'renovate.json': renovate({ matchPackageNames: ['left-pad'], matchDepTypes: ['dependencies'], minimumReleaseAge: '1 hour' }),
+    });
+    expect(own(runDoctor(named), 'bot-cooldown-mismatch')).toEqual([]);
   });
 });
 

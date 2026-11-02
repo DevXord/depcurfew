@@ -54,7 +54,9 @@ export const knownMalicious: Rule = {
         const unpinned: LockEntry[] = [];
         let locked = 0;
         for (const entry of lockfile.entries) {
-          if (entry.source !== 'registry') continue;
+          // A release from a registry, also one composer.lock installs from an archive host depcurfew does not recognize
+          // or from its VCS source (decision D-141): every entry with a version is looked up.
+          if (entry.source !== 'registry' && entry.version === undefined) continue;
           if (entry.version === undefined) {
             unpinned.push(entry);
             continue;

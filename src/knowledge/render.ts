@@ -116,6 +116,36 @@ function codeSpan(text: string): string {
   return `${fence}${pad}${text}${pad}${fence}`;
 }
 
+/** Web addresses in prose, which GitHub links as they are and which are not escaped. */
+const URL = /https?:\/\/[^\s<>"'()]+[^\s<>"'().,;:!?]/gu;
+
+/**
+ * Fact text as Markdown shows it (decision D-141): a backslash and the characters CommonMark would read as markup (code
+ * spans, emphasis, links, HTML, entities, strikethrough) are escaped, so that ^pylock\.([^.]+)\.toml$ keeps its
+ * backslashes and <job_id> or *\/* stay text. Web addresses are left as they are.
+ */
+export function escapeMarkdown(text: string): string {
+  let result = '';
+  let last = 0;
+  for (const match of text.matchAll(URL)) {
+    result += escapePlain(text.slice(last, match.index)) + match[0];
+    last = match.index + match[0].length;
+  }
+  return result + escapePlain(text.slice(last));
+}
+
+/**
+ * Escapes what CommonMark and GitHub would read as markup, and only that, so the file stays readable: every backslash,
+ * backtick, star, tilde and <; an underscore unless it stands between two letters or digits (PIP_CONFIG_FILE is no
+ * emphasis); a ] that starts the target of a link (](, ][); and & where it starts an entity (&amp;).
+ */
+function escapePlain(text: string): string {
+  return text.replaceAll(/[\\`*~<]|\](?=[([])|&(?=#?[A-Za-z0-9]+;)|_/gu, (match, offset: number) => {
+    if (match === '_' && /[\p{L}\p{N}]/u.test(text[offset - 1] ?? '') && /[\p{L}\p{N}]/u.test(text[offset + 1] ?? '')) return match;
+    return `\\${match}`;
+  });
+}
+
 function formatValue(value: unknown, style: Style, empty: string): string {
   if (value === null || value === undefined) return empty;
   if (isVersioned(value)) {
@@ -128,7 +158,7 @@ function formatValue(value: unknown, style: Style, empty: string): string {
   }
   if (typeof value === 'object') return codeSpan(JSON.stringify(value));
   const text = String(value);
-  return style === 'code' ? codeSpan(text) : text;
+  return style === 'code' ? codeSpan(text) : escapeMarkdown(text);
 }
 
 function escapeCell(text: string): string {
@@ -174,7 +204,7 @@ function statusLabel(fact: Fact<unknown>): string {
 }
 
 function evidenceLine(evidence: Evidence<unknown>, prefix = ''): string {
-  const note = evidence.note === undefined ? '' : ` ${evidence.note}`;
+  const note = evidence.note === undefined ? '' : ` ${escapeMarkdown(evidence.note)}`;
   return `- ${prefix}${formatValue(evidence.value, 'code', '`null`')} · [source](${evidence.source}), verified ${evidence.verifiedAt}.${note}`;
 }
 
@@ -229,7 +259,7 @@ function renderNotes(groupsToRender: readonly FactGroup[]): string[] {
     );
     if (noted.length === 0) continue;
     lines.push(`### ${name}`, '');
-    for (const { path, fact } of noted) lines.push(`- \`${path}\`: ${fact.note ?? ''} ${link(fact)}`);
+    for (const { path, fact } of noted) lines.push(`- \`${path}\`: ${escapeMarkdown(fact.note ?? '')} ${link(fact)}`);
     lines.push('');
   }
   return lines;
@@ -247,7 +277,7 @@ function renderReview(groupsToRender: readonly FactGroup[]): string[] {
     for (const { path, fact } of collectFacts(entry)) {
       if (fact.status === 'verified') continue;
       count += 1;
-      lines.push(`### ${name} · \`${path}\` ${statusLabel(fact)}`, '', fact.note, '');
+      lines.push(`### ${name} · \`${path}\` ${statusLabel(fact)}`, '', escapeMarkdown(fact.note), '');
       if (fact.status === 'disputed') {
         fact.variants.forEach((variant, index) => lines.push(evidenceLine(variant, `Variant ${index + 1}: `)));
       } else {

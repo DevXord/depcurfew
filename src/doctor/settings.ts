@@ -7,7 +7,7 @@ import { BLOCK_END, isBlockStart } from '../apply/block.ts';
 import type { Repository } from '../detect/repository.ts';
 import { npm } from '../knowledge/npm.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
-import { mergedPair, ownPair, readYamlDocument, type YamlOptions } from '../yaml-parse.ts';
+import { MAX_YAML_ALIASES, mergedPair, ownPair, readYamlDocument, type YamlOptions } from '../yaml-parse.ts';
 
 export interface Setting {
   file: string;
@@ -151,12 +151,15 @@ function yamlNode(text: string, path: readonly string[], options: YamlOptions = 
   let node: Node | null = document.contents as Node | null;
   let keyOffset = 0;
   let mergedAt: number | undefined;
+  // An alias stands for the node of its anchor where the tool's loader expands aliases (decision D-141).
+  const resolve = (item: Node | null): Node | null => (options.aliases === true && item !== null && isAlias(item) ? ((item.resolve(document) as Node | undefined) ?? null) : item);
+  node = resolve(node);
   for (const segment of path) {
     if (node !== null && isSeq(node) && /^\d+$/u.test(segment)) {
       const item = node.items[Number(segment)] as Node | undefined;
       if (item === undefined) return undefined;
       keyOffset = item.range?.[0] ?? keyOffset;
-      node = item;
+      node = resolve(item);
       continue;
     }
     if (node === null || !isMap(node)) return undefined;
@@ -168,7 +171,7 @@ function yamlNode(text: string, path: readonly string[], options: YamlOptions = 
     }
     if (pair === undefined) return undefined;
     keyOffset = pair.key.range?.[0] ?? 0;
-    node = pair.value;
+    node = resolve(pair.value);
   }
   return { node, line: lineCounter.linePos(keyOffset).line, ...(mergedAt === undefined ? {} : { mergedAt }), document };
 }
@@ -181,8 +184,18 @@ export function yamlSetting(text: string, path: readonly string[], options: Yaml
   const found = yamlNode(text, path, options);
   if (found === undefined) return undefined;
   const { node, line, mergedAt, document } = found;
-  // With merge keys the value is converted in the document, which applies them; toJSON without it cannot.
-  const convert = (item: Node) => (options.merge === true ? item.toJS(document) : item.toJSON()) as unknown;
+  // With merge keys or aliases the value is converted in the document, which applies them; toJSON without it cannot.
+  // Aliases that expand beyond MAX_YAML_ALIASES leave no value (decision D-141).
+  const convert = (item: Node): unknown => {
+    if (options.aliases === true) {
+      try {
+        return item.toJS(document, { maxAliasCount: MAX_YAML_ALIASES }) as unknown;
+      } catch {
+        return undefined;
+      }
+    }
+    return (options.merge === true ? item.toJS(document) : item.toJSON()) as unknown;
+  };
   const value: unknown = node === null ? null : isMap(node) || isSeq(node) || isScalar(node) ? convert(node) : undefined;
   const written = node !== null && isScalar(node) && node.type === 'PLAIN' && typeof node.source === 'string' && node.source !== String(value) ? node.source : undefined;
   return { value, line, ...(mergedAt === undefined ? {} : { mergedAt }), ...(written === undefined ? {} : { written }) };
@@ -210,6 +223,21 @@ export function yamlAliasLine(text: string): number | undefined {
     }
   }
   return first === undefined ? undefined : lineCounter.linePos(first).line;
+}
+
+/**
+ * Why the aliases of a YAML file cannot be expanded within MAX_YAML_ALIASES (an alias without its anchor, aliases that
+ * expand without end), or undefined when they can or the file has none (decision D-141).
+ */
+export function yamlAliasProblem(text: string): string | undefined {
+  if (yamlAliasLine(text) === undefined) return undefined;
+  const { document } = readYamlDocument(text);
+  try {
+    document.toJS({ maxAliasCount: MAX_YAML_ALIASES });
+    return undefined;
+  } catch (thrown) {
+    return (thrown instanceof Error ? thrown.message : String(thrown)).split('\n', 1)[0] ?? 'its aliases cannot be expanded';
+  }
 }
 
 /** Whether the bot's loader rejects YAML aliases (extra.yamlAliases: Dependabot). */

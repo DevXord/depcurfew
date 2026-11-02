@@ -155,7 +155,7 @@ function describe(location: unknown): string {
 }
 
 /** The host of a URL (with its port), in lower case, as normalizedUrl gives it. */
-function hostOf(url: string): string {
+export function hostOf(url: string): string {
   return normalizedUrl(url).split('/')[0] ?? '';
 }
 
@@ -165,7 +165,42 @@ function hostOf(url: string): string {
  */
 function registryHosts(tool: ToolKnowledge, repositories: readonly DeclaredRepository[]): Set<string> {
   const known = extraOf(tool, 'registryDistHosts', isStrings);
-  return new Set([...known, ...repositories.flatMap((entry) => (entry.url === undefined || entry.kind === 'disable' ? [] : [hostOf(entry.url)]))]);
+  const archives = repositoryArchiveHosts(tool);
+  return new Set([
+    ...known,
+    ...repositories.flatMap((entry) => {
+      if (entry.url === undefined || entry.kind === 'disable') return [];
+      const host = hostOf(entry.url);
+      // A Composer repository whose archives are on another host (extra.repositoryArchiveHosts, decision D-141).
+      return [host, ...(entry.kind === 'registry' && Object.hasOwn(archives, host) ? (archives[host] ?? []) : [])];
+    }),
+  ]);
+}
+
+const isHostLists = (value: unknown): value is Record<string, string[]> => isRecord(value) && Object.values(value).every(isStrings);
+
+/** The hosts of the archives of Composer repositories other than Packagist.org, by the host of the repository (decision D-141). */
+export function repositoryArchiveHosts(tool: ToolKnowledge): Record<string, string[]> {
+  return tool.extra?.['repositoryArchiveHosts'] === undefined ? {} : extraOf(tool, 'repositoryArchiveHosts', isHostLists);
+}
+
+const isHostNames = (value: unknown): value is Record<string, string> => isRecord(value) && Object.values(value).every((host) => typeof host === 'string');
+
+/** The hosts a VCS driver reads as another one: www.github.com is github.com for GitHubDriver (extra.sourceHostAliases, decision D-138). */
+function hostAliases(tool: ToolKnowledge): Record<string, string> {
+  return tool.extra?.['sourceHostAliases'] === undefined ? {} : extraOf(tool, 'sourceHostAliases', isHostNames);
+}
+
+/**
+ * A repository URL as Composer's VCS drivers compare it: normalizedUrl, with the host a driver reads as another one
+ * replaced by that one (www.github.com/a/b is github.com/a/b), so that a VCS repository of composer.json and a source
+ * of composer.lock that name the same repository compare equal (decision D-141).
+ */
+export function comparableUrl(tool: ToolKnowledge, url: string): string {
+  const normalized = normalizedUrl(url);
+  const [host = '', ...rest] = normalized.split('/');
+  const aliases = hostAliases(tool);
+  return Object.hasOwn(aliases, host) ? [aliases[host] ?? host, ...rest].join('/') : normalized;
 }
 
 /** A value at a path of a JSON object. */
@@ -188,7 +223,7 @@ export function composerEntries(text: string, tool: ToolKnowledge, repositories:
   const branches = extraOf(tool, 'branchVersions', isBranches);
   const document: unknown = JSON.parse(text);
   if (!isRecord(document)) throw new Error('composer.lock is not a JSON object');
-  const vcs = new Map(repositories.filter((entry) => entry.kind === 'git' && entry.url !== undefined).map((entry) => [normalizedUrl(entry.url ?? ''), entry]));
+  const vcs = new Map(repositories.filter((entry) => entry.kind === 'git' && entry.url !== undefined).map((entry) => [comparableUrl(tool, entry.url ?? ''), entry]));
   const inline = repositories.filter((entry) => entry.names.length > 0);
   const hosts = registryHosts(tool, repositories);
   const pluginTypes = new Set(format.pluginTypes.map((type) => type.toLowerCase()));
@@ -217,17 +252,22 @@ export function composerEntries(text: string, tool: ToolKnowledge, repositories:
       let why: string | undefined;
       let preference: LockEntry['preferredInstall'];
       let otherSource: LockEntry['otherSource'];
-      if (kind === 'registry' && [sourceUrl, distUrl].some((url) => url !== undefined && vcs.has(normalizedUrl(url)))) {
+      // A release of a Composer repository that Composer checks out of its VCS source (no usable dist, or
+      // config.preferred-install), which doctor --osv still looks up (decision D-141).
+      let checkedOutRelease = false;
+      if (kind === 'registry' && [sourceUrl, distUrl].some((url) => url !== undefined && vcs.has(comparableUrl(tool, url)))) {
         kind = 'git';
         spec = describe(source) || spec;
       } else if (kind === 'registry' && sourceUrl !== undefined && (distUrl === undefined || !offered(dist))) {
         // Without a dist, Composer checks the package out of the repository its source names (extra.sourceInstall).
         kind = 'git';
+        checkedOutRelease = true;
         spec = describe(source);
         if (dist !== undefined) why = 'its dist has no type, so Composer cannot download its archive';
       } else if (kind === 'registry' && sourceUrl !== undefined && offered(source) && (preference = sourcePreference(manifest, tool, name, dev)) !== undefined) {
         // config.preferred-install makes Composer check it out instead of downloading the archive (decision D-136).
         kind = 'git';
+        checkedOutRelease = true;
         spec = describe(source);
         why = preference.why;
       } else if (kind === 'registry' && distUrl !== undefined && !isLocal(distUrl) && !hosts.has(hostOf(distUrl))) {
@@ -235,10 +275,14 @@ export function composerEntries(text: string, tool: ToolKnowledge, repositories:
       } else if (kind === 'registry' && distUrl !== undefined && sourceUrl !== undefined && offered(source)) {
         otherSource = sourceElsewhere(tool, distUrl, sourceUrl, describe(source));
       }
-      // The version of a release, as Composer wrote it, for doctor --osv (decisions D-126 and D-134); a branch has none,
-      // and a package from a host depcurfew does not know still names its release.
+      // The version of a release, as Composer wrote it, for doctor --osv (decisions D-126, D-134 and D-141); a branch has
+      // none, and a package from a host depcurfew does not know or one Composer checks out of its source still names its release.
       const release =
-        (kind === 'registry' || (kind === 'unknown' && fromInline === undefined)) && typeof locked === 'string' && locked !== '' && !locked.startsWith(branches.prefix) && !locked.endsWith(branches.suffix);
+        (kind === 'registry' || checkedOutRelease || (kind === 'unknown' && fromInline === undefined)) &&
+        typeof locked === 'string' &&
+        locked !== '' &&
+        !locked.startsWith(branches.prefix) &&
+        !locked.endsWith(branches.suffix);
       const type = item[format.installScripts];
       const plugin = typeof type === 'string' && pluginTypes.has(type.toLowerCase());
       entries.push({
@@ -276,11 +320,12 @@ function sourcePreference(manifest: Record<string, unknown> | undefined, tool: T
   const setting = isRecord(config) ? config[fact.setting] : undefined;
   const where = `config.${fact.setting} in ${COMPOSER_MANIFEST}`;
   const forDev = (text: string) => (dev ? `${text}, which installs dev versions from their source` : undefined);
+  // `cause` without the setting and its file, so that init can name the file of a project and the line (decision D-141).
+  const found = (value: string, cause: string | undefined, key?: string) => (cause === undefined ? undefined : { ...(key === undefined ? {} : { key }), value, why: `${where} ${cause}`, cause });
   if (typeof setting === 'string') {
-    if (setting === fact.source) return { value: setting, why: `${where} is "${setting}"` };
+    if (setting === fact.source) return found(setting, `is "${setting}"`);
     if (setting === fact.dist) return undefined;
-    const why = forDev(`${where} is ${JSON.stringify(setting)}`);
-    return why === undefined ? undefined : { value: setting, why };
+    return found(setting, forDev(`is ${JSON.stringify(setting)}`));
   }
   if (!isRecord(setting)) return undefined;
   const keys = [...Object.keys(setting).filter((key) => key !== fact.everything), fact.everything];
@@ -289,9 +334,8 @@ function sourcePreference(manifest: Record<string, unknown> | undefined, tool: T
     // A name that no key matches gets "dist" (the default), so only a key written out gives another value.
     const preference = Object.hasOwn(setting, key) ? setting[key] : fact.default;
     if (preference === fact.dist) return undefined;
-    const given = `${where} gives ${JSON.stringify(preference)} for ${key}`;
-    const why = preference === fact.auto ? forDev(given) : given;
-    return why === undefined ? undefined : { key, value: typeof preference === 'string' ? preference : JSON.stringify(preference), why };
+    const given = `gives ${JSON.stringify(preference)} for ${key}`;
+    return found(typeof preference === 'string' ? preference : JSON.stringify(preference), preference === fact.auto ? forDev(given) : given, key);
   }
   return undefined;
 }
@@ -335,9 +379,9 @@ export function checkedOut(count: number, file: string): string {
   return count === 1 ? `1 package of ${file} from its VCS repository instead of its archive` : `${count} packages of ${file} from their VCS repositories instead of their archives`;
 }
 
-/** What to change in composer.json so that Composer takes the archives again. */
-export function preferenceChange(preference: Checkouts['preference']): string {
-  const setting = `config.preferred-install in ${COMPOSER_MANIFEST}`;
+/** What to change in composer.json (`manifest`, as a message names it) so that Composer takes the archives again. */
+export function preferenceChange(preference: Checkouts['preference'], manifest = COMPOSER_MANIFEST): string {
+  const setting = `config.preferred-install in ${manifest}`;
   return preference.key === undefined
     ? `Set ${setting} to "dist", or remove it, so Composer installs packages from their archives`
     : `Remove ${JSON.stringify(preference.key)} from ${setting}, or set it to "dist", so Composer installs these packages from their archives`;
@@ -349,10 +393,9 @@ export function preferenceChange(preference: Checkouts['preference']): string {
  */
 function sourceElsewhere(tool: ToolKnowledge, distUrl: string, sourceUrl: string, spec: string): LockEntry['otherSource'] {
   if (tool.extra?.['registrySourceHosts'] === undefined) return undefined;
-  const isHosts = (value: unknown): value is Record<string, string> => isRecord(value) && Object.values(value).every((host) => typeof host === 'string');
-  const hosts = extraOf(tool, 'registrySourceHosts', isHosts);
+  const hosts = extraOf(tool, 'registrySourceHosts', isHostNames);
   // The hosts a VCS driver reads as another one: www.github.com is github.com for GitHubDriver (decision D-138).
-  const same = tool.extra['sourceHostAliases'] === undefined ? {} : extraOf(tool, 'sourceHostAliases', isHosts);
+  const same = hostAliases(tool);
   const distHost = hostOf(distUrl);
   const expected = Object.hasOwn(hosts, distHost) ? hosts[distHost] : undefined;
   const sourceHost = hostOf(sourceUrl);
@@ -373,10 +416,17 @@ export function fallbackRemoved(tool: ToolKnowledge): string {
   return typeof fact?.['since'] === 'string' ? fact['since'] : '2.10.0';
 }
 
-/** The repositories of a kind the policy denies that no entry of composer.lock comes from, as far as depcurfew can tell. */
-export function unmatchedRepositories(repositories: readonly DeclaredRepository[], entries: readonly LockEntry[]): DeclaredRepository[] {
+/**
+ * The repositories of a kind the policy denies that no entry of composer.lock comes from, as far as depcurfew can tell;
+ * a VCS repository matches an entry whose source names it, as Composer's drivers compare URLs (comparableUrl).
+ */
+export function unmatchedRepositories(tool: ToolKnowledge, repositories: readonly DeclaredRepository[], entries: readonly LockEntry[]): DeclaredRepository[] {
   return repositories.filter((repository) => {
-    if (repository.kind === 'git') return !entries.some((entry) => entry.source === 'git' && repository.url !== undefined && entry.spec.toLowerCase().includes(normalizedUrl(repository.url)));
+    if (repository.kind === 'git') {
+      if (repository.url === undefined) return true;
+      const wanted = comparableUrl(tool, repository.url);
+      return !entries.some((entry) => entry.source === 'git' && (entry.spec.toLowerCase().includes(normalizedUrl(repository.url ?? '')) || entry.spec.split(/\s+/u).some((word) => word !== '' && comparableUrl(tool, word) === wanted)));
+    }
     if (repository.names.length > 0) return !entries.some((entry) => repository.names.includes(entry.name.toLowerCase()));
     if (repository.kind === 'directory' || repository.kind === 'file') return !entries.some((entry) => entry.source === repository.kind);
     return false;

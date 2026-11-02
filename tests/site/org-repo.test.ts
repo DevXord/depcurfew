@@ -192,9 +192,20 @@ describe('finding the latest release', () => {
   });
 
   it('takes the highest pre-release when there is no full release', () => {
-    const result = run([release('v1.0.0-rc.2', { prerelease: true }), release('v1.0.0-rc.10', { prerelease: true }), release('v1.0.0-beta.3', { prerelease: true }), release('v1.0.0', { draft: true })]);
+    const result = run([release('v2.0.0-rc.2', { prerelease: true }), release('v2.0.0-rc.10', { prerelease: true }), release('v2.0.0-beta.3', { prerelease: true }), release('v2.0.0', { draft: true })]);
     expect(result.status).toBe(0);
-    expect(result.output).toBe('tag=v1.0.0-rc.10\n');
+    expect(result.output).toBe('tag=v2.0.0-rc.10\n');
+  });
+
+  it('stops with an error that names a latest release older than 1.4.0, which has no npm run site (decision D-141)', () => {
+    for (const tags of [['v1.3.0', 'v1.2.0'], ['v0.9.0']]) {
+      const result = run(tags.map((tag) => release(tag)));
+      expect(result.status).toBe(1);
+      expect(result.output).toBe('');
+      expect(result.stderr).toContain(`::error::the latest release of ${source} is ${tags[0] ?? ''}, but the site needs depcurfew 1.4.0 or later (npm run site); publish the GitHub Release of v1.4.0 or later, then run this workflow again`);
+    }
+    expect(run([release('v1.4.0-rc.1', { prerelease: true })]).output).toBe('tag=v1.4.0-rc.1\n');
+    expect(run([release('v1.3.0'), release('v1.4.0')]).output).toBe('tag=v1.4.0\n');
   });
 
   it('fails with an error annotation when there is no release or the API answers with an error', () => {
@@ -212,6 +223,7 @@ describe('README of depcurfew/depcurfew.github.io', () => {
 
   it('says what the repository is, where its content comes from and how it updates', () => {
     expect(readme).toMatch(/^# depcurfew\.github\.io\n/u);
+    expect(readme).toContain('The site needs depcurfew 1.4.0 or later');
     for (const part of ['https://depcurfew.github.io/', `https://github.com/${source}`, 'SOURCE_REPOSITORY', 'npm run site -- --versions', '.github/workflows/pages.yml', 'site/org-repo/']) expect(readme, part).toContain(part);
   });
 });

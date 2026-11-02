@@ -8,7 +8,8 @@ import { convertCooldown } from '../policy/convert.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import { makeNotice } from '../doctor/types.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
-import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
+import { botDuration, loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
+import { delayMinutes } from '../doctor/durations.ts';
 import { join } from 'node:path';
 import { projectProblems, relocateDetection } from '../apply/projects.ts';
 import { autoTargets, directoryTargets } from '../apply/targets.ts';
@@ -123,22 +124,33 @@ function explained(detection: Detection, withProjects = false): ExplainDetection
 
 /**
  * The policy's delay converted for each tool; a tool whose file holds a value apply cannot write the delay below
- * (Composer's "policy": false) cannot apply it, with the reason apply gives (decision D-134).
+ * (Composer's "policy": false) cannot apply it, with the reason apply gives (decision D-134). Bots get the delay apply
+ * writes for them: the policy's, or the longer one a package manager rounded up to (botDuration, decision D-141).
  */
 function cooldownReport(policy: ResolvedPolicy, tools: readonly ToolId[], effects: PolicyEffects | undefined): { minimum: string; tools: CooldownEntry[] } | null {
   if (policy.cooldown === undefined) return null;
   const minimum = policy.cooldown.minimum;
+  // The minutes each package manager is given, as apply writes them, for the bots' delay.
+  const managerMinutes = tools.flatMap((id) => {
+    const tool = knowledgeBase.find((entry) => entry.id === id);
+    if (tool === undefined || tool.kind !== 'package-manager' || effects?.cooldownNotWritten(id) !== undefined) return [];
+    const result = convertCooldown(tool, minimum);
+    const minutes = result.ok ? delayMinutes(tool, result.value, undefined) : undefined;
+    return minutes?.ok === true ? [minutes.minutes] : [];
+  });
+  const forBots = botDuration(minimum, managerMinutes);
   const entries = tools.flatMap((id): CooldownEntry[] => {
     const tool = knowledgeBase.find((entry) => entry.id === id);
     if (tool === undefined) return [];
-    const result = convertCooldown(tool, minimum);
+    const result = convertCooldown(tool, tool.kind === 'update-bot' ? forBots : minimum);
     const skipped = result.ok ? effects?.cooldownNotWritten(id) : undefined;
     return [
       !result.ok
         ? { tool: id, ok: false, reason: result.reason }
         : skipped !== undefined
           ? { tool: id, ok: false, reason: skipped }
-          : { tool: id, ok: true, unit: result.unit, value: result.value, exact: result.exact },
+          : // A bot's delay is exact only when it is the policy's (a manager may have rounded it up, decision D-141).
+            { tool: id, ok: true, unit: result.unit, value: result.value, exact: result.exact && (tool.kind !== 'update-bot' || forBots.minutes === minimum.minutes) },
     ];
   });
   return { minimum: minimum.text, tools: entries };
@@ -429,7 +441,7 @@ export function explain(directory: string | undefined, json: boolean, io: CliIo)
     const { errors, ...rest } = report;
     io.stdout(`${safeJson({ ...rest, notices, errors }, 2)}\n`);
   } else {
-    for (const notice of notices) io.stderr(`note: ${notice.message} (${notice.code})\n`);
+    for (const notice of notices) io.stderr(`note: ${printable(notice.message)} (${notice.code})\n`);
     io.stdout(renderReport(report, paint(io.colors?.stdout)));
   }
   return report.errors.length > 0 ? EXIT_FAILURE : EXIT_OK;
