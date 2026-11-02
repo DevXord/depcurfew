@@ -144,7 +144,7 @@ function shorterRules(context: Parameters<BotGenerator>[0], file: string, writte
   const wanted = delayMinutes(tool, written, latestVersion(tool));
   if (!wanted.ok) return;
   const inUse = context.tools.filter((entry) => entry.kind === 'package-manager' && context.targets.has(entry.id));
-  const actions = repository.workflows.length > 0 ? actionsTarget(tool) : undefined;
+  const actions = repository.workflows.length > 0 ? actionsTarget(tool, repository.workflows) : undefined;
   const targets: { target: RenovateTarget; label: string }[] = [
     ...managerTargets(tool, inUse).map(({ target, tools }) => ({ target, label: ECOSYSTEM_LABELS[ecosystemOfTool(tools[0] ?? tool)] })),
     ...(actions === undefined ? [] : [{ target: actions, label: ACTIONS_LABEL }]),

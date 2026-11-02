@@ -1,11 +1,12 @@
 // Reading settings from configuration files with their line numbers, for doctor: INI (.npmrc), YAML, TOML
 // (bunfig.toml) and JSON/JSONC. Unreadable files give no value; detection already reports them.
-import { LineCounter, isMap, isScalar, isSeq, type Document, type Node, type Pair } from 'yaml';
+import { LineCounter, isAlias, isMap, isPair, isScalar, isSeq, type Document, type Node, type Pair } from 'yaml';
 import { extraOf, isRecord, yamlOptionsFor } from '../apply/facts.ts';
 import { jsonElementOffsets, jsonGet, jsonOffset } from '../apply/json-edit.ts';
 import { BLOCK_END, isBlockStart } from '../apply/block.ts';
 import type { Repository } from '../detect/repository.ts';
 import { npm } from '../knowledge/npm.ts';
+import type { ToolKnowledge } from '../knowledge/types.ts';
 import { mergedPair, ownPair, readYamlDocument, type YamlOptions } from '../yaml-parse.ts';
 
 export interface Setting {
@@ -181,6 +182,35 @@ export function yamlSetting(text: string, path: readonly string[], options: Yaml
   const convert = (item: Node) => (options.merge === true ? item.toJS(document) : item.toJSON()) as unknown;
   const value: unknown = node === null ? null : isMap(node) || isSeq(node) || isScalar(node) ? convert(node) : undefined;
   return { value, line, ...(mergedAt === undefined ? {} : { mergedAt }) };
+}
+
+/**
+ * The line of the first YAML alias (*name) of a file, or undefined when it has none or cannot be parsed (decision
+ * D-135): for files of tools whose loader rejects aliases (Dependabot, extra.yamlAliases), whose values depcurfew then
+ * does not read either.
+ */
+export function yamlAliasLine(text: string): number | undefined {
+  const { document, lineCounter } = readYamlDocument(text);
+  if (document.errors.length > 0) return undefined;
+  let first: number | undefined;
+  const stack: unknown[] = [document.contents];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (isAlias(node)) {
+      const start = node.range?.[0];
+      if (start !== undefined && (first === undefined || start < first)) first = start;
+    } else if (isMap(node) || isSeq(node)) {
+      for (const item of node.items) stack.push(item);
+    } else if (isPair(node)) {
+      stack.push(node.key, node.value);
+    }
+  }
+  return first === undefined ? undefined : lineCounter.linePos(first).line;
+}
+
+/** Whether the bot's loader rejects YAML aliases (extra.yamlAliases: Dependabot). */
+export function rejectsYamlAliases(tool: ToolKnowledge): boolean {
+  return tool.extra?.['yamlAliases'] !== undefined && extraOf(tool, 'yamlAliases', isRecord)['accepted'] === false;
 }
 
 /** The line of the key at `path` in YAML, without its value. */

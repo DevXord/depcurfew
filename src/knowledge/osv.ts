@@ -32,6 +32,11 @@ export const osv: OsvKnowledge = {
     `${OSV_DOCS}/api/post-v1-querybatch.md#pagination`,
     'Pagination happens when "An individual query within the queryset returns more than 1,000 vulnerabilities" or "The entire queryset returns more than 3,000 vulnerabilities total"; "These numbers can vary slightly because of threading and the page size may change in the future."',
   ),
+  ids: verified(
+    { pattern: '^[a-zA-Z0-9:_.-]+$' },
+    'https://github.com/ossf/osv-schema/blob/v1.9.2/docs/schema.md#character-set-constraints',
+    'Version 1.9.2 (October 13, 2026) of the OSV schema: an id is "<DB>-<ENTRYID>", and it "must strictly use ASCII characters matching the regular expression ^[a-zA-Z0-9:_.-]+$"; "Characters outside this set (such as spaces, slashes /, backslashes \\, parentheses, or exclamation marks) are not allowed." The JSON schema of the same release (validation/schema.json) checks only the prefix (MAL- among the home databases). The schema sets no length for an id.',
+  ),
   service: verified(
     { rateLimit: null, freshnessMinutes: 15, freshnessShare: 0.995, responseLimitBytes: 32 * 1024 * 1024 },
     `${OSV_DOCS}/faq.md`,

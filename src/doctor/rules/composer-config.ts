@@ -2,6 +2,7 @@
 // protection off while the cooldown and allow-plugins still look configured: the whole policy, the cooldown or its
 // blocking, malware blocking, a repository that lets the author-set time count or skips the malware list,
 // allow-plugins that allows every plugin, plain HTTP and no TLS. The settings and values come from the knowledge base.
+import { jobLabel } from '../../detect/workflows.ts';
 import { extraOf, isRecord } from '../../apply/facts.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
@@ -161,10 +162,12 @@ function environments(text: string): { path: string[]; where: string }[] {
   if (!isRecord(jobs)) return found;
   for (const [id, job] of Object.entries(jobs)) {
     if (!isRecord(job)) continue;
-    found.push({ path: ['jobs', id, 'env'], where: `job ${id}` }, { path: ['jobs', id, 'container', 'env'], where: `the container of job ${id}` });
+    // A key that is not a GitHub job id is named by its line, never quoted (decision D-135).
+    const label = jobLabel(id, yamlSetting(text, ['jobs', id])?.line);
+    found.push({ path: ['jobs', id, 'env'], where: label }, { path: ['jobs', id, 'container', 'env'], where: `the container of ${label}` });
     const steps = job['steps'];
     if (!Array.isArray(steps)) continue;
-    steps.forEach((_, index) => found.push({ path: ['jobs', id, 'steps', String(index), 'env'], where: `step ${index + 1} of job ${id}` }));
+    steps.forEach((_, index) => found.push({ path: ['jobs', id, 'steps', String(index), 'env'], where: `step ${index + 1} of ${label}` }));
   }
   return found;
 }

@@ -108,6 +108,11 @@ export const dependabot: ToolKnowledge = {
       `${OPTIONS}#package-ecosystem`,
       'The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). composer covers Composer v2. Cooldown, including the semver-* keys, is supported for all of them (the cooldown table of the same page lists Composer with default and SemVer-bump days, read 2026-11-02). PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0).',
     ),
+    yamlAliases: bots.verified(
+      { accepted: false },
+      'https://github.com/dependabot/dependabot-core/blob/v0.402.0/common/lib/dependabot/config/file.rb',
+      'Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load(config, symbolize_names: true); Psych.safe_load takes aliases: false unless told otherwise and raises Psych::AliasesNotEnabled on an alias (*name), so a file with one is not read. The issue that asks for aliases (https://github.com/dependabot/dependabot-core/issues/1582, "YAML aliases", open and labelled Keep on 2026-11-02) quotes the error users get, "YAML aliases are not supported"; the pull request that would allow them (#9653) is open and not merged. The reference of dependabot.yml (dependabot-options-reference.md in github/docs) does not mention anchors or aliases. An anchor (&name) that no alias refers to changes nothing.',
+    ),
     githubActions: bots.verified(
       { ecosystem: 'github-actions', semverDays: false },
       `${OPTIONS}#cooldown`,

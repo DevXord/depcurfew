@@ -6,6 +6,6 @@
       "line": 15
     },
     "message": "lefthook has install scripts that npm will not run because ignore-scripts in .npmrc turns them off; they only do a task of the project: it runs lefthook install, which installs the git hooks of the repository",
-    "fix": "Add lefthook to installScripts.deny in depcurfew.json, and run lefthook install after each clone: ignore-scripts in .npmrc also keeps npm from running the prepare script of the project"
+    "fix": "Add lefthook to installScripts.deny in depcurfew.json, and run lefthook install after each clone of the repository, as the lefthook documentation says for projects that do not use its postinstall script"
   }
 ]

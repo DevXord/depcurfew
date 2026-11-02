@@ -11,7 +11,7 @@ import { matchesEveryComposerName } from '../composer.ts';
 import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion } from '../effective.ts';
 import { actionsTarget, managerTargets, matchesEveryName, readRenovateConfig, ruleScope, type RenovateTarget, type RuleScope } from '../renovate.ts';
-import { lineOf, readSetting, yamlSetting } from '../settings.ts';
+import { lineOf, readSetting, rejectsYamlAliases, yamlAliasLine, yamlSetting } from '../settings.ts';
 import { managerSources } from '../projects.ts';
 import type { Rule, RuleContext } from '../types.ts';
 import { usesBot, usesManager } from '../applies.ts';
@@ -72,7 +72,9 @@ function checkManagers(context: RuleContext): void {
 
 function checkDependabot(context: RuleContext, file: string): void {
   const text = context.repository.readText(file);
-  if (text === undefined) return;
+  const bot = tool(context, 'dependabot');
+  // Dependabot does not read a file with YAML aliases (extra.yamlAliases); bot-cooldown-mismatch gives a note for it.
+  if (text === undefined || (bot !== undefined && rejectsYamlAliases(bot) && yamlAliasLine(text) !== undefined)) return;
   const updates = yamlSetting(text, ['updates']);
   if (updates === undefined || !Array.isArray(updates.value)) return;
   (updates.value as unknown[]).forEach((entry, index) => {
@@ -147,6 +149,8 @@ const isMatching = (value: unknown): value is { negation: string; datasourceMatc
   isRecord(value) && typeof value['negation'] === 'string' && typeof value['datasourceMatcher'] === 'string' && typeof value['updateTypeMatcher'] === 'string';
 const isManagerMatching = (value: unknown): value is { managerMatcher: string; categoryMatcher: string } =>
   isRecord(value) && typeof value['managerMatcher'] === 'string' && typeof value['categoryMatcher'] === 'string';
+const isActionsMatching = (value: unknown): value is { fileMatcher: string; depTypeMatcher: string } =>
+  isRecord(value) && typeof value['fileMatcher'] === 'string' && typeof value['depTypeMatcher'] === 'string';
 
 interface Matchers {
   negation: string;
@@ -154,6 +158,9 @@ interface Matchers {
   updateTypeMatcher: string;
   managerMatcher?: string;
   categoryMatcher?: string;
+  /** For the actions: matchFileNames and matchDepTypes (extra.actionsMatching, decision D-135). */
+  fileMatcher?: string;
+  depTypeMatcher?: string;
 }
 
 /** What a packageRules entry covers, for the message: its update types, names, datasources, managers and categories. */
@@ -169,8 +176,11 @@ function covers(scope: RuleScope, targets: readonly RenovateTarget[], matching: 
   const of = has(matching.managerMatcher) ? ` of the Renovate ${listing(managers)} ${plural(managers, 'manager', 'managers')}` : '';
   const categories = unique(targets.flatMap((target) => target.categories).filter((category) => scope.categories?.includes(category) === true));
   const within = has(matching.categoryMatcher) ? ` in the Renovate ${listing(categories)} ${plural(categories, 'category', 'categories')}` : '';
+  const files = has(matching.fileMatcher) ? ' in every workflow file' : '';
+  const depTypes = unique(targets.flatMap((target) => target.depTypes ?? []));
+  const typed = has(matching.depTypeMatcher) ? ` with the depType ${listing(depTypes)}` : '';
   const note = scope.names.kind === 'except' ? ' (a list of only negative patterns matches every other package)' : '';
-  return `${types}${names}${from}${of}${within}${note}`;
+  return `${types}${names}${from}${of}${within}${files}${typed}${note}`;
 }
 
 /**
@@ -186,16 +196,18 @@ function checkRenovate(context: RuleContext, file: string): void {
   const packageJson = extraOf(bot, 'packageJsonConfig', isPackageJsonConfig);
   const config = readRenovateConfig(text, file, file === packageJson.file ? [packageJson.key] : []);
   const managerMatching = bot.extra?.['managerMatching'] === undefined ? undefined : extraOf(bot, 'managerMatching', isManagerMatching);
+  const actionsMatching = bot.extra?.['actionsMatching'] === undefined ? undefined : extraOf(bot, 'actionsMatching', isActionsMatching);
   const matching: Matchers = {
     ...extraOf(bot, 'packageRuleMatching', isMatching),
     ...(managerMatching === undefined ? {} : { managerMatcher: managerMatching.managerMatcher, categoryMatcher: managerMatching.categoryMatcher }),
+    ...(actionsMatching === undefined ? {} : { fileMatcher: actionsMatching.fileMatcher, depTypeMatcher: actionsMatching.depTypeMatcher }),
   };
   // The package managers in use; a rule for another one changes nothing here. Without any, every package manager
   // counts. The bots of the root serve every project listed in projects too (decision D-100).
   const detected = managerSources(context).flatMap((source) => source.managers.flatMap((entry) => tool(context, entry.id) ?? []));
-  const actions = coversActions(context.policy, bot.id, context.detection) ? actionsTarget(bot) : undefined;
+  const actions = coversActions(context.policy, bot.id, context.detection) ? actionsTarget(bot, context.detection.workflows) : undefined;
   const targets = [...managerTargets(bot, detected.length > 0 ? detected : context.tools).map((group) => group.target), ...(actions === undefined ? [] : [actions])];
-  const narrowing = [matching.datasourceMatcher, matching.updateTypeMatcher, matching.managerMatcher, matching.categoryMatcher];
+  const narrowing = [matching.datasourceMatcher, matching.updateTypeMatcher, matching.managerMatcher, matching.categoryMatcher, matching.fileMatcher, matching.depTypeMatcher];
   for (const { index, line, rule } of config.rules) {
     if (!('minimumReleaseAge' in rule)) continue;
     const delay = delayMinutes(bot, rule['minimumReleaseAge'], latestVersion(bot));
@@ -225,7 +237,7 @@ export const broadExclusion: Rule = {
   checks: 'No exception list or per-scope setting turns the release-age delay off',
   summary: 'An exception list matches every package, or a per-scope setting shortens the delay, which turns the protection off.',
   description:
-    'A release-age exception such as "*" (or a policy allow-list entry such as "@*/*") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, Renovate manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name, and, when depcurfew.json sets a cooldown for Renovate and the repository has workflows, for the github-actions manager. In Yarn 4.17 and later, npmScopes.<scope>.npmMinimalAgeGate replaces the delay for one scope, so a shorter value there exempts that scope.',
+    'A release-age exception such as "*" (or a policy allow-list entry such as "@*/*") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, Renovate manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name, and, when depcurfew.json sets a cooldown for Renovate and the repository has workflows, for the github-actions manager, every workflow file (matchFileNames) or the depType action (matchDepTypes). In Yarn 4.17 and later, npmScopes.<scope>.npmMinimalAgeGate replaces the delay for one scope, so a shorter value there exempts that scope.',
   help: 'Replace the pattern with the packages or scopes that really need the exception.',
   level: 'error',
   requiresPolicy: false,

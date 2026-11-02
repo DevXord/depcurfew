@@ -24,7 +24,7 @@
       "line": 46
     },
     "message": "lefthook has install scripts that npm will not run because depcurfew.json does not allow it; they only do a task of the project: it runs lefthook install, which installs the git hooks of the repository (depcurfew checked lefthook 2.2.2; the lockfile has 2.1.0, so check that it works the same)",
-    "fix": "Add lefthook to installScripts.deny in depcurfew.json, and add \"prepare\": \"lefthook install\" to scripts in package.json, which npm runs for the project itself on install (its allow-list of dependency scripts does not apply to it; depcurfew does not edit scripts)"
+    "fix": "Add lefthook to installScripts.deny in depcurfew.json, and run lefthook install after each clone of the repository, as the lefthook documentation says for projects that do not use its postinstall script"
   },
   {
     "level": "warning",

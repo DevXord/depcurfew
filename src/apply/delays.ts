@@ -4,7 +4,7 @@
 import { delayMinutes, formatMinutes } from '../doctor/durations.ts';
 import { latestVersion } from '../doctor/effective.ts';
 import { readPythonSetting } from '../doctor/python.ts';
-import { jsonSetting, readSetting, yamlKeyLine, yamlSetting, type Setting } from '../doctor/settings.ts';
+import { jsonSetting, readSetting, rejectsYamlAliases, yamlAliasLine, yamlKeyLine, yamlSetting, type Setting } from '../doctor/settings.ts';
 import { Repository } from '../detect/repository.ts';
 import type { Detection, PackageManagerInfo } from '../detect/types.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
@@ -136,7 +136,8 @@ function managerDelay(repository: Repository, manager: PackageManagerInfo, tool:
 
 function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: string, workflows: readonly string[]): ConfiguredDelay[] {
   const text = repository.readText(file);
-  if (text === undefined) return [];
+  // Dependabot does not read a file with YAML aliases (extra.yamlAliases, decision D-135), so it configures no delay.
+  if (text === undefined || (rejectsYamlAliases(bot) && yamlAliasLine(text) !== undefined)) return [];
   const updates = yamlSetting(text, ['updates']);
   if (updates === undefined || !Array.isArray(updates.value)) return [];
   const keys = extraOf(bot, 'cooldownKeys', isCooldownKeys);

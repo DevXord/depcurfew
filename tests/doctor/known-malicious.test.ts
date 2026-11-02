@@ -259,6 +259,185 @@ describe('doctor --osv: known-malicious', () => {
   });
 });
 
+// Decision D-135: known-malicious looks up what the tool installs, not the labels of the lockfile. npm installs the
+// tarball of resolved (arborist reify.js #extractOrLink), whose name and version npm reads from its path
+// (version-from-tgz.js); Yarn fetches the version of the resolution (NpmSemverFetcher.getLocatorUrl).
+describe('doctor --osv: what the tool installs, not the labels', () => {
+  const TGZ = 'https://registry.npmjs.org/cutekitten-test/-/cutekitten-test-1.0.1.tgz';
+  const npmLock = (entry: Record<string, unknown>, key = 'node_modules/cutekitten-test') =>
+    `${JSON.stringify({ name: 'app', lockfileVersion: 3, packages: { '': { name: 'app' }, [key]: { resolved: TGZ, integrity: 'sha512-AAAA', ...entry } } }, null, 2)}\n`;
+  const PACKAGE = '{"name":"app","version":"1.0.0"}\n';
+  const yarnLock = (version: string, resolution: string) =>
+    `__metadata:\n  version: 8\n  cacheKey: 10c0\n\n"app@workspace:.":\n  version: 0.0.0-use.local\n  resolution: "app@workspace:."\n  languageName: unknown\n  linkType: soft\n\n"cutekitten-test@npm:^1.0.0":\n  version: ${version}\n  resolution: "${resolution}"\n  checksum: 10c0/00\n  languageName: node\n  linkType: hard\n`;
+  const YARN_PACKAGE = '{"name":"app","version":"1.0.0","packageManager":"yarn@4.9.1"}\n';
+  const ERROR = (file: string, line: number) => ({
+    rule: 'known-malicious',
+    level: 'error',
+    location: { file, line },
+    message: `${file} locks cutekitten-test@1.0.1, a known malicious version: OSV.dev lists it as ${MAL_NPM}`,
+    fix: 'Remove cutekitten-test@1.0.1 from the project: update or replace the package and lock again. If it was installed anywhere, read the record on OSV.dev for what it does and treat that machine as exposed',
+  });
+  const SENT = [[{ package: { name: 'cutekitten-test', ecosystem: 'npm' }, version: '1.0.1' }]];
+
+  it.each([
+    ['the version field says another version', { version: '1.0.0' }, 'node_modules/cutekitten-test', 'cutekitten-test@1.0.0'],
+    ['the version field has a leading v', { version: 'v1.0.1' }, 'node_modules/cutekitten-test', 'cutekitten-test@v1.0.1'],
+    ['the entry is labelled as another package', { version: '1.3.0' }, 'node_modules/left-pad', 'left-pad@1.3.0'],
+  ])('npm: looks up the registry tarball of resolved when %s, and says that the entry differs from it', async (_name, entry, key, label) => {
+    const fetch = osvFetch();
+    const report = await runDoctorWithOsv(repository({ 'package.json': PACKAGE, 'package-lock.json': npmLock(entry, key) }), {}, { fetch });
+    expect(fetch.requests).toEqual(SENT);
+    expect(own(report)).toEqual([
+      ERROR('package-lock.json', 8),
+      {
+        rule: 'known-malicious',
+        level: 'warning',
+        location: { file: 'package-lock.json', line: 8 },
+        message: `package-lock.json has ${key} as ${label}, but its resolved URL is the registry tarball of cutekitten-test@1.0.1, which is what npm installs there; known-malicious checked cutekitten-test@1.0.1`,
+        fix: 'Find out who changed this entry of package-lock.json (npm writes the name and version of the tarball it resolves, so an entry that differs from its resolved URL was edited), then lock the package again with npm',
+      },
+    ]);
+  });
+
+  it('npm: looks up the registry tarball of resolved when the entry has no version field', async () => {
+    const fetch = osvFetch();
+    const report = await runDoctorWithOsv(repository({ 'package.json': PACKAGE, 'package-lock.json': npmLock({}) }), {}, { fetch });
+    expect(fetch.requests).toEqual(SENT);
+    expect(own(report)).toEqual([ERROR('package-lock.json', 8)]);
+  });
+
+  it('npm: keeps an npm alias, whose name field names the registry package', async () => {
+    const fetch = osvFetch();
+    const report = await runDoctorWithOsv(repository({ 'package.json': PACKAGE, 'package-lock.json': npmLock({ name: 'cutekitten-test', version: '1.0.1' }, 'node_modules/kitten') }), {}, { fetch });
+    expect(fetch.requests).toEqual(SENT);
+    expect(own(report)).toEqual([ERROR('package-lock.json', 8)]);
+  });
+
+  it('npm: reads a scoped tarball, also with %2f, and a registry below the root of its host', async () => {
+    const lock = JSON.stringify({
+      name: 'app',
+      lockfileVersion: 3,
+      packages: {
+        '': { name: 'app' },
+        'node_modules/@acme/a': { version: '2.0.0', resolved: 'https://registry.npmjs.org/@acme/a/-/a-2.0.0.tgz' },
+        'node_modules/@acme/b': { version: '3.1.0-beta.1', resolved: 'https://registry.example/@acme%2fb/-/b-3.1.0-beta.1.tgz' },
+        'node_modules/c': { version: '4.0.0', resolved: 'https://repo.example/api/npm/npm-remote/c/-/c-4.0.0.tgz' },
+      },
+    });
+    const fetch = osvFetch();
+    const report = await runDoctorWithOsv(repository({ 'package.json': PACKAGE, 'package-lock.json': lock }), {}, { fetch });
+    expect(fetch.requests).toEqual([
+      [
+        { package: { name: '@acme/a', ecosystem: 'npm' }, version: '2.0.0' },
+        { package: { name: '@acme/b', ecosystem: 'npm' }, version: '3.1.0-beta.1' },
+        { package: { name: 'c', ecosystem: 'npm' }, version: '4.0.0' },
+      ],
+    ]);
+    expect(own(report)).toEqual([]);
+  });
+
+  it('npm: falls back to the version field when resolved has a layout npm cannot read the version from', async () => {
+    // A query after the file name: npm reads no name or version from such a URL, but takes it as a registry tarball.
+    const lock = JSON.stringify({ name: 'app', lockfileVersion: 3, packages: { '': { name: 'app' }, 'node_modules/@acme/d': { version: '1.0.0', resolved: 'https://repo.example/npm/@acme/d/-/d-1.0.0.tgz?token=1' } } });
+    const fetch = osvFetch();
+    await runDoctorWithOsv(repository({ 'package.json': PACKAGE, 'package-lock.json': lock }), {}, { fetch });
+    expect(fetch.requests).toEqual([[{ package: { name: '@acme/d', ecosystem: 'npm' }, version: '1.0.0' }]]);
+  });
+
+  it('Yarn: looks up the version of the resolution, which Yarn fetches, and says that the version field differs', async () => {
+    const fetch = osvFetch();
+    const report = await runDoctorWithOsv(repository({ 'package.json': YARN_PACKAGE, 'yarn.lock': yarnLock('1.0.0', 'cutekitten-test@npm:1.0.1') }), {}, { fetch });
+    expect(fetch.requests).toEqual(SENT);
+    expect(own(report)).toEqual([
+      ERROR('yarn.lock', 13),
+      {
+        rule: 'known-malicious',
+        level: 'warning',
+        location: { file: 'yarn.lock', line: 13 },
+        message: 'yarn.lock has version: 1.0.0 for the resolution cutekitten-test@npm:1.0.1, but Yarn fetches the version of the resolution; known-malicious checked cutekitten-test@1.0.1',
+        fix: 'Find out who changed this entry of yarn.lock (Yarn writes the version of the resolution it fetches, so an entry where the two differ was edited), then lock the package again with Yarn',
+      },
+    ]);
+  });
+
+  it('pnpm: looks up the registry tarball of resolution.tarball, which pnpm fetches, and says that the key differs', async () => {
+    const lock = (tarball: string) =>
+      `lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      cutekitten-test:\n        specifier: 1.0.0\n        version: 1.0.0\n\npackages:\n\n  cutekitten-test@1.0.0:\n    resolution: {integrity: sha512-AAAA, tarball: ${tarball}}\n\nsnapshots:\n\n  cutekitten-test@1.0.0: {}\n`;
+    const fetch = osvFetch();
+    const report = await runDoctorWithOsv(repository({ 'package.json': PACKAGE, 'pnpm-lock.yaml': lock(TGZ) }), {}, { fetch });
+    expect(fetch.requests).toEqual(SENT);
+    expect(own(report)).toEqual([
+      ERROR('pnpm-lock.yaml', 13),
+      {
+        rule: 'known-malicious',
+        level: 'warning',
+        location: { file: 'pnpm-lock.yaml', line: 13 },
+        message: 'pnpm-lock.yaml has the key cutekitten-test@1.0.0, but its resolution.tarball is the registry tarball of cutekitten-test@1.0.1, which is what pnpm installs; known-malicious checked cutekitten-test@1.0.1',
+        fix: 'Find out who changed this entry of pnpm-lock.yaml (pnpm writes the tarball of the package and version of the key, so an entry where the two differ was edited), then lock the package again with pnpm',
+      },
+    ]);
+    // A tarball URL in another layout (as some registries serve them) leaves the key.
+    const other = osvFetch();
+    await runDoctorWithOsv(repository({ 'package.json': PACKAGE, 'pnpm-lock.yaml': lock('https://npm.pkg.example/download/cutekitten-test/1.0.1/abc') }), {}, { fetch: other });
+    expect(other.requests).toEqual([[{ package: { name: 'cutekitten-test', ecosystem: 'npm' }, version: '1.0.0' }]]);
+  });
+
+  it('Yarn: reads the version of a patched package from the locator inside the patch', async () => {
+    const fetch = osvFetch();
+    const resolution = 'cutekitten-test@patch:cutekitten-test@npm%3A1.0.1#~/.yarn/patches/cutekitten-test-npm-1.0.1-0000.patch::version=1.0.1&hash=abc';
+    const report = await runDoctorWithOsv(repository({ 'package.json': YARN_PACKAGE, 'yarn.lock': yarnLock('1.0.1', resolution) }), {}, { fetch });
+    expect(fetch.requests).toEqual(SENT);
+    expect(own(report).map((finding) => finding.level)).toEqual(['error']);
+  });
+
+  it('gives a warning, not a note, for registry entries of a lockfile without an exact version, named with their lines', async () => {
+    const lock = JSON.stringify(
+      {
+        name: 'app',
+        lockfileVersion: 3,
+        packages: {
+          '': { name: 'app' },
+          'node_modules/a': {},
+          'node_modules/b': { resolved: 'https://registry.npmjs.org/b/-/b-1.tgz' },
+          'node_modules/lodash': { version: '4.17.21', resolved: 'https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz' },
+        },
+      },
+      null,
+      2,
+    );
+    const fetch = osvFetch();
+    const report = await runDoctorWithOsv(repository({ 'package.json': PACKAGE, 'package-lock.json': `${lock}\n` }), {}, { fetch });
+    expect(fetch.requests).toEqual([[{ package: { name: 'lodash', ecosystem: 'npm' }, version: '4.17.21' }]]);
+    expect(own(report)).toEqual([
+      {
+        rule: 'known-malicious',
+        level: 'warning',
+        location: { file: 'package-lock.json', line: 8 },
+        message: 'known-malicious could not check 2 registry packages of package-lock.json, whose entries give no exact version that npm installs: a (line 8) and b (line 9)',
+        fix: 'Lock these packages again with npm, so that package-lock.json names the exact version of each, and find out why it does not; then run depcurfew doctor --osv again',
+      },
+    ]);
+    expect(report.notices.filter((notice) => notice.code === 'known-malicious')).toEqual([]);
+    expect(result(report)?.result).toBe('problems');
+  });
+
+  it('gives a warning for a Python lockfile entry without an exact version too', async () => {
+    const report = await runDoctorWithOsv(
+      repository({ 'pyproject.toml': '[tool.poetry]\nname = "app"\n', 'poetry.lock': '[[package]]\nname = "wallet-tracking"\nfiles = []\n\n[[package]]\nname = "idna"\nversion = "3.10"\nfiles = []\n' }),
+      {},
+      { fetch: osvFetch() },
+    );
+    expect(own(report)).toEqual([
+      expect.objectContaining({
+        level: 'warning',
+        location: { file: 'poetry.lock', line: 1 },
+        message: 'known-malicious could not check 1 registry package of poetry.lock, whose entry gives no exact version that Poetry installs: wallet-tracking (line 1)',
+        fix: 'Lock this package again with Poetry, so that poetry.lock names its exact version, and find out why it does not; then run depcurfew doctor --osv again',
+      }),
+    ]);
+  });
+});
+
 describe('depcurfew doctor --osv', () => {
   async function exec(argv: string[], fetch: FetchLike) {
     let stdout = '';

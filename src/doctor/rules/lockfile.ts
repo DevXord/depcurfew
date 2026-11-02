@@ -19,7 +19,7 @@ import type { Rule, RuleContext } from '../types.ts';
 import { hasBuildRecords, showsBuilds } from '../python-lockfiles.ts';
 import { hasLockfile } from '../applies.ts';
 import { npmInUseSeveral, npmInUseText, npmPlaces, repositoryPin, type NpmInUse } from './bundled-versions.ts';
-import { denyFix, knownPackage, omittedOptionalText, optionalOmissions, scriptsPurpose, versionNote, type OmitPlace } from '../install-script-packages.ts';
+import { denyFix, knownPackageOf, omittedOptionalText, optionalOmissions, scriptsPurpose, versionNote, type OmitPlace } from '../install-script-packages.ts';
 
 const LABELS = {
   npm: { git: 'a git repository', remoteTarball: 'a tarball URL', file: 'a local tarball', directory: 'a local directory' },
@@ -355,7 +355,7 @@ export const lockfileInstallScripts: Rule = {
   summary: 'The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.',
   description:
     'Install scripts run arbitrary code during installation, and so do building a Python package from source (a source distribution, a git repository or a local directory) and loading a Composer plugin. Where the package manager runs them by default, or its own allow-list lets them run, they run code the policy does not allow; where it blocks them, a package may not work. A package in installScripts.deny works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed (a Python package without wheels, esbuild without optional dependencies). npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile and composer.lock records plugins; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index, only to requirements from a repository, a URL or a local path.',
-  help: 'Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:, Composer plugins with composer:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can). For packages whose scripts depcurfew knows (esbuild, fsevents, lefthook) the finding names the fix: installScripts.deny, and for lefthook "prepare": "lefthook install" in the scripts of package.json.',
+  help: 'Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:, Composer plugins with composer:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can). For packages whose scripts depcurfew knows (esbuild, fsevents, lefthook), from a registry, the finding names the fix: installScripts.deny, and for lefthook running lefthook install after each clone, as its documentation says for projects that do not use its postinstall script.',
   level: 'error',
   requiresPolicy: true,
   // pip requirements files and Pipfile.lock list hashes only, so they cannot show a package without wheels (D-107).
@@ -421,7 +421,7 @@ export const lockfileInstallScripts: Rule = {
           // denial the tool records (npm 11.16+ skips a package set to false in allowScripts, also without strict-allow-scripts).
           // A known package that takes its binary from an optional dependency then needs that dependency (decision D-127).
           if (!running || blocked) {
-            const known = knownPackage(entry.name);
+            const known = knownPackageOf(entry);
             if (known?.needsOptionalDependencies !== true) continue;
             for (const place of omitted()) context.report({ level: 'warning', location: place.location, ...omittedOptionalText(known, place) });
             continue;
@@ -434,11 +434,11 @@ export const lockfileInstallScripts: Rule = {
           });
           continue;
         }
-        // A package whose scripts depcurfew knows gets its own fix: deny it, and for a project task run that task in the
-        // project's own lifecycle script (decision D-127).
-        const known = knownPackage(entry.name);
+        // A package whose scripts depcurfew knows gets its own fix: deny it, and for a project task do that task as the
+        // package documents it (decisions D-127 and D-135); only for that package from a registry.
+        const known = knownPackageOf(entry);
         const why = known === undefined ? 'the package may need them' : `${scriptsPurpose(known)}${versionNote(known, entry.version)}`;
-        const knownFix = known === undefined ? undefined : denyFix(known, tool, disabledBy?.all === true ? disabledBy.setting : undefined);
+        const knownFix = known === undefined ? undefined : denyFix(known, tool);
         context.report({
           level: running ? 'error' : 'warning',
           location: location(lockfile, entry),

@@ -65,7 +65,8 @@ describe('ruleScope with Renovate managers and categories (D-131)', () => {
     expect(bun).toEqual({ datasource: 'npm', manager: 'bun', categories: ['js'] });
     expect(uv).toEqual({ datasource: 'pypi', manager: 'pep621', categories: ['python'] });
     expect(poetry).toEqual({ datasource: 'pypi', manager: 'poetry', categories: ['python'] });
-    expect(actions).toEqual({ datasource: 'github-tags', manager: 'github-actions', categories: ['ci'], actions: true });
+    expect(actions).toEqual({ datasource: 'github-tags', manager: 'github-actions', categories: ['ci'], actions: true, files: [], depTypes: ['action'] });
+    expect(actionsTarget(renovate, ['.github/workflows/ci.yml'])?.files).toEqual(['.github/workflows/ci.yml']);
   });
 
   it('matches matchManagers like Renovate: names, globs, regexes, negation and a single string', () => {

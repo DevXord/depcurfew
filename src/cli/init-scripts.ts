@@ -9,7 +9,7 @@ import { inProject } from '../apply/projects.ts';
 import { listing } from '../apply/requirements.ts';
 import { Repository } from '../detect/repository.ts';
 import type { Detection } from '../detect/types.ts';
-import { allScriptsOffBy, keepFix, knownPackage, knownPackages, versionNote, withoutScript } from '../doctor/install-script-packages.ts';
+import { keepFix, knownPackageOf, knownPackages, versionNote, withoutScript } from '../doctor/install-script-packages.ts';
 import { readLockfiles, type Lockfile, type LockEntry } from '../doctor/lockfiles.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { InstallScriptPackageKnowledge, ToolKnowledge } from '../knowledge/types.ts';
@@ -42,11 +42,11 @@ function located(file: string, line: number | undefined): { file: string; line?:
 }
 
 /** The note for a known package init denies: why it does not need its script, and what changes without it. */
-function knownNote(known: InstallScriptPackageKnowledge, entry: LockEntry, lockfile: Lockfile, shown: string, tool: ToolKnowledge, manifest: string, scriptsOff: string | undefined): InitMessage {
+function knownNote(known: InstallScriptPackageKnowledge, entry: LockEntry, lockfile: Lockfile, shown: string, tool: ToolKnowledge): InitMessage {
   const location = located(shown, lockfile.lineOf(entry));
   const what = known.kind === 'project-task' ? 'that only does a task of the project' : 'that it does not need';
   const message = `${known.name} in ${shown} has an install script (${known.script}) ${what}, so init adds it to installScripts.deny: ${known.does}; ${withoutScript(known)}${versionNote(known, entry.version, shown)}`;
-  const fix = keepFix(known, tool, { manifest, ...(scriptsOff === undefined ? {} : { scriptsOff }) });
+  const fix = keepFix(known, tool);
   return known.kind === 'project-task'
     ? { code: 'install-script-project-task', level: 'note', location, message, fix }
     : { code: 'install-script-denied', level: 'note', location, message, fix };
@@ -67,7 +67,6 @@ export function installScriptHints(base: string, directories: readonly ScriptDir
     for (const manager of detection.packageManagers.filter((entry) => entry.supported)) {
       const tool = knowledgeBase.find((entry) => entry.id === manager.id);
       if (tool === undefined || ecosystemOfTool(tool) !== 'npm') continue;
-      const scriptsOff = allScriptsOffBy(repository, tool);
       for (const result of readLockfiles(repository, manager, tool, workspaces, knowledgeBase)) {
         if (!result.ok) {
           // An unreadable lockfile is reported by doctor (unreadable-config); a format depcurfew does not read is said here.
@@ -81,7 +80,8 @@ export function installScriptHints(base: string, directories: readonly ScriptDir
         let unknown = 0;
         for (const entry of lockfile.entries) {
           if (entry.source === 'workspace' || entry.installScript === false || entry.unnamed === true) continue;
-          const known = knownPackage(entry.name);
+          // What depcurfew knows holds for the package from a registry only (decision D-135).
+          const known = knownPackageOf(entry);
           if (known === undefined) {
             unknown += 1;
             if (entry.installScript === true) others.push(entry.name);
@@ -89,7 +89,7 @@ export function installScriptHints(base: string, directories: readonly ScriptDir
           }
           if (deny.has(known.name)) continue;
           deny.add(known.name);
-          notes.push(knownNote(known, entry, lockfile, shown, tool, shownFile('package.json'), scriptsOff));
+          notes.push(knownNote(known, entry, lockfile, shown, tool));
         }
         if (!lockfile.recordsScripts) {
           if (unknown > 0) review.push(notRecorded(shown, `${tool.name} does not record install scripts in it`, tool));

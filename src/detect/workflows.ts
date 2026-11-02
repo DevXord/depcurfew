@@ -3,6 +3,8 @@
 // npm and pip (installs, npm install -g npm@<version>).
 import { isMap, isScalar, isSeq, LineCounter, type Node, type YAMLMap } from 'yaml';
 import { parseYamlDocument } from '../yaml-parse.ts';
+import { environment as knowledge } from '../knowledge/environment.ts';
+import { evidenceOf } from '../knowledge/facts.ts';
 import type { RuntimeOrTool, SetupActionKnowledge } from '../knowledge/types.ts';
 import { findToolCommands, overLimitMessages, UNKNOWN_DIRECTORY, withVariables } from './commands.ts';
 import { imageRuntime } from './dockerfiles.ts';
@@ -22,6 +24,25 @@ export interface WorkflowFindings {
 const MATRIX_VALUE = /^\$\{\{\s*matrix\.([A-Za-z_][A-Za-z0-9_-]*)\s*\}\}$/u;
 /** At most this many values of one matrix key are checked; a longer list is reported as not checked (a notice). */
 export const MAX_MATRIX_VALUES = 256;
+
+/** The ids GitHub accepts as keys of jobs (environment.githubActions.jobId). */
+const JOB_ID = new RegExp(evidenceOf(knowledge.githubActions.jobId)[0]?.value.pattern ?? '^[A-Za-z_][A-Za-z0-9_-]*$', 'u');
+
+/**
+ * A job as messages and fixes name it (decision D-135): "job build" when its key is an id GitHub accepts, else "the job
+ * at line 12" (or "a job"). GitHub runs no job with another key, and the text of the key could be anything, such as an
+ * instruction, which a fix must not repeat.
+ */
+export function jobLabel(id: string | undefined, line: number | undefined): string {
+  if (id !== undefined && JOB_ID.test(id)) return `job ${id}`;
+  return line === undefined ? 'a job' : `the job at line ${line}`;
+}
+
+/** jobLabel for the job of a github-actions declaration, with the line of its key from the jobs of the detection. */
+export function declarationJob(declaration: VersionDeclaration, jobs: readonly WorkflowJob[]): string {
+  const job = jobs.find((entry) => entry.file === declaration.file && entry.id === declaration.job);
+  return jobLabel(declaration.job, job?.line);
+}
 
 function scalarText(node: unknown): string | undefined {
   if (!isScalar(node) || node.value === null || node.value === undefined) return undefined;
@@ -146,6 +167,7 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
       const id = scalarText(pair.key);
       const job = pair.value;
       if (id === undefined || !isMap(job)) continue;
+      const keyLine = isScalar(pair.key) ? lineOf(pair.key) : undefined;
       const declare = (tool: RuntimeOrTool, value: { version: string } | { versionFile: string }, node: Node, step: number | undefined) => {
         const matrix = 'version' in value ? MATRIX_VALUE.exec(value.version)?.[1] : undefined;
         const expanded = matrix === undefined ? undefined : matrixValues(job, matrix);
@@ -166,7 +188,6 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
         const line = lineOf(node);
         findings.versions.push({ tool, declaration: { ...value, source: 'github-actions', file, ...(line === undefined ? {} : { line }), job: id, ...(step === undefined ? {} : { step }) } });
       };
-      const keyLine = isScalar(pair.key) ? lineOf(pair.key) : undefined;
       const record: WorkflowJob = { file, id, line: keyLine ?? 1, commands: [], runsNode: false };
       findings.jobs.push(record);
       const jobDirectory = defaultDirectory(job) ?? workflowDirectory;
@@ -221,7 +242,7 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
           const environment = withVariables(facts.commands, jobEnvironment, environmentOf(step.get(envKey)));
           const found = findToolCommands(text.slice(start, run.range[1]), facts.commands, 0, environment);
           const runLine = lineCounter.linePos(start).line;
-          for (const message of overLimitMessages(found.overLimit, `the run step of job ${id} in ${file} (line ${runLine})`)) repository.warn('script-not-followed', message, [file], runLine);
+          for (const message of overLimitMessages(found.overLimit, `the run step of ${jobLabel(id, keyLine)} in ${file} (line ${runLine})`)) repository.warn('script-not-followed', message, [file], runLine);
           record.runsNode ||= found.runsNode;
           const configVariable = facts.commands.pip.delay?.configVariable;
           if (found.pipConfig === true || (configVariable !== undefined && (environment.get(configVariable) ?? '') !== '')) record.pipConfig = true;

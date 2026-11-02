@@ -4,8 +4,10 @@
 // malicious-packages database (ids starting with MAL-) count: other records are vulnerabilities, which npm audit and
 // its kind report. Withdrawn records are left out of query answers by OSV.dev, and skipped here should one come. A
 // version OSV.dev did not answer for (no network, an error, a redirect, an answer that is too large or not a batch
-// result, pages that do not end) stays unchecked with the reason, never clean. Only the name, the ecosystem and the
-// version are sent, and nothing at all without --osv.
+// result, pages that do not end) stays unchecked with the reason, never clean. A batch result is one OSV.dev sends:
+// record ids in the grammar of the OSV schema and no more records in one result than two of its pages (decision
+// D-135), so no other text of an answer reaches a message. Only the name, the ecosystem and the version are sent, and
+// nothing at all without --osv.
 import { isRecord, values } from '../apply/facts.ts';
 import { osv as facts } from '../knowledge/osv.ts';
 import type { OsvApiKnowledge } from '../knowledge/types.ts';
@@ -44,8 +46,12 @@ export const MAX_OSV_PACKAGES = 20_000;
 export const MAX_OSV_PAGES = 10;
 /** Time for one batch request: OSV.dev aims at 6 s for 95% of them, and a paged query may take 20 s before it pages. */
 export const OSV_TIMEOUT_MS = 30_000;
-/** Longest record id kept, and most records named in one message. */
+/**
+ * Longest record id in an answer: real ids are short (MAL-2026-18458, GHSA-xxjr-mmjv-4gpg); a longer one is not an
+ * answer of OSV.dev (decision D-135). The schema sets no length.
+ */
 const MAX_ID_LENGTH = 100;
+/** Most records named in one message. */
 const MAX_IDS_SHOWN = 5;
 
 /** What to do when OSV.dev did not answer, for a person at the command line. */
@@ -86,6 +92,20 @@ function withdrawnField(): string {
   return values(facts.withdrawn)[0]?.field ?? 'withdrawn';
 }
 
+/** The characters of a record id, from the OSV schema (ids). */
+function idPattern(): RegExp {
+  return new RegExp(values(facts.ids)[0]?.pattern ?? '^[a-zA-Z0-9:_.-]+$', 'u');
+}
+
+/**
+ * Most records one result may list: OSV.dev pages a query past `perQuery` records (1000), a number that "can vary
+ * slightly", so a result with more than twice that is not one it sends (decision D-135). This also bounds the records
+ * of one version: MAX_OSV_PAGES pages of them.
+ */
+function maxRecordsPerResult(): number {
+  return 2 * (values(facts.paging)[0]?.perQuery ?? 1000);
+}
+
 /** Two spellings of one Python name are one package (PEP 503), as OSV.dev matches them. */
 function comparedName(pkg: OsvPackage): string {
   return pkg.ecosystem === 'pypi' ? normalizePythonName(pkg.name) : pkg.name;
@@ -107,22 +127,35 @@ type BatchAnswer = { results: { ids: string[]; token: string | undefined }[] } |
 
 const NOT_A_BATCH = 'something that is not a batch result';
 
-/** The MAL- ids of one result and its page token, or undefined when the result is not one OSV.dev sends. */
-function readResult(result: unknown, fields: OsvApiKnowledge): { ids: string[]; token: string | undefined } | undefined {
+/** What one read result is checked against, read from the knowledge base once per answer. */
+interface ResultRules {
+  fields: OsvApiKnowledge;
+  pattern: RegExp;
+  prefix: string;
+  withdrawn: string;
+  most: number;
+}
+
+/**
+ * The MAL- ids of one result (each once) and its page token, or undefined when the result is not one OSV.dev sends:
+ * more records than two pages hold, a record without an id, or an id outside the grammar of the OSV schema.
+ */
+function readResult(result: unknown, rules: ResultRules): { ids: string[]; token: string | undefined } | undefined {
+  const { fields } = rules;
   if (!isRecord(result)) return undefined;
   const vulns = result[fields.vulnsField] ?? [];
-  if (!Array.isArray(vulns)) return undefined;
-  const ids: string[] = [];
+  if (!Array.isArray(vulns) || vulns.length > rules.most) return undefined;
+  const ids = new Set<string>();
   for (const vuln of vulns) {
-    if (!isRecord(vuln) || typeof vuln[fields.idField] !== 'string') return undefined;
+    if (!isRecord(vuln)) return undefined;
+    const id = vuln[fields.idField];
+    if (typeof id !== 'string' || id.length > MAX_ID_LENGTH || !rules.pattern.test(id)) return undefined;
     // OSV.dev leaves withdrawn records out of query answers; one that comes anyway is not reported.
-    if (vuln[withdrawnField()] !== undefined && vuln[withdrawnField()] !== null) continue;
-    const id = vuln[fields.idField] as string;
-    // Record ids are short (MAL-2026-18458); a longer one is cut, so that an answer cannot fill the messages.
-    if (id.startsWith(malwarePrefix())) ids.push(id.slice(0, MAX_ID_LENGTH));
+    if (vuln[rules.withdrawn] !== undefined && vuln[rules.withdrawn] !== null) continue;
+    if (id.startsWith(rules.prefix)) ids.add(id);
   }
   const token = result[fields.nextPageTokenField];
-  return { ids, token: typeof token === 'string' && token !== '' ? token : undefined };
+  return { ids: [...ids], token: typeof token === 'string' && token !== '' ? token : undefined };
 }
 
 async function postBatch(queries: readonly Query[], options: OsvOptions): Promise<BatchAnswer> {
@@ -171,9 +204,14 @@ async function postBatch(queries: readonly Query[], options: OsvOptions): Promis
   }
   const results = isRecord(document) ? document[fields.resultsField] : undefined;
   if (!Array.isArray(results) || results.length !== queries.length) return { reason: `${host} answered ${NOT_A_BATCH}` };
-  const read = results.map((result) => readResult(result, fields));
-  if (read.some((entry) => entry === undefined)) return { reason: `${host} answered ${NOT_A_BATCH}` };
-  return { results: read as { ids: string[]; token: string | undefined }[] };
+  const rules: ResultRules = { fields, pattern: idPattern(), prefix: malwarePrefix(), withdrawn: withdrawnField(), most: maxRecordsPerResult() };
+  const read: { ids: string[]; token: string | undefined }[] = [];
+  for (const result of results) {
+    const entry = readResult(result, rules);
+    if (entry === undefined) return { reason: `${host} answered ${NOT_A_BATCH}` };
+    read.push(entry);
+  }
+  return { results: read };
 }
 
 /**
@@ -182,11 +220,13 @@ async function postBatch(queries: readonly Query[], options: OsvOptions): Promis
  */
 async function lookUpBatch(batch: readonly Query[], options: OsvOptions): Promise<OsvVerdict[] | { reason: string }> {
   const fields = api();
-  const found: string[][] = batch.map(() => []);
+  // The ids of each version, each once across its pages (a Set: thousands of ids per page stay linear).
+  const found: Set<string>[] = batch.map(() => new Set());
+  const checked = (): OsvVerdict[] => found.map((ids) => ({ status: 'checked', malicious: [...ids] }));
   let pending = batch.map((query, index) => ({ index, query }));
   for (let page = 0; pending.length > 0; page++) {
     if (page >= MAX_OSV_PAGES) {
-      const verdicts: OsvVerdict[] = found.map((ids) => ({ status: 'checked', malicious: ids }));
+      const verdicts = checked();
       for (const { index } of pending) verdicts[index] = { status: 'unchecked', reason: `OSV.dev answered more than ${MAX_OSV_PAGES} pages for it` };
       return verdicts;
     }
@@ -197,19 +237,20 @@ async function lookUpBatch(batch: readonly Query[], options: OsvOptions): Promis
     if ('reason' in answer) {
       if (page === 0) return answer;
       // A later page failed: the versions still waiting for it are not checked; the others are.
-      const verdicts: OsvVerdict[] = found.map((ids) => ({ status: 'checked', malicious: ids }));
+      const verdicts = checked();
       for (const { index } of pending) verdicts[index] = { status: 'unchecked', reason: answer.reason };
       return verdicts;
     }
     const next: typeof pending = [];
     answer.results.forEach((result, position) => {
       const entry = pending[position] as (typeof pending)[number];
-      found[entry.index]?.push(...result.ids.filter((id) => !found[entry.index]?.includes(id)));
+      const ids = found[entry.index];
+      for (const id of result.ids) ids?.add(id);
       if (result.token !== undefined) next.push({ index: entry.index, query: { ...batch[entry.index], [fields.pageTokenField]: result.token } as Query });
     });
     pending = next;
   }
-  return found.map((ids) => ({ status: 'checked', malicious: ids }));
+  return checked();
 }
 
 /**

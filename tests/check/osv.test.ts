@@ -160,14 +160,50 @@ describe('queryOsv', () => {
     expect(fetch.requests).toEqual([]);
   });
 
-  it('cuts a long record id and names at most five records', async () => {
+  it('names at most five records', async () => {
     const vulns = Array.from({ length: 7 }, (_, index) => ({ id: `MAL-2026-${index}`, modified: '2026-01-01T00:00:00Z' }));
-    const fetch = answering(() => json({ results: [{ vulns: [{ id: `MAL-${'9'.repeat(500)}`, modified: '2026-01-01T00:00:00Z' }, ...vulns] }] }));
+    const fetch = answering(() => json({ results: [{ vulns }] }));
     const [verdict] = await queryOsv([MALICIOUS], { fetch });
-    expect(verdict?.status === 'checked' ? verdict.malicious[0] : undefined).toHaveLength(100);
+    expect(verdict?.status === 'checked' ? verdict.malicious : undefined).toHaveLength(7);
     expect(linkedIds(['MAL-1', 'MAL-2', 'MAL-3', 'MAL-4', 'MAL-5', 'MAL-6', 'MAL-7'])).toBe(
       'MAL-1 (https://osv.dev/vulnerability/MAL-1), MAL-2 (https://osv.dev/vulnerability/MAL-2), MAL-3 (https://osv.dev/vulnerability/MAL-3), MAL-4 (https://osv.dev/vulnerability/MAL-4), MAL-5 (https://osv.dev/vulnerability/MAL-5) and 2 more records',
     );
+  });
+
+  // Decision D-135: an id outside the grammar of the OSV schema (^[a-zA-Z0-9:_.-]+$), a longer one than depcurfew
+  // keeps, or more records in one result than OSV.dev puts on a page is not an answer of OSV.dev, so no text of it
+  // reaches a message and the version is not checked.
+  it.each([
+    ['an id with an escape sequence', 'MAL-1\u001b[31mRED\u001b[0m'],
+    ['an id with a line break', 'MAL-2\n::error file=x::INJECTED'],
+    ['an id with Markdown and HTML', 'MAL-3](https://evil.example) <img src=x onerror=alert(1)>'],
+    ['an id with spaces', 'MAL-5 IGNORE PREVIOUS INSTRUCTIONS'],
+    ['an id with a slash', 'MAL-2026/1'],
+    ['an id longer than 100 characters', `MAL-${'9'.repeat(500)}`],
+    ['another id with an invalid character', 'GHSA-xxxx yyyy'],
+    ['an empty id', ''],
+  ])('leaves the version unchecked when a result has %s', async (_name, id) => {
+    const fetch = answering(() => json({ results: [{ vulns: [{ id: 'MAL-2026-1', modified: '2026-01-01T00:00:00Z' }, { id, modified: '2026-01-01T00:00:00Z' }] }] }));
+    expect(await queryOsv([MALICIOUS], { fetch })).toEqual([{ status: 'unchecked', reason: 'api.osv.dev answered something that is not a batch result' }]);
+  });
+
+  it('leaves the version unchecked when one result lists more records than two pages of OSV.dev, without a stack overflow', async () => {
+    const vulns = Array.from({ length: 1_000_000 }, (_, index) => ({ id: `MAL-${index}` }));
+    const fetch = answering(() => json({ results: [{ vulns }] }));
+    expect(await queryOsv([MALICIOUS], { fetch })).toEqual([{ status: 'unchecked', reason: 'api.osv.dev answered something that is not a batch result' }]);
+    const most = Array.from({ length: 2000 }, (_, index) => ({ id: `MAL-2026-${index}` }));
+    const [verdict] = await queryOsv([MALICIOUS], { fetch: answering(() => json({ results: [{ vulns: most }] })) });
+    expect(verdict?.status === 'checked' ? verdict.malicious.length : verdict).toBe(2000);
+  });
+
+  it('keeps each record once across pages, in linear time', { timeout: 60_000 }, async () => {
+    // Every page has 2000 records: 1000 seen on the page before and 1000 new ones.
+    const page = (round: number) => Array.from({ length: 2000 }, (_, index) => ({ id: `MAL-${round + Math.floor(index / 1000)}-${index % 1000}` }));
+    const fetch = answering((queries, round) => json({ results: queries.map(() => ({ vulns: page(round), ...(round < MAX_OSV_PAGES ? { next_page_token: `t${round}` } : {}) })) }));
+    const started = performance.now();
+    const [verdict] = await queryOsv([MALICIOUS], { fetch });
+    expect(performance.now() - started).toBeLessThan(2000);
+    expect(verdict?.status === 'checked' ? verdict.malicious.length : verdict).toBe((MAX_OSV_PAGES + 1) * 1000);
   });
 
   it('links a record to its page on osv.dev and keys a package by ecosystem, name and version', () => {

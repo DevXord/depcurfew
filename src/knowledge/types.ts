@@ -946,10 +946,16 @@ export interface OsvMaliciousKnowledge {
   license: string;
 }
 
+/** The characters a record id may have (a regular expression for the whole id), from the OSV schema (decision D-135). */
+export interface OsvIdKnowledge {
+  pattern: string;
+}
+
 /** OSV.dev, asked about known malicious package versions with --osv (decision D-129). */
 export interface OsvKnowledge {
   api: Fact<OsvApiKnowledge>;
   paging: Fact<OsvPagingKnowledge>;
+  ids: Fact<OsvIdKnowledge>;
   service: Fact<OsvServiceKnowledge>;
   withdrawn: Fact<OsvWithdrawnKnowledge>;
   malicious: Fact<OsvMaliciousKnowledge>;
@@ -1324,8 +1330,11 @@ export interface InstallScriptPackageKnowledge {
    * script fetches it otherwise), so a denied one fails where optional dependencies are left out.
    */
   needsOptionalDependencies: boolean;
-  /** project-task: the lifecycle script of the project that does the same task. */
-  projectScript?: { event: string; command: string };
+  /**
+   * project-task: how the project does the same task without the install script, as the package documents it for
+   * projects that do not use that script: a command to run after each clone of the repository (decision D-135).
+   */
+  projectStep?: { command: string; after: 'clone' };
 }
 
 /**
@@ -1415,6 +1424,8 @@ export interface EnvironmentKnowledge {
   };
   githubActions: {
     workflows: Fact<WorkflowsKnowledge>;
+    /** The ids GitHub accepts as keys of jobs, as a regular expression (decision D-135). */
+    jobId: Fact<{ pattern: string }>;
     setupNode: Fact<SetupActionKnowledge>;
     /** The versions node-version accepts besides semver ranges. */
     setupNodeVersions: Fact<NodeVersionNamesKnowledge>;

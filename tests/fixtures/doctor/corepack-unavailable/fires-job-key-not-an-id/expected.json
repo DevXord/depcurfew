@@ -1,0 +1,20 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 8
+    },
+    "message": "packageManager in package.json (line 4) pins yarn@4.18.1, but Node.js 26 in GitHub Actions (.github/workflows/ci.yml, the job at line 3) does not come with Corepack (Node.js 25.0.0 stopped distributing it), and Corepack is what reads that pin: without a separate Corepack install, yarn there is whatever Yarn is installed, or none",
+    "fix": "Install Corepack in the job at line 3 of .github/workflows/ci.yml before it runs yarn (a step that runs npm install -g corepack, then corepack enable)"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 15
+    },
+    "message": "packageManager in package.json (line 4) pins yarn@4.18.1, but Node.js 26 in GitHub Actions (.github/workflows/ci.yml, job build-2) does not come with Corepack (Node.js 25.0.0 stopped distributing it), and Corepack is what reads that pin: without a separate Corepack install, yarn there is whatever Yarn is installed, or none",
+    "fix": "Install Corepack in job build-2 of .github/workflows/ci.yml before it runs yarn (a step that runs npm install -g corepack, then corepack enable)"
+  }
+]

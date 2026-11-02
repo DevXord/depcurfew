@@ -103,7 +103,7 @@ describe('depcurfew init and install scripts', () => {
         'note: fsevents in package-lock.json has an install script (install: node-gyp rebuild) that it does not need, so init adds it to installScripts.deny: it is the node-gyp rebuild that npm adds because the source has a binding.gyp, while the package already contains the built fsevents.node; without it nothing changes (install-script-denied)\n' +
         '  fix: Leave it in installScripts.deny; move fsevents to installScripts.allow in depcurfew.json only if you want its script to run\n' +
         'note: lefthook in package-lock.json has an install script (postinstall: node postinstall.js) that only does a task of the project, so init adds it to installScripts.deny: it runs lefthook install, which installs the git hooks of the repository; without it the install no longer installs the git hooks (depcurfew checked lefthook 2.2.2; package-lock.json has 2.1.0, so check that it works the same) (install-script-project-task)\n' +
-        '  fix: Add "prepare": "lefthook install" to scripts in package.json, which npm runs for the project itself on install (its allow-list of dependency scripts does not apply to it; depcurfew does not edit scripts), or move lefthook to installScripts.allow in depcurfew.json only if you want its script to run\n' +
+        '  fix: Run lefthook install after each clone of the repository, as the lefthook documentation says for projects that do not use its postinstall script, or move lefthook to installScripts.allow in depcurfew.json only if you want its script to run\n' +
         'note: package-lock.json has packages with install scripts that installScripts.default "deny" blocks and depcurfew does not know: core-js (install-scripts-to-review)\n' +
         '  fix: Review each one before you run depcurfew apply: add it to installScripts.allow in depcurfew.json if it needs its scripts, or to installScripts.deny if it works without them (depcurfew doctor lists them with their lines in package-lock.json)\n',
       stderr: '',
@@ -140,7 +140,7 @@ describe('depcurfew init and install scripts', () => {
       '  fix: Keep optional dependencies installed, or move esbuild to installScripts.allow in depcurfew.json only if you want its script to run\n',
     );
     expect(result.stdout).toContain(
-      '  fix: Add "prepare": "lefthook install" to scripts in package.json, which pnpm runs for the project itself on install (its allow-list of dependency scripts does not apply to it; depcurfew does not edit scripts), or move lefthook to installScripts.allow in depcurfew.json only if you want its script to run\n',
+      '  fix: Run lefthook install after each clone of the repository, as the lefthook documentation says for projects that do not use its postinstall script, or move lefthook to installScripts.allow in depcurfew.json only if you want its script to run\n',
     );
     expect(result.stdout).toContain(
       'note: init cannot tell from pnpm-lock.yaml which packages have install scripts (pnpm does not record install scripts in it), so it names only the packages depcurfew knows, and installScripts.default "deny" blocks the scripts of the others (install-scripts-not-recorded)\n' +
@@ -150,22 +150,47 @@ describe('depcurfew init and install scripts', () => {
     expect(result.stdout).not.toContain('depcurfew checked');
   });
 
+  // Decision D-135: lefthook's documentation says to run lefthook install after cloning for projects that do not use
+  // its postinstall script (which does nothing in CI); a prepare script would run it in CI too. The same advice for
+  // every package manager.
   it('tells a project with Bun to run lefthook install after each clone, and one with ignore-scripts=true too', async () => {
     write({
       'package.json': '{ "name": "app" }\n',
       'bun.lock': '{\n  "lockfileVersion": 1,\n  "workspaces": { "": { "name": "app" } },\n  "packages": {\n    "lefthook": ["lefthook@2.2.2", "", { "hasInstallScript": true }, "sha512-CCCC"],\n  }\n}\n',
     });
     const bun = await exec('init', directory);
-    expect(bun.stdout).toContain(
-      '  fix: Run lefthook install after each clone (depcurfew does not know whether Bun runs a prepare script of the project on install), or move lefthook to installScripts.allow in depcurfew.json only if you want its script to run\n',
-    );
+    expect(bun.stdout).toContain('  fix: Run lefthook install after each clone of the repository, as the lefthook documentation says for projects that do not use its postinstall script, or move lefthook to installScripts.allow in depcurfew.json only if you want its script to run\n');
     rmSync(join(directory, 'bun.lock'));
     cpSync(join(KNOWN, 'package-lock.json'), join(directory, 'package-lock.json'));
     write({ '.npmrc': 'ignore-scripts=true\n' });
     const npm = await exec('init', directory, '--force');
-    expect(npm.stdout).toContain(
-      '  fix: Run lefthook install after each clone: ignore-scripts in .npmrc also keeps npm from running the prepare script of the project, or move lefthook to installScripts.allow in depcurfew.json only if you want its script to run\n',
-    );
+    expect(npm.stdout).toContain('  fix: Run lefthook install after each clone of the repository, as the lefthook documentation says for projects that do not use its postinstall script, or move lefthook to installScripts.allow in depcurfew.json only if you want its script to run\n');
+    expect(npm.stdout).not.toContain('prepare');
+  });
+
+  // Decision D-135: what depcurfew knows about a package holds for that package from a registry only.
+  it('gives no hint for a known name from another source, and lists it to review instead', async () => {
+    const sha = 'a'.repeat(40);
+    const lock = {
+      name: 'app',
+      lockfileVersion: 3,
+      packages: {
+        '': { name: 'app', devDependencies: { lefthook: 'github:evil/lefthook', esbuild: '^0.28.2' } },
+        'node_modules/lefthook': { version: '2.2.2', resolved: `${['g', 'i', 't'].join('')}+ssh://${['g', 'i', 't'].join('')}@evil.example/lefthook.${['g', 'i', 't'].join('')}#${sha}`, hasInstallScript: true },
+        'node_modules/esbuild': { version: '0.28.2', resolved: 'https://registry.npmjs.org/evil/-/evil-0.28.2.tgz', integrity: 'sha512-AAAA', hasInstallScript: true },
+      },
+    };
+    write({ 'package.json': '{ "name": "app" }\n', 'package-lock.json': `${JSON.stringify(lock, null, 2)}\n` });
+    const result = await exec('init', directory);
+    expect(deny()).toEqual([]);
+    expect(result.stdout).not.toContain('install-script-project-task');
+    expect(result.stdout).not.toContain('install-script-denied');
+    expect(result.stdout).toContain('depcurfew does not know: lefthook and esbuild (install-scripts-to-review)');
+    const findings = runDoctor(directory).findings.filter((finding) => finding.rule === 'lockfile-install-scripts');
+    expect(findings.map((finding) => finding.message)).toEqual([
+      'lefthook has install scripts that npm will not run because depcurfew.json does not allow it; the package may need them',
+      'esbuild has install scripts that npm will not run because depcurfew.json does not allow it; the package may need them',
+    ]);
   });
 
   it('names the lockfile and package.json of a project listed under projects', async () => {
@@ -174,7 +199,7 @@ describe('depcurfew init and install scripts', () => {
     const result = await exec('init', directory);
     expect(deny()).toEqual(['esbuild', 'fsevents', 'lefthook']);
     expect(result.stdout).toContain('note: esbuild in web/package-lock.json has an install script');
-    expect(result.stdout).toContain('  fix: Add "prepare": "lefthook install" to scripts in web/package.json, which npm runs');
+    expect(result.stdout).toContain('  fix: Run lefthook install after each clone of the repository, as the lefthook documentation says for projects that do not use its postinstall script, or move lefthook to installScripts.allow in depcurfew.json only if you want its script to run\n');
   });
 
   it('writes an empty installScripts.deny and says nothing about scripts without a lockfile', async () => {

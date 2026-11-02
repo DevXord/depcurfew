@@ -1,17 +1,20 @@
 // npm packages whose install scripts depcurfew knows (decision D-127): esbuild and fsevents work without them, and
-// lefthook's only installs the git hooks of the repository, which the project can do in its own prepare script. The
-// facts come from environment.installScriptPackages, with the releases they were read at; init, doctor and apply
-// take their texts from here, so the three say the same thing. Also where npm leaves out optional dependencies, which
-// a package that takes its binary from one needs once its install script is denied.
+// lefthook's only installs the git hooks of the repository, which lefthook says to do after each clone for projects
+// that do not use its script (decision D-135). The facts come from environment.installScriptPackages, with the
+// releases they were read at, and hold for those packages from a registry only; init, doctor and apply take their
+// texts from here, so the three say the same thing. Also where npm leaves out optional dependencies, which a package
+// that takes its binary from one needs once its install script is denied.
 import { extraOf, firstFile, isRecord } from '../apply/facts.ts';
 import type { Repository } from '../detect/repository.ts';
+import { jobLabel } from '../detect/workflows.ts';
 import type { Detection, ToolCommand } from '../detect/types.ts';
 import { environment } from '../knowledge/environment.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
-import type { InstallScriptPackageKnowledge, OmitOptionalKnowledge, RootLifecycleScriptsKnowledge, ToolKnowledge } from '../knowledge/types.ts';
+import type { InstallScriptPackageKnowledge, OmitOptionalKnowledge, ToolKnowledge } from '../knowledge/types.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import { matchesPattern } from './allow-lists.ts';
-import { iniEntries, iniValue, readSetting } from './settings.ts';
+import type { LockEntry } from './lockfiles.ts';
+import { iniEntries } from './settings.ts';
 
 /** Every known package, in the order of the knowledge base. */
 export function knownPackages(): InstallScriptPackageKnowledge[] {
@@ -23,17 +26,19 @@ export function knownPackage(name: string): InstallScriptPackageKnowledge | unde
   return knownPackages().find((entry) => entry.name === name);
 }
 
+/**
+ * The known package a lockfile entry is: only that package from a registry under its own name (decision D-135). What
+ * depcurfew read about its install script does not hold for a git, URL or local source of the same name, nor for an
+ * entry whose resolved URL is the tarball of another package.
+ */
+export function knownPackageOf(entry: LockEntry): InstallScriptPackageKnowledge | undefined {
+  return entry.source === 'registry' && entry.registryName === undefined ? knownPackage(entry.name) : undefined;
+}
+
 /** " (depcurfew checked esbuild 0.28.2; the lockfile has 0.21.5)" when the locked version is not one that was read. */
 export function versionNote(known: InstallScriptPackageKnowledge, version: string | undefined, where = 'the lockfile'): string {
   if (version === undefined || known.versions.includes(version)) return '';
   return ` (depcurfew checked ${known.name} ${known.versions.join(', ')}; ${where} has ${version}, so check that it works the same)`;
-}
-
-/** The lifecycle scripts of the project that the tool runs on install whatever its allow-list says, when that is known. */
-export function rootScripts(tool: ToolKnowledge | undefined): RootLifecycleScriptsKnowledge | undefined {
-  if (tool?.extra?.['rootLifecycleScripts'] === undefined) return undefined;
-  const value = extraOf(tool, 'rootLifecycleScripts', isRecord) as unknown as RootLifecycleScriptsKnowledge;
-  return Array.isArray(value.events) ? value : undefined;
 }
 
 /**
@@ -57,55 +62,35 @@ function keepOptional(tool: ToolKnowledge | undefined, capital = false): string 
 
 /**
  * What to do about a known package that has no entry in installScripts: add it to installScripts.deny, and for a
- * project task also run that task in the project's own lifecycle script, where the tool runs it on install
- * (rootLifecycleScripts) and its scripts are not all switched off (`allScriptsOff`, ignore-scripts in .npmrc).
+ * project task also do that task the way the package documents it for projects that do not use its script.
  */
-export function denyFix(known: InstallScriptPackageKnowledge, tool: ToolKnowledge | undefined, allScriptsOff?: string): string {
+export function denyFix(known: InstallScriptPackageKnowledge, tool: ToolKnowledge | undefined): string {
   const deny = `Add ${known.name} to installScripts.deny in ${POLICY_FILE}`;
-  if (known.kind === 'project-task') return `${deny}, and ${projectTaskStep(known, tool, allScriptsOff)}`;
+  if (known.kind === 'project-task') return `${deny}, and ${projectTaskStep(known)}`;
   return known.needsOptionalDependencies
     ? `${deny}, and ${keepOptional(tool)}: ${known.name} works without its install script then`
     : `${deny}: ${known.name} works without its install script, and ${known.withoutScript}`;
 }
 
-/**
- * What to keep doing for a package init denied: optional dependencies installed, or the project task run in the
- * project's own lifecycle script (`manifest`, the package.json of the project; `scriptsOff`, as for denyFix).
- */
-export function keepFix(known: InstallScriptPackageKnowledge, tool: ToolKnowledge | undefined, options: { manifest?: string; scriptsOff?: string } = {}): string {
+/** What to keep doing for a package init denied: optional dependencies installed, or the project task done by hand. */
+export function keepFix(known: InstallScriptPackageKnowledge, tool: ToolKnowledge | undefined): string {
   const allow = `move ${known.name} to installScripts.allow in ${POLICY_FILE} only if you want its script to run`;
   if (known.kind === 'project-task') {
-    const step = projectTaskStep(known, tool, options.scriptsOff, options.manifest);
+    const step = projectTaskStep(known);
     return `${step.charAt(0).toUpperCase()}${step.slice(1)}, or ${allow}`;
   }
   return known.needsOptionalDependencies ? `${keepOptional(tool, true)}, or ${allow}` : `Leave it in installScripts.deny; ${allow}`;
 }
 
-/** How the project runs the task of a project-task package itself; depcurfew never edits the scripts of package.json. */
-export function projectTaskStep(known: InstallScriptPackageKnowledge, tool: ToolKnowledge | undefined, allScriptsOff?: string, manifest = 'package.json'): string {
-  const script = known.projectScript;
-  const scripts = rootScripts(tool);
-  const after = `run ${script?.command ?? known.name} after each clone`;
-  if (script === undefined || tool === undefined || scripts === undefined || !scripts.events.includes(script.event)) {
-    return `${after} (depcurfew does not know whether ${tool?.name ?? 'the package manager'} runs a ${script?.event ?? 'lifecycle'} script of the project on install)`;
-  }
-  if (allScriptsOff !== undefined) return `${after}: ${allScriptsOff} also keeps ${tool.name} from running the ${script.event} script of the project`;
-  return `add "${script.event}": "${script.command}" to scripts in ${manifest}, which ${tool.name} runs for the project itself on install (its allow-list of dependency scripts does not apply to it; depcurfew does not edit scripts)`;
-}
-
 /**
- * The switch in the tool's project configuration that turns every script off (installScripts.disableAll, ignore-scripts
- * in .npmrc), as "ignore-scripts in .npmrc" when it is on; it also stops the lifecycle scripts of the project.
+ * How the project does the task of a project-task package itself, as the package documents it for projects that do
+ * not use its install script (decision D-135): lefthook says to run lefthook install after cloning. A prepare script
+ * would run it on every install, also in CI, where lefthook's postinstall script does nothing.
  */
-export function allScriptsOffBy(repository: Repository, tool: ToolKnowledge): string | undefined {
-  const file = firstFile(tool.cooldown.configFiles);
-  const fact = tool.installScripts.disableAll;
-  const value = fact.status === 'verified' ? fact.value : undefined;
-  const match = file === undefined || typeof value !== 'string' ? null : /^([\w.-]+)(?::\s*(\S+))?$/u.exec(value);
-  if (match === null || file === undefined) return undefined;
-  const [, key = '', expected] = match;
-  const found = readSetting(repository, file, key);
-  return found !== undefined && found.value === (expected === undefined ? true : iniValue(expected)) ? `${key} in ${file}` : undefined;
+export function projectTaskStep(known: InstallScriptPackageKnowledge): string {
+  const command = known.projectStep?.command ?? known.name;
+  const event = known.script.split(':', 1)[0] ?? 'install';
+  return `run ${command} after each clone of the repository, as the ${known.name} documentation says for projects that do not use its ${event} script`;
 }
 
 /** A place where npm leaves out optional dependencies: the project .npmrc, or an install of a CI job or a Dockerfile. */
@@ -128,7 +113,9 @@ function omitFacts(tool: ToolKnowledge): OmitOptionalKnowledge | undefined {
  * key, the last line winning (`omit[]` lines add to the list); include=optional wins over an omit.
  */
 function npmrcOmission(text: string, facts: OmitOptionalKnowledge): { omitted: boolean; included: boolean; line?: number; entry?: string } {
-  const lists = new Map<string, { values: string[]; line: number; text: string }>();
+  // `at`: the entry of the list that names optional, which messages and fixes quote (decision D-135: never another
+  // value of the file, which could be any text).
+  const lists = new Map<string, { values: string[]; at?: { line: number; text: string } }>();
   let optional: { value: string; line: number } | undefined;
   for (const entry of iniEntries(text)) {
     const list = entry.key.endsWith('[]');
@@ -136,11 +123,12 @@ function npmrcOmission(text: string, facts: OmitOptionalKnowledge): { omitted: b
     if (key === facts.alias.setting) optional = { value: entry.value, line: entry.line };
     if (key !== facts.omit.setting && key !== facts.include.setting) continue;
     const known = lists.get(key);
-    lists.set(key, { values: list && known !== undefined ? [...known.values, entry.value] : [entry.value], line: entry.line, text: `${entry.key}=${entry.value}` });
+    const at = entry.value === facts.omit.value ? { line: entry.line, text: `${entry.key}=${entry.value}` } : list ? known?.at : undefined;
+    lists.set(key, { values: list && known !== undefined ? [...known.values, entry.value] : [entry.value], ...(at === undefined ? {} : { at }) });
   }
   const omit = lists.get(facts.omit.setting);
   const included = lists.get(facts.include.setting)?.values.includes(facts.omit.value) === true || optional?.value === 'true';
-  if (omit?.values.includes(facts.omit.value) === true) return { omitted: !included, included, line: omit.line, entry: omit.text };
+  if (omit?.values.includes(facts.omit.value) === true) return { omitted: !included, included, ...(omit.at === undefined ? {} : { line: omit.at.line, entry: omit.at.text }) };
   if (optional?.value === String(facts.alias.off)) return { omitted: !included, included, line: optional.line, entry: `${facts.alias.setting}=${optional.value}` };
   return { omitted: false, included };
 }
@@ -168,7 +156,7 @@ export function optionalOmissions(repository: Repository, detection: Detection, 
   if (npmrc.included) return places;
   const omits = (command: ToolCommand) => command.tool === 'npm' && command.kind === 'install' && command.optionalDependencies === 'omitted';
   for (const job of detection.jobs) {
-    for (const command of job.commands.filter(omits)) places.push(commandPlace(command, `in job ${job.id} of ${job.file}`, job.file));
+    for (const command of job.commands.filter(omits)) places.push(commandPlace(command, `in ${jobLabel(job.id, job.line)} of ${job.file}`, job.file));
   }
   for (const dockerfile of detection.dockerfiles) {
     for (const stage of dockerfile.stages) {

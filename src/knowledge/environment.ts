@@ -167,10 +167,10 @@ export const environment: EnvironmentKnowledge = {
         does: 'it runs lefthook install, which installs the git hooks of the repository',
         withoutScript: 'the install no longer installs the git hooks',
         needsOptionalDependencies: false,
-        projectScript: { event: 'prepare', command: 'lefthook install' },
+        projectStep: { command: 'lefthook install', after: 'clone' },
       },
       `${LEFTHOOK}/packaging/registries/npm/lefthook/postinstall.js`,
-      'postinstall.js runs the lefthook executable with install in INIT_CWD (the directory the install was started in), and does nothing when CI is set and LEFTHOOK is not ("if (isEnabled(process.env.CI) && !isEnabled(process.env.LEFTHOOK)) return"). get-exe.js resolves the executable from lefthook-<os>-<arch>/bin/lefthook, one of the optionalDependencies of packaging/registries/npm/lefthook/package.json (version 2.2.2), whose only script is "postinstall": "node postinstall.js". docs/usage/commands/install.md: lefthook install "Installs configured hooks to Git hooks"; "NPM package lefthook installs the hooks in a postinstall script automatically. For projects not using NPM package run lefthook install after cloning the repo." The legacy package @evilmartians/lefthook-installer fetches the executable when it is installed (docs/installation/node.md), so its script is needed; it is not this entry.',
+      'postinstall.js runs the lefthook executable with install in INIT_CWD (the directory the install was started in), and does nothing when CI is set and LEFTHOOK is not ("if (isEnabled(process.env.CI) && !isEnabled(process.env.LEFTHOOK)) return"). get-exe.js resolves the executable from lefthook-<os>-<arch>/bin/lefthook, one of the optionalDependencies of packaging/registries/npm/lefthook/package.json (version 2.2.2), whose only script is "postinstall": "node postinstall.js". docs/usage/commands/install.md: lefthook install "Installs configured hooks to Git hooks"; "NPM package lefthook installs the hooks in a postinstall script automatically. For projects not using NPM package run lefthook install after cloning the repo." and "Reinstall is not required when you modify lefthook.yml, the configuration file is read every time a git hook is run." docs/usage/envs/LEFTHOOK.md: "When using NPM package lefthook in CI, and your CI sets CI=true automatically, use LEFTHOOK=1 or LEFTHOOK=true to install hooks in the postinstall script", so by default no hooks are installed in CI. postinstall.js catches every error and does not look at the exit code of lefthook install, so it never fails the install. The legacy package @evilmartians/lefthook-installer fetches the executable when it is installed (docs/installation/node.md), so its script is needed; it is not this entry.',
     ),
   },
   node: {
@@ -348,6 +348,11 @@ export const environment: EnvironmentKnowledge = {
     workflows: verified(
       { directory: '.github/workflows', extensions: ['.yml', '.yaml'] },
       'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax',
+    ),
+    jobId: release14.verified(
+      { pattern: '^[A-Za-z_][A-Za-z0-9_-]*$' },
+      'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id',
+      'Read from the page source in github/docs (data/reusables/actions/jobs/section-using-jobs-in-a-workflow-id.md, main on 2026-11-02): "You must replace <job_id> with a string that is unique to the jobs object. The <job_id> must start with a letter or _ and contain only alphanumeric characters, -, or _." The runner checks names the same way with ASCII letters and digits (NameValidation.IsValid in src/Sdk/DTPipelines/Pipelines/Validation/NameValidation.cs of actions/runner, main on 2026-11-02: a-z, A-Z, _ anywhere, digits and, with hyphens allowed, - after the first character).',
     ),
     setupNode: verified(
       {

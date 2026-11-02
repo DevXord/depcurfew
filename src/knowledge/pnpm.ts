@@ -518,6 +518,11 @@ export const pnpm: ToolKnowledge = {
       'pnpm 11 and earlier silently ignore misspelled pnpm-workspace.yaml settings; pnpm 12 warns',
       'https://pnpm.io/blog/releases/12.0',
     ),
+    tarballResolution: release14.verified(
+      { field: 'tarball' },
+      'https://github.com/pnpm/pnpm/blob/v10.34.9/lockfile/utils/src/pkgSnapshotToResolution.ts',
+      'pnpm fetches a registry package of pnpm-lock.yaml (a key name@version) from the tarball URL get-npm-tarball-url builds from the name and version, unless its resolution has tarball: then from that URL, resolved against the registry (new url.URL(resolution.tarball, registry)). pnpm 11.28.10 does the same (resolveTarballUrl in pnpm11/lockfile/utils/src/pkgSnapshotToResolution.ts). assertRegistryShapedResolution (lockfile/utils/src/assertRegistryShapedResolution.ts at v10.34.9) accepts any http(s) URL there for such a key, while the allowBuild policy "derives a trusted package identity from that key shape". pnpm writes tarball for a registry package whose tarball is not at the URL it would build.',
+    ),
     rootLifecycleScripts: release14.verified<RootLifecycleScriptsKnowledge>(
       { events: ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'], skippedBy: 'ignoreScripts', allowListApplies: false },
       'https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/installing/deps-installer/src/install/linkResolvedProjects.ts',

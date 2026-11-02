@@ -248,6 +248,11 @@ export const renovate: ToolKnowledge = {
       `${AT}/lib/modules/manager/github-actions/extract.ts`,
       'An action pinned to a ref that looks like a version (v4, v4.2.0, also as a comment after a commit SHA) is looked up in the github-tags datasource, which gives major, minor and patch updates; another ref (main, a feature tag) goes to github-digest, which gives digest updates only (readme.md in the same directory). getManagerConfig (lib/config/index.ts) starts every manager from the whole configuration, so the top-level minimumReleaseAge applies to github-actions as to the other managers; no built-in preset sets a delay for it (lib/config/presets/internal/security.preset.ts).',
     ),
+    actionsMatching: bots.verified(
+      { fileMatcher: 'matchFileNames', fileStringIsList: false, depTypeMatcher: 'matchDepTypes', depTypeStringIsList: true, depType: 'action' },
+      `${AT}/lib/util/package-rules/files.ts`,
+      'matchFileNames matches the packageFile of a dependency, the path of the file from the repository root (and its lockFiles, which the github-actions manager does not set: "Deliberately no lockFiles" in lib/modules/manager/github-actions/extract.ts), like matchRegexOrGlobList; a glob goes to minimatch with { dot: true, nocase: true } (getRegexOrGlobPredicate in lib/util/string-match.ts), so * stays within one directory and ** spans directories. matchFileNames takes no string for a list (no allowString in lib/config/options/index.ts); matchDepTypes does (allowString) and matches the depType like matchRegexOrGlobList (lib/util/package-rules/dep-types.ts). The github-actions manager gives the depType action to a repository action in a uses: field (actions/checkout@v4), and workflow, docker, container, service, github-runner and uses-with to the other things it updates (lib/modules/manager/github-actions/dep-types.ts, extract.ts).',
+    ),
     actionsTimestamps: bots.verified(
       {
         'github-tags': 'the commit date of a lightweight tag or the tagger date of an annotated tag, or the date of a GitHub release of that version when that is newer',

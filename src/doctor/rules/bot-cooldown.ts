@@ -15,7 +15,7 @@ import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion, managerDelay, versionedValue, type Delay } from '../effective.ts';
 import { actionsTarget, managerTargets, readRenovateConfig, renovateDelay, type RenovateTarget, type UnreadableRule } from '../renovate.ts';
-import { jsonSetting, yamlSetting } from '../settings.ts';
+import { jsonSetting, rejectsYamlAliases, yamlAliasLine, yamlSetting } from '../settings.ts';
 import { inProject } from '../../apply/projects.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { managerSources } from '../projects.ts';
@@ -44,9 +44,11 @@ interface BotDelay extends Delay {
   unreadableFile?: string;
   /**
    * Why: the file could not be read (too large, a symlink out of the repository, no permission) or parsed; left out for
-   * a format depcurfew does not read. unreadable-config reports the file (decision D-124).
+   * a format depcurfew does not read. unreadable-config reports the file (decision D-124). alias: a Dependabot file
+   * with a YAML alias, which Dependabot does not accept and depcurfew does not read for it (decision D-135); the
+   * location is the line of the first alias.
    */
-  unreadableReason?: 'read' | 'parse';
+  unreadableReason?: 'read' | 'parse' | 'alias';
   /** A fix for this delay in place of the general one. */
   fix?: string;
 }
@@ -121,7 +123,7 @@ function dependabotDelays(context: RuleContext, bot: ToolKnowledge, file: string
 function renovateDelays(context: RuleContext, bot: ToolKnowledge, file: string): BotDelay[] {
   // One delay for each Renovate manager of the package managers (decision D-131), and one for the actions of the
   // workflows when the policy's delay covers them (decision D-130).
-  const actions = coversActions(context.policy, bot.id, context.detection) ? actionsTarget(bot) : undefined;
+  const actions = coversActions(context.policy, bot.id, context.detection) ? actionsTarget(bot, context.detection.workflows) : undefined;
   const targets = [
     ...managerTargets(bot, context.tools).map(({ target, tools }) => ({ target, managers: tools.map((tool) => tool.id as PackageManagerId) })),
     ...(actions === undefined ? [] : [{ target: actions, managers: [] as PackageManagerId[] }]),
@@ -208,9 +210,19 @@ function exemptsSecurityFixes(bot: ToolKnowledge, manager: string, file: string 
 function unreadableBotFile(context: RuleContext, bot: ToolKnowledge, file: string): BotDelay[] | undefined {
   const text = context.repository.readText(file);
   const reason = text === undefined ? 'read' : configParses(file, text) ? undefined : 'parse';
-  if (reason === undefined) return undefined;
+  // A YAML alias in a file of a bot that rejects them (Dependabot, extra.yamlAliases): its values are not read.
+  const alias = reason === undefined && text !== undefined && rejectsYamlAliases(bot) ? yamlAliasLine(text) : undefined;
+  if (reason === undefined && alias === undefined) return undefined;
   const managers = context.tools.filter((tool) => tool.kind === 'package-manager').map((tool) => tool.id as PackageManagerId);
-  const unreadable: Omit<BotDelay, 'bot' | 'managers' | 'scope'> = { minutes: 0, origin: file, location: { file, line: 1 }, securityBypass: false, applies: false, unreadableFile: file, unreadableReason: reason };
+  const unreadable: Omit<BotDelay, 'bot' | 'managers' | 'scope'> = {
+    minutes: 0,
+    origin: file,
+    location: { file, line: alias ?? 1 },
+    securityBypass: false,
+    applies: false,
+    unreadableFile: file,
+    unreadableReason: reason ?? 'alias',
+  };
   return [
     { bot, managers, ...unreadable, scope: 'updates' },
     ...(coversActions(context.policy, bot.id, context.detection) ? [{ bot, managers: [], actions: true as const, ...unreadable, scope: `${ACTIONS} updates` }] : []),
@@ -291,7 +303,8 @@ function missingDependabotEntries(context: RuleContext, views: readonly ProjectV
   const file = detected?.configFiles[0];
   if (bot === undefined || file === undefined || views.length < 2) return;
   const text = context.repository.readText(file);
-  if (text === undefined) return;
+  // Dependabot does not read a file with YAML aliases (extra.yamlAliases); bot-cooldown-mismatch gives a note for it.
+  if (text === undefined || (rejectsYamlAliases(bot) && yamlAliasLine(text) !== undefined)) return;
   const updates = yamlSetting(text, ['updates']);
   if (updates === undefined || !Array.isArray(updates.value)) return;
   const ecosystems = extraOf(bot, 'ecosystems', isEcosystems);
@@ -370,6 +383,16 @@ function compare(context: RuleContext, delay: BotDelay, reference: Reference): b
       const file = delay.unreadableFile;
       const reason = delay.unreadableReason;
       const cannot = reason === 'parse' ? 'cannot parse' : reason === 'read' ? 'cannot read' : 'cannot read (it reads only JSON and JSONC Renovate files)';
+      const line = delay.location.line;
+      if (reason === 'alias') {
+        context.report({
+          level: 'note',
+          location: delay.location,
+          message: `${delay.bot.name} reads ${file}, which uses a YAML alias (line ${line}); ${delay.bot.name} does not accept YAML aliases, and depcurfew does not read them for it, so it cannot tell whether ${delay.bot.name} waits as long as ${reference.asLongAs}`,
+          fix: `Write the value out in place of the alias on line ${line} of ${file} (${delay.bot.name} loads the file without aliases), then run depcurfew doctor again`,
+        });
+        return true;
+      }
       context.report({
         level: 'note',
         location: delay.location,
@@ -434,7 +457,7 @@ export const botCooldownMismatch: Rule = {
   checks: 'Update bots wait at least as long as the package manager, and for the actions of workflows as long as the policy, before proposing a new version',
   summary: 'An update bot waits less than the package manager, or for the actions of workflows less than the policy, before proposing a new version.',
   description:
-    'The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or bring in a version younger than the manager allows; security updates that skip the bot delay fail the same way. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category or update type, and one with a matcher depcurfew cannot read gets a note. With workflows and a cooldown in depcurfew.json, the bot must wait at least cooldown.minimum for the actions they run. An unreadable bot file or a JSON5 Renovate file gets a note per package manager that waits. With projects in depcurfew.json, a bot file inside a project gets a note, as bots read only the one at the root, and a project the root\'s Dependabot configuration leaves out while it updates others gets a warning. A Dependabot composer entry gets a note: it counts from the release time the author sets.',
+    'The bot then opens pull requests with versions the package manager would not pick yet: they fail where the manager re-checks the lockfile or bring in younger versions, and security updates that skip the bot delay fail too. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category, update type or the files and depType of actions, and one with a matcher depcurfew cannot read gets a note. For the actions of workflows the bot must wait cooldown.minimum. An unreadable bot file, a JSON5 Renovate file or a Dependabot file with a YAML alias gets a note per package manager that waits. With projects, a bot file inside a project gets a note (bots read only the root\'s), and a project the root\'s Dependabot configuration leaves out while it updates others gets a warning. A Dependabot composer entry gets a note: it counts from the release time the author sets.',
   help: 'Give the bot a delay at least as long as the package manager\'s, and for the actions of workflows as long as cooldown.minimum (depcurfew apply does this).',
   level: 'error',
   requiresPolicy: false,

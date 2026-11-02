@@ -258,6 +258,11 @@ export const npm: ToolKnowledge = {
       'https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/cli/v12/commands/npm-trust.mdx',
       'Configures a trusted publisher from the CLI; needs 2FA on the account and write access, and the package must already exist. At least one permission flag is required.',
     ),
+    tarballIdentity: release14.verified(
+      { separator: '/-/', extension: '.tgz', scopeSeparator: '/|%2f', version: 'semver' },
+      'https://github.com/npm/cli/blob/v12.2.1/workspaces/arborist/lib/version-from-tgz.js',
+      'What npm installs for an entry of package-lock.json is the tarball of resolved (after replace-registry-host), whatever its version field says: #extractOrLink in workspaces/arborist/lib/arborist/reify.js extracts <name>@<resolved> when resolved is set, and <name>@<version> only without it (12.2.1; the same code in 10.9.9). The allowScripts matcher of npm 12.2.1 takes the name and version of a registry package from resolved with this function (getTrustedRegistryIdentity in workspaces/arborist/lib/script-allowed.js: "Never use node.packageName / node.version here: those read from the tarball\'s own package.json and can be forged"): the path part after the last /-/ must be the file name of the URL, the part before it ends with the name, with the scope before it when that starts with @ (separated by / or %2f), and the file name is <name>-<version>.tgz with a version that semver.parse reads (semver 7.8.5 in npm 12.2.1: three numbers without leading zeros, an optional pre-release and build, an optional leading v, at most 256 characters; the version drops the v and the build). A path in another layout gives no name and version.',
+    ),
     lockfileFormat: checked.verified(
       {
         installScripts: 'hasInstallScript',

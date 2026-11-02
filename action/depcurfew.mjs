@@ -1312,6 +1312,7 @@ const dependabot$1 = {
 			uv: ["uv"],
 			composer: ["composer"]
 		}, `${OPTIONS$1}#package-ecosystem`, "The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). composer covers Composer v2. Cooldown, including the semver-* keys, is supported for all of them (the cooldown table of the same page lists Composer with default and SemVer-bump days, read 2026-11-02). PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0)."),
+		yamlAliases: bots$1.verified({ accepted: false }, "https://github.com/dependabot/dependabot-core/blob/v0.402.0/common/lib/dependabot/config/file.rb", "Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load(config, symbolize_names: true); Psych.safe_load takes aliases: false unless told otherwise and raises Psych::AliasesNotEnabled on an alias (*name), so a file with one is not read. The issue that asks for aliases (https://github.com/dependabot/dependabot-core/issues/1582, \"YAML aliases\", open and labelled Keep on 2026-11-02) quotes the error users get, \"YAML aliases are not supported\"; the pull request that would allow them (#9653) is open and not merged. The reference of dependabot.yml (dependabot-options-reference.md in github/docs) does not mention anchors or aliases. An anchor (&name) that no alias refers to changes nothing."),
 		githubActions: bots$1.verified({
 			ecosystem: "github-actions",
 			semverDays: false
@@ -1343,7 +1344,7 @@ const reviewed$2 = verifiedOn("2026-10-30");
 const rechecked$4 = verifiedOn("2026-10-31");
 const runtimes$2 = verifiedOn("2026-11-01");
 const finalReview$3 = verifiedOn("2026-11-01");
-const release14$2 = verifiedOn("2026-11-02");
+const release14$3 = verifiedOn("2026-11-02");
 const CONFIG$2 = "https://docs.npmjs.com/cli/v12/using-npm/config";
 const NPMRC$1 = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
 const release$4 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
@@ -1685,6 +1686,12 @@ const npm$1 = {
 			packageMustExist: true,
 			permissions: ["--allow-publish", "--allow-stage-publish"]
 		}, "https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/cli/v12/commands/npm-trust.mdx", "Configures a trusted publisher from the CLI; needs 2FA on the account and write access, and the package must already exist. At least one permission flag is required."),
+		tarballIdentity: release14$3.verified({
+			separator: "/-/",
+			extension: ".tgz",
+			scopeSeparator: "/|%2f",
+			version: "semver"
+		}, "https://github.com/npm/cli/blob/v12.2.1/workspaces/arborist/lib/version-from-tgz.js", "What npm installs for an entry of package-lock.json is the tarball of resolved (after replace-registry-host), whatever its version field says: #extractOrLink in workspaces/arborist/lib/arborist/reify.js extracts <name>@<resolved> when resolved is set, and <name>@<version> only without it (12.2.1; the same code in 10.9.9). The allowScripts matcher of npm 12.2.1 takes the name and version of a registry package from resolved with this function (getTrustedRegistryIdentity in workspaces/arborist/lib/script-allowed.js: \"Never use node.packageName / node.version here: those read from the tarball's own package.json and can be forged\"): the path part after the last /-/ must be the file name of the URL, the part before it ends with the name, with the scope before it when that starts with @ (separated by / or %2f), and the file name is <name>-<version>.tgz with a version that semver.parse reads (semver 7.8.5 in npm 12.2.1: three numbers without leading zeros, an optional pre-release and build, an optional leading v, at most 256 characters; the version drops the v and the build). A path in another layout gives no name and version."),
 		lockfileFormat: checked$5.verified({
 			installScripts: "hasInstallScript",
 			gitPrefixes: ["git+", "git:"],
@@ -2357,7 +2364,7 @@ const npm$1 = {
 			since: "12.0.0",
 			node: "^22.22.2 || ^24.15.0 || >=26.0.0"
 		}], "https://github.com/npm/cli/blob/v11.19.1/package.json", "engines.node of npm/cli package.json, the same at the tags v11.0.0, v11.10.0, v11.16.0, v11.19.1 and v11.21.1 (^20.17.0 || >=22.9.0) and at v12.0.0 and v12.2.1 (^22.22.2 || ^24.15.0 || >=26.0.0, https://github.com/npm/cli/blob/v12.2.1/package.json). On a Node.js outside the range npm only warns that it does not support it: lib/cli/entry.js at v11.19.1 runs log.warn('cli', validateEngines.unsupportedMessage) when !satisfies(node, engines), for a Node.js \"still unsupported and untested and might not work reliably\", and lib/cli/validate-engines.js prints \"ERROR: npm ... is known not to run on Node.js ...\" when it fails with a SyntaxError. So npm install -g npm@11 on Node.js 18 installs an npm that is not meant to run there."),
-		rootLifecycleScripts: release14$2.verified({
+		rootLifecycleScripts: release14$3.verified({
 			events: [
 				"preinstall",
 				"install",
@@ -2370,7 +2377,7 @@ const npm$1 = {
 			skippedBy: "ignore-scripts",
 			allowListApplies: false
 		}, `${NPM_GITHUB_V12}/lib/commands/install.js`, "A bare npm install in a project runs the lifecycle scripts of the project itself with runScript, outside arborist and its allowScripts gate: \"const runRootLifecycle = !args.length && !isGlobalInstall && !ignoreScripts\", preinstall before reify and install, postinstall, prepublish, preprepare, prepare and postprepare after it. npm ci does the same \"if (!ignoreScripts)\" (lib/commands/ci.js), and so do install.js and ci.js at v11.16.0. collectUnreviewedScripts in workspaces/arborist/lib/unreviewed-scripts.js skips \"node.isProjectRoot || node.isWorkspace\", so strict-allow-scripts never stops at them. using-npm/scripts.md: prepare \"Runs on local npm install without package arguments (runs with flags like --production or --omit=dev, but does not run when installing specific packages like npm install express)\"."),
-		omitOptional: release14$2.verified({
+		omitOptional: release14$3.verified({
 			omit: {
 				setting: "omit",
 				value: "optional"
@@ -3679,7 +3686,7 @@ const reviewed$1 = verifiedOn("2026-10-30");
 const rechecked$1 = verifiedOn("2026-10-31");
 const user$3 = verifiedOn("2026-10-31");
 const runtimes$1 = verifiedOn("2026-11-01");
-const release14$1 = verifiedOn("2026-11-02");
+const release14$2 = verifiedOn("2026-11-02");
 const PNPM_V12 = "https://github.com/pnpm/pnpm/blob/v12.16.1";
 const PNPM_V11_CODE = "https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/config/reader/src";
 /** A file in pnpm's config directory (getConfigDir): $XDG_CONFIG_HOME/pnpm when set, else the platform's own place. */
@@ -4420,7 +4427,8 @@ const pnpm$1 = {
 			value: "lockfile entries are re-checked; trustLockfile: true (11.3.0) turns this off"
 		}], release$3("11.1.3"), "The 11.1.3 release notes confirm re-validation (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). The pnpm 10 behavior rests on maintainer comments in pnpm/pnpm#12450 (a Dependabot lockfile passed --frozen-lockfile on 10.34.5), not on docs."),
 		unknownWorkspaceKeys: verified$6("pnpm 11 and earlier silently ignore misspelled pnpm-workspace.yaml settings; pnpm 12 warns", "https://pnpm.io/blog/releases/12.0"),
-		rootLifecycleScripts: release14$1.verified({
+		tarballResolution: release14$2.verified({ field: "tarball" }, "https://github.com/pnpm/pnpm/blob/v10.34.9/lockfile/utils/src/pkgSnapshotToResolution.ts", "pnpm fetches a registry package of pnpm-lock.yaml (a key name@version) from the tarball URL get-npm-tarball-url builds from the name and version, unless its resolution has tarball: then from that URL, resolved against the registry (new url.URL(resolution.tarball, registry)). pnpm 11.28.10 does the same (resolveTarballUrl in pnpm11/lockfile/utils/src/pkgSnapshotToResolution.ts). assertRegistryShapedResolution (lockfile/utils/src/assertRegistryShapedResolution.ts at v10.34.9) accepts any http(s) URL there for such a key, while the allowBuild policy \"derives a trusted package identity from that key shape\". pnpm writes tarball for a registry package whose tarball is not at the URL it would build."),
+		rootLifecycleScripts: release14$2.verified({
 			events: [
 				"preinstall",
 				"install",
@@ -4432,7 +4440,7 @@ const pnpm$1 = {
 			skippedBy: "ignoreScripts",
 			allowListApplies: false
 		}, "https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/installing/deps-installer/src/install/linkResolvedProjects.ts", "pnpm 11.28.10 runs the projects' own lifecycle scripts after linking \"if (!opts.ignoreScripts && !opts.virtualStoreOnly)\" (runProjectLifecycleScripts), with PROJECT_LIFECYCLE_STAGES = preinstall, install, postinstall, preprepare, prepare, postprepare for a full install and only the install stages for --prod or deploy (exec/lifecycle/src/runLifecycleHooksConcurrently.ts); allowBuilds only goes to the build of dependencies (allowBuild). pnpm 10.34.9 does the same in pkg-manager/core/src/install/index.ts and, for a frozen lockfile, pkg-manager/headless/src/index.ts (\"if (!opts.ignoreScripts && !opts.ignorePackageManifest) await runLifecycleHooksConcurrently([preinstall, install, postinstall, preprepare, prepare, postprepare], ...)\"). pnpm 12.16.1 picks PROJECT_LIFECYCLE_STAGES for a full install with devDependencies (project_script_stages in pnpm/crates/package-manager/src/install/lifecycle/uninstall.rs)."),
-		managesOwnVersion: release14$1.verified({
+		managesOwnVersion: release14$2.verified({
 			since: "10.0.0",
 			field: "packageManager"
 		}, "https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md", "10.0.0: \"manage-package-manager-versions: enabled by default. pnpm now manages its own version based on the packageManager field in package.json by default\" (added in 9.7.0, off by default: \"pnpm will switch to the version specified in the packageManager field of package.json ... This is the same field used by Corepack\"). The 11.0.0 release notes replace the setting with pmOnFail, which \"directly sets the onFail behavior of both packageManager and devEngines.packageManager\" (https://github.com/pnpm/pnpm/releases/tag/v11.0.0); pnpm 12 documents pmOnFail with the default download: \"download and run the declared pnpm version (this is the default and matches the previous managePackageManagerVersions: true behavior)\" (pnpm/docs/settings/cli.md at v12.16.1). So any pnpm 10 or later honors a pnpm pin without Corepack.")
@@ -5000,6 +5008,13 @@ const renovate$1 = {
 			datasource: "github-tags",
 			digestDatasource: "github-digest"
 		}, `${AT}/lib/modules/manager/github-actions/extract.ts`, "An action pinned to a ref that looks like a version (v4, v4.2.0, also as a comment after a commit SHA) is looked up in the github-tags datasource, which gives major, minor and patch updates; another ref (main, a feature tag) goes to github-digest, which gives digest updates only (readme.md in the same directory). getManagerConfig (lib/config/index.ts) starts every manager from the whole configuration, so the top-level minimumReleaseAge applies to github-actions as to the other managers; no built-in preset sets a delay for it (lib/config/presets/internal/security.preset.ts)."),
+		actionsMatching: bots.verified({
+			fileMatcher: "matchFileNames",
+			fileStringIsList: false,
+			depTypeMatcher: "matchDepTypes",
+			depTypeStringIsList: true,
+			depType: "action"
+		}, `${AT}/lib/util/package-rules/files.ts`, "matchFileNames matches the packageFile of a dependency, the path of the file from the repository root (and its lockFiles, which the github-actions manager does not set: \"Deliberately no lockFiles\" in lib/modules/manager/github-actions/extract.ts), like matchRegexOrGlobList; a glob goes to minimatch with { dot: true, nocase: true } (getRegexOrGlobPredicate in lib/util/string-match.ts), so * stays within one directory and ** spans directories. matchFileNames takes no string for a list (no allowString in lib/config/options/index.ts); matchDepTypes does (allowString) and matches the depType like matchRegexOrGlobList (lib/util/package-rules/dep-types.ts). The github-actions manager gives the depType action to a repository action in a uses: field (actions/checkout@v4), and workflow, docker, container, service, github-runner and uses-with to the other things it updates (lib/modules/manager/github-actions/dep-types.ts, extract.ts)."),
 		actionsTimestamps: bots.verified({
 			"github-tags": "the commit date of a lightweight tag or the tagger date of an annotated tag, or the date of a GitHub release of that version when that is newer",
 			"github-digest": "the commit date",
@@ -5838,6 +5853,7 @@ const rechecked = verifiedOn("2026-10-31");
 const user = verifiedOn("2026-10-31");
 const leftovers$1 = verifiedOn("2026-11-01");
 const novemberSecond = verifiedOn("2026-11-02");
+const release14$1 = verifiedOn("2026-11-02");
 const BERRY = "https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1";
 const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
 /** Variables for settings with a single value, which both the docs and the code accept. */
@@ -6100,6 +6116,12 @@ const yarn$1 = {
 			configOptions: [],
 			configVariables: ["YARN_RC_FILENAME"]
 		}, "https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Configuration.ts", "Environment variables that start with yarn_ (any case) set the setting named by the camel-cased rest, so YARN_NPM_REGISTRY_SERVER sets npmRegistryServer, the registry packages are fetched from (https://yarnpkg.com/configuration/yarnrc#npmRegistryServer). getRcFilename reads yarn_rc_filename (any case) as the name of the configuration file instead of .yarnrc.yml. npmScopes, an object, cannot be set this way."),
+		registryFetch: release14$1.verified({
+			protocol: "npm:",
+			patch: "patch:",
+			patchEnd: "#",
+			params: "?"
+		}, `${BERRY}/packages/plugin-npm/sources/NpmSemverFetcher.ts`, "Yarn fetches a registry package of yarn.lock by its resolution: getLocatorUrl builds <registry>/<name>/-/<name>-<version>.tgz from the name of the locator and the version after npm:, cleaned by semverUtils.clean (packages/yarnpkg-core/sources/semverUtils.ts, which drops leading spaces, v and = and trailing spaces and keeps pre-release and build), and supports only a reference whose part before ? semver.valid accepts. The version field of the entry goes into the package Yarn builds from the lockfile (setupResolutions in packages/yarnpkg-core/sources/Project.ts) and is not used for the fetch. A patch: locator wraps the locator it patches, URL-encoded, up to #. An npm: reference with an __archiveUrl parameter is fetched from that URL instead (NpmHttpFetcher.ts)."),
 		lockfileFormat: checked$3.verified({
 			installScripts: null,
 			registry: "npm:",
@@ -6203,6 +6225,7 @@ const osv = {
 		perQuery: 1e3,
 		perBatch: 3e3
 	}, `${OSV_DOCS}/api/post-v1-querybatch.md#pagination`, "Pagination happens when \"An individual query within the queryset returns more than 1,000 vulnerabilities\" or \"The entire queryset returns more than 3,000 vulnerabilities total\"; \"These numbers can vary slightly because of threading and the page size may change in the future.\""),
+	ids: verified$1({ pattern: "^[a-zA-Z0-9:_.-]+$" }, "https://github.com/ossf/osv-schema/blob/v1.9.2/docs/schema.md#character-set-constraints", "Version 1.9.2 (October 13, 2026) of the OSV schema: an id is \"<DB>-<ENTRYID>\", and it \"must strictly use ASCII characters matching the regular expression ^[a-zA-Z0-9:_.-]+$\"; \"Characters outside this set (such as spaces, slashes /, backslashes \\, parentheses, or exclamation marks) are not allowed.\" The JSON schema of the same release (validation/schema.json) checks only the prefix (MAL- among the home databases). The schema sets no length for an id."),
 	service: verified$1({
 		rateLimit: null,
 		freshnessMinutes: 15,
@@ -6391,11 +6414,11 @@ const environment = {
 			does: "it runs lefthook install, which installs the git hooks of the repository",
 			withoutScript: "the install no longer installs the git hooks",
 			needsOptionalDependencies: false,
-			projectScript: {
-				event: "prepare",
-				command: "lefthook install"
+			projectStep: {
+				command: "lefthook install",
+				after: "clone"
 			}
-		}, `${LEFTHOOK}/packaging/registries/npm/lefthook/postinstall.js`, "postinstall.js runs the lefthook executable with install in INIT_CWD (the directory the install was started in), and does nothing when CI is set and LEFTHOOK is not (\"if (isEnabled(process.env.CI) && !isEnabled(process.env.LEFTHOOK)) return\"). get-exe.js resolves the executable from lefthook-<os>-<arch>/bin/lefthook, one of the optionalDependencies of packaging/registries/npm/lefthook/package.json (version 2.2.2), whose only script is \"postinstall\": \"node postinstall.js\". docs/usage/commands/install.md: lefthook install \"Installs configured hooks to Git hooks\"; \"NPM package lefthook installs the hooks in a postinstall script automatically. For projects not using NPM package run lefthook install after cloning the repo.\" The legacy package @evilmartians/lefthook-installer fetches the executable when it is installed (docs/installation/node.md), so its script is needed; it is not this entry.")
+		}, `${LEFTHOOK}/packaging/registries/npm/lefthook/postinstall.js`, "postinstall.js runs the lefthook executable with install in INIT_CWD (the directory the install was started in), and does nothing when CI is set and LEFTHOOK is not (\"if (isEnabled(process.env.CI) && !isEnabled(process.env.LEFTHOOK)) return\"). get-exe.js resolves the executable from lefthook-<os>-<arch>/bin/lefthook, one of the optionalDependencies of packaging/registries/npm/lefthook/package.json (version 2.2.2), whose only script is \"postinstall\": \"node postinstall.js\". docs/usage/commands/install.md: lefthook install \"Installs configured hooks to Git hooks\"; \"NPM package lefthook installs the hooks in a postinstall script automatically. For projects not using NPM package run lefthook install after cloning the repo.\" and \"Reinstall is not required when you modify lefthook.yml, the configuration file is read every time a git hook is run.\" docs/usage/envs/LEFTHOOK.md: \"When using NPM package lefthook in CI, and your CI sets CI=true automatically, use LEFTHOOK=1 or LEFTHOOK=true to install hooks in the postinstall script\", so by default no hooks are installed in CI. postinstall.js catches every error and does not look at the exit code of lefthook install, so it never fails the install. The legacy package @evilmartians/lefthook-installer fetches the executable when it is installed (docs/installation/node.md), so its script is needed; it is not this entry.")
 	},
 	node: {
 		bundledNpm: runtimes.verified([
@@ -7195,6 +7218,7 @@ const environment = {
 			directory: ".github/workflows",
 			extensions: [".yml", ".yaml"]
 		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax"),
+		jobId: release14.verified({ pattern: "^[A-Za-z_][A-Za-z0-9_-]*$" }, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id", "Read from the page source in github/docs (data/reusables/actions/jobs/section-using-jobs-in-a-workflow-id.md, main on 2026-11-02): \"You must replace <job_id> with a string that is unique to the jobs object. The <job_id> must start with a letter or _ and contain only alphanumeric characters, -, or _.\" The runner checks names the same way with ASCII letters and digits (NameValidation.IsValid in src/Sdk/DTPipelines/Pipelines/Validation/NameValidation.cs of actions/runner, main on 2026-11-02: a-z, A-Z, _ anywhere, digits and, with hyphens allowed, - after the first character)."),
 		setupNode: verified({
 			action: "actions/setup-node",
 			installs: ["node"],
@@ -17076,6 +17100,22 @@ function dockerfileCandidates(repository, facts, manifests, packages) {
 const MATRIX_VALUE = /^\$\{\{\s*matrix\.([A-Za-z_][A-Za-z0-9_-]*)\s*\}\}$/u;
 /** At most this many values of one matrix key are checked; a longer list is reported as not checked (a notice). */
 const MAX_MATRIX_VALUES = 256;
+/** The ids GitHub accepts as keys of jobs (environment.githubActions.jobId). */
+const JOB_ID = new RegExp(evidenceOf(environment.githubActions.jobId)[0]?.value.pattern ?? "^[A-Za-z_][A-Za-z0-9_-]*$", "u");
+/**
+* A job as messages and fixes name it (decision D-135): "job build" when its key is an id GitHub accepts, else "the job
+* at line 12" (or "a job"). GitHub runs no job with another key, and the text of the key could be anything, such as an
+* instruction, which a fix must not repeat.
+*/
+function jobLabel(id, line) {
+	if (id !== void 0 && JOB_ID.test(id)) return `job ${id}`;
+	return line === void 0 ? "a job" : `the job at line ${line}`;
+}
+/** jobLabel for the job of a github-actions declaration, with the line of its key from the jobs of the detection. */
+function declarationJob(declaration, jobs) {
+	const job = jobs.find((entry) => entry.file === declaration.file && entry.id === declaration.job);
+	return jobLabel(declaration.job, job?.line);
+}
 function scalarText(node) {
 	if (!(0, import_dist.isScalar)(node) || node.value === null || node.value === void 0) return void 0;
 	return String(node.value);
@@ -17185,6 +17225,7 @@ function readWorkflows(repository, facts) {
 			const id = scalarText(pair.key);
 			const job = pair.value;
 			if (id === void 0 || !(0, import_dist.isMap)(job)) continue;
+			const keyLine = (0, import_dist.isScalar)(pair.key) ? lineOf(pair.key) : void 0;
 			const declare = (tool, value, node, step) => {
 				const matrix = "version" in value ? MATRIX_VALUE.exec(value.version)?.[1] : void 0;
 				const expanded = matrix === void 0 ? void 0 : matrixValues(job, matrix);
@@ -17241,7 +17282,7 @@ function readWorkflows(repository, facts) {
 			const record = {
 				file,
 				id,
-				line: ((0, import_dist.isScalar)(pair.key) ? lineOf(pair.key) : void 0) ?? 1,
+				line: keyLine ?? 1,
 				commands: [],
 				runsNode: false
 			};
@@ -17305,7 +17346,7 @@ function readWorkflows(repository, facts) {
 					const environment = withVariables(facts.commands, jobEnvironment, environmentOf(step.get(envKey)));
 					const found = findToolCommands(text.slice(start, run.range[1]), facts.commands, 0, environment);
 					const runLine = lineCounter.linePos(start).line;
-					for (const message of overLimitMessages(found.overLimit, `the run step of job ${id} in ${file} (line ${runLine})`)) repository.warn("script-not-followed", message, [file], runLine);
+					for (const message of overLimitMessages(found.overLimit, `the run step of ${jobLabel(id, keyLine)} in ${file} (line ${runLine})`)) repository.warn("script-not-followed", message, [file], runLine);
 					record.runsNode ||= found.runsNode;
 					const configVariable = facts.commands.pip.delay?.configVariable;
 					if (found.pipConfig === true || configVariable !== void 0 && (environment.get(configVariable) ?? "") !== "") record.pipConfig = true;
@@ -18923,6 +18964,30 @@ function yamlSetting(text, path, options = {}) {
 		...mergedAt === void 0 ? {} : { mergedAt }
 	};
 }
+/**
+* The line of the first YAML alias (*name) of a file, or undefined when it has none or cannot be parsed (decision
+* D-135): for files of tools whose loader rejects aliases (Dependabot, extra.yamlAliases), whose values depcurfew then
+* does not read either.
+*/
+function yamlAliasLine(text) {
+	const { document, lineCounter } = readYamlDocument(text);
+	if (document.errors.length > 0) return void 0;
+	let first;
+	const stack = [document.contents];
+	while (stack.length > 0) {
+		const node = stack.pop();
+		if ((0, import_dist.isAlias)(node)) {
+			const start = node.range?.[0];
+			if (start !== void 0 && (first === void 0 || start < first)) first = start;
+		} else if ((0, import_dist.isMap)(node) || (0, import_dist.isSeq)(node)) for (const item of node.items) stack.push(item);
+		else if ((0, import_dist.isPair)(node)) stack.push(node.key, node.value);
+	}
+	return first === void 0 ? void 0 : lineCounter.linePos(first).line;
+}
+/** Whether the bot's loader rejects YAML aliases (extra.yamlAliases: Dependabot). */
+function rejectsYamlAliases(tool) {
+	return tool.extra?.["yamlAliases"] !== void 0 && extraOf(tool, "yamlAliases", isRecord)["accepted"] === false;
+}
 /** The line of the key at `path` in YAML, without its value. */
 function yamlKeyLine(text, path, options = {}) {
 	return yamlNode(text, path, options)?.line;
@@ -19707,17 +19772,63 @@ const MAX_LOCKFILE_SIZE = 67108864;
 */
 const MAX_YAML_LOCKFILE_SIZE = 16777216;
 /**
+* How much the searches of one finder read in all (decision D-135): LINE_SEARCH_READINGS times the text, and
+* LINE_SEARCH_FLOOR characters more, so that a small file may miss many anchors. Anchors in the order of the file take
+* one reading together; an anchor that is not where the last one stopped takes up to two. Searching the whole file for
+* each of 20 000 entries of a minified lockfile took minutes; once the budget is spent, the remaining anchors have no
+* line. Reading 1 GiB takes indexOf about a second.
+*/
+const LINE_SEARCH_READINGS = 16;
+const LINE_SEARCH_FLOOR = 67108864;
+/**
+* A JSON anchor as a minified file writes it: `"name":{` for `"name": {`, `"name":"a/b"` for `"name": "a/b"`;
+* undefined for anchors that do not start with a key.
+*/
+function compactAnchor(anchor) {
+	const compact = anchor.replace(/^("(?:[^"\\]|\\.)*"): (?=\S)/u, "$1:");
+	return compact === anchor ? void 0 : compact;
+}
+/**
 * Finds the 1-based line of each anchor. Rules ask in the order the entries were parsed, which is the order of the
-* file, so each search continues where the last one stopped and a large lockfile is not scanned once per entry.
+* file, so each search continues where the last one stopped and a large lockfile is not scanned once per entry. An
+* anchor not after that point is looked for from the start, and a JSON anchor also as a minified file writes it (that
+* spelling first once it has matched); an anchor not found is remembered, and all searches together read at most the
+* budget above (plus one search), so the time stays linear in the size of the text.
 */
 function lineFinder(text, start = 0) {
 	let newlines;
 	let cursor = start;
+	let budget = LINE_SEARCH_READINGS * text.length + LINE_SEARCH_FLOOR;
+	let compactFirst = false;
+	const missing = /* @__PURE__ */ new Set();
+	const search = (anchor, from) => {
+		if (budget <= 0) return -1;
+		const offset = text.indexOf(anchor, from);
+		budget -= (offset === -1 ? text.length : offset + anchor.length) - from;
+		return offset;
+	};
+	const find = (anchor) => {
+		const offset = search(anchor, cursor);
+		return offset === -1 && cursor > 0 ? search(anchor, 0) : offset;
+	};
 	return (anchor) => {
-		let offset = text.indexOf(anchor, cursor);
-		if (offset === -1) offset = text.indexOf(anchor);
-		if (offset === -1) return void 0;
-		cursor = offset + anchor.length;
+		if (missing.has(anchor)) return void 0;
+		const compact = compactAnchor(anchor);
+		const spellings = compact === void 0 ? [anchor] : compactFirst ? [compact, anchor] : [anchor, compact];
+		let offset = -1;
+		let found = anchor;
+		for (const spelling of spellings) {
+			offset = find(spelling);
+			if (offset === -1) continue;
+			found = spelling;
+			if (spelling === compact) compactFirst = true;
+			break;
+		}
+		if (offset === -1) {
+			if (budget > 0) missing.add(anchor);
+			return;
+		}
+		cursor = offset + found.length;
 		if (newlines === void 0) {
 			newlines = [];
 			for (let index = text.indexOf("\n"); index !== -1; index = text.indexOf("\n", index + 1)) newlines.push(index);
@@ -19752,6 +19863,57 @@ const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 function exactVersion(source, version) {
 	return source === "registry" && version !== void 0 && EXACT_VERSION.test(version) ? { version } : {};
 }
+/** The full version of semver (FULL in internal/re.js of semver 7.8.5), with the version and the build as groups. */
+const SEMVER = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][a-zA-Z0-9-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][a-zA-Z0-9-]*))*))?(?:\+([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*))?$/u;
+/**
+* A version as semver.parse reads it (semver 7.8.5, which npm and Yarn use): three numbers without leading zeros, an
+* optional pre-release and build, an optional leading v, spaces around it, at most 256 characters. `core` is the version
+* semver gives (without the v and the build), `build` the build metadata.
+*/
+function parseSemver$1(text) {
+	if (text.length > 256) return void 0;
+	const match = SEMVER.exec(text.trim());
+	if (match === null) return void 0;
+	const [, major = "", minor = "", patch = "", pre, build] = match;
+	if ([
+		major,
+		minor,
+		patch
+	].some((part) => Number(part) > Number.MAX_SAFE_INTEGER)) return void 0;
+	return {
+		core: `${major}.${minor}.${patch}${pre === void 0 ? "" : `-${pre}`}`,
+		build
+	};
+}
+/**
+* The registry package whose tarball a URL is, as npm reads it from resolved (versionFromTgz, npm extra.tarballIdentity,
+* decision D-135): /<name>/-/<name>-<version>.tgz, with the scope before the name and any path of the registry before
+* them. undefined for a URL in another layout.
+*/
+function tarballIdentity(url, format) {
+	const separator = String(format["separator"]);
+	const extension = String(format["extension"]);
+	const base = url.slice(url.lastIndexOf("/") + 1);
+	if (!base.endsWith(extension) || !HTTP.test(url)) return void 0;
+	let path;
+	try {
+		path = new URL(url).pathname;
+	} catch {
+		return;
+	}
+	const parts = path.slice(1).split(separator);
+	if (parts.length < 2 || parts.pop() !== base) return void 0;
+	const pieces = (parts.pop() ?? "").split(new RegExp(String(format["scopeSeparator"]), "iu"));
+	const project = pieces.pop() ?? "";
+	const scope = pieces.pop();
+	if (project === "" || !base.startsWith(`${project}-`)) return void 0;
+	const version = parseSemver$1(base.slice(project.length + 1, base.length - extension.length));
+	if (version === void 0) return void 0;
+	return {
+		name: scope?.startsWith("@") === true ? `${scope}/${project}` : project,
+		version: version.core
+	};
+}
 /** Where npm installs the dependency `name` of the package at `from`: its own node_modules, else the nearest parent's. */
 function installedAt(packages, from, name) {
 	for (let base = from;;) {
@@ -19784,7 +19946,7 @@ function urlOverrides(overrides, parent, selfKey, found = []) {
 	}
 	return found;
 }
-function npmEntries(text, format, workspaces, manifest, overridesFormat) {
+function npmEntries(text, format, workspaces, manifest, overridesFormat, identityFormat) {
 	const document = JSON.parse(text);
 	if (!isRecord(document) || !isRecord(document["packages"])) throw new UnsupportedLockfile("it has no \"packages\" section (lockfileVersion 1 is not read)");
 	const packages = document["packages"];
@@ -19819,14 +19981,25 @@ function npmEntries(text, format, workspaces, manifest, overridesFormat) {
 			const overridden = overrides.some((override) => override.name === name && urlPath(spec).endsWith(override.path));
 			source = registry.test(spec) && !fromUrl.has(key) && !overridden ? "registry" : "remoteTarball";
 		} else if (resolved === "" && (spec === "" || EXACT_VERSION.test(spec))) source = "registry";
-		entries.push({
+		const entry = {
 			name,
 			spec,
 			source,
 			installScript: value[scriptsKey] === true,
 			anchor: `${JSON.stringify(key)}: {`,
 			...exactVersion(source, version)
-		});
+		};
+		const identity = source === "registry" && resolved !== "" && identityFormat !== void 0 ? tarballIdentity(resolved, identityFormat) : void 0;
+		if (identity !== void 0) {
+			entry.version = identity.version;
+			if (identity.name !== name) entry.registryName = identity.name;
+			if (identity.name !== name || version !== "" && version !== identity.version) entry.mislabel = {
+				tool: "npm",
+				key,
+				label: version === "" ? name : `${name}@${version}`
+			};
+		}
+		entries.push(entry);
 	}
 	return entries;
 }
@@ -19845,7 +20018,7 @@ function pnpmGraph(text, documents) {
 		start: last?.range[0] ?? 0
 	};
 }
-function pnpmEntries(text, format, documents) {
+function pnpmEntries(text, format, documents, identityFormat) {
 	const { document, start } = pnpmGraph(text, documents);
 	if (!isRecord(document)) return {
 		entries: [],
@@ -19871,14 +20044,25 @@ function pnpmEntries(text, format, documents) {
 		else if (resolution["type"] === format["directoryType"]) source = "directory";
 		else if (spec.startsWith("file:")) source = "file";
 		else if (HTTP.test(spec)) source = "remoteTarball";
-		entries.push({
+		const entry = {
 			name,
 			spec,
 			source,
 			installScript: void 0,
 			anchor: key,
 			...exactVersion(source, spec.split("(", 1)[0])
-		});
+		};
+		const identity = source === "registry" && HTTP.test(tarball) && identityFormat !== void 0 ? tarballIdentity(tarball, identityFormat) : void 0;
+		if (identity !== void 0 && (identity.name !== name || identity.version !== entry.version)) {
+			entry.version = identity.version;
+			if (identity.name !== name) entry.registryName = identity.name;
+			entry.mislabel = {
+				tool: "pnpm",
+				key,
+				label: key
+			};
+		}
+		entries.push(entry);
 	}
 	const importers = isRecord(document["importers"]) ? document["importers"] : {};
 	for (const importer of Object.values(importers)) {
@@ -19920,21 +20104,63 @@ function yarnSource(locator, format) {
 	if (HTTP.test(locator)) return "remoteTarball";
 	return "unknown";
 }
-function yarnEntries(text, format) {
+/**
+* The registry package Yarn fetches for a resolution (yarn extra.registryFetch, decision D-135): the name and the version
+* of an npm: locator, cleaned as Yarn cleans it, also inside a patch: locator. undefined when Yarn fetches no registry
+* version for it.
+*/
+function yarnRegistry(name, spec, fetch, depth = 0) {
+	const patch = String(fetch["patch"]);
+	if (spec.startsWith(patch) && depth < 4) {
+		let inner;
+		try {
+			inner = decodeURIComponent(spec.slice(patch.length).split(String(fetch["patchEnd"]))[0] ?? "");
+		} catch {
+			return;
+		}
+		const locator = splitSpec(inner);
+		return yarnRegistry(locator.name, locator.spec, fetch, depth + 1);
+	}
+	const protocol = String(fetch["protocol"]);
+	if (!spec.startsWith(protocol)) return void 0;
+	const parsed = parseSemver$1(spec.slice(protocol.length).split(String(fetch["params"]))[0] ?? "");
+	return parsed === void 0 ? void 0 : {
+		name,
+		version: `${parsed.core}${parsed.build === void 0 ? "" : `+${parsed.build}`}`
+	};
+}
+function yarnEntries(text, format, fetch) {
 	const document = parseYaml(text);
 	if (!isRecord(document)) return [];
 	return Object.entries(document).filter(([key, value]) => key !== "__metadata" && isRecord(value) && typeof value["resolution"] === "string").map(([, value]) => {
 		const resolution = value["resolution"];
 		const { name, spec } = splitSpec(resolution);
 		const source = yarnSource(spec, format);
-		const version = value["version"];
-		return {
+		const field = value["version"];
+		const version = typeof field === "string" ? field : void 0;
+		const entry = {
 			name,
 			spec,
 			source,
 			installScript: void 0,
-			anchor: `resolution: "${resolution}"`,
-			...exactVersion(source, typeof version === "string" ? version : void 0)
+			anchor: `resolution: "${resolution}"`
+		};
+		if (source !== "registry") return entry;
+		if (fetch === void 0) return {
+			...entry,
+			...exactVersion(source, version)
+		};
+		const fetched = yarnRegistry(name, spec, fetch);
+		if (fetched === void 0) return entry;
+		return {
+			...entry,
+			version: fetched.version,
+			...fetched.name === name ? {} : { registryName: fetched.name },
+			...version === void 0 || version === fetched.version ? {} : { mislabel: {
+				tool: "yarn",
+				label: version,
+				resolution
+			} }
 		};
 	});
 }
@@ -20008,7 +20234,11 @@ function readManifest(repository, lockfile) {
 	}
 }
 function overridesFormatOf(tool) {
-	const fact = tool.extra?.["overrides"];
+	return extraFormat(tool, "overrides");
+}
+/** A record fact of the tool's extra, or undefined when the knowledge base has none. */
+function extraFormat(tool, key) {
+	const fact = tool.extra?.[key];
 	const value = fact === void 0 ? void 0 : values$1(fact)[0];
 	return isRecord(value) ? value : void 0;
 }
@@ -20128,9 +20358,12 @@ function parseLockfiles(repository, manager, tool, workspaces, tools) {
 			let entries;
 			let recordsScripts = format["installScripts"] !== null;
 			let start = 0;
-			if (tool.id === "npm") entries = npmEntries(text, format, workspaces, readManifest(repository, file), overridesFormatOf(tool));
-			else if (tool.id === "pnpm") ({entries, start} = pnpmEntries(text, format, documentsOf(tool)));
-			else if (tool.id === "yarn") entries = yarnEntries(text, format);
+			if (tool.id === "npm") entries = npmEntries(text, format, workspaces, readManifest(repository, file), overridesFormatOf(tool), extraFormat(tool, "tarballIdentity"));
+			else if (tool.id === "pnpm") {
+				const npmTool = tools.find((entry) => entry.id === "npm");
+				const identity = tool.extra?.["tarballResolution"] === void 0 || npmTool === void 0 ? void 0 : extraFormat(npmTool, "tarballIdentity");
+				({entries, start} = pnpmEntries(text, format, documentsOf(tool), identity));
+			} else if (tool.id === "yarn") entries = yarnEntries(text, format, extraFormat(tool, "registryFetch"));
 			else if (tool.id === "bun") entries = bunEntries(text, format);
 			else if (pylockFormat !== void 0 && lockfiles.includes(file) && isPylock(pip, file)) {
 				entries = pylockEntries(text, pylockFormat, workspaces);
@@ -20143,6 +20376,7 @@ function parseLockfiles(repository, manager, tool, workspaces, tools) {
 			else if (tool.id === "composer") entries = composerEntries(text, tool, declaredRepositories(repository, tool));
 			else ({entries, recordsScripts} = denoEntries(text, format));
 			const optionFiles = requirements.get(file);
+			const isRequirements = tool.id === "pip" && !(lockfiles.includes(file) && isPylock(pip, file));
 			return {
 				ok: true,
 				lockfile: {
@@ -20150,7 +20384,8 @@ function parseLockfiles(repository, manager, tool, workspaces, tools) {
 					entries,
 					recordsScripts,
 					lineOf: entryLines(text, start, entries),
-					...optionFiles === void 0 ? {} : { optionFiles }
+					...optionFiles === void 0 ? {} : { optionFiles },
+					...isRequirements ? { requirements: true } : {}
 				}
 			};
 		} catch (error) {
@@ -21744,10 +21979,10 @@ function jobsInProject(detection, project) {
 	};
 }
 /** "Node.js 22 (matrix.node) in GitHub Actions (.github/workflows/ci.yml, job test)", "Node.js 22 in .nvmrc". */
-function nodeSubject(declaration, label) {
+function nodeSubject(declaration, label, jobs = []) {
 	const matrix = declaration.matrix === void 0 ? "" : ` (matrix.${declaration.matrix})`;
 	const container = declaration.container === void 0 ? "" : ` of the job container ${declaration.container}`;
-	const where = declaration.source === "github-actions" && declaration.job !== void 0 ? `${declaration.file}, job ${declaration.job}` : declaration.file;
+	const where = declaration.source === "github-actions" && declaration.job !== void 0 ? `${declaration.file}, ${declarationJob(declaration, jobs)}` : declaration.file;
 	const from = declaration.versionFile === void 0 ? "" : ` from ${declaration.versionFile}`;
 	return `Node.js ${declaration.version}${matrix}${container}${from} in ${label === where ? label : `${label} (${where})`}`;
 }
@@ -22122,7 +22357,7 @@ function npmInUse(detection, manifest, label, options = {}) {
 	});
 	for (const { place, ownFile } of jobs) {
 		if (place.upgrade === void 0 || place.project !== "" || place.installs.scriptsOff) continue;
-		upgrade(place.upgrade, `installed in job ${place.job.id} of ${place.job.file}${ownFile ? "" : AT_ROOT}, line ${place.upgrade.line}`, ownFile ? at(place.job.file, place.upgrade.line) : void 0, place.nodes.flatMap(nodeOf));
+		upgrade(place.upgrade, `installed in ${jobLabel(place.job.id, place.job.line)} of ${place.job.file}${ownFile ? "" : AT_ROOT}, line ${place.upgrade.line}`, ownFile ? at(place.job.file, place.upgrade.line) : void 0, place.nodes.flatMap(nodeOf));
 	}
 	for (const place of own) if (place.upgrade !== void 0 && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}, line ${place.upgrade.line}`, at(place.file.file, place.upgrade.line), stageNodes(place));
 	for (const place of fromRoot) if (place.upgrade !== void 0 && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}${AT_ROOT}, line ${place.upgrade.line}`, void 0, stageNodes(place));
@@ -22130,7 +22365,7 @@ function npmInUse(detection, manifest, label, options = {}) {
 		const declaration = place.declaration;
 		if (declaration === void 0 || place.project !== "" || place.installs.scriptsOff) continue;
 		const location = ownFile ? at(declaration.file, declaration.line) : void 0;
-		const job = `job ${place.job.id} of ${declaration.file}${ownFile ? "" : AT_ROOT}`;
+		const job = `${jobLabel(place.job.id, place.job.line)} of ${declaration.file}${ownFile ? "" : AT_ROOT}`;
 		if (!("version" in declaration)) {
 			unknownNode("depcurfew cannot read the version from that file", `Node.js from ${declaration.versionFile} in ${job}`, location);
 			continue;
@@ -22375,7 +22610,7 @@ function checkJobs(context, helpers, checkFor, facts) {
 		const check = checkFor(project);
 		if (check === void 0) continue;
 		const where = project === "" ? "" : ` in ${project}`;
-		const uses = `job ${job.id} installs packages with it${where} on line ${installs.first}`;
+		const uses = `${jobLabel(job.id, job.line)} installs packages with it${where} on line ${installs.first}`;
 		if (place.upgrade !== void 0) {
 			checkUpgrade(context, helpers, check, {
 				command: place.upgrade,
@@ -22393,7 +22628,7 @@ function checkJobs(context, helpers, checkFor, facts) {
 			unknown(context, `the Node.js of ${declaration.versionFile} in ${declaration.file}`, "depcurfew cannot read the version from that file", declaration.file);
 			continue;
 		}
-		const subject = nodeSubject(declaration, helpers.label(declaration));
+		const subject = nodeSubject(declaration, helpers.label(declaration), context.detection.jobs);
 		if (declaration.unknown !== void 0) {
 			unknown(context, subject, declaration.unknown, declaration.file);
 			continue;
@@ -22411,7 +22646,7 @@ function checkJobs(context, helpers, checkFor, facts) {
 			installs: uses,
 			of: installs,
 			nodes: nodeOf(declaration),
-			install: (version) => `run npm install -g npm@${version} in job ${job.id} before it installs packages`,
+			install: (version) => `run npm install -g npm@${version} in ${jobLabel(job.id, job.line)} before it installs packages`,
 			installSeen: true,
 			runtime: (releases, _first, bundled) => declaration.container === void 0 ? `set up a Node.js release that comes with npm ${bundled} or later (${releases})` : `run the job in a node image whose Node.js release comes with npm ${bundled} or later (${releases})`
 		}, resolution, facts);
@@ -22498,7 +22733,7 @@ function checkDockerfiles(context, helpers, checkFor, tool, facts) {
 */
 function checkDeveloperFiles(context, helpers, check, declarations, facts, project) {
 	for (const declaration of declarations) {
-		const subject = nodeSubject(declaration, helpers.label(declaration));
+		const subject = nodeSubject(declaration, helpers.label(declaration), context.detection.jobs);
 		const resolution = nodeBundledNpm(declaration.version, namingOf(declaration.source), facts);
 		if (resolution.kind === "unknown") {
 			unknown(context, subject, resolution.reason, declaration.file);
@@ -24390,7 +24625,7 @@ function managerDelay(repository, manager, tool) {
 }
 function dependabotDelays$1(repository, bot, file, workflows) {
 	const text = repository.readText(file);
-	if (text === void 0) return [];
+	if (text === void 0 || rejectsYamlAliases(bot) && yamlAliasLine(text) !== void 0) return [];
 	const updates = yamlSetting(text, ["updates"]);
 	if (updates === void 0 || !Array.isArray(updates.value)) return [];
 	const keys = extraOf(bot, "cooldownKeys", isCooldownKeys$1);
@@ -26413,6 +26648,7 @@ const isNames = (value) => isRecord(value) && Object.values(value).every((item) 
 const isLists = (value) => isRecord(value) && Object.values(value).every(isStrings$2);
 const isManagerMatching$1 = (value) => isRecord(value) && typeof value["managerMatcher"] === "string" && typeof value["categoryMatcher"] === "string" && typeof value["stringIsList"] === "boolean";
 const isActions = (value) => isRecord(value) && typeof value["manager"] === "string" && typeof value["datasource"] === "string";
+const isActionsMatching$1 = (value) => isRecord(value) && typeof value["fileMatcher"] === "string" && typeof value["depTypeMatcher"] === "string" && typeof value["depType"] === "string";
 const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$2(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
 const isPresetFact = (value) => isRecord(value) && isStrings$2(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
 const isInternal = (value) => isRecord(value) && isStrings$2(value["prefixes"]) && isStrings$2(value["settingDelay"]);
@@ -26459,14 +26695,48 @@ function matchesPattern(input, pattern, negation) {
 	const result = wildcardMatch(input.toLowerCase(), body.toLowerCase().replaceAll("**", "*"));
 	return negative ? !result : result;
 }
+/**
+* Whether a path matches a glob as minimatch reads it with { dot: true, nocase: true } (decision D-135): * within one
+* directory, ** for any number of them, letters in any case. undefined for anything else minimatch reads (?, classes,
+* braces, extglobs, escapes) and for empty, . and .. parts, which depcurfew does not evaluate.
+*/
+function matchesPath(path, glob) {
+	const parts = glob.toLowerCase().split("/");
+	if (parts.some((part) => part === "" || part === "." || part === ".." || /[?[\]{}()!+@\\]/u.test(part))) return void 0;
+	const pattern = parts.filter((part, index) => part !== "**" || parts[index - 1] !== "**");
+	const segments = path.toLowerCase().split("/");
+	let row = new Uint8Array(pattern.length + 1);
+	let below = new Uint8Array(pattern.length + 1);
+	for (let at = segments.length; at >= 0; at--) {
+		row.fill(0);
+		row[pattern.length] = at === segments.length ? 1 : 0;
+		const inside = at < segments.length;
+		for (let index = pattern.length - 1; index >= 0; index--) {
+			const part = pattern[index] ?? "";
+			if (part === "**") row[index] = row[index + 1] === 1 || inside && below[index] === 1 ? 1 : 0;
+			else row[index] = inside && below[index + 1] === 1 && matchSegment$1(segments[at] ?? "", part.replaceAll(/\*+/gu, "*")) ? 1 : 0;
+		}
+		[row, below] = [below, row];
+	}
+	return below[0] === 1;
+}
+/** One pattern of matchFileNames: "*", a /regex/ (with ! for "not") or a glob of paths (matchesPath). */
+function matchesFilePattern(input, pattern, negation) {
+	const negative = pattern.startsWith(negation);
+	const body = negative ? pattern.slice(negation.length) : pattern;
+	if (!negative && body === "*") return true;
+	if (/^\/(.+)\/(i?)$/u.test(body)) return matchesPattern(input, pattern, negation);
+	const result = matchesPath(input, body);
+	return result === void 0 ? void 0 : negative ? !result : result;
+}
 /** matchRegexOrGlobList: some positive pattern matches (when there are any) and every negative pattern does too. */
-function matchesList(input, patterns, negation) {
+function matchesList(input, patterns, negation, matches = matchesPattern) {
 	if (patterns.length === 0) return false;
 	const positive = patterns.filter((pattern) => !pattern.startsWith(negation));
 	const negative = patterns.filter((pattern) => pattern.startsWith(negation));
-	const results = positive.map((pattern) => matchesPattern(input, pattern, negation));
+	const results = positive.map((pattern) => matches(input, pattern, negation));
 	if (positive.length > 0 && !results.includes(true)) return results.includes(void 0) ? void 0 : false;
-	const excluded = negative.map((pattern) => matchesPattern(input, pattern, negation));
+	const excluded = negative.map((pattern) => matches(input, pattern, negation));
 	if (excluded.includes(false)) return false;
 	return excluded.includes(void 0) ? void 0 : true;
 }
@@ -26489,15 +26759,21 @@ function managerTarget(bot, tool, ecosystem) {
 		categories: categoriesOf(bot, manager)
 	};
 }
-/** The actions the workflows run (extra.githubActions), when the knowledge base has them. */
-function actionsTarget(bot) {
+/**
+* The actions the workflows run (extra.githubActions), when the knowledge base has them; `files` are the workflow
+* files of the repository, which a matchFileNames rule must match all of to cover the actions (decision D-135).
+*/
+function actionsTarget(bot, files = []) {
 	if (bot.extra?.["githubActions"] === void 0) return void 0;
 	const fact = extraOf(bot, "githubActions", isActions);
+	const matching = bot.extra["actionsMatching"] === void 0 ? void 0 : extraOf(bot, "actionsMatching", isActionsMatching$1);
 	return {
 		datasource: fact.datasource,
 		manager: fact.manager,
 		categories: categoriesOf(bot, fact.manager),
-		actions: true
+		actions: true,
+		files,
+		...matching === void 0 ? {} : { depTypes: [matching.depType] }
 	};
 }
 /** The targets of the package managers among `tools`, one for each datasource and manager, with the tools of each. */
@@ -26545,12 +26821,14 @@ function ruleCoverage(bot, rule, on) {
 	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
 	const stringIsList = managerMatching?.stringIsList === true;
 	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$2);
+	const actionsMatching = target.actions === true && bot.extra?.["actionsMatching"] !== void 0 ? extraOf(bot, "actionsMatching", isActionsMatching$1) : void 0;
 	const matchers = Object.keys(rule).filter((key) => /^(match|exclude)[A-Z]/u.test(key));
 	const known = /* @__PURE__ */ new Set([
 		...matching.packageMatchers,
 		matching.datasourceMatcher,
 		matching.updateTypeMatcher,
-		...managerMatching === void 0 ? [] : [managerMatching.managerMatcher, managerMatching.categoryMatcher]
+		...managerMatching === void 0 ? [] : [managerMatching.managerMatcher, managerMatching.categoryMatcher],
+		...actionsMatching === void 0 ? [] : [actionsMatching.fileMatcher, actionsMatching.depTypeMatcher]
 	]);
 	if (matchers.some((key) => !known.has(key))) return { kind: "narrow" };
 	let unknown;
@@ -26599,6 +26877,20 @@ function ruleCoverage(bot, rule, on) {
 		if (!(key in rule)) continue;
 		const patterns = patternsOf(rule[key], stringIsList);
 		if (!result(key, patterns === void 0 || inputs === void 0 ? void 0 : matchesAny(inputs, patterns, matching.negation))) return { kind: "narrow" };
+	}
+	if (actionsMatching !== void 0) {
+		if (actionsMatching.fileMatcher in rule) {
+			const patterns = patternsOf(rule[actionsMatching.fileMatcher], actionsMatching.fileStringIsList);
+			const files = target.files ?? [];
+			const each = patterns === void 0 ? [void 0] : files.map((file) => matchesList(file, patterns, matching.negation, matchesFilePattern));
+			const matches = files.length === 0 || each.includes(false) ? false : each.includes(void 0) ? void 0 : true;
+			if (!result(actionsMatching.fileMatcher, matches)) return { kind: "narrow" };
+		}
+		if (actionsMatching.depTypeMatcher in rule) {
+			const patterns = patternsOf(rule[actionsMatching.depTypeMatcher], actionsMatching.depTypeStringIsList);
+			const matches = patterns === void 0 || target.depTypes === void 0 ? void 0 : matchesAny(target.depTypes, patterns, matching.negation);
+			if (!result(actionsMatching.depTypeMatcher, matches)) return { kind: "narrow" };
+		}
 	}
 	let types = updateTypes;
 	if (matching.updateTypeMatcher in rule) {
@@ -26843,7 +27135,7 @@ function shorterRules(context, file, written, list, descriptionKey, repository) 
 	const wanted = delayMinutes(tool, written, latestVersion$1(tool));
 	if (!wanted.ok) return;
 	const inUse = context.tools.filter((entry) => entry.kind === "package-manager" && context.targets.has(entry.id));
-	const actions = repository.workflows.length > 0 ? actionsTarget(tool) : void 0;
+	const actions = repository.workflows.length > 0 ? actionsTarget(tool, repository.workflows) : void 0;
 	const targets = [...managerTargets(tool, inUse).map(({ target, tools }) => ({
 		target,
 		label: ECOSYSTEM_LABELS[ecosystemOfTool(tools[0] ?? tool)]
@@ -27993,16 +28285,18 @@ function knownPackages() {
 function knownPackage(name) {
 	return knownPackages().find((entry) => entry.name === name);
 }
+/**
+* The known package a lockfile entry is: only that package from a registry under its own name (decision D-135). What
+* depcurfew read about its install script does not hold for a git, URL or local source of the same name, nor for an
+* entry whose resolved URL is the tarball of another package.
+*/
+function knownPackageOf(entry) {
+	return entry.source === "registry" && entry.registryName === void 0 ? knownPackage(entry.name) : void 0;
+}
 /** " (depcurfew checked esbuild 0.28.2; the lockfile has 0.21.5)" when the locked version is not one that was read. */
 function versionNote(known, version, where = "the lockfile") {
 	if (version === void 0 || known.versions.includes(version)) return "";
 	return ` (depcurfew checked ${known.name} ${known.versions.join(", ")}; ${where} has ${version}, so check that it works the same)`;
-}
-/** The lifecycle scripts of the project that the tool runs on install whatever its allow-list says, when that is known. */
-function rootScripts(tool) {
-	if (tool?.extra?.["rootLifecycleScripts"] === void 0) return void 0;
-	const value = extraOf(tool, "rootLifecycleScripts", isRecord);
-	return Array.isArray(value.events) ? value : void 0;
 }
 /**
 * Why the package can do without its install scripts, as a clause of a doctor finding: "esbuild does not need them: it
@@ -28018,22 +28312,22 @@ function keepOptional(tool, capital = false) {
 }
 /**
 * What to do about a known package that has no entry in installScripts: add it to installScripts.deny, and for a
-* project task also run that task in the project's own lifecycle script, where the tool runs it on install
-* (rootLifecycleScripts) and its scripts are not all switched off (`allScriptsOff`, ignore-scripts in .npmrc).
+* project task also do that task the way the package documents it for projects that do not use its script.
 */
-function denyFix(known, tool, allScriptsOff) {
+function denyFix(known, tool) {
 	const deny = `Add ${known.name} to installScripts.deny in ${POLICY_FILE}`;
-	if (known.kind === "project-task") return `${deny}, and ${projectTaskStep(known, tool, allScriptsOff)}`;
+	if (known.kind === "project-task") return `${deny}, and ${projectTaskStep(known)}`;
 	return known.needsOptionalDependencies ? `${deny}, and ${keepOptional(tool)}: ${known.name} works without its install script then` : `${deny}: ${known.name} works without its install script, and ${known.withoutScript}`;
 }
-/** How the project runs the task of a project-task package itself; depcurfew never edits the scripts of package.json. */
-function projectTaskStep(known, tool, allScriptsOff, manifest = "package.json") {
-	const script = known.projectScript;
-	const scripts = rootScripts(tool);
-	const after = `run ${script?.command ?? known.name} after each clone`;
-	if (script === void 0 || tool === void 0 || scripts === void 0 || !scripts.events.includes(script.event)) return `${after} (depcurfew does not know whether ${tool?.name ?? "the package manager"} runs a ${script?.event ?? "lifecycle"} script of the project on install)`;
-	if (allScriptsOff !== void 0) return `${after}: ${allScriptsOff} also keeps ${tool.name} from running the ${script.event} script of the project`;
-	return `add "${script.event}": "${script.command}" to scripts in ${manifest}, which ${tool.name} runs for the project itself on install (its allow-list of dependency scripts does not apply to it; depcurfew does not edit scripts)`;
+/**
+* How the project does the task of a project-task package itself, as the package documents it for projects that do
+* not use its install script (decision D-135): lefthook says to run lefthook install after cloning. A prepare script
+* would run it on every install, also in CI, where lefthook's postinstall script does nothing.
+*/
+function projectTaskStep(known) {
+	const command = known.projectStep?.command ?? known.name;
+	const event = known.script.split(":", 1)[0] ?? "install";
+	return `run ${command} after each clone of the repository, as the ${known.name} documentation says for projects that do not use its ${event} script`;
 }
 function omitFacts(tool) {
 	if (tool.extra?.["omitOptional"] === void 0) return void 0;
@@ -28056,10 +28350,13 @@ function npmrcOmission(text, facts) {
 		};
 		if (key !== facts.omit.setting && key !== facts.include.setting) continue;
 		const known = lists.get(key);
-		lists.set(key, {
-			values: list && known !== void 0 ? [...known.values, entry.value] : [entry.value],
+		const at = entry.value === facts.omit.value ? {
 			line: entry.line,
 			text: `${entry.key}=${entry.value}`
+		} : list ? known?.at : void 0;
+		lists.set(key, {
+			values: list && known !== void 0 ? [...known.values, entry.value] : [entry.value],
+			...at === void 0 ? {} : { at }
 		});
 	}
 	const omit = lists.get(facts.omit.setting);
@@ -28067,8 +28364,10 @@ function npmrcOmission(text, facts) {
 	if (omit?.values.includes(facts.omit.value) === true) return {
 		omitted: !included,
 		included,
-		line: omit.line,
-		entry: omit.text
+		...omit.at === void 0 ? {} : {
+			line: omit.at.line,
+			entry: omit.at.text
+		}
 	};
 	if (optional?.value === String(facts.alias.off)) return {
 		omitted: !included,
@@ -28112,7 +28411,7 @@ function optionalOmissions(repository, detection, npm) {
 	});
 	if (npmrc.included) return places;
 	const omits = (command) => command.tool === "npm" && command.kind === "install" && command.optionalDependencies === "omitted";
-	for (const job of detection.jobs) for (const command of job.commands.filter(omits)) places.push(commandPlace(command, `in job ${job.id} of ${job.file}`, job.file));
+	for (const job of detection.jobs) for (const command of job.commands.filter(omits)) places.push(commandPlace(command, `in ${jobLabel(job.id, job.line)} of ${job.file}`, job.file));
 	for (const dockerfile of detection.dockerfiles) for (const stage of dockerfile.stages) for (const command of stage.commands.filter(omits)) places.push(commandPlace(command, `in ${dockerfile.file}`, dockerfile.file));
 	return places;
 }
@@ -29398,7 +29697,7 @@ function dependabotDelays(context, bot, file) {
 	});
 }
 function renovateDelays(context, bot, file) {
-	const actions = coversActions(context.policy, bot.id, context.detection) ? actionsTarget(bot) : void 0;
+	const actions = coversActions(context.policy, bot.id, context.detection) ? actionsTarget(bot, context.detection.workflows) : void 0;
 	const targets = [...managerTargets(bot, context.tools).map(({ target, tools }) => ({
 		target,
 		managers: tools.map((tool) => tool.id)
@@ -29508,19 +29807,20 @@ function exemptsSecurityFixes(bot, manager, file) {
 function unreadableBotFile(context, bot, file) {
 	const text = context.repository.readText(file);
 	const reason = text === void 0 ? "read" : configParses(file, text) ? void 0 : "parse";
-	if (reason === void 0) return void 0;
+	const alias = reason === void 0 && text !== void 0 && rejectsYamlAliases(bot) ? yamlAliasLine(text) : void 0;
+	if (reason === void 0 && alias === void 0) return void 0;
 	const managers = context.tools.filter((tool) => tool.kind === "package-manager").map((tool) => tool.id);
 	const unreadable = {
 		minutes: 0,
 		origin: file,
 		location: {
 			file,
-			line: 1
+			line: alias ?? 1
 		},
 		securityBypass: false,
 		applies: false,
 		unreadableFile: file,
-		unreadableReason: reason
+		unreadableReason: reason ?? "alias"
 	};
 	return [{
 		bot,
@@ -29589,7 +29889,7 @@ function missingDependabotEntries(context, views) {
 	const file = detected?.configFiles[0];
 	if (bot === void 0 || file === void 0 || views.length < 2) return;
 	const text = context.repository.readText(file);
-	if (text === void 0) return;
+	if (text === void 0 || rejectsYamlAliases(bot) && yamlAliasLine(text) !== void 0) return;
 	const updates = yamlSetting(text, ["updates"]);
 	if (updates === void 0 || !Array.isArray(updates.value)) return;
 	const ecosystems = extraOf(bot, "ecosystems", isEcosystems);
@@ -29658,6 +29958,16 @@ function compare(context, delay, reference) {
 			const file = delay.unreadableFile;
 			const reason = delay.unreadableReason;
 			const cannot = reason === "parse" ? "cannot parse" : reason === "read" ? "cannot read" : "cannot read (it reads only JSON and JSONC Renovate files)";
+			const line = delay.location.line;
+			if (reason === "alias") {
+				context.report({
+					level: "note",
+					location: delay.location,
+					message: `${delay.bot.name} reads ${file}, which uses a YAML alias (line ${line}); ${delay.bot.name} does not accept YAML aliases, and depcurfew does not read them for it, so it cannot tell whether ${delay.bot.name} waits as long as ${reference.asLongAs}`,
+					fix: `Write the value out in place of the alias on line ${line} of ${file} (${delay.bot.name} loads the file without aliases), then run depcurfew doctor again`
+				});
+				return true;
+			}
 			context.report({
 				level: "note",
 				location: delay.location,
@@ -29707,7 +30017,7 @@ const botCooldownMismatch = {
 	id: "bot-cooldown-mismatch",
 	checks: "Update bots wait at least as long as the package manager, and for the actions of workflows as long as the policy, before proposing a new version",
 	summary: "An update bot waits less than the package manager, or for the actions of workflows less than the policy, before proposing a new version.",
-	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or bring in a version younger than the manager allows; security updates that skip the bot delay fail the same way. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category or update type, and one with a matcher depcurfew cannot read gets a note. With workflows and a cooldown in depcurfew.json, the bot must wait at least cooldown.minimum for the actions they run. An unreadable bot file or a JSON5 Renovate file gets a note per package manager that waits. With projects in depcurfew.json, a bot file inside a project gets a note, as bots read only the one at the root, and a project the root's Dependabot configuration leaves out while it updates others gets a warning. A Dependabot composer entry gets a note: it counts from the release time the author sets.",
+	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail where the manager re-checks the lockfile or bring in younger versions, and security updates that skip the bot delay fail too. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category, update type or the files and depType of actions, and one with a matcher depcurfew cannot read gets a note. For the actions of workflows the bot must wait cooldown.minimum. An unreadable bot file, a JSON5 Renovate file or a Dependabot file with a YAML alias gets a note per package manager that waits. With projects, a bot file inside a project gets a note (bots read only the root's), and a project the root's Dependabot configuration leaves out while it updates others gets a warning. A Dependabot composer entry gets a note: it counts from the release time the author sets.",
 	help: "Give the bot a delay at least as long as the package manager's, and for the actions of workflows as long as cooldown.minimum (depcurfew apply does this).",
 	level: "error",
 	requiresPolicy: false,
@@ -29840,7 +30150,8 @@ function checkManagers(context) {
 }
 function checkDependabot(context, file) {
 	const text = context.repository.readText(file);
-	if (text === void 0) return;
+	const bot = tool(context, "dependabot");
+	if (text === void 0 || bot !== void 0 && rejectsYamlAliases(bot) && yamlAliasLine(text) !== void 0) return;
 	const updates = yamlSetting(text, ["updates"]);
 	if (updates === void 0 || !Array.isArray(updates.value)) return;
 	updates.value.forEach((entry, index) => {
@@ -29922,6 +30233,7 @@ function checkYarnScopes(context) {
 const isPackageJsonConfig = (value) => isRecord(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
 const isMatching = (value) => isRecord(value) && typeof value["negation"] === "string" && typeof value["datasourceMatcher"] === "string" && typeof value["updateTypeMatcher"] === "string";
 const isManagerMatching = (value) => isRecord(value) && typeof value["managerMatcher"] === "string" && typeof value["categoryMatcher"] === "string";
+const isActionsMatching = (value) => isRecord(value) && typeof value["fileMatcher"] === "string" && typeof value["depTypeMatcher"] === "string";
 /** What a packageRules entry covers, for the message: its update types, names, datasources, managers and categories. */
 function covers(scope, targets, matching) {
 	const unique = (items) => [...new Set(items.filter((item) => item !== void 0))];
@@ -29934,7 +30246,10 @@ function covers(scope, targets, matching) {
 	const managers = unique(targets.map((target) => target.manager));
 	const of = has(matching.managerMatcher) ? ` of the Renovate ${listing$1(managers)} ${plural(managers, "manager", "managers")}` : "";
 	const categories = unique(targets.flatMap((target) => target.categories).filter((category) => scope.categories?.includes(category) === true));
-	return `${types}${names}${from}${of}${has(matching.categoryMatcher) ? ` in the Renovate ${listing$1(categories)} ${plural(categories, "category", "categories")}` : ""}${scope.names.kind === "except" ? " (a list of only negative patterns matches every other package)" : ""}`;
+	const within = has(matching.categoryMatcher) ? ` in the Renovate ${listing$1(categories)} ${plural(categories, "category", "categories")}` : "";
+	const files = has(matching.fileMatcher) ? " in every workflow file" : "";
+	const depTypes = unique(targets.flatMap((target) => target.depTypes ?? []));
+	return `${types}${names}${from}${of}${within}${files}${has(matching.depTypeMatcher) ? ` with the depType ${listing$1(depTypes)}` : ""}${scope.names.kind === "except" ? " (a list of only negative patterns matches every other package)" : ""}`;
 }
 /**
 * packageRules entries that turn minimumReleaseAge off for every package of a package manager in use, by registry,
@@ -29949,21 +30264,28 @@ function checkRenovate(context, file) {
 	const packageJson = extraOf(bot, "packageJsonConfig", isPackageJsonConfig);
 	const config = readRenovateConfig(text, file, file === packageJson.file ? [packageJson.key] : []);
 	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching);
+	const actionsMatching = bot.extra?.["actionsMatching"] === void 0 ? void 0 : extraOf(bot, "actionsMatching", isActionsMatching);
 	const matching = {
 		...extraOf(bot, "packageRuleMatching", isMatching),
 		...managerMatching === void 0 ? {} : {
 			managerMatcher: managerMatching.managerMatcher,
 			categoryMatcher: managerMatching.categoryMatcher
+		},
+		...actionsMatching === void 0 ? {} : {
+			fileMatcher: actionsMatching.fileMatcher,
+			depTypeMatcher: actionsMatching.depTypeMatcher
 		}
 	};
 	const detected = managerSources$1(context).flatMap((source) => source.managers.flatMap((entry) => tool(context, entry.id) ?? []));
-	const actions = coversActions(context.policy, bot.id, context.detection) ? actionsTarget(bot) : void 0;
+	const actions = coversActions(context.policy, bot.id, context.detection) ? actionsTarget(bot, context.detection.workflows) : void 0;
 	const targets = [...managerTargets(bot, detected.length > 0 ? detected : context.tools).map((group) => group.target), ...actions === void 0 ? [] : [actions]];
 	const narrowing = [
 		matching.datasourceMatcher,
 		matching.updateTypeMatcher,
 		matching.managerMatcher,
-		matching.categoryMatcher
+		matching.categoryMatcher,
+		matching.fileMatcher,
+		matching.depTypeMatcher
 	];
 	for (const { index, line, rule } of config.rules) {
 		if (!("minimumReleaseAge" in rule)) continue;
@@ -29993,7 +30315,7 @@ const broadExclusion = {
 	id: "broad-exclusion",
 	checks: "No exception list or per-scope setting turns the release-age delay off",
 	summary: "An exception list matches every package, or a per-scope setting shortens the delay, which turns the protection off.",
-	description: "A release-age exception such as \"*\" (or a policy allow-list entry such as \"@*/*\") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, Renovate manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name, and, when depcurfew.json sets a cooldown for Renovate and the repository has workflows, for the github-actions manager. In Yarn 4.17 and later, npmScopes.<scope>.npmMinimalAgeGate replaces the delay for one scope, so a shorter value there exempts that scope.",
+	description: "A release-age exception such as \"*\" (or a policy allow-list entry such as \"@*/*\") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, Renovate manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name, and, when depcurfew.json sets a cooldown for Renovate and the repository has workflows, for the github-actions manager, every workflow file (matchFileNames) or the depType action (matchDepTypes). In Yarn 4.17 and later, npmScopes.<scope>.npmMinimalAgeGate replaces the delay for one scope, so a shorter value there exempts that scope.",
 	help: "Replace the pattern with the packages or scopes that really need the exception.",
 	level: "error",
 	requiresPolicy: false,
@@ -30137,13 +30459,14 @@ function environments(text) {
 	if (!isRecord(jobs)) return found;
 	for (const [id, job] of Object.entries(jobs)) {
 		if (!isRecord(job)) continue;
+		const label = jobLabel(id, yamlSetting(text, ["jobs", id])?.line);
 		found.push({
 			path: [
 				"jobs",
 				id,
 				"env"
 			],
-			where: `job ${id}`
+			where: label
 		}, {
 			path: [
 				"jobs",
@@ -30151,7 +30474,7 @@ function environments(text) {
 				"container",
 				"env"
 			],
-			where: `the container of job ${id}`
+			where: `the container of ${label}`
 		});
 		const steps = job["steps"];
 		if (!Array.isArray(steps)) continue;
@@ -30163,7 +30486,7 @@ function environments(text) {
 				String(index),
 				"env"
 			],
-			where: `step ${index + 1} of job ${id}`
+			where: `step ${index + 1} of ${label}`
 		}));
 	}
 	return found;
@@ -30625,7 +30948,7 @@ function usesWithoutCorepack(context, declaration, tool) {
 	return declaration.source !== "volta";
 }
 /** What to do there: install Corepack, as its README says for Node.js 25 and later, then enable the pinned tool. */
-function fixFor(declaration, pin, node) {
+function fixFor(declaration, pin, node, jobs) {
 	const install = evidenceOf(environment.corepack.manualInstall)[0]?.value ?? {
 		command: "npm install -g corepack",
 		enable: "corepack enable",
@@ -30634,7 +30957,7 @@ function fixFor(declaration, pin, node) {
 	const enable = pin.tool === "npm" ? `${install.enable} npm` : install.enable;
 	const steps = `${install.command}, then ${enable}`;
 	const npm = pin.tool === "npm" ? "; npm itself does not read packageManager, while it checks devEngines.packageManager itself" : "";
-	if (declaration.source === "github-actions") return `Install Corepack in job ${declaration.job ?? ""} of ${declaration.file} before it runs ${pin.name} (a step that runs ${steps})${npm}`;
+	if (declaration.source === "github-actions") return `Install Corepack in ${declarationJob(declaration, jobs)} of ${declaration.file} before it runs ${pin.name} (a step that runs ${steps})${npm}`;
 	if (declaration.source === "dockerfile") return `Install Corepack in ${declaration.file} before ${pin.name} runs (RUN ${install.command} && ${enable})${npm}`;
 	return `Install Corepack wherever ${node} is used for this project (${steps}), as the Corepack README says for a Node.js without it${npm}`;
 }
@@ -30665,7 +30988,7 @@ const corepackUnavailable = {
 		};
 		for (const declaration of context.detection.node.versions) {
 			if (declaration.source === "volta" || !("version" in declaration) || !withoutCorepack(declaration)) continue;
-			const subject = nodeSubject(declaration, SOURCE_LABEL[declaration.source]);
+			const subject = nodeSubject(declaration, SOURCE_LABEL[declaration.source], context.detection.jobs);
 			const line = declarationLine(context, declaration);
 			for (const pin of pins) {
 				if (!usesWithoutCorepack(context, declaration, pin.tool)) continue;
@@ -30677,7 +31000,7 @@ const corepackUnavailable = {
 						line
 					},
 					message: `${where} pins ${pin.text}, but ${subject} does not come with Corepack (Node.js ${removed.slice(0, 3).join(".")} stopped distributing it), and Corepack is what reads that pin: without a separate Corepack install, ${pin.name} there is whatever ${pin.tool === "npm" ? "npm comes with that Node.js" : "Yarn is installed, or none"}`,
-					fix: fixFor(declaration, pin, subject.replace(/ in .*$/u, ""))
+					fix: fixFor(declaration, pin, subject.replace(/ in .*$/u, ""), context.detection.jobs)
 				});
 			}
 		}
@@ -30924,8 +31247,12 @@ const MAX_OSV_PACKAGES = 2e4;
 const MAX_OSV_PAGES = 10;
 /** Time for one batch request: OSV.dev aims at 6 s for 95% of them, and a paged query may take 20 s before it pages. */
 const OSV_TIMEOUT_MS = 3e4;
-/** Longest record id kept, and most records named in one message. */
+/**
+* Longest record id in an answer: real ids are short (MAL-2026-18458, GHSA-xxjr-mmjv-4gpg); a longer one is not an
+* answer of OSV.dev (decision D-135). The schema sets no length.
+*/
 const MAX_ID_LENGTH = 100;
+/** Most records named in one message. */
 const MAX_IDS_SHOWN = 5;
 function api() {
 	const fact = values$1(osv.api)[0];
@@ -30955,6 +31282,18 @@ function malwarePrefix() {
 function withdrawnField() {
 	return values$1(osv.withdrawn)[0]?.field ?? "withdrawn";
 }
+/** The characters of a record id, from the OSV schema (ids). */
+function idPattern() {
+	return new RegExp(values$1(osv.ids)[0]?.pattern ?? "^[a-zA-Z0-9:_.-]+$", "u");
+}
+/**
+* Most records one result may list: OSV.dev pages a query past `perQuery` records (1000), a number that "can vary
+* slightly", so a result with more than twice that is not one it sends (decision D-135). This also bounds the records
+* of one version: MAX_OSV_PAGES pages of them.
+*/
+function maxRecordsPerResult() {
+	return 2 * (values$1(osv.paging)[0]?.perQuery ?? 1e3);
+}
 /** Two spellings of one Python name are one package (PEP 503), as OSV.dev matches them. */
 function comparedName(pkg) {
 	return pkg.ecosystem === "pypi" ? normalizePythonName(pkg.name) : pkg.name;
@@ -30964,21 +31303,26 @@ function osvKey(pkg) {
 	return `${pkg.ecosystem}\u0000${comparedName(pkg)}\u0000${pkg.version}`;
 }
 const NOT_A_BATCH = "something that is not a batch result";
-/** The MAL- ids of one result and its page token, or undefined when the result is not one OSV.dev sends. */
-function readResult(result, fields) {
+/**
+* The MAL- ids of one result (each once) and its page token, or undefined when the result is not one OSV.dev sends:
+* more records than two pages hold, a record without an id, or an id outside the grammar of the OSV schema.
+*/
+function readResult(result, rules) {
+	const { fields } = rules;
 	if (!isRecord(result)) return void 0;
 	const vulns = result[fields.vulnsField] ?? [];
-	if (!Array.isArray(vulns)) return void 0;
-	const ids = [];
+	if (!Array.isArray(vulns) || vulns.length > rules.most) return void 0;
+	const ids = /* @__PURE__ */ new Set();
 	for (const vuln of vulns) {
-		if (!isRecord(vuln) || typeof vuln[fields.idField] !== "string") return void 0;
-		if (vuln[withdrawnField()] !== void 0 && vuln[withdrawnField()] !== null) continue;
+		if (!isRecord(vuln)) return void 0;
 		const id = vuln[fields.idField];
-		if (id.startsWith(malwarePrefix())) ids.push(id.slice(0, MAX_ID_LENGTH));
+		if (typeof id !== "string" || id.length > MAX_ID_LENGTH || !rules.pattern.test(id)) return void 0;
+		if (vuln[rules.withdrawn] !== void 0 && vuln[rules.withdrawn] !== null) continue;
+		if (id.startsWith(rules.prefix)) ids.add(id);
 	}
 	const token = result[fields.nextPageTokenField];
 	return {
-		ids,
+		ids: [...ids],
 		token: typeof token === "string" && token !== "" ? token : void 0
 	};
 }
@@ -31026,8 +31370,19 @@ async function postBatch(queries, options) {
 	}
 	const results = isRecord(document) ? document[fields.resultsField] : void 0;
 	if (!Array.isArray(results) || results.length !== queries.length) return { reason: `${host} answered ${NOT_A_BATCH}` };
-	const read = results.map((result) => readResult(result, fields));
-	if (read.some((entry) => entry === void 0)) return { reason: `${host} answered ${NOT_A_BATCH}` };
+	const rules = {
+		fields,
+		pattern: idPattern(),
+		prefix: malwarePrefix(),
+		withdrawn: withdrawnField(),
+		most: maxRecordsPerResult()
+	};
+	const read = [];
+	for (const result of results) {
+		const entry = readResult(result, rules);
+		if (entry === void 0) return { reason: `${host} answered ${NOT_A_BATCH}` };
+		read.push(entry);
+	}
 	return { results: read };
 }
 /**
@@ -31036,17 +31391,18 @@ async function postBatch(queries, options) {
 */
 async function lookUpBatch(batch, options) {
 	const fields = api();
-	const found = batch.map(() => []);
+	const found = batch.map(() => /* @__PURE__ */ new Set());
+	const checked = () => found.map((ids) => ({
+		status: "checked",
+		malicious: [...ids]
+	}));
 	let pending = batch.map((query, index) => ({
 		index,
 		query
 	}));
 	for (let page = 0; pending.length > 0; page++) {
 		if (page >= 10) {
-			const verdicts = found.map((ids) => ({
-				status: "checked",
-				malicious: ids
-			}));
+			const verdicts = checked();
 			for (const { index } of pending) verdicts[index] = {
 				status: "unchecked",
 				reason: `OSV.dev answered more than ${10} pages for it`
@@ -31056,10 +31412,7 @@ async function lookUpBatch(batch, options) {
 		const answer = await postBatch(pending.map(({ query }) => query), options);
 		if ("reason" in answer) {
 			if (page === 0) return answer;
-			const verdicts = found.map((ids) => ({
-				status: "checked",
-				malicious: ids
-			}));
+			const verdicts = checked();
 			for (const { index } of pending) verdicts[index] = {
 				status: "unchecked",
 				reason: answer.reason
@@ -31069,7 +31422,8 @@ async function lookUpBatch(batch, options) {
 		const next = [];
 		answer.results.forEach((result, position) => {
 			const entry = pending[position];
-			found[entry.index]?.push(...result.ids.filter((id) => !found[entry.index]?.includes(id)));
+			const ids = found[entry.index];
+			for (const id of result.ids) ids?.add(id);
 			if (result.token !== void 0) next.push({
 				index: entry.index,
 				query: {
@@ -31080,10 +31434,7 @@ async function lookUpBatch(batch, options) {
 		});
 		pending = next;
 	}
-	return found.map((ids) => ({
-		status: "checked",
-		malicious: ids
-	}));
+	return checked();
 }
 /**
 * What OSV.dev says about each package version, in the order given. Each distinct version is asked about once; the
@@ -31159,11 +31510,13 @@ const OSV_DOCTOR_RETRY_FIX = "Run depcurfew doctor --osv again when api.osv.dev 
 function plural(count, word) {
 	return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
+/** Most registry entries without an exact version that one warning names; the others are counted. */
+const MAX_NAMED = 5;
 const knownMalicious = {
 	id: "known-malicious",
 	checks: "With --osv: no locked package version is a known malicious version in OSV.dev",
 	summary: "With --osv: a lockfile locks a package version that OSV.dev lists as malicious.",
-	description: "With --osv, doctor sends the name and version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) to api.osv.dev in batch queries, and reports each version that has a record of the OpenSSF malicious-packages database there (an id starting with MAL-). Such a version was published to steal or damage, and installing from the lockfile brings it back. Only reported malware is found, and the database admits false positives. Without --osv nothing is sent and the rule does not run; when OSV.dev cannot be reached it gives a warning instead of passing.",
+	description: "With --osv, doctor sends the name and version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) to api.osv.dev in batch queries, and reports each version that has a record of the OpenSSF malicious-packages database there (an id starting with MAL-). Such a version was published to steal or damage, and installing from the lockfile brings it back. It looks up what the tool installs: for npm the registry tarball of resolved, for pnpm the one of resolution.tarball, for Yarn the version of resolution; an entry whose name or version says otherwise gets a warning, as does a registry entry of a lockfile without an exact version. Only reported malware is found, and the database admits false positives. Without --osv nothing is sent and the rule does not run; when OSV.dev cannot be reached it gives a warning instead of passing.",
 	help: "Remove or replace the package version and lock again; if it was installed anywhere, read the record on OSV.dev and treat that machine as exposed.",
 	level: "error",
 	requiresPolicy: false,
@@ -31184,19 +31537,20 @@ const knownMalicious = {
 				const { lockfile } = result;
 				const seen = /* @__PURE__ */ new Set();
 				const unchecked = /* @__PURE__ */ new Map();
-				let unpinned = 0;
+				const unpinned = [];
 				let locked = 0;
 				for (const entry of lockfile.entries) {
 					if (entry.source !== "registry") continue;
 					if (entry.version === void 0) {
-						unpinned += 1;
+						unpinned.push(entry);
 						continue;
 					}
 					const pkg = {
 						ecosystem,
-						name: entry.name,
+						name: entry.registryName ?? entry.name,
 						version: entry.version
 					};
+					if (entry.mislabel !== void 0 && "answers" in osv) reportMislabel(context, lockfile, entry, versionLabel(ecosystem, pkg.name, pkg.version));
 					const key = osvKey(pkg);
 					if (seen.has(key)) continue;
 					seen.add(key);
@@ -31214,7 +31568,7 @@ const knownMalicious = {
 						continue;
 					}
 					if (verdict.malicious.length === 0) continue;
-					const label = versionLabel(ecosystem, entry.name, entry.version);
+					const label = versionLabel(ecosystem, pkg.name, pkg.version);
 					const line = lockfile.lineOf(entry);
 					context.report({
 						location: line === void 0 ? { file: lockfile.file } : {
@@ -31227,12 +31581,71 @@ const knownMalicious = {
 				}
 				if ("collect" in osv) continue;
 				reportUnchecked(context, lockfile.file, locked, unchecked);
-				if (unpinned > 0 && ecosystem === "packagist") context.notice(`known-malicious did not check ${plural(unpinned, "package")} of ${lockfile.file}, which locks a branch of ${unpinned === 1 ? "it" : "them"} (a dev- or -dev version), not a release`, lockfile.file, `Require tagged releases of ${unpinned === 1 ? "this package" : "these packages"} in composer.json and run composer update, so that doctor --osv can check ${unpinned === 1 ? "it" : "them"}`);
-				else if (unpinned > 0) context.notice(`known-malicious did not check ${plural(unpinned, "package")} of ${lockfile.file}, which pins no exact version of ${unpinned === 1 ? "it" : "them"}`, lockfile.file, "Pin exact versions (name==version), for example with a lockfile exported by the tool that resolves them, so that doctor --osv can check them");
+				const count = unpinned.length;
+				if (count > 0 && ecosystem === "packagist") context.notice(`known-malicious did not check ${plural(count, "package")} of ${lockfile.file}, which locks a branch of ${count === 1 ? "it" : "them"} (a dev- or -dev version), not a release`, lockfile.file, `Require tagged releases of ${count === 1 ? "this package" : "these packages"} in composer.json and run composer update, so that doctor --osv can check ${count === 1 ? "it" : "them"}`);
+				else if (count > 0 && lockfile.requirements === true) context.notice(`known-malicious did not check ${plural(count, "package")} of ${lockfile.file}, which pins no exact version of ${count === 1 ? "it" : "them"}`, lockfile.file, "Pin exact versions (name==version), for example with a lockfile exported by the tool that resolves them, so that doctor --osv can check them");
+				else if (count > 0) reportUnpinned(context, lockfile, tool, unpinned);
 			}
 		}
 	}
 };
+/**
+* An entry whose name or version field says otherwise than what the tool installs (decision D-135): the lockfile was
+* edited, and what a reader of the lockfile sees is not what is installed.
+*/
+function reportMislabel(context, lockfile, entry, installs) {
+	const line = lockfile.lineOf(entry);
+	const location = line === void 0 ? { file: lockfile.file } : {
+		file: lockfile.file,
+		line
+	};
+	const mislabel = entry.mislabel;
+	if (mislabel === void 0) return;
+	if (mislabel.tool === "pnpm") {
+		context.report({
+			level: "warning",
+			location,
+			message: `${lockfile.file} has the key ${mislabel.key}, but its resolution.tarball is the registry tarball of ${installs}, which is what pnpm installs; known-malicious checked ${installs}`,
+			fix: `Find out who changed this entry of ${lockfile.file} (pnpm writes the tarball of the package and version of the key, so an entry where the two differ was edited), then lock the package again with pnpm`
+		});
+		return;
+	}
+	if (mislabel.tool === "npm") {
+		context.report({
+			level: "warning",
+			location,
+			message: `${lockfile.file} has ${mislabel.key} as ${mislabel.label}, but its resolved URL is the registry tarball of ${installs}, which is what npm installs there; known-malicious checked ${installs}`,
+			fix: `Find out who changed this entry of ${lockfile.file} (npm writes the name and version of the tarball it resolves, so an entry that differs from its resolved URL was edited), then lock the package again with npm`
+		});
+		return;
+	}
+	context.report({
+		level: "warning",
+		location,
+		message: `${lockfile.file} has version: ${mislabel.label} for the resolution ${mislabel.resolution}, but Yarn fetches the version of the resolution; known-malicious checked ${installs}`,
+		fix: `Find out who changed this entry of ${lockfile.file} (Yarn writes the version of the resolution it fetches, so an entry where the two differ was edited), then lock the package again with Yarn`
+	});
+}
+/**
+* Registry entries of a lockfile a tool wrote that give no exact version (decision D-135): a warning, as for versions
+* OSV.dev did not answer for, since the tool installs some version that was not checked. At the first of them.
+*/
+function reportUnpinned(context, lockfile, tool, entries) {
+	const lines = entries.map((entry) => lockfile.lineOf(entry));
+	const named = entries.slice(0, MAX_NAMED).map((entry, index) => lines[index] === void 0 ? entry.name : `${entry.name} (line ${lines[index]})`);
+	const more = entries.length - named.length;
+	const first = lines.find((line) => line !== void 0);
+	const one = entries.length === 1;
+	context.report({
+		level: "warning",
+		location: first === void 0 ? { file: lockfile.file } : {
+			file: lockfile.file,
+			line: first
+		},
+		message: `known-malicious could not check ${plural(entries.length, "registry package")} of ${lockfile.file}, whose ${one ? "entry gives" : "entries give"} no exact version that ${tool.name} installs: ${more > 0 ? `${named.join(", ")} and ${more} more` : listing$1(named)}`,
+		fix: one ? `Lock this package again with ${tool.name}, so that ${lockfile.file} names its exact version, and find out why it does not; then run depcurfew doctor --osv again` : `Lock these packages again with ${tool.name}, so that ${lockfile.file} names the exact version of each, and find out why it does not; then run depcurfew doctor --osv again`
+	});
+}
 /** One warning per lockfile and reason for the versions OSV.dev did not answer for: the check did not pass. */
 function reportUnchecked(context, file, locked, unchecked) {
 	for (const [reason, count] of unchecked) {
@@ -31554,7 +31967,7 @@ const lockfileInstallScripts = {
 	checks: "The lockfile has no install scripts or source builds that depcurfew.json does not allow",
 	summary: "The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.",
 	description: "Install scripts run arbitrary code during installation, and so do building a Python package from source (a source distribution, a git repository or a local directory) and loading a Composer plugin. Where the package manager runs them by default, or its own allow-list lets them run, they run code the policy does not allow; where it blocks them, a package may not work. A package in installScripts.deny works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed (a Python package without wheels, esbuild without optional dependencies). npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile and composer.lock records plugins; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index, only to requirements from a repository, a URL or a local path.",
-	help: "Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:, Composer plugins with composer:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can). For packages whose scripts depcurfew knows (esbuild, fsevents, lefthook) the finding names the fix: installScripts.deny, and for lefthook \"prepare\": \"lefthook install\" in the scripts of package.json.",
+	help: "Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:, Composer plugins with composer:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can). For packages whose scripts depcurfew knows (esbuild, fsevents, lefthook), from a registry, the finding names the fix: installScripts.deny, and for lefthook running lefthook install after each clone, as its documentation says for projects that do not use its postinstall script.",
 	level: "error",
 	requiresPolicy: true,
 	applies: (scope) => hasBuildRecords(scope.detection.packageManagers, scope.tools),
@@ -31603,7 +32016,7 @@ const lockfileInstallScripts = {
 				}
 				if (isDenied) {
 					if (!running || blocked) {
-						const known = knownPackage(entry.name);
+						const known = knownPackageOf(entry);
 						if (known?.needsOptionalDependencies !== true) continue;
 						for (const place of omitted()) context.report({
 							level: "warning",
@@ -31620,9 +32033,9 @@ const lockfileInstallScripts = {
 					});
 					continue;
 				}
-				const known = knownPackage(entry.name);
+				const known = knownPackageOf(entry);
 				const why = known === void 0 ? "the package may need them" : `${scriptsPurpose(known)}${versionNote(known, entry.version)}`;
-				const knownFix = known === void 0 ? void 0 : denyFix(known, tool, disabledBy?.all === true ? disabledBy.setting : void 0);
+				const knownFix = known === void 0 ? void 0 : denyFix(known, tool);
 				context.report({
 					level: running ? "error" : "warning",
 					location: location(lockfile, entry),
@@ -32619,9 +33032,10 @@ function checkPipJobs(context, tool) {
 		for (const command of [...job.commands].sort((a, b) => a.line - b.line).filter(judged)) {
 			const project = projectOfCommand(command, projects);
 			if (usesPip.get(project) !== true) continue;
-			const where = `job ${job.id} in ${job.file} installs packages with pip${project === "" ? "" : ` in ${project}`} on line ${command.line}`;
-			const add = `Add ${delay.variable}: P${delay.days}D to the env of job ${job.id} (or of that step)`;
-			if (reportPipDelay(context, delay, command, job.file, where, add, `in the env of job ${job.id} or of that step`)) break;
+			const named = jobLabel(job.id, job.line);
+			const where = `${named} in ${job.file} installs packages with pip${project === "" ? "" : ` in ${project}`} on line ${command.line}`;
+			const add = `Add ${delay.variable}: P${delay.days}D to the env of ${named} (or of that step)`;
+			if (reportPipDelay(context, delay, command, job.file, where, add, `in the env of ${named} or of that step`)) break;
 		}
 	}
 }
@@ -32700,7 +33114,7 @@ const runtimeEndOfLife = {
 				cannotTell(`the Node.js of ${declaration.versionFile} in ${declaration.file}`, "depcurfew cannot read the version from that file", location, `${check.replace("it is", `${declaration.versionFile} names`)}`);
 				continue;
 			}
-			const subject = nodeSubject(declaration, label);
+			const subject = nodeSubject(declaration, label, context.detection.jobs);
 			if (declaration.unknown !== void 0) {
 				cannotTell(subject, declaration.unknown, location, check.replace("it is", "every value is"));
 				continue;

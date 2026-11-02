@@ -7,7 +7,8 @@ import { posix } from 'node:path';
 import { parseVersion, type Version } from '../../apply/version.ts';
 import { extraOf, isRecord, yamlOptionsFor } from '../../apply/facts.ts';
 import { yamlSetting } from '../settings.ts';
-import type { DockerfileInfo, DockerStage, PackageManagerInfo, ToolCommand, VersionDeclaration } from '../../detect/types.ts';
+import type { DockerfileInfo, DockerStage, PackageManagerInfo, ToolCommand, VersionDeclaration, WorkflowJob } from '../../detect/types.ts';
+import { declarationJob } from '../../detect/workflows.ts';
 import { environment } from '../../knowledge/environment.ts';
 import { evidenceOf } from '../../knowledge/facts.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
@@ -138,13 +139,14 @@ function usesWithoutCorepack(context: RuleContext, declaration: VersionDeclarati
 }
 
 /** What to do there: install Corepack, as its README says for Node.js 25 and later, then enable the pinned tool. */
-function fixFor(declaration: VersionDeclaration, pin: Pin, node: string): string {
+function fixFor(declaration: VersionDeclaration, pin: Pin, node: string, jobs: readonly WorkflowJob[]): string {
   const install = evidenceOf(environment.corepack.manualInstall)[0]?.value ?? { command: 'npm install -g corepack', enable: 'corepack enable', package: 'corepack' };
   // A bare corepack enable leaves npm alone (environment.corepack.enableNpm).
   const enable = pin.tool === 'npm' ? `${install.enable} npm` : install.enable;
   const steps = `${install.command}, then ${enable}`;
   const npm = pin.tool === 'npm' ? '; npm itself does not read packageManager, while it checks devEngines.packageManager itself' : '';
-  if (declaration.source === 'github-actions') return `Install Corepack in job ${declaration.job ?? ''} of ${declaration.file} before it runs ${pin.name} (a step that runs ${steps})${npm}`;
+  // The job by its id only when GitHub accepts it as one, else by its line: a fix never repeats other text (D-135).
+  if (declaration.source === 'github-actions') return `Install Corepack in ${declarationJob(declaration, jobs)} of ${declaration.file} before it runs ${pin.name} (a step that runs ${steps})${npm}`;
   if (declaration.source === 'dockerfile') return `Install Corepack in ${declaration.file} before ${pin.name} runs (RUN ${install.command} && ${enable})${npm}`;
   return `Install Corepack wherever ${node} is used for this project (${steps}), as the Corepack README says for a Node.js without it${npm}`;
 }
@@ -175,7 +177,7 @@ export const corepackUnavailable: Rule = {
     };
     for (const declaration of context.detection.node.versions) {
       if (declaration.source === 'volta' || !('version' in declaration) || !withoutCorepack(declaration)) continue;
-      const subject = nodeSubject(declaration, SOURCE_LABEL[declaration.source]);
+      const subject = nodeSubject(declaration, SOURCE_LABEL[declaration.source], context.detection.jobs);
       const line = declarationLine(context, declaration);
       for (const pin of pins) {
         if (!usesWithoutCorepack(context, declaration, pin.tool)) continue;
@@ -184,7 +186,7 @@ export const corepackUnavailable: Rule = {
         context.report({
           location: line === undefined ? { file: declaration.file } : { file: declaration.file, line },
           message: `${where} pins ${pin.text}, but ${subject} does not come with Corepack (Node.js ${removed.slice(0, 3).join('.')} stopped distributing it), and Corepack is what reads that pin: without a separate Corepack install, ${pin.name} there is whatever ${pin.tool === 'npm' ? 'npm comes with that Node.js' : 'Yarn is installed, or none'}`,
-          fix: fixFor(declaration, pin, subject.replace(/ in .*$/u, '')),
+          fix: fixFor(declaration, pin, subject.replace(/ in .*$/u, ''), context.detection.jobs),
         });
       }
     }

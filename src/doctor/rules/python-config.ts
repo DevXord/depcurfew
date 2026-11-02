@@ -9,6 +9,7 @@ import { convertCooldown } from '../../policy/convert.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { joinPath } from '../../detect/repository.ts';
 import type { ToolCommand } from '../../detect/types.ts';
+import { jobLabel } from '../../detect/workflows.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { requirementsFormatOf } from '../python-lockfiles.ts';
 import { readPythonSetting, requirementsLongOptions, requirementsOptions, tomlSettingAt } from '../python.ts';
@@ -265,9 +266,11 @@ function checkPipJobs(context: RuleContext, tool: ToolKnowledge): void {
     for (const command of [...job.commands].sort((a, b) => a.line - b.line).filter(judged)) {
       const project = projectOfCommand(command, projects);
       if (usesPip.get(project) !== true) continue;
-      const where = `job ${job.id} in ${job.file} installs packages with pip${project === '' ? '' : ` in ${project}`} on line ${command.line}`;
-      const add = `Add ${delay.variable}: P${delay.days}D to the env of job ${job.id} (or of that step)`;
-      if (reportPipDelay(context, delay, command, job.file, where, add, `in the env of job ${job.id} or of that step`)) break;
+      // The job named by its id only when GitHub accepts it as one (decision D-135).
+      const named = jobLabel(job.id, job.line);
+      const where = `${named} in ${job.file} installs packages with pip${project === '' ? '' : ` in ${project}`} on line ${command.line}`;
+      const add = `Add ${delay.variable}: P${delay.days}D to the env of ${named} (or of that step)`;
+      if (reportPipDelay(context, delay, command, job.file, where, add, `in the env of ${named} or of that step`)) break;
     }
   }
 }

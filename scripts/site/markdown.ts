@@ -501,8 +501,13 @@ function plainText(nodes: readonly Inline[]): string {
     .join('');
 }
 
-/** A target that may become a link: a relative path or anchor, or an http, https or mailto URL. */
+/**
+ * A target that may become a link: a relative path or anchor, or an http, https or mailto URL. A target with a control
+ * character or whitespace never does: the WHATWG URL parser strips leading C0 controls and spaces and removes tabs and
+ * newlines anywhere before it reads the scheme, so "\u0001javascript:" and "java\tscript:" are javascript: there.
+ */
 function safeTarget(target: string): boolean {
+  if (/[\u0000- \u007f-\u009f\s]/u.test(target)) return false;
   const scheme = /^([a-z][a-z0-9+.-]*):/iu.exec(target)?.[1]?.toLowerCase();
   return scheme === undefined || scheme === 'http' || scheme === 'https' || scheme === 'mailto';
 }

@@ -169,6 +169,16 @@ describe('links', () => {
     );
   });
 
+  it('drops the link of a target with control characters or spaces, which the URL parser removes before it reads the scheme', () => {
+    // The WHATWG URL parser strips leading C0 controls and spaces and removes tabs and newlines anywhere, so each of
+    // these is javascript: in a browser.
+    for (const target of ['\u0001javascript:alert(1)', '\u0000javascript:alert(1)', 'java\tscript:alert(1)', 'java\nscript:alert(1)', 'javascript\r:alert(1)', '\u001fdata:text/html,x', '\u007fjavascript:x', ' javascript:alert(1)']) {
+      expect(html(`[x](${target})`), JSON.stringify(target)).not.toContain('<a');
+    }
+    expect(html('[x](\u0001javascript:alert(document.domain))')).toBe('<p>x</p>\n');
+    expect(html('[ok](docs/a.md) [ok](#anchor) [ok](https://example.com/a?b=c)')).toBe('<p><a href="docs/a.md">ok</a> <a href="#anchor">ok</a> <a href="https://example.com/a?b=c">ok</a></p>\n');
+  });
+
   it('shows images and broken links as text', () => {
     expect(html('![logo](https://example.com/logo.png) [text] [a](b c)')).toBe('<p>![logo](https://example.com/logo.png) [text] [a](b c)</p>\n');
   });

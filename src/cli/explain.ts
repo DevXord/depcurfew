@@ -1,5 +1,6 @@
 import { detectProject } from '../detect/index.ts';
 import type { Detection, DetectionWarning, DockerStage, ToolCommand, VersionDeclaration } from '../detect/types.ts';
+import { jobLabel } from '../detect/workflows.ts';
 import { WARNING_FIXES } from '../doctor/unreadable-warnings.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolId } from '../knowledge/types.ts';
@@ -226,7 +227,7 @@ function where(declaration: VersionDeclaration): string {
         : `${declaration.version} from ${declaration.versionFile}`
       : `from ${declaration.versionFile}`;
   const scope = [
-    ...(declaration.job === undefined ? [] : [`job ${declaration.job}`]),
+    ...(declaration.job === undefined ? [] : [jobLabel(declaration.job, undefined)]),
     ...(declaration.matrix === undefined ? [] : [`matrix.${declaration.matrix}`]),
     ...(declaration.stage === undefined ? [] : [`stage ${declaration.stage}`]),
   ];

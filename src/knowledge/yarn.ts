@@ -7,6 +7,7 @@ const rechecked = verifiedOn('2026-10-31');
 const user = verifiedOn('2026-10-31');
 const leftovers = verifiedOn('2026-11-01');
 const novemberSecond = verifiedOn('2026-11-02');
+const release14 = verifiedOn('2026-11-02');
 const BERRY = 'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1';
 const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
 
@@ -281,6 +282,11 @@ export const yarn: ToolKnowledge = {
       { registryOptions: [], registryVariables: ['YARN_NPM_REGISTRY_SERVER'], configOptions: [], configVariables: ['YARN_RC_FILENAME'] },
       'https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Configuration.ts',
       'Environment variables that start with yarn_ (any case) set the setting named by the camel-cased rest, so YARN_NPM_REGISTRY_SERVER sets npmRegistryServer, the registry packages are fetched from (https://yarnpkg.com/configuration/yarnrc#npmRegistryServer). getRcFilename reads yarn_rc_filename (any case) as the name of the configuration file instead of .yarnrc.yml. npmScopes, an object, cannot be set this way.',
+    ),
+    registryFetch: release14.verified(
+      { protocol: 'npm:', patch: 'patch:', patchEnd: '#', params: '?' },
+      `${BERRY}/packages/plugin-npm/sources/NpmSemverFetcher.ts`,
+      'Yarn fetches a registry package of yarn.lock by its resolution: getLocatorUrl builds <registry>/<name>/-/<name>-<version>.tgz from the name of the locator and the version after npm:, cleaned by semverUtils.clean (packages/yarnpkg-core/sources/semverUtils.ts, which drops leading spaces, v and = and trailing spaces and keeps pre-release and build), and supports only a reference whose part before ? semver.valid accepts. The version field of the entry goes into the package Yarn builds from the lockfile (setupResolutions in packages/yarnpkg-core/sources/Project.ts) and is not used for the fetch. A patch: locator wraps the locator it patches, URL-encoded, up to #. An npm: reference with an __archiveUrl parameter is fetched from that URL instead (NpmHttpFetcher.ts).',
     ),
     lockfileFormat: checked.verified(
       {
