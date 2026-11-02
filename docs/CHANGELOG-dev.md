@@ -2,6 +2,11 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-11-02 · Wydanie 1.4.1 i przykład Action z SHA wydania
+
+- `depcurfew@1.4.1` opublikowana 22:06 UTC z tagu `v1.4.1` (commit 7ad4fa8) przez trusted publishing, z proweniencją SLSA; pliki w rejestrze są bajt w bajt takie same jak kompilacja z tego tagu, a sha512 tarballa zgadza się z `integrity` w rejestrze. Tag postawiony najpierw na commicie sprzed scalenia wydania zatrzymał workflow na sprawdzeniu wersji, więc nic nie zostało zetapowane; tag przeniesiono na scalenie wydania.
+- Przykład Action w README przypina `DevXord/depcurfew@7ad4fa864789f5f266cc99cf2d58538597b8238e # v1.4.1` (`ACTION_RELEASE` w `src/docs/readme.ts`).
+
 ## 2026-11-02 · 1.4.1: hook, `corepack-unavailable` i tabele strony (D-145–D-147)
 
 - Wersja 1.4.1 w `package.json` i `package-lock.json`, sekcja 1.4.1 w `CHANGELOG.md`.
