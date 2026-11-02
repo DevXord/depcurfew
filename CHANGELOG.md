@@ -51,6 +51,7 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 
 - `doctor` finds the lines of minified lockfiles in linear time: a minified `package-lock.json` with 20,000 entries takes a fraction of a second instead of about 48 seconds.
 - Fix texts name a GitHub Actions job by its line when its key is not a valid job id, instead of quoting the key.
+- With `projects`, a package manager that the root shows only through a CI setup step (such as `pnpm/action-setup`) counts as set up for the projects when the root has no manifest of its registry, or when every install with it runs in a listed directory. `doctor` no longer lists a root pnpm that does not exist and no longer warns about it on Dependabot entries of other projects, `apply` no longer writes its file (such as `pnpm-workspace.yaml`) in an npm root, and `explain` shows it under "Package managers set up in CI for projects" (`project.ciForProjects` in `--json`). `manager-version-too-old` still checks the version the step installs.
 - `docs/knowledge.md` shows a value with a backtick inside (`docker.syntax`) in full instead of ending its code early.
 
 ### Upgrading from 1.3.0
@@ -61,6 +62,7 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 - `doctor` checks more than 1.3.0 did, so a repository that passed can get new findings: `corepack-unavailable` for a Yarn or npm pin with Node.js 25 or later, the bot delay for GitHub Actions, Renovate rules with `matchManagers` or `matchCategories`, and in a Composer project `composer-config-weakens`, the sources and plugins of `composer.lock`, and a lock written by Composer before 2.11. With `doctor.failOn: "warning"`, which `init` writes, these warnings fail `doctor` and the Action.
 - The `lockfile-install-scripts` findings for esbuild, fsevents and lefthook have a new `message` and `fix`; the rule id and level stay the same. `doctor --osv` warns about lockfile entries whose label differs from the tarball they install, and about registry entries without an exact version.
 - The Claude Code hook now reads `composer` commands, which 1.3.0 let through without a check: it denies or asks where the policy says so.
+- In a repository with `projects` and an npm root, 1.3.0 `apply` may have written a `pnpm-workspace.yaml` in the root because a CI job sets up pnpm for a project. 1.4.0 no longer manages that file and does not remove it; delete it by hand if nothing else uses it.
 - The Action input `osv` needs the 1.4.0 Action: pin its commit SHA.
 
 ## 1.3.0
