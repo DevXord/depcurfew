@@ -1,0 +1,35 @@
+{
+  "packageManagers": [
+    {
+      "id": "bundler",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "config",
+          "file": "Gemfile"
+        }
+      ],
+      "versions": [],
+      "configFiles": [
+        "Gemfile"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [
+    {
+      "id": "renovate",
+      "configFiles": [
+        "renovate.json"
+      ]
+    }
+  ],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
+  "warnings": []
+}

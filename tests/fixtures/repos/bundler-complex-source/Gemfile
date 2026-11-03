@@ -1,0 +1,10 @@
+source ENV.fetch("GEM_SERVER", "https://rubygems.org")
+
+source "https://rubygems.org" do
+  gem "rails"
+end
+
+# The private server is exempt from the cooldown on purpose.
+source "https://gems.example.com", cooldown: 0 do
+  gem "internal-tool"
+end

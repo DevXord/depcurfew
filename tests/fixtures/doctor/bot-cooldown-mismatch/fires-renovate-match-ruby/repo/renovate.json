@@ -1,0 +1,9 @@
+{
+  "minimumReleaseAge": "7 days",
+  "packageRules": [
+    {
+      "matchCategories": ["ruby"],
+      "minimumReleaseAge": "1 day"
+    }
+  ]
+}

@@ -23,6 +23,7 @@ import { shortenedDelays } from './delays.ts';
 import { isRecord, sinceOf, values } from './facts.ts';
 import { foldCase, ignoredByGit, ignoresCase, trackedFiles } from './gitignore.ts';
 import { bun } from './generators/bun.ts';
+import { bundler } from './generators/bundler.ts';
 import { composer } from './generators/composer.ts';
 import { workspaceText } from './generators/common.ts';
 import { createContext, EditFailed, type BotGenerator, type EditFailure, type ManagerGenerator, type Snippet } from './generators/context.ts';
@@ -111,7 +112,7 @@ export function planDetails(report: ApplyReport): PlanDetails | undefined {
   return DETAILS.get(report);
 }
 
-const MANAGERS: Partial<Record<ToolId, ManagerGenerator>> = { npm, pnpm, yarn, bun, deno, uv, pip, poetry, pdm, pipenv, composer };
+const MANAGERS: Partial<Record<ToolId, ManagerGenerator>> = { npm, pnpm, yarn, bun, deno, uv, pip, poetry, pdm, pipenv, composer, bundler };
 const BOTS: Partial<Record<ToolId, BotGenerator>> = { renovate, dependabot };
 
 function latestVersion(tool: ToolKnowledge): string | undefined {
@@ -130,6 +131,10 @@ function pinPlaces(tool: ToolKnowledge): string | undefined {
   const required = tool.extra?.['requiredVersion'];
   const value = required === undefined ? undefined : values(required)[0];
   const places = isRecord(value) && typeof value['key'] === 'string' && typeof value['table'] === 'string' ? [`${value['key']} in [${value['table']}]`] : [];
+  // The version that wrote the lockfile, which the tool switches to (BUNDLED WITH, decision D-152).
+  const lockfileVersion = tool.extra?.['lockfileVersion'] === undefined ? undefined : values(tool.extra['lockfileVersion'])[0];
+  const lockfile = tool.project === undefined ? undefined : values(tool.project.lockfiles)[0]?.at(-1)?.value[0];
+  if (isRecord(lockfileVersion) && typeof lockfileVersion['section'] === 'string' && lockfile !== undefined) places.push(`${lockfileVersion['section']} in ${lockfile}`);
   const plugins = values(environmentKnowledge.asdf.plugins)[0] ?? {};
   if (Object.values(plugins).includes(tool.id)) places.push('.tool-versions');
   const actions = Object.values(environmentKnowledge.githubActions).flatMap((fact) => values(fact as Fact<unknown>));
@@ -339,6 +344,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
       tools,
       targets: tool.kind === 'package-manager' ? targets : botTargets,
       policy: view,
+      policyExclusions: policy.cooldown?.exclude ?? [],
       version,
       workspace,
       warnings,

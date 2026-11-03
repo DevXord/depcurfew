@@ -1,10 +1,13 @@
 // Every fact about a package manager or bot carries the official URL it was verified against
 // and the date of verification. Disputed facts keep every variant with its own source.
 
-export type ToolId = 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'uv' | 'pip' | 'poetry' | 'pdm' | 'pipenv' | 'composer' | 'renovate' | 'dependabot';
+export type ToolId = 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'uv' | 'pip' | 'poetry' | 'pdm' | 'pipenv' | 'composer' | 'bundler' | 'renovate' | 'dependabot';
 export type ToolKind = 'package-manager' | 'update-bot';
-/** The registry a package manager installs from; package names in the policy are compared per ecosystem. */
-export type Ecosystem = 'npm' | 'pypi' | 'packagist';
+/**
+ * The registry a package manager installs from; package names in the policy are compared per ecosystem. rubygems
+ * (Bundler, decision D-152) has no prefix in the policy, so no name there belongs to it.
+ */
+export type Ecosystem = 'npm' | 'pypi' | 'packagist' | 'rubygems';
 
 export interface Evidence<T> {
   value: T;
@@ -864,6 +867,11 @@ export interface SetupActionInput {
   kind: 'version' | 'version-file' | 'runtime';
   /** The tool a `version` or `version-file` input refers to. */
   tool?: RuntimeOrTool;
+  /**
+   * Values of a `version` input that name no version but a way to choose one (ruby/setup-ruby's bundler input:
+   * Gemfile.lock, default, latest, none); such a value declares no version.
+   */
+  keywords?: readonly string[];
 }
 
 export interface SetupActionKnowledge {
@@ -1615,6 +1623,7 @@ export interface EnvironmentKnowledge {
     /** Third-party actions that install Poetry; Poetry has no official action. */
     installPoetry: Fact<SetupActionKnowledge>;
     actionsPoetry: Fact<SetupActionKnowledge>;
+    setupRuby: Fact<SetupActionKnowledge>;
     codeScanningUpload: Fact<CodeScanningUploadKnowledge>;
     stopCommands: Fact<StopCommandsKnowledge>;
     annotations: Fact<AnnotationsKnowledge>;

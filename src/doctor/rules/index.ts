@@ -1,6 +1,7 @@
 import type { Rule } from '../types.ts';
 import { botCooldownMismatch } from './bot-cooldown.ts';
 import { broadExclusion } from './broad-exclusion.ts';
+import { bundlerConfigWeakens } from './bundler-config.ts';
 import { composerConfigWeakens } from './composer-config.ts';
 import { configDrift } from './config-drift.ts';
 import { corepackUnavailable } from './corepack.ts';
@@ -30,6 +31,7 @@ export const RULES: readonly Rule[] = [
   pnpmSharedWorkspaceLockfile,
   pythonConfigIgnored,
   composerConfigWeakens,
+  bundlerConfigWeakens,
   configDrift,
   botCooldownMismatch,
   broadExclusion,

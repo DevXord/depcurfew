@@ -2,7 +2,7 @@
 // policy, and apply warns when it replaces a longer delay someone set by hand with the policy's shorter one
 // (decision D-075). Only values apply would replace count: the file each tool reads first, at the root.
 import { delayMinutes, formatMinutes } from '../doctor/durations.ts';
-import { latestVersion } from '../doctor/effective.ts';
+import { gemfileNamesOf, latestVersion } from '../doctor/effective.ts';
 import { readPythonSetting } from '../doctor/python.ts';
 import { jsonSetting, readSetting, rejectsYamlAliases, yamlAliasLine, yamlKeyLine, yamlSetting, type Setting } from '../doctor/settings.ts';
 import { Repository } from '../detect/repository.ts';
@@ -93,7 +93,11 @@ function managerSources(repository: Repository, manager: PackageManagerInfo, too
     const file = manifests.find((name) => repository.isFile(name));
     return file === undefined ? [] : [{ file, setting }];
   }
-  const own = (values(tool.cooldown.configFiles)[0] ?? []).filter((file) => file !== '.npmrc' || tool.id === 'npm').slice(0, 1);
+  // Bundler reads gems.rb in place of the Gemfile when both are there (decision D-152).
+  const own =
+    tool.id === 'bundler'
+      ? gemfileNamesOf(tool).filter((file) => repository.isFile(file)).slice(0, 1)
+      : (values(tool.cooldown.configFiles)[0] ?? []).filter((file) => file !== '.npmrc' || tool.id === 'npm').slice(0, 1);
   const sources = own.map((file) => ({ file, setting }));
   // pnpm 10 also reads the delay from .npmrc, after pnpm-workspace.yaml.
   const npmrc = tool.extra?.['npmrcCooldownKey'] === undefined ? undefined : extraOf(tool, 'npmrcCooldownKey', isNpmrcKey);

@@ -44,6 +44,11 @@ export interface CommandFacts {
   corepack: { enableCommand: string; package?: string };
   /** The package of Poetry and the commands that install it (pipx install, pip install; poetry extra.installedPackage). */
   poetry?: { name: string; commands: readonly (readonly string[])[] };
+  /**
+   * Bundler (decision D-152): its executables, the commands that resolve the Gemfile with their --cooldown option and
+   * the variable BUNDLE_COOLDOWN, and gem install bundler with the options that name its version.
+   */
+  bundler?: { executables: readonly string[]; commands: readonly string[]; option: string; variable: string; gem: { install: readonly string[]; name: string; versionOptions: readonly string[]; separator: string } };
 }
 
 export interface Word {
@@ -286,6 +291,7 @@ function readNames(facts: CommandFacts): ReadonlyMap<string, boolean> {
       found.set(delay.variable, false);
       found.set(delay.configVariable, false);
     }
+    if (facts.bundler !== undefined) found.set(facts.bundler.variable, false);
     names = found;
     READ_NAMES.set(facts, names);
   }
@@ -530,6 +536,47 @@ function pipCommand(args: readonly Word[], at: number, facts: CommandFacts, envi
   return [{ kind: 'install', tool: 'pip', ...pipDelay(rest, environment, facts), offset: at }, ...poetryVersions(operands(rest, values), at, facts)];
 }
 
+/**
+ * bundle install, update, lock, add and cache (decision D-152): an install with the release-age delay it gets, as written:
+ * --cooldown N on the command line (delayOption), else BUNDLE_COOLDOWN; unknown when the value has a variable.
+ */
+function bundlerCommand(args: readonly Word[], at: number, facts: CommandFacts, environment: Environment): Found | undefined {
+  const known = facts.bundler;
+  if (known === undefined) return undefined;
+  const index = firstOperand(args, setOf([]));
+  const command = args[index]?.text;
+  if (command === undefined || !known.commands.includes(command)) return undefined;
+  let value: string | undefined;
+  for (const [position, word] of args.entries()) {
+    if (word.text === known.option) value = args[position + 1]?.text;
+    else if (word.text.startsWith(`${known.option}=`)) value = word.text.slice(known.option.length + 1);
+  }
+  const option = value !== undefined;
+  value ??= environment.get(known.variable);
+  if (value?.includes('$') === true || (!option && environment.has(UNKNOWN_VARIABLES))) return { kind: 'install', tool: 'bundler', delayUnknown: true, offset: at };
+  return { kind: 'install', tool: 'bundler', ...(value === undefined ? {} : { delay: value }), ...(option ? { delayOption: true as const } : {}), offset: at };
+}
+
+/** gem install bundler -v 4.0.23, --version 4.0.23 or bundler:4.0.23: the Bundler it installs, as written (decision D-152). */
+function gemCommand(args: readonly Word[], at: number, facts: CommandFacts): Found[] {
+  const gem = facts.bundler?.gem;
+  if (gem === undefined || args[0]?.text !== gem.install[1]) return [];
+  const rest = args.slice(1);
+  let version: string | undefined;
+  let named = false;
+  for (const [position, word] of rest.entries()) {
+    const text = word.text;
+    if (gem.versionOptions.includes(text)) version = rest[position + 1]?.text;
+    else if (text.startsWith('--version=')) version = text.slice('--version='.length);
+    else if (text === gem.name) named = true;
+    else if (text.startsWith(`${gem.name}${gem.separator}`)) {
+      named = true;
+      version = text.slice(gem.name.length + gem.separator.length);
+    }
+  }
+  return named && version !== undefined && version !== '' ? [{ kind: 'upgrade', tool: 'bundler', version, offset: at }] : [];
+}
+
 /** pipx install poetry==2.3.0: the Poetry it installs. */
 function pipxCommand(args: readonly Word[], at: number, facts: CommandFacts): Found[] {
   const pipx = facts.poetry?.commands.find((command) => command[0] === 'pipx');
@@ -593,6 +640,8 @@ function readCommand(words: readonly Word[], facts: CommandFacts, depth: number,
   const other = facts.others.find((entry) => entry.tool === name);
   if (other !== undefined) return { found: [otherCommand(other, args, first.offset)].filter((item) => item !== undefined), runsNode };
   if (name === 'pipx') return { found: pipxCommand(args, first.offset, facts), runsNode };
+  if (facts.bundler !== undefined && facts.bundler.executables.includes(name)) return { found: [bundlerCommand(args, first.offset, facts, seen)].filter((item) => item !== undefined), runsNode };
+  if (facts.bundler !== undefined && name === facts.bundler.gem.install[0]) return { found: gemCommand(args, first.offset, facts), runsNode };
   const pip = pipArguments(command, facts);
   if (pip !== undefined) return { found: pipCommand(pip, first.offset, facts, seen), runsNode };
   return { found: [], runsNode };

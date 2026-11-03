@@ -1,0 +1,84 @@
+{
+  "policy": {
+    "file": "depcurfew.json",
+    "valid": true,
+    "targets": {
+      "mode": "auto",
+      "tools": [
+        "bundler",
+        "dependabot"
+      ]
+    },
+    "cooldown": {
+      "minimum": "36h",
+      "tools": [
+        {
+          "tool": "bundler",
+          "ok": true,
+          "unit": "days",
+          "value": 2,
+          "exact": false
+        },
+        {
+          "tool": "dependabot",
+          "ok": true,
+          "unit": "days",
+          "value": 2,
+          "exact": false
+        }
+      ]
+    },
+    "installScripts": {
+      "default": "deny",
+      "allow": [],
+      "deny": [],
+      "tools": [
+        {
+          "tool": "bundler",
+          "settings": [],
+          "warnings": [
+            {
+              "code": "scripts-not-enforceable",
+              "level": "warning",
+              "tool": "bundler",
+              "message": "Bundler builds the native extensions of gems when it installs them, which runs code of the gem (extconf.rb, a Rakefile), and has no setting that blocks this or allows it for some gems only, so installScripts \"deny\" cannot be enforced",
+              "fix": "Review gems with native extensions (extensions in the gemspec, an ext directory) before you add or update them; there is nothing to set for Bundler"
+            }
+          ]
+        },
+        {
+          "tool": "dependabot",
+          "settings": [],
+          "warnings": []
+        }
+      ]
+    },
+    "sources": {
+      "git": "deny",
+      "remoteTarball": "deny",
+      "file": "allow",
+      "directory": "allow",
+      "tools": [
+        {
+          "tool": "bundler",
+          "settings": [],
+          "warnings": [
+            {
+              "code": "source-not-enforceable",
+              "level": "warning",
+              "tool": "bundler",
+              "message": "Bundler has no setting for git dependencies, so \"deny\" cannot be enforced",
+              "fix": "Review new dependencies by hand; depcurfew doctor cannot see them in the lockfile either"
+            }
+          ]
+        },
+        {
+          "tool": "dependabot",
+          "settings": [],
+          "warnings": []
+        }
+      ]
+    }
+  },
+  "projects": []
+}

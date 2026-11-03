@@ -1,0 +1,30 @@
+{
+  "changed": [],
+  "warnings": [
+    {
+      "code": "exclude-unsupported",
+      "tool": "bundler",
+      "message": "Bundler: no setting exempts single gems from cooldown, so every gem waits; the exceptions of cooldown.exclude in depcurfew.json name no Ruby gems and are not applied to Bundler",
+      "fix": "Nothing to set for Bundler. To take a newer version of one gem sooner, review it and run bundle update GEM --cooldown 0 --conservative for that gem"
+    },
+    {
+      "code": "scripts-not-enforceable",
+      "tool": "bundler",
+      "message": "Bundler builds the native extensions of gems when it installs them, which runs code of the gem (extconf.rb, a Rakefile), and has no setting that blocks this or allows it for some gems only, so installScripts \"deny\" cannot be enforced",
+      "fix": "Review gems with native extensions (extensions in the gemspec, an ext directory) before you add or update them; there is nothing to set for Bundler"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "bundler",
+      "message": "Bundler has no setting for git dependencies, so \"deny\" cannot be enforced",
+      "fix": "Review new dependencies by hand; depcurfew doctor cannot see them in the lockfile either"
+    },
+    {
+      "code": "version-too-old",
+      "tool": "bundler",
+      "message": "Bundler 4.0.13 does not support cooldown once Gemfile.lock exists (added in 4.0.14); not written",
+      "fix": "Require Bundler 4.0.14 or later where the version is pinned (BUNDLED WITH of the lockfile changes with bundle update --bundler), then run depcurfew apply again"
+    }
+  ],
+  "snippets": []
+}

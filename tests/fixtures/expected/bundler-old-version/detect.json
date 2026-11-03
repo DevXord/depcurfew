@@ -1,0 +1,39 @@
+{
+  "packageManagers": [
+    {
+      "id": "bundler",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "Gemfile.lock"
+        },
+        {
+          "kind": "config",
+          "file": "Gemfile"
+        }
+      ],
+      "versions": [
+        {
+          "version": "4.0.13",
+          "source": "lockfile",
+          "file": "Gemfile.lock",
+          "line": 13
+        }
+      ],
+      "configFiles": [
+        "Gemfile"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
+  "warnings": []
+}

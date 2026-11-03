@@ -45,6 +45,8 @@ export interface ManagerFacts {
   createdByKey: string | null;
   /** What the tool writes in that key of a pylock.toml it exports; `null` when it writes none. */
   pylockCreatedBy: string | null;
+  /** The section of the lockfile that holds the version of the tool which wrote it (BUNDLED WITH); `null` when there is none. */
+  lockfileVersion: string | null;
 }
 
 export interface BotFacts {
@@ -79,7 +81,7 @@ export interface DetectionFacts {
   commands: CommandFacts;
 }
 
-const PACKAGE_MANAGERS: readonly ToolId[] = ['npm', 'pnpm', 'yarn', 'bun', 'deno', 'uv', 'pip', 'poetry', 'pdm', 'pipenv', 'composer'];
+const PACKAGE_MANAGERS: readonly ToolId[] = ['npm', 'pnpm', 'yarn', 'bun', 'deno', 'uv', 'pip', 'poetry', 'pdm', 'pipenv', 'composer', 'bundler'];
 const BOTS: readonly ToolId[] = ['renovate', 'dependabot'];
 /** Files several tools read; a Python tool counts the project file only when it has the tool's table. */
 const SHARED_FILES = ['package.json', '.npmrc'];
@@ -151,6 +153,7 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
     const lockfileFormat = extraValue(entry, 'lockfileFormat');
     const createdBy = isRecord(lockfileFormat) ? lockfileFormat['createdBy'] : undefined;
     const pylockCreatedBy = extraValue(entry, 'pylockCreatedBy');
+    const lockfileVersion = extraValue(entry, 'lockfileVersion');
     return {
       id: id as PackageManagerId,
       ecosystem: entry.ecosystem ?? 'npm',
@@ -164,6 +167,7 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
       lockfilePattern: typeof pattern === 'string' ? new RegExp(pattern, 'u') : null,
       createdByKey: typeof createdBy === 'string' ? createdBy : null,
       pylockCreatedBy: typeof pylockCreatedBy === 'string' ? pylockCreatedBy : null,
+      lockfileVersion: isRecord(lockfileVersion) && typeof lockfileVersion['section'] === 'string' ? lockfileVersion['section'] : null,
     };
   });
 
@@ -201,6 +205,11 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
   const omitOptional = npm.extra?.['omitOptional'] === undefined ? undefined : extraValue(npm, 'omitOptional');
   const localPrefix = npm.extra?.['localPrefix'] === undefined ? undefined : extraValue(npm, 'localPrefix');
   const corepackInstall = first(environment.corepack.manualInstall);
+  // Bundler (decision D-152): the commands that resolve the Gemfile, BUNDLE_COOLDOWN and gem install bundler.
+  const bundlerTool = tools.find((candidate) => candidate.id === 'bundler');
+  const resolve = bundlerTool === undefined ? undefined : extraValue(bundlerTool, 'resolveCommands');
+  const bundlerSetting = bundlerTool === undefined ? undefined : extraValue(bundlerTool, 'cooldownSetting');
+  const gemInstall = bundlerTool === undefined ? undefined : extraValue(bundlerTool, 'gemInstall');
   const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []);
   // pnpm, Yarn and Bun: the commands that install the project's dependencies and those that add packages.
   const others = (['pnpm', 'yarn', 'bun'] as const).flatMap((id) => {
@@ -250,6 +259,17 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
     ...(isRecord(poetryPackage) && typeof poetryPackage['name'] === 'string' && Array.isArray(poetryPackage['commands'])
       ? { poetry: { name: poetryPackage['name'], commands: (poetryPackage['commands'] as unknown[]).filter((item): item is string[] => Array.isArray(item)) } }
       : {}),
+    ...(isRecord(resolve) && typeof resolve['option'] === 'string' && isRecord(bundlerSetting) && typeof bundlerSetting['variable'] === 'string' && isRecord(gemInstall) && typeof gemInstall['name'] === 'string' && typeof gemInstall['separator'] === 'string'
+      ? {
+          bundler: {
+            executables: strings(resolve['executables']),
+            commands: strings(resolve['commands']),
+            option: resolve['option'],
+            variable: bundlerSetting['variable'],
+            gem: { install: strings(gemInstall['command']), name: gemInstall['name'], versionOptions: strings(gemInstall['versionOptions']), separator: gemInstall['separator'] },
+          },
+        }
+      : {}),
   };
   const docker = environment.docker;
   const names = first(docker.dockerfileNames);
@@ -277,6 +297,7 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
       actions.setupUv,
       actions.installPoetry,
       actions.actionsPoetry,
+      actions.setupRuby,
     ].map(first),
     setupNode: { action: first(actions.setupNode).action, versionFile: first(actions.setupNodeVersionFile) },
     nodeFiles: { nvmrc: nvmrc.file, comment: nvmrc.comment, nodeVersion: first(environment.node.nodeVersionFile).file, engines: first(environment.node.engines) },

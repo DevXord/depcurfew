@@ -13,8 +13,11 @@ const COMPOSER_PART = '[a-z0-9*](?:[a-z0-9._*-]*[a-z0-9*])?';
 export const PYPI_PREFIX = 'pypi:';
 export const COMPOSER_PREFIX = 'composer:';
 
-/** The prefix of each registry but npm, whose names have none. */
-const PREFIXES: Readonly<Record<Exclude<Ecosystem, 'npm'>, string>> = { pypi: PYPI_PREFIX, packagist: COMPOSER_PREFIX };
+/**
+ * The prefix of each registry but npm, whose names have none. Ruby gems have no prefix (decision D-152): Bundler has no
+ * per-gem setting a name in the policy could go to, so no name of the policy is a gem's.
+ */
+const PREFIXES: Readonly<Record<Exclude<Ecosystem, 'npm' | 'rubygems'>, string>> = { pypi: PYPI_PREFIX, packagist: COMPOSER_PREFIX };
 
 /** Also used as the JSON Schema pattern. The lookaheads reject patterns made only of `*`, which match every package. */
 export const PACKAGE_PATTERN = `^(?:${PYPI_PREFIX}(?!\\*+$)${PYTHON_NAME}|${COMPOSER_PREFIX}(?!\\*+/\\*+$)${COMPOSER_PART}/${COMPOSER_PART}|(?!\\*+$)(@${NAME}/)?${NAME})$`;
@@ -95,7 +98,7 @@ export function ecosystemOf(pattern: string): Ecosystem {
 
 /** The prefix of an ecosystem's names in the policy: pypi:, composer:, or none for npm. */
 export function prefixOf(ecosystem: Ecosystem): string {
-  return ecosystem === 'npm' ? '' : PREFIXES[ecosystem];
+  return ecosystem === 'npm' || ecosystem === 'rubygems' ? '' : PREFIXES[ecosystem];
 }
 
 /** The patterns of one ecosystem, without their prefix. */

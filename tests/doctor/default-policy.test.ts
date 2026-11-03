@@ -96,7 +96,7 @@ describe('doctor without depcurfew.json', () => {
     expect(result.stdout).toMatch(/^ {4}passed {10}The lockfile installs no package from a source depcurfew\.json denies \(compared with the default policy\) \[lockfile-forbidden-source\]$/mu);
     expect(result.stdout).toMatch(/^ {4}skipped {9}depcurfew\.json follows the schema and can be read \(needs depcurfew\.json\) \[invalid-policy\]$/mu);
     expect(result.stdout).not.toContain('(needs depcurfew.json) [config-drift]');
-    expect(result.stdout).toMatch(/^ {2}19 checks: 6 passed, 2 found problems, 10 not applicable, 1 skipped$/mu);
+    expect(result.stdout).toMatch(/^ {2}20 checks: 6 passed, 2 found problems, 11 not applicable, 1 skipped$/mu);
   });
 
   it('--json marks every such finding and says which policy the rules that need one used', async () => {

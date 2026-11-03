@@ -40,6 +40,16 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
     // WPackagist serves the WordPress plugin and theme directories as a Composer repository (repositoryArchiveHosts).
     { host: 'github.com', pathPrefix: '/outlandishideas/wpackagist/' },
   ],
+  // bundler.io is built from the man pages of ruby/rubygems (formerly rubygems/rubygems), where RubyGems lives too; the
+  // RubyGems blog is built from rubygems/rubygems.github.io; rubygems.org serves the versions of the bundler gem.
+  bundler: [
+    { host: 'bundler.io' },
+    { host: 'github.com', pathPrefix: '/ruby/rubygems/' },
+    { host: 'github.com', pathPrefix: '/rubygems/' },
+    { host: 'blog.rubygems.org' },
+    { host: 'guides.rubygems.org' },
+    { host: 'rubygems.org', pathPrefix: '/api/' },
+  ],
   renovate: [{ host: 'docs.renovatebot.com' }, { host: 'github.com', pathPrefix: '/renovatebot/' }],
   // Psych (ruby/psych) is the YAML library dependabot-core loads dependabot.yml with (extra.yamlScalars).
   dependabot: [
@@ -81,6 +91,8 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   // Third-party actions that install Poetry: their own repositories describe their inputs.
   { host: 'github.com', pathPrefix: '/snok/' },
   { host: 'github.com', pathPrefix: '/abatilo/' },
+  // ruby/setup-ruby, the action that installs Ruby and Bundler (decision D-152).
+  { host: 'github.com', pathPrefix: '/ruby/setup-ruby/' },
   // git: git-scm.com/docs is built from Documentation/ in git/git.
   { host: 'github.com', pathPrefix: '/git/' },
   // PowerShell and cmd.exe: learn.microsoft.com is built from MicrosoftDocs repositories such as PowerShell-Docs.

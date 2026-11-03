@@ -1,10 +1,11 @@
-// Dependabot: cooldown in every updates entry of a JavaScript, Python or Composer ecosystem in dependabot.yml, in
+// Dependabot: cooldown in every updates entry of a JavaScript, Python, Composer or Bundler ecosystem in dependabot.yml, in
 // the github-actions entries when the repository has workflows (decision D-130), and in the entries of the ecosystems
 // updated by bots only: cargo, gomod, maven, gradle and nuget (decision D-151). semver-*-days keys that are already
 // there are raised to the policy's delay (never lowered, never added) where the ecosystem reads them; other keys
 // (include) stay. Each package entry gets the exclusions of its registry: npm names for npm, bun and deno, pypi: names
-// for pip and uv, composer: names for composer. The policy's exclusions name none of the actions or of the dependencies
-// of the ecosystems updated by bots only, so their entries get none, and keep their own.
+// for pip and uv, composer: names for composer. The policy's exclusions name none of the actions, of the dependencies
+// of the ecosystems updated by bots only or of the Ruby gems of bundler entries, so their entries get none, and keep
+// their own (decision D-152).
 import { convertCooldown } from '../../policy/convert.ts';
 import { ecosystemOfTool } from '../../policy/ecosystem.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
@@ -95,10 +96,13 @@ export const dependabot: BotGenerator = (context, duration, repository) => {
   const setting = settingOf(tool.cooldown.setting) ?? 'cooldown';
   const yaml = context.yaml(file);
   const updates = yaml.get(['updates']);
-  const patternsOf = (ecosystem: string): string[] => {
+  // undefined for a registry the policy has no names for (Ruby gems, decision D-152): such an entry keeps its own exclude.
+  const patternsOf = (ecosystem: string): string[] | undefined => {
     const covered = Array.isArray(managers[ecosystem]) ? (managers[ecosystem] as unknown[]) : [];
     const tool = context.tools.find((entry) => covered.includes(entry.id));
-    return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], tool === undefined ? 'npm' : ecosystemOfTool(tool))) ?? [];
+    const registry = tool === undefined ? 'npm' : ecosystemOfTool(tool);
+    if (registry === 'rubygems') return undefined;
+    return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], registry)) ?? [];
   };
   let configured = 0;
   // The other entries that get the cooldown: github-actions and the ecosystems updated by bots only.

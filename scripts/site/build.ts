@@ -122,6 +122,7 @@ const ECOSYSTEM_PAGES: Partial<Record<Ecosystem, EcosystemPage>> = {
   npm: { file: 'npm.html', nav: 'JavaScript', guide: [], rules: ['npmrc-overrides-policy', 'pnpm-shared-workspace-lockfile'] },
   pypi: { file: 'python.html', nav: 'Python', guide: ['python-projects'], rules: ['python-config-ignored', 'lockfile-out-of-date'] },
   packagist: { file: 'php.html', nav: 'PHP', guide: ['composer-projects'], rules: ['composer-config-weakens'] },
+  rubygems: { file: 'ruby.html', nav: 'Ruby', guide: ['ruby-projects'], rules: ['bundler-config-weakens'] },
 };
 // The bots' section of the README says what they do for each ecosystem, also for those only they delay (D-151).
 const BOTS_PAGE: EcosystemPage = { file: 'bots.html', nav: 'Bots', guide: ['update-bots'], rules: ['bot-cooldown-mismatch'] };
@@ -170,7 +171,7 @@ export interface PageGroup {
  * knowledge base gets a start page `<ecosystem>.html`, which has to be added here.
  */
 export const PAGE_GROUPS: readonly PageGroup[] = [
-  { title: 'Start', files: ['index.html', 'guide.html', 'npm.html', 'python.html', 'php.html', 'bots.html'] },
+  { title: 'Start', files: ['index.html', 'guide.html', 'npm.html', 'python.html', 'php.html', 'ruby.html', 'bots.html'] },
   { title: 'Reference', files: ['policy.html', 'commands.html', 'codes.html', 'doctor.html', 'tools.html', 'knowledge.html'] },
   { title: 'Integrations', files: ['action.html', 'check.html', 'claude-code.html', 'mcp.html', 'machine.html'] },
   { title: 'Project', files: ['about.html', 'other-tools.html', 'versions.html'] },

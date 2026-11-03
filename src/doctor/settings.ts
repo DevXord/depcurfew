@@ -6,6 +6,8 @@ import { jsonElementOffsets, jsonGet, jsonOffset } from '../apply/json-edit.ts';
 import { BLOCK_END, isBlockStart } from '../apply/block.ts';
 import type { Repository } from '../detect/repository.ts';
 import { npm } from '../knowledge/npm.ts';
+import { bundler } from '../knowledge/bundler.ts';
+import { gemfileSources, sameServer } from '../apply/gemfile.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import { MAX_YAML_ALIASES, mergedPair, ownPair, readYamlDocument, type YamlOptions } from '../yaml-parse.ts';
 
@@ -348,8 +350,25 @@ export function readSetting(repository: Repository, file: string, setting: strin
     found = dot === -1 ? tomlSetting(text, '', setting) : tomlSetting(text, setting.slice(0, dot), setting.slice(dot + 1));
   } else if (/\.jsonc?$/u.test(name)) {
     found = jsonSetting(text, setting.split('.'));
+  } else if (GEMFILES.has(name)) {
+    found = gemfileSetting(text, setting);
   }
   return found === undefined ? undefined : { file, ...found };
+}
+
+/** The Gemfiles of Bundler (decision D-152). */
+const GEMFILES: ReadonlySet<string> = new Set(['Gemfile', 'gems.rb']);
+
+/**
+ * A keyword of the source call of rubygems.org in a Gemfile (Bundler extra.rubygemsSource): the cooldown: of the first
+ * such call without a block, as a number of days, with its line. A value that is not a number is not read.
+ */
+function gemfileSetting(text: string, setting: string): { value: unknown; line: number } | undefined {
+  if (setting !== 'cooldown') return undefined;
+  const fact = bundler.extra?.['rubygemsSource'];
+  const server = fact !== undefined && fact.status !== 'disputed' && isRecord(fact.value) && typeof fact.value['url'] === 'string' ? fact.value['url'] : 'https://rubygems.org';
+  const source = gemfileSources(text).find((item) => !item.block && item.url !== undefined && sameServer(item.url, server));
+  return source === undefined || typeof source.cooldown !== 'number' ? undefined : { value: source.cooldown, line: source.line };
 }
 
 /** The 1-based line of the first occurrence of `needle`, or undefined. */

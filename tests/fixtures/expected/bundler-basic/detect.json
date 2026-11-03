@@ -1,0 +1,81 @@
+{
+  "packageManagers": [
+    {
+      "id": "bundler",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "Gemfile.lock"
+        },
+        {
+          "kind": "config",
+          "file": "Gemfile"
+        },
+        {
+          "kind": "ci",
+          "file": ".github/workflows/ci.yml"
+        }
+      ],
+      "versions": [
+        {
+          "version": "4.0.23",
+          "source": "lockfile",
+          "file": "Gemfile.lock",
+          "line": 26
+        },
+        {
+          "version": "4.0.23",
+          "source": "github-actions",
+          "file": ".github/workflows/ci.yml",
+          "line": 11,
+          "job": "test",
+          "step": 8
+        }
+      ],
+      "configFiles": [
+        "Gemfile"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [
+    {
+      "id": "dependabot",
+      "configFiles": [
+        ".github/dependabot.yml"
+      ]
+    }
+  ],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [
+    ".github/workflows/ci.yml"
+  ],
+  "jobs": [
+    {
+      "file": ".github/workflows/ci.yml",
+      "id": "test",
+      "line": 4,
+      "commands": [],
+      "runsNode": false
+    },
+    {
+      "file": ".github/workflows/ci.yml",
+      "id": "lint",
+      "line": 14,
+      "commands": [
+        {
+          "kind": "install",
+          "tool": "bundler",
+          "line": 21
+        }
+      ],
+      "runsNode": false
+    }
+  ],
+  "dockerfiles": [],
+  "warnings": []
+}

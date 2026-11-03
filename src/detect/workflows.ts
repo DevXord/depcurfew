@@ -261,7 +261,8 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
               const node = inputs.get(input.name, true);
               const value = scalarText(node);
               if (value === undefined || !isScalar(node)) continue;
-              if (input.kind === 'version' && input.tool !== undefined) declare(input.tool, { version: value }, node, stepLine);
+              // A keyword such as Gemfile.lock chooses the version some other way (ruby/setup-ruby, decision D-152).
+              if (input.kind === 'version' && input.tool !== undefined && input.keywords?.includes(value) !== true) declare(input.tool, { version: value }, node, stepLine);
               if (input.kind === 'version-file' && input.tool !== undefined) declare(input.tool, { versionFile: value }, node, stepLine);
               if (input.kind === 'runtime') {
                 const [name, version] = value.split('@');
@@ -292,7 +293,7 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
             const directory = commandDirectory(stepDirectory, cd);
             const afterCorepack = seenCorepack || (found.corepack !== undefined && found.corepack < offset);
             record.commands.push({ ...command, line, ...(directory === undefined ? {} : { directory }), ...(afterCorepack ? { afterCorepack: true as const } : {}) });
-            if ((command.tool === 'npm' || command.tool === 'poetry') && command.kind === 'upgrade' && command.version !== undefined) {
+            if ((command.tool === 'npm' || command.tool === 'poetry' || command.tool === 'bundler') && command.kind === 'upgrade' && command.version !== undefined) {
               findings.versions.push({ tool: command.tool, declaration: { version: command.version, source: 'github-actions', file, line, job: id } });
             }
           }

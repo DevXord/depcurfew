@@ -1,0 +1,12 @@
+name: ci
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      BUNDLE_COOLDOWN: 7
+    steps:
+      - uses: actions/checkout@v6
+      - run: bundle install --cooldown 3
+      - run: bundle exec rake
+      - run: BUNDLE_COOLDOWN=14 bundle update

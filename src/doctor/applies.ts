@@ -17,9 +17,20 @@ export function usesBot(scope: RuleScope, ids?: readonly BotId[]): boolean {
   return scope.detection.bots.some((bot) => ids === undefined || ids.includes(bot.id));
 }
 
-/** A package manager has a lockfile, or for pip requirements files, which say where packages come from too. */
+/** Whether depcurfew reads the lockfile of a package manager (extra.lockfileFormat); it does not read Gemfile.lock (decision D-152). */
+export function readsLockfile(tools: RuleScope['tools'], id: PackageManagerId): boolean {
+  return tools.find((tool) => tool.id === id)?.extra?.['lockfileFormat'] !== undefined;
+}
+
+/**
+ * A package manager has a lockfile depcurfew reads, or for pip requirements files, which say where packages come from
+ * too.
+ */
 export function hasLockfile(scope: RuleScope): boolean {
   return scope.detection.packageManagers.some(
-    (manager) => manager.supported && (manager.evidence.some((evidence) => evidence.kind === 'lockfile') || (manager.id === 'pip' && manager.configFiles.length > 0)),
+    (manager) =>
+      manager.supported &&
+      readsLockfile(scope.tools, manager.id) &&
+      (manager.evidence.some((evidence) => evidence.kind === 'lockfile') || (manager.id === 'pip' && manager.configFiles.length > 0)),
   );
 }

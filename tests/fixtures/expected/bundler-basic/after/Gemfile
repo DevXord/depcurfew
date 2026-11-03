@@ -1,0 +1,14 @@
+# frozen_string_literal: true
+
+# Gems come from the public server; depcurfew.json manages the cooldown.
+source "https://rubygems.org", cooldown: 2
+
+ruby "3.4.7"
+
+gem "rails", "~> 8.1"
+gem "puma", ">= 6" # web server
+gem "nokogiri" # builds a native extension
+
+group :development, :test do
+  gem "rspec-rails"
+end

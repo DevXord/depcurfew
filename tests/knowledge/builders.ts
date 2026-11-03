@@ -16,6 +16,7 @@ const SAMPLE_SOURCE: Record<ToolId, string> = {
   pdm: 'https://pdm-project.org/latest/usage/lockfile/',
   pipenv: 'https://pipenv.pypa.io/en/latest/pipfile/',
   composer: 'https://getcomposer.org/doc/06-config.md',
+  bundler: 'https://bundler.io/man/bundle-config.1.html',
   renovate: 'https://docs.renovatebot.com/configuration-options/',
   dependabot: 'https://docs.github.com/en/code-security/dependabot',
 };

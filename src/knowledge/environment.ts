@@ -19,6 +19,7 @@ const runtimes = verifiedOn('2026-11-01');
 const recheck = verifiedOn('2026-11-01');
 const finalReview = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
+const ruby = verifiedOn('2026-11-03');
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
@@ -470,6 +471,15 @@ export const environment: EnvironmentKnowledge = {
       { action: 'abatilo/actions-poetry', installs: ['poetry'], inputs: [{ name: 'poetry-version', kind: 'version', tool: 'poetry' }] },
       'https://github.com/abatilo/actions-poetry/blob/v4.0.0/action.yml',
       'A third-party action (current v4.0.0); poetry-version defaults to latest.',
+    ),
+    setupRuby: ruby.verified(
+      {
+        action: 'ruby/setup-ruby',
+        installs: ['bundler'],
+        inputs: [{ name: 'bundler', kind: 'version', tool: 'bundler', keywords: ['Gemfile.lock', 'default', 'latest', 'none'] }],
+      },
+      'https://github.com/ruby/setup-ruby/blob/v1.336.0/action.yml',
+      'Current version v1.336.0 (the README uses ruby/setup-ruby@v1). bundler is "The version of Bundler to install. Either \'Gemfile.lock\' (the default), \'default\', \'latest\', \'none\', or a version number (e.g., 1, 2, 2.1, 2.1.4)": Gemfile.lock installs the version of BUNDLED WITH (also of gems.locked), default the Bundler the Ruby comes with when it is 2.2 or later, latest the latest compatible one, none nothing. bundler-cache: true runs bundle install and caches the gems, with bundle config --local deployment true when there is a lockfile, and generates the lockfile with bundle lock when there is none (README.md, "Caching bundle install automatically").',
     ),
     codeScanningUpload: checked.verified(
       {

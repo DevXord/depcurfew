@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "cooldown": { "minimum": "36h", "exclude": ["esbuild"] },
+  "installScripts": { "default": "deny" },
+  "sources": { "git": "deny", "remoteTarball": "deny", "file": "allow", "directory": "allow" },
+  "targets": "auto"
+}

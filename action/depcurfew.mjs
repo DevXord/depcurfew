@@ -66,7 +66,7 @@ function verifiedOn(verifiedAt) {
 }
 
 // src/knowledge/bun.ts
-const { verified: verified$15, uncertain: uncertain$13, disputed: disputed$6, evidence: evidence$6 } = verifiedOn("2026-10-28");
+const { verified: verified$16, uncertain: uncertain$14, disputed: disputed$6, evidence: evidence$6 } = verifiedOn("2026-10-28");
 const checked$6 = verifiedOn("2026-10-29");
 const user$9 = verifiedOn("2026-10-31");
 const runtimes$3 = verifiedOn("2026-11-01");
@@ -74,49 +74,49 @@ const release14$6 = verifiedOn("2026-11-02");
 const BUN_V1_4_4 = "https://github.com/oven-sh/bun/blob/bun-v1.4.4";
 const BUNFIG_PARSER = `${BUN_V1_4_4}/src/bunfig/bunfig.rs`;
 const BUNFIG = "https://bun.com/docs/runtime/bunfig";
-const INSTALL$1 = "https://bun.com/docs/pm/cli/install";
+const INSTALL$2 = "https://bun.com/docs/pm/cli/install";
 const LIFECYCLE = "https://bun.com/docs/pm/lifecycle";
 const ADD = "https://bun.com/docs/pm/cli/add";
 const BUN_1_4_4 = "https://bun.com/blog/bun-v1.4.4#minimumreleaseage-supports-units-and-per-version-exclusions";
 const DOCS_1_3_0 = "https://github.com/oven-sh/bun/blob/bun-v1.3.0/docs/cli/install.md";
-const noSetting$7 = (anchor, kind) => ({ setting: uncertain$13(null, `${ADD}#${anchor}`, `${kind} dependencies are supported with no setting to allow or forbid them (concluded from the full bunfig [install] list); install.blockExoticSubdeps is proposed in oven-sh/bun#30340 but not shipped.`) });
+const noSetting$7 = (anchor, kind) => ({ setting: uncertain$14(null, `${ADD}#${anchor}`, `${kind} dependencies are supported with no setting to allow or forbid them (concluded from the full bunfig [install] list); install.blockExoticSubdeps is proposed in oven-sh/bun#30340 but not shipped.`) });
 const WORKSPACES$2 = "https://github.com/oven-sh/bun/blob/main/docs/pm/workspaces.mdx";
 const bun$1 = {
 	id: "bun",
 	name: "Bun",
 	kind: "package-manager",
 	cooldown: {
-		setting: verified$15("install.minimumReleaseAge", `${BUNFIG}#install-minimumreleaseage`),
-		configFiles: verified$15(["bunfig.toml"], BUNFIG, "Also the global $HOME/.bunfig.toml or $XDG_CONFIG_HOME/.bunfig.toml; local keys override global ones. Bun's .npmrc support has no min-release-age key."),
-		cliFlag: verified$15("--minimum-release-age", DOCS_1_3_0, "bun install, add and update; bunx honors it only since 1.4.4."),
-		unit: verified$15("seconds", `${BUNFIG}#install-minimumreleaseage`, "Plain numbers are seconds; 0 turns it off. Since 1.4.4 duration strings such as 90m, 12 hours, 3d or 2 weeks also work (the bunfig reference still documents seconds only)."),
-		availableSince: verified$15("1.3.0", "https://bun.com/blog/bun-v1.3#minimum-release-age"),
+		setting: verified$16("install.minimumReleaseAge", `${BUNFIG}#install-minimumreleaseage`),
+		configFiles: verified$16(["bunfig.toml"], BUNFIG, "Also the global $HOME/.bunfig.toml or $XDG_CONFIG_HOME/.bunfig.toml; local keys override global ones. Bun's .npmrc support has no min-release-age key."),
+		cliFlag: verified$16("--minimum-release-age", DOCS_1_3_0, "bun install, add and update; bunx honors it only since 1.4.4."),
+		unit: verified$16("seconds", `${BUNFIG}#install-minimumreleaseage`, "Plain numbers are seconds; 0 turns it off. Since 1.4.4 duration strings such as 90m, 12 hours, 3d or 2 weeks also work (the bunfig reference still documents seconds only)."),
+		availableSince: verified$16("1.3.0", "https://bun.com/blog/bun-v1.3#minimum-release-age"),
 		default: disputed$6("The bunfig reference says the default is null (off) and an open docs pull request (oven-sh/bun#41545) says the feature is off by default; the install page lists 259200 (3 days) under \"These are the default values\".", evidence$6([{
 			since: "1.3.0",
 			value: null
 		}], `${BUNFIG}#install-minimumreleaseage`), evidence$6([{
 			since: "1.3.0",
 			value: 259200
-		}], INSTALL$1)),
+		}], INSTALL$2)),
 		exclude: {
-			setting: verified$15("install.minimumReleaseAgeExcludes", `${BUNFIG}#install-minimumreleaseageexcludes`),
-			availableSince: verified$15("1.3.0", DOCS_1_3_0),
-			patternSyntax: verified$15("Exact package names (all versions); since 1.4.4 also name@exactVersion. No wildcards; ranges and tags are ignored with a warning", BUN_1_4_4, "Since 1.4.4 --minimum-release-age-excludes replaces the bunfig list for one command.")
+			setting: verified$16("install.minimumReleaseAgeExcludes", `${BUNFIG}#install-minimumreleaseageexcludes`),
+			availableSince: verified$16("1.3.0", DOCS_1_3_0),
+			patternSyntax: verified$16("Exact package names (all versions); since 1.4.4 also name@exactVersion. No wildcards; ranges and tags are ignored with a warning", BUN_1_4_4, "Since 1.4.4 --minimum-release-age-excludes replaces the bunfig list for one command.")
 		},
-		securityUpdates: uncertain$13("applies", BUN_1_4_4, "No automatic bypass is documented; exempt the fixed release with name@version in minimumReleaseAgeExcludes (1.4.4+). Exact version requests still go through the gate.")
+		securityUpdates: uncertain$14("applies", BUN_1_4_4, "No automatic bypass is documented; exempt the fixed release with name@version in minimumReleaseAgeExcludes (1.4.4+). Exact version requests still go through the gate.")
 	},
 	installScripts: {
-		defaultPolicy: verified$15([{
+		defaultPolicy: verified$16([{
 			since: "0.0.0",
 			value: "deny-except-allowlist"
 		}], `${LIFECYCLE}#trusteddependencies`, "Dependency scripts run only for Bun's built-in trusted list (npm-registry packages only since 1.4) or trustedDependencies; the root project's scripts run. First version of this policy not tracked."),
 		allowList: {
-			setting: verified$15("trustedDependencies", `${LIFECYCLE}#trusteddependencies`, "Replaces the built-in default list rather than extending it. bun pm trust and bun add --trust write it."),
-			file: verified$15("package.json", `${LIFECYCLE}#trusteddependencies`),
-			availableSince: uncertain$13("1.0.5", "https://bun.com/blog/release-notes/bun-v1.0.5", "Upper bound: 1.0.5 already persists trustedDependencies in bun.lockb; the first version was not pinned down. bun pm trust and bun add --trust arrived in 1.0.31."),
-			format: verified$15("Array of package names, e.g. [\"node-sass\"]", `${LIFECYCLE}#trusteddependencies`)
+			setting: verified$16("trustedDependencies", `${LIFECYCLE}#trusteddependencies`, "Replaces the built-in default list rather than extending it. bun pm trust and bun add --trust write it."),
+			file: verified$16("package.json", `${LIFECYCLE}#trusteddependencies`),
+			availableSince: uncertain$14("1.0.5", "https://bun.com/blog/release-notes/bun-v1.0.5", "Upper bound: 1.0.5 already persists trustedDependencies in bun.lockb; the first version was not pinned down. bun pm trust and bun add --trust arrived in 1.0.31."),
+			format: verified$16("Array of package names, e.g. [\"node-sass\"]", `${LIFECYCLE}#trusteddependencies`)
 		},
-		disableAll: verified$15("install.ignoreScripts", `${BUNFIG}#install-ignorescripts`, "Default false. Also --ignore-scripts or ignore-scripts=true in .npmrc. Skips the project's own scripts and trustedDependencies too.")
+		disableAll: verified$16("install.ignoreScripts", `${BUNFIG}#install-ignorescripts`, "Default false. Also --ignore-scripts or ignore-scripts=true in .npmrc. Skips the project's own scripts and trustedDependencies too.")
 	},
 	sources: {
 		git: noSetting$7("git-dependencies", "Git"),
@@ -125,19 +125,19 @@ const bun$1 = {
 		directory: noSetting$7("local-paths", "Local directory")
 	},
 	project: {
-		lockfiles: uncertain$13([{
+		lockfiles: uncertain$14([{
 			since: "0.0.0",
 			value: ["bun.lockb"]
 		}, {
 			since: "1.2.0",
 			value: ["bun.lock", "bun.lockb"]
 		}], "https://github.com/oven-sh/bun/blob/main/docs/pm/lockfile.mdx", "Bun 1.2 made the text bun.lock the default (verified). That bun.lockb is still read afterwards is inferred from the documented migration command and from saveTextLockfile = false, which writes bun.lockb."),
-		manifests: verified$15(["package.json"], WORKSPACES$2),
-		workspaces: verified$15({
+		manifests: verified$16(["package.json"], WORKSPACES$2),
+		workspaces: verified$16({
 			files: ["package.json"],
 			key: "workspaces"
 		}, WORKSPACES$2, "Full glob syntax, including ! patterns."),
-		workspacesObjectKey: verified$15("packages", "https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx", "The object form also holds catalog and catalogs.")
+		workspacesObjectKey: verified$16("packages", "https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx", "The object form also holds catalog and catalogs.")
 	},
 	user: {
 		files: user$9.verified([{
@@ -266,18 +266,18 @@ const bun$1 = {
 			workspace: "workspace:",
 			tarball: "\\.(?:tar\\.gz|tgz)$"
 		}, "https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/install/lockfile/bun.lock.rs", "bun.lock (text, the default since 1.2) maps each package to a tuple starting with name@<spec>: name@<version> followed by the registry for npm, name@git+<repo>#<sha> and name@github:<owner>/<repo>#<sha> for git, name@https://… for tarball URLs, name@./x.tgz (without file:) for local tarballs, name@file:<dir> and name@link:<dir> for directories, name@workspace:<dir> for workspace packages. The info object carries hasInstallScript: true only since 1.4.4, with no lockfileVersion change, so a missing flag proves nothing for older files. bun.lockb is an undocumented binary format."),
-		durationStrings: verified$15({
+		durationStrings: verified$16({
 			since: "1.4.4",
 			syntax: "compact-or-words"
 		}, BUN_1_4_4, "Since 1.4.4 minimumReleaseAge also takes duration strings such as 90m, 12 hours, 3d or 2 weeks; plain numbers stay seconds."),
-		excludeWildcards: verified$15({
+		excludeWildcards: verified$16({
 			since: null,
 			trailingOnly: false
 		}, BUN_1_4_4, "minimumReleaseAgeExcludes takes exact package names (and name@version since 1.4.4), no wildcards."),
-		latestVersion: verified$15("1.4.4", "https://github.com/oven-sh/bun/releases/tag/bun-v1.4.4"),
+		latestVersion: verified$16("1.4.4", "https://github.com/oven-sh/bun/releases/tag/bun-v1.4.4"),
 		trustedDependenciesReplacesDefaults: checked$6.verified("Adding trustedDependencies replaces the built-in trusted list, so default-trusted packages that are not listed stop running scripts", `${LIFECYCLE}#behavior-of-the-trusteddependencies-field`, "So an empty list trusts no package: without the field Bun 1.4.4 ran esbuild's postinstall (esbuild is on the built-in list); with \"trustedDependencies\": [] it blocked it (bun pm untrusted listed it), tested on 2026-10-29."),
-		lockedVersionsNotRechecked: verified$15("minimumReleaseAge only affects new resolutions; versions already in bun.lock are kept", `${INSTALL$1}#minimum-release-age`),
-		bunxCooldown: verified$15("bunx applies --minimum-release-age only since 1.4.4", "https://bun.com/blog/bun-v1.4.4"),
+		lockedVersionsNotRechecked: verified$16("minimumReleaseAge only affects new resolutions; versions already in bun.lock are kept", `${INSTALL$2}#minimum-release-age`),
+		bunxCooldown: verified$16("bunx applies --minimum-release-age only since 1.4.4", "https://bun.com/blog/bun-v1.4.4"),
 		directoryOptions: runtimes$3.verified({
 			options: [{
 				name: "--cwd",
@@ -297,6 +297,128 @@ const bun$1 = {
 			}],
 			variables: []
 		}, "https://github.com/oven-sh/bun/blob/main/docs/pm/cli/install.mdx", "bun add @types/bun --minimum-release-age 259200 # seconds: \"A number is in seconds\", or a number with a unit such as 90m, 12 hours, 3d or 2 weeks (durationStrings). The page lists no environment variable for it. bun add --trust \"adds the package to trustedDependencies in the project's package.json and installs it\", so its lifecycle scripts run (docs/snippets/cli/add.mdx and docs/pm/lifecycle.mdx at bun-v1.4.4); lifecycle.mdx names no variable that turns scripts on, and ignore-scripts read from the environment \"only turns scripts off\".")
+	}
+};
+
+// src/knowledge/bundler.ts
+const { verified: verified$15, uncertain: uncertain$13 } = verifiedOn("2026-11-03");
+const RUBYGEMS = "https://github.com/ruby/rubygems/blob/v4.0.23";
+const BUNDLER = `${RUBYGEMS}/bundler`;
+const LIB = `${BUNDLER}/lib/bundler`;
+const CHANGELOG$4 = `${BUNDLER}/CHANGELOG.md`;
+const CONFIG$4 = `${LIB}/man/bundle-config.1.ronn`;
+const GEMFILE = `${LIB}/man/gemfile.5.ronn`;
+const INSTALL$1 = `${LIB}/man/bundle-install.1.ronn`;
+const UPDATE = `${LIB}/man/bundle-update.1.ronn`;
+const DSL = `${LIB}/dsl.rb`;
+const SETTINGS$1 = `${LIB}/settings.rb`;
+const RESOLVER = `${LIB}/resolver.rb`;
+const SHARED_HELPERS = `${LIB}/shared_helpers.rb`;
+const BLOG = "https://blog.rubygems.org/2026/06/03/cooldown-let-new-gems-be-vetted.html";
+const noSourceSetting = (kind) => ({ setting: uncertain$13(null, CONFIG$4, `No setting of bundle-config(1) allows or forbids ${kind} (concluded from the documented settings and the keys of settings.rb).`) });
+const noSourceKind = (kind) => ({ setting: uncertain$13(null, GEMFILE, `Bundler has no ${kind} source: a gem comes from a gem server (source), a git repository (git:, github: and the other git sources) or a directory (path:, which "must point to a directory containing the gem's unpacked source code, not to a packaged .gem file"); plugin sources are not covered.`) });
+const bundler$1 = {
+	id: "bundler",
+	name: "Bundler",
+	kind: "package-manager",
+	ecosystem: "rubygems",
+	cooldown: {
+		setting: verified$15("cooldown", DSL, "The cooldown: keyword of a source call in the Gemfile (source \"https://rubygems.org\", cooldown: 7): Dsl#source raises InvalidOption unless it is an Integer of 0 or more. It applies to the versions that come from that source (Source::Rubygems::Remote#effective_cooldown), cooldown: 0 exempts the source. The cooldown setting (bundle config set cooldown N, BUNDLE_COOLDOWN) and --cooldown N take its place for every source, also one with cooldown: 0 (extra.cooldownSetting)."),
+		configFiles: verified$15(["Gemfile", "gems.rb"], SHARED_HELPERS, "The keyword is written in the Gemfile, or in gems.rb, which Bundler reads in its place (extra.gemfileNames)."),
+		cliFlag: verified$15("--cooldown", CHANGELOG$4, "bundle install, update, add and outdated take --cooldown N since 4.0.13, bundle lock and bundle cache since 4.0.18 (\"Add --cooldown flag to bundle lock and bundle cache\", #9725); method_option \"cooldown\" of these commands in lib/bundler/cli.rb. N is a whole number of days of 0 or more (CLI::Common.validate_cooldown!); it overrides the cooldown setting and the keyword of every source for that run, and 0 turns the cooldown off (bundle-install(1))."),
+		unit: verified$15("days", RESOLVER, "Resolver#cooldown_excluded? holds back a version while (now - created_at) < days * 86_400. The keyword and the flag take whole days only; the setting is read with to_i (extra.cooldownSetting)."),
+		availableSince: verified$15("4.0.13", CHANGELOG$4, "\"Add `cooldown` to delay newly published gem\" (#9576) under 4.0.13 / 2026-06-03. Bundler 4.0.12 and 2.7.2 ignore an option of source they do not know without a word (extra.olderVersions). Until 4.0.14 the keyword of a Gemfile source was lost once Gemfile.lock existed (extra.cooldownWithLockfile)."),
+		default: verified$15([{
+			since: "4.0.13",
+			value: null
+		}], CONFIG$4, "\"Defaults to unset (no cooldown)\"; the blog post calls the feature opt-in."),
+		exclude: { setting: uncertain$13(null, CONFIG$4, "No setting exempts single gems: the cooldown setting and --cooldown apply to every source, the keyword to one source, and settings.rb has no other cooldown key (concluded from the documented settings and the code). The documented way to take a newer version of one gem sooner is bundle update GEM --cooldown 0, with --conservative to keep its dependencies where they are (bundle-update(1)).") },
+		securityUpdates: verified$15("applies", BLOG, "The resolver holds back every version younger than the cooldown, a fix included (Resolver#cooldown_excluded? has no exception); the post names --cooldown 0 as the way to take \"the freshest release\" when \"a fix lands for an actively exploited 0-day\".")
+	},
+	installScripts: {
+		defaultPolicy: verified$15([{
+			since: "0.0.0",
+			value: "run"
+		}], `${LIB}/rubygems_gem_installer.rb`, "Bundler::RubyGemsGemInstaller#install builds the native extensions of a gem whose gemspec lists any (build_extensions if spec.extensions.any?); Gem::Ext::Builder runs the extconf.rb, configure, Rakefile or mkrf_conf, CMakeLists.txt or Cargo.toml of the gem (lib/rubygems/ext/builder.rb at the same tag), code of the gem that runs when it is installed."),
+		allowList: { setting: uncertain$13(null, CONFIG$4, "No setting allows or blocks the build of single gems (concluded from the documented settings); build.<gem> only passes flags to the build (\"BUILD OPTIONS\").") },
+		disableAll: uncertain$13(null, CONFIG$4, "No setting or option turns the builds off (concluded from the documented settings of bundle-config(1) and the options of bundle-install(1)); force_ruby_platform even builds gems from source that have a precompiled platform gem.")
+	},
+	sources: {
+		git: noSourceSetting("git sources"),
+		remoteTarball: noSourceKind("archive URL"),
+		file: noSourceKind("local archive"),
+		directory: noSourceSetting("path sources")
+	},
+	project: {
+		lockfiles: verified$15([{
+			since: "0.0.0",
+			value: ["Gemfile.lock", "gems.locked"]
+		}], SHARED_HELPERS, "SharedHelpers#default_lockfile: gems.locked for gems.rb, else the name of the Gemfile with .lock; BUNDLE_LOCKFILE names another file."),
+		manifests: verified$15(["Gemfile", "gems.rb"], SHARED_HELPERS, "SharedHelpers#gemfile_names; BUNDLE_GEMFILE names another file."),
+		workspaces: uncertain$13(null, GEMFILE, "Bundler has no workspaces: a Gemfile describes one bundle (concluded from gemfile(5))."),
+		workspacesObjectKey: uncertain$13(null, GEMFILE, "No workspaces.")
+	},
+	extra: {
+		latestVersion: verified$15("4.0.23", "https://rubygems.org/api/v1/versions/bundler/latest.json", "{\"version\":\"4.0.23\"} on 2026-11-03; 4.0.23 / 2026-10-14 in bundler/CHANGELOG.md. 4.1.0.beta3 (2026-10-28) is a pre-release."),
+		gemfileNames: verified$15(["gems.rb", "Gemfile"], SHARED_HELPERS, "SharedHelpers#find_gemfile looks for gems.rb, then Gemfile, from the current directory up; with both in one directory Bundler warns (\"Multiple gemfiles (gems.rb and Gemfile) detected\") and reads gems.rb."),
+		rubygemsSource: verified$15({
+			url: "https://rubygems.org",
+			method: "source"
+		}, GEMFILE, "\"At the top of the Gemfile, add a single line for the RubyGems source\": source \"https://rubygems.org\" (\"GLOBAL SOURCE\"); bundle init writes the same line (lib/bundler/templates/Gemfile). A source call with a block (source \"…\" do … end) declares a source for the gems in the block only."),
+		cooldownWithLockfile: verified$15({
+			since: "4.0.14",
+			scope: "once Gemfile.lock exists"
+		}, CHANGELOG$4, "\"Preserve per-source cooldown when converging sources from the lockfile\" (#9601) under 4.0.14 / 2026-06-10. The test \"applies per-source Gemfile cooldown on bundle update when a lockfile exists\" (spec/install/cooldown_spec.rb) says: \"Converging the Gemfile sources with the lockfile sources used to drop the per-source cooldown, so it only ever worked on a first resolve without a lockfile.\" SourceList#replace_rubygems_source carries remote_cooldowns over since then (lib/bundler/source_list.rb, missing at bundler-v4.0.13). The cooldown setting and --cooldown work from 4.0.13."),
+		cooldownSetting: verified$15({
+			key: "cooldown",
+			variable: "BUNDLE_COOLDOWN",
+			localFile: ".bundle/config",
+			localDirectoryVariable: "BUNDLE_APP_CONFIG",
+			order: [
+				"--cooldown",
+				"local",
+				"environment",
+				"global",
+				"source"
+			]
+		}, CONFIG$4, "cooldown (BUNDLE_COOLDOWN): \"Number of days a published gem version must age before bundler will resolve to it\"; \"The CLI flag and this setting apply uniformly to every source, including ones declared with their own cooldown: value.\" Bundler reads settings from the local config (<project_root>/.bundle/config or $BUNDLE_APP_CONFIG/config), then the environment, then the global config (~/.bundle/config); BUNDLE_IGNORE_CONFIG ignores the files. Remote#effective_cooldown takes the setting when it is set and the keyword of the source otherwise (lib/bundler/source/rubygems/remote.rb)."),
+		cooldownSettingValues: verified$15({
+			conversion: "to_i",
+			falseValue: "unset"
+		}, SETTINGS$1, "cooldown is one of NUMBER_KEYS, so Settings#converted_value reads its value with String#to_i: \"7 days\" is 7, and a value that does not start with a digit, the empty one included, is 0, which turns the cooldown off (the resolver skips 0 and less); \"false\" is read as false, which counts as unset, so the keyword of the source applies. Values are not checked when they are set (lib/bundler/settings/validator.rb has no rule for cooldown)."),
+		lockedVersions: verified$15("exempt", RESOLVER, "Resolver#locked_by_lockfile?: \"A version already written to the lockfile has been adopted, and cooldown only governs the adoption of new versions\", except for the gems named on bundle update GEM or bundle lock --update GEM. bundle install with an existing Gemfile.lock installs the locked versions, a gem added to the Gemfile since then is resolved with the cooldown, and a frozen install reads the lockfile without resolving (the tests \"bypasses cooldown when bundle install uses an existing lockfile\", \"applies per-source Gemfile cooldown to gems added after the lockfile was written\" and \"ignores cooldown and installs the locked version when frozen\" in spec/install/cooldown_spec.rb). The blog post: \"an existing Gemfile.lock is always honored as-is\"."),
+		missingTimestamp: verified$15("Versions without a created_at date are not held back (fail open)", CONFIG$4, "The cooldown \"depends on the gem server providing a per-version created_at timestamp in the v2 compact-index format. Versions without that metadata - older gem servers, historical entries that predate the v2 cutover on rubygems.org, or private registries that still emit the v1 format - are treated as outside the cooldown window and remain resolvable.\" The test \"cannot apply cooldown and installs the latest version\" (spec/install/cooldown_spec.rb) shows the same for the dependency API."),
+		allTooNew: verified$15("excluded by the cooldown setting; pass `--cooldown 0` to bypass", RESOLVER, "Resolver#cooldown_hint adds \"N versions excluded by the cooldown setting; pass `--cooldown 0` to bypass\" to the error when the cooldown leaves no version that fits; Bundler stops instead of taking a newer version (test \"surfaces a cooldown hint when bundle update filters every candidate\")."),
+		olderVersions: verified$15("ignored", "https://github.com/ruby/rubygems/blob/bundler-v4.0.12/bundler/lib/bundler/dsl.rb", "Dsl#source of 4.0.12 reads only the type option of source and drops the others without a word, as does that of 2.7.2 (https://github.com/ruby/rubygems/blob/bundler-v2.7.2/bundler/lib/bundler/dsl.rb), so a Gemfile with cooldown: works there and has no delay."),
+		lockfileVersion: verified$15({
+			section: "BUNDLED WITH",
+			variable: "BUNDLER_VERSION",
+			setting: "version",
+			update: "bundle update --bundler"
+		}, `${LIB}/self_manager.rb`, "Gemfile.lock ends with BUNDLED WITH and the version of the Bundler that wrote it (LockfileGenerator, LockfileParser::BUNDLED). bundle install installs that version and restarts with it, and the other commands restart with it when it is installed (SelfManager#install_locked_bundler_and_restart_with_it_if_needed and #restart_with_locked_bundler_if_needed), unless BUNDLER_VERSION is set or the version setting is system (its default is lockfile, bundle-config(1)). bundle update --bundler[=VERSION] changes the locked version (\"With no argument, update to the latest released version\", bundle-update(1))."),
+		resolveCommands: verified$15({
+			executables: ["bundle", "bundler"],
+			commands: [
+				"install",
+				"update",
+				"lock",
+				"add",
+				"cache"
+			],
+			option: "--cooldown"
+		}, INSTALL$1, "The gem installs the executables bundle and bundler (s.executables in bundler.gemspec). bundle install, update, lock (bundle-lock(1)), add (which runs bundle install) and cache resolve the Gemfile and take --cooldown (cli.rb); bundle outdated only reads versions."),
+		gemInstall: verified$15({
+			command: ["gem", "install"],
+			name: "bundler",
+			versionOptions: ["-v", "--version"],
+			separator: ":"
+		}, `${RUBYGEMS}/lib/rubygems/command.rb`, "gem install bundler -v 4.0.23 (or --version, Gem::VersionOption#add_version_option in lib/rubygems/version_option.rb) and gem install bundler:4.0.23 (Gem::Command#extract_gem_name_and_version) install that Bundler."),
+		configLocal: verified$15({
+			file: ".bundle/config",
+			ignoredBy: "bundle gem"
+		}, `${LIB}/templates/newgem/gitignore.tt`, "bundle config set --local writes <project_root>/.bundle/config, which also holds machine paths such as path (bundle-config(1)); the .gitignore that bundle gem writes for a new gem ignores /.bundle/."),
+		updateCommand: verified$15("bundle update GEM --cooldown 0 --conservative", UPDATE, "--cooldown 0 disables the cooldown \"for this run, overriding any per-source or global configuration. Combine with --conservative to minimize transitive churn when bypassing cooldown for an urgent update.\""),
+		dependencySources: verified$15(["git", "directory"], GEMFILE, "Of the kinds of sources a policy names, a Gemfile can declare git sources (GIT, GITHUB and the other git sources) and path sources (PATH), with no setting that forbids them; it has no source for an archive URL or a local archive.")
 	}
 };
 
@@ -1391,6 +1513,7 @@ const projects$1 = verifiedOn("2026-11-01");
 const bots$1 = verifiedOn("2026-11-02");
 const composer$2 = verifiedOn("2026-11-02");
 const d151$1 = verifiedOn("2026-11-03");
+const d152$1 = verifiedOn("2026-11-03");
 const OPTIONS$1 = "https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference";
 const COOLDOWN_GA = "https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/";
 const DEFAULT_COOLDOWN = "https://github.blog/changelog/2026-07-14-dependabot-version-updates-introduce-default-package-cooldown/";
@@ -1459,7 +1582,7 @@ const dependabot$1 = {
 			key: "include",
 			everything: "*"
 		}, "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates#setting-up-a-cooldown-period-for-dependency-updates", "An include list in the cooldown block limits the cooldown to the dependencies it names (* wildcards, up to 150 entries): the example applies the cooldown to requests, numpy and names starting with pandas or django, and to cover all dependencies one omits include or uses \"*\". The other dependencies get no cooldown at all, not even the default 3 days: dependabot-core skips the cooldown for a dependency that the include list does not match (ReleaseCooldownOptions#included? with File.fnmatch? and CooldownCalculation.skip_cooldown? in common/lib/dependabot, commit 03892a3e8ee26d43eb96f31c5136c98a85d63b14). exclude wins over include."),
-		ecosystems: composer$2.verified({
+		ecosystems: d152$1.verified({
 			npm: [
 				"npm",
 				"pnpm",
@@ -1473,8 +1596,9 @@ const dependabot$1 = {
 				"pipenv"
 			],
 			uv: ["uv"],
-			composer: ["composer"]
-		}, `${OPTIONS$1}#package-ecosystem`, "The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). composer covers Composer v2. Cooldown, including the semver-* keys, is supported for all of them (the cooldown table of the same page lists Composer with default and SemVer-bump days, read 2026-11-02). PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0)."),
+			composer: ["composer"],
+			bundler: ["bundler"]
+		}, `${OPTIONS$1}#package-ecosystem`, "The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). composer covers Composer v2, bundler Bundler (the table lists v2; dependabot-core v0.403.0 also builds a helper with Bundler ~> 4.0, bundler/helpers/v4/build). Cooldown, including the semver-* keys, is supported for all of them (the cooldown table of the same page lists Composer and Bundler with default and SemVer-bump days, read 2026-11-02 and, for Bundler, 2026-11-03). PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0)."),
 		yamlAliases: bots$1.verified({ accepted: false }, "https://github.com/dependabot/dependabot-core/blob/v0.402.0/common/lib/dependabot/config/file.rb", "Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load(config, symbolize_names: true); Psych.safe_load takes aliases: false unless told otherwise and raises Psych::AliasesNotEnabled on an alias (*name), so a file with one is not read. The issue that asks for aliases (https://github.com/dependabot/dependabot-core/issues/1582, \"YAML aliases\", open and labelled Keep on 2026-11-02) quotes the error users get, \"YAML aliases are not supported\"; the pull request that would allow them (#9653) is open and not merged. The reference of dependabot.yml (dependabot-options-reference.md in github/docs) does not mention anchors or aliases. An anchor (&name) that no alias refers to changes nothing."),
 		yamlScalars: bots$1.verified({
 			library: "psych",
@@ -5056,6 +5180,7 @@ const projects = verifiedOn("2026-11-01");
 const bots = verifiedOn("2026-11-02");
 const composer$1 = verifiedOn("2026-11-02");
 const d151 = verifiedOn("2026-11-03");
+const d152 = verifiedOn("2026-11-03");
 const AT = "https://github.com/renovatebot/renovate/blob/44.198.2";
 const OPTIONS = "https://docs.renovatebot.com/configuration-options/";
 const MINIMUM_RELEASE_AGE = "https://docs.renovatebot.com/key-concepts/minimum-release-age/";
@@ -5135,11 +5260,12 @@ const renovate$1 = {
 		}, "https://github.com/renovatebot/renovate/blob/main/lib/workers/repository/init/merge.ts", "Deprecated: the configuration options page warns that support may be removed, and Renovate logs that using package.json is deprecated."),
 		durationUnits: verified$5(["hours", "days"], "https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md", "Units shown in the docs: minimumReleaseAge=1 hour on this page and \"3 days\" in the configuration options. The value is parsed by toMs (lib/util/pretty-time.ts), whose tests also accept 1 day, 1 week and combined values."),
 		presets: verified$5("config:best-practices extends security:minimumReleaseAgeNpm (since 42.0.0): \"3 days\" and internalChecksFilter \"strict\" for the npm datasource, except pin, replacement, lockFileMaintenance, bump, lockfileUpdate and rollback", "https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm"),
-		datasources: composer$1.verified({
+		datasources: d152.verified({
 			npm: "npm",
 			pypi: "pypi",
-			packagist: "packagist"
-		}, "https://docs.renovatebot.com/modules/datasource/pypi/", "Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version's files. Composer packages come from packagist, the datasource of the composer manager (static readonly id = 'packagist' in lib/modules/datasource/packagist/index.ts and supportedDatasources in lib/modules/manager/composer/index.ts at 44.199.2, read 2026-11-02)."),
+			packagist: "packagist",
+			rubygems: "rubygems"
+		}, "https://docs.renovatebot.com/modules/datasource/pypi/", "Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version's files. Composer packages come from packagist, the datasource of the composer manager (static readonly id = 'packagist' in lib/modules/datasource/packagist/index.ts and supportedDatasources in lib/modules/manager/composer/index.ts at 44.199.2, read 2026-11-02). Ruby gems come from rubygems (static readonly id = 'rubygems' in lib/modules/datasource/rubygems/index.ts at 44.198.2, one of the supportedDatasources of the bundler manager), which has releaseTimestampSupport: \"The release timestamp is determined from the `created_at` field in the results\" (read 2026-11-03)."),
 		packagistReleaseTime: composer$1.verified({
 			field: "published-time",
 			fallback: "time"
@@ -5209,7 +5335,7 @@ const renovate$1 = {
 			pdm: "pep621",
 			pipenv: "pipenv"
 		}, "https://docs.renovatebot.com/modules/manager/pep621/", "pep621 updates pyproject.toml with uv.lock (there is no uv manager) or pdm.lock; poetry updates pyproject.toml with poetry.lock; pipenv updates the Pipfile with Pipfile.lock; pip_requirements updates requirements files. pip-compile is off by default (lib/modules/manager/pep621/readme.md and pipenv/index.ts at 44.198.1)."),
-		managers: bots.verified({
+		managers: d152.verified({
 			npm: "npm",
 			pnpm: "npm",
 			yarn: "npm",
@@ -5221,9 +5347,10 @@ const renovate$1 = {
 			pip: "pip_requirements",
 			pipenv: "pipenv",
 			composer: "composer",
+			bundler: "bundler",
 			"github-actions": "github-actions"
-		}, `${AT}/lib/modules/manager/api.ts`, "The Renovate manager that updates the packages of each tool, by its id in api.ts; github-actions updates the actions the workflows run. The npm manager reads package.json with package-lock.json, pnpm-lock.yaml or yarn.lock (lockFileNames in npm/index.ts). bun and deno have managers of their own that take a package.json over from npm (supersedesManagers in bun/index.ts and deno/index.ts, applied by lib/workers/repository/extract/supersedes.ts), and poetry takes pyproject.toml over from pep621, which updates it for uv and PDM. composer updates composer.json (composer/index.ts)."),
-		managerCategories: bots.verified({
+		}, `${AT}/lib/modules/manager/api.ts`, "The Renovate manager that updates the packages of each tool, by its id in api.ts; github-actions updates the actions the workflows run. The npm manager reads package.json with package-lock.json, pnpm-lock.yaml or yarn.lock (lockFileNames in npm/index.ts). bun and deno have managers of their own that take a package.json over from npm (supersedesManagers in bun/index.ts and deno/index.ts, applied by lib/workers/repository/extract/supersedes.ts), and poetry takes pyproject.toml over from pep621, which updates it for uv and PDM. composer updates composer.json (composer/index.ts), and bundler the Gemfile with Gemfile.lock (managerFilePatterns /(^|/)Gemfile$/ and lockFileNames in bundler/index.ts, so not gems.rb); bundler was read on 2026-11-03."),
+		managerCategories: d152.verified({
 			npm: ["js"],
 			bun: ["js"],
 			deno: ["js"],
@@ -5232,8 +5359,9 @@ const renovate$1 = {
 			poetry: ["python"],
 			pipenv: ["python"],
 			composer: ["php"],
+			bundler: ["ruby"],
 			"github-actions": ["ci"]
-		}, `${AT}/lib/config/index.ts`, "getManagerConfig gives each dependency the categories its manager exports (categories in lib/modules/manager/<id>/index.ts; the list of categories is lib/constants/category.ts), and matchCategories matches them."),
+		}, `${AT}/lib/config/index.ts`, "getManagerConfig gives each dependency the categories its manager exports (categories in lib/modules/manager/<id>/index.ts; the list of categories is lib/constants/category.ts), and matchCategories matches them. bundler exports the category ruby (read 2026-11-03)."),
 		botOnlyEcosystems: d151.verified({
 			cargo: {
 				manager: "cargo",
@@ -6661,6 +6789,7 @@ const runtimes = verifiedOn("2026-11-01");
 const recheck = verifiedOn("2026-11-01");
 const finalReview = verifiedOn("2026-11-01");
 const release14 = verifiedOn("2026-11-02");
+const ruby = verifiedOn("2026-11-03");
 const COREPACK_README = "https://github.com/nodejs/corepack/blob/main/README.md";
 const COREPACK_CHANGELOG = "https://github.com/nodejs/corepack/blob/main/CHANGELOG.md";
 const COREPACK_V0_36_0 = "https://github.com/nodejs/corepack/blob/v0.36.0";
@@ -7772,6 +7901,21 @@ const environment = {
 				tool: "poetry"
 			}]
 		}, "https://github.com/abatilo/actions-poetry/blob/v4.0.0/action.yml", "A third-party action (current v4.0.0); poetry-version defaults to latest."),
+		setupRuby: ruby.verified({
+			action: "ruby/setup-ruby",
+			installs: ["bundler"],
+			inputs: [{
+				name: "bundler",
+				kind: "version",
+				tool: "bundler",
+				keywords: [
+					"Gemfile.lock",
+					"default",
+					"latest",
+					"none"
+				]
+			}]
+		}, "https://github.com/ruby/setup-ruby/blob/v1.336.0/action.yml", "Current version v1.336.0 (the README uses ruby/setup-ruby@v1). bundler is \"The version of Bundler to install. Either 'Gemfile.lock' (the default), 'default', 'latest', 'none', or a version number (e.g., 1, 2, 2.1, 2.1.4)\": Gemfile.lock installs the version of BUNDLED WITH (also of gems.locked), default the Bundler the Ruby comes with when it is 2.2 or later, latest the latest compatible one, none nothing. bundler-cache: true runs bundle install and caches the gems, with bundle config --local deployment true when there is a lockfile, and generates the lockfile with bundle lock when there is none (README.md, \"Caching bundle install automatically\")."),
 		codeScanningUpload: checked$2.verified({
 			action: "github/codeql-action/upload-sarif",
 			inputs: {
@@ -8268,6 +8412,7 @@ const knowledgeBase = [
 	pdm$1,
 	pipenv$1,
 	composer$3,
+	bundler$1,
 	renovate$1,
 	dependabot$1
 ];
@@ -8468,7 +8613,8 @@ const PACKAGE_MANAGERS = [
 	"poetry",
 	"pdm",
 	"pipenv",
-	"composer"
+	"composer",
+	"bundler"
 ];
 const BOTS$1 = ["renovate", "dependabot"];
 /** Files several tools read; a Python tool counts the project file only when it has the tool's table. */
@@ -8534,6 +8680,7 @@ function detectionFacts(tools, environment) {
 		const lockfileFormat = extraValue(entry, "lockfileFormat");
 		const createdBy = isRecord(lockfileFormat) ? lockfileFormat["createdBy"] : void 0;
 		const pylockCreatedBy = extraValue(entry, "pylockCreatedBy");
+		const lockfileVersion = extraValue(entry, "lockfileVersion");
 		return {
 			id,
 			ecosystem: entry.ecosystem ?? "npm",
@@ -8546,7 +8693,8 @@ function detectionFacts(tools, environment) {
 			configFileOrder: Array.isArray(order) && order.every((file) => typeof file === "string") ? order : null,
 			lockfilePattern: typeof pattern === "string" ? new RegExp(pattern, "u") : null,
 			createdByKey: typeof createdBy === "string" ? createdBy : null,
-			pylockCreatedBy: typeof pylockCreatedBy === "string" ? pylockCreatedBy : null
+			pylockCreatedBy: typeof pylockCreatedBy === "string" ? pylockCreatedBy : null,
+			lockfileVersion: isRecord(lockfileVersion) && typeof lockfileVersion["section"] === "string" ? lockfileVersion["section"] : null
 		};
 	});
 	const bots = BOTS$1.map((id) => {
@@ -8582,6 +8730,10 @@ function detectionFacts(tools, environment) {
 	const omitOptional = npm.extra?.["omitOptional"] === void 0 ? void 0 : extraValue(npm, "omitOptional");
 	const localPrefix = npm.extra?.["localPrefix"] === void 0 ? void 0 : extraValue(npm, "localPrefix");
 	const corepackInstall = first$1(environment.corepack.manualInstall);
+	const bundlerTool = tools.find((candidate) => candidate.id === "bundler");
+	const resolve = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "resolveCommands");
+	const bundlerSetting = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "cooldownSetting");
+	const gemInstall = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "gemInstall");
 	const strings = (value) => Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
 	const others = [
 		"pnpm",
@@ -8647,6 +8799,18 @@ function detectionFacts(tools, environment) {
 		...isRecord(poetryPackage) && typeof poetryPackage["name"] === "string" && Array.isArray(poetryPackage["commands"]) ? { poetry: {
 			name: poetryPackage["name"],
 			commands: poetryPackage["commands"].filter((item) => Array.isArray(item))
+		} } : {},
+		...isRecord(resolve) && typeof resolve["option"] === "string" && isRecord(bundlerSetting) && typeof bundlerSetting["variable"] === "string" && isRecord(gemInstall) && typeof gemInstall["name"] === "string" && typeof gemInstall["separator"] === "string" ? { bundler: {
+			executables: strings(resolve["executables"]),
+			commands: strings(resolve["commands"]),
+			option: resolve["option"],
+			variable: bundlerSetting["variable"],
+			gem: {
+				install: strings(gemInstall["command"]),
+				name: gemInstall["name"],
+				versionOptions: strings(gemInstall["versionOptions"]),
+				separator: gemInstall["separator"]
+			}
 		} } : {}
 	};
 	const docker = environment.docker;
@@ -8680,7 +8844,8 @@ function detectionFacts(tools, environment) {
 			actions.setupPython,
 			actions.setupUv,
 			actions.installPoetry,
-			actions.actionsPoetry
+			actions.actionsPoetry,
+			actions.setupRuby
 		].map(first$1),
 		setupNode: {
 			action: first$1(actions.setupNode).action,
@@ -16474,6 +16639,7 @@ function readNames(facts) {
 			found.set(delay.variable, false);
 			found.set(delay.configVariable, false);
 		}
+		if (facts.bundler !== void 0) found.set(facts.bundler.variable, false);
 		names = found;
 		READ_NAMES.set(facts, names);
 	}
@@ -16714,6 +16880,58 @@ function pipCommand(args, at, facts, environment) {
 		offset: at
 	}, ...poetryVersions(operands(rest, values), at, facts)];
 }
+/**
+* bundle install, update, lock, add and cache (decision D-152): an install with the release-age delay it gets, as written:
+* --cooldown N on the command line (delayOption), else BUNDLE_COOLDOWN; unknown when the value has a variable.
+*/
+function bundlerCommand(args, at, facts, environment) {
+	const known = facts.bundler;
+	if (known === void 0) return void 0;
+	const command = args[firstOperand(args, setOf([]))]?.text;
+	if (command === void 0 || !known.commands.includes(command)) return void 0;
+	let value;
+	for (const [position, word] of args.entries()) if (word.text === known.option) value = args[position + 1]?.text;
+	else if (word.text.startsWith(`${known.option}=`)) value = word.text.slice(known.option.length + 1);
+	const option = value !== void 0;
+	value ??= environment.get(known.variable);
+	if (value?.includes("$") === true || !option && environment.has(UNKNOWN_VARIABLES)) return {
+		kind: "install",
+		tool: "bundler",
+		delayUnknown: true,
+		offset: at
+	};
+	return {
+		kind: "install",
+		tool: "bundler",
+		...value === void 0 ? {} : { delay: value },
+		...option ? { delayOption: true } : {},
+		offset: at
+	};
+}
+/** gem install bundler -v 4.0.23, --version 4.0.23 or bundler:4.0.23: the Bundler it installs, as written (decision D-152). */
+function gemCommand(args, at, facts) {
+	const gem = facts.bundler?.gem;
+	if (gem === void 0 || args[0]?.text !== gem.install[1]) return [];
+	const rest = args.slice(1);
+	let version;
+	let named = false;
+	for (const [position, word] of rest.entries()) {
+		const text = word.text;
+		if (gem.versionOptions.includes(text)) version = rest[position + 1]?.text;
+		else if (text.startsWith("--version=")) version = text.slice(10);
+		else if (text === gem.name) named = true;
+		else if (text.startsWith(`${gem.name}${gem.separator}`)) {
+			named = true;
+			version = text.slice(gem.name.length + gem.separator.length);
+		}
+	}
+	return named && version !== void 0 && version !== "" ? [{
+		kind: "upgrade",
+		tool: "bundler",
+		version,
+		offset: at
+	}] : [];
+}
 /** pipx install poetry==2.3.0: the Poetry it installs. */
 function pipxCommand(args, at, facts) {
 	const pipx = facts.poetry?.commands.find((command) => command[0] === "pipx");
@@ -16782,6 +17000,14 @@ function readCommand(words, facts, depth, environment = /* @__PURE__ */ new Map(
 	};
 	if (name === "pipx") return {
 		found: pipxCommand(args, first.offset, facts),
+		runsNode
+	};
+	if (facts.bundler !== void 0 && facts.bundler.executables.includes(name)) return {
+		found: [bundlerCommand(args, first.offset, facts, seen)].filter((item) => item !== void 0),
+		runsNode
+	};
+	if (facts.bundler !== void 0 && name === facts.bundler.gem.install[0]) return {
+		found: gemCommand(args, first.offset, facts),
 		runsNode
 	};
 	const pip = pipArguments(command, facts);
@@ -17556,7 +17782,7 @@ function readDockerStages(file, text, facts) {
 				...command,
 				afterCorepack: true
 			} : command);
-			if (command.kind === "upgrade" && command.version !== void 0 && (command.tool === "npm" || command.tool === "pip" || command.tool === "poetry")) versions.push({
+			if (command.kind === "upgrade" && command.version !== void 0 && (command.tool === "npm" || command.tool === "pip" || command.tool === "poetry" || command.tool === "bundler")) versions.push({
 				tool: command.tool,
 				declaration: {
 					version: command.version,
@@ -17859,7 +18085,7 @@ function readWorkflows(repository, facts) {
 						const node = inputs.get(input.name, true);
 						const value = scalarText(node);
 						if (value === void 0 || !(0, import_dist.isScalar)(node)) continue;
-						if (input.kind === "version" && input.tool !== void 0) declare(input.tool, { version: value }, node, stepLine);
+						if (input.kind === "version" && input.tool !== void 0 && input.keywords?.includes(value) !== true) declare(input.tool, { version: value }, node, stepLine);
 						if (input.kind === "version-file" && input.tool !== void 0) declare(input.tool, { versionFile: value }, node, stepLine);
 						if (input.kind === "runtime") {
 							const [name, version] = value.split("@");
@@ -17890,7 +18116,7 @@ function readWorkflows(repository, facts) {
 							...directory === void 0 ? {} : { directory },
 							...afterCorepack ? { afterCorepack: true } : {}
 						});
-						if ((command.tool === "npm" || command.tool === "poetry") && command.kind === "upgrade" && command.version !== void 0) findings.versions.push({
+						if ((command.tool === "npm" || command.tool === "poetry" || command.tool === "bundler") && command.kind === "upgrade" && command.version !== void 0) findings.versions.push({
 							tool: command.tool,
 							declaration: {
 								version: command.version,
@@ -18543,6 +18769,127 @@ function insertBlock(lines, at, entries, separate, marker = BLOCK_START) {
 	];
 }
 
+// src/apply/gemfile.ts
+const QUOTED = String.raw`"(?:[^"\\#]|\\.|#(?!\{))*"|'(?:[^'\\]|\\.)*'`;
+const KEY = String.raw`(?:cooldown:|:cooldown[ \t]*=>|"cooldown"[ \t]*(?::|=>)|'cooldown'[ \t]*=>)`;
+/** source "URL"[, cooldown: N] with or without parentheses, and an optional comment. */
+const PLAIN$2 = new RegExp(String.raw`^(?<head>[ \t]*source(?:\(|[ \t]+)[ \t]*)(?<url>${QUOTED})(?<option>[ \t]*,[ \t]*${KEY}[ \t]*(?<days>\d+))?(?<tail>[ \t]*(?<close>\))?[ \t]*(?:#.*)?)$`, "u");
+/** The start of a source call: source followed by a space or a parenthesis, not an assignment, a method or a hash key. */
+const CALL = /^[ \t]*source(?:\(|[ \t]+(?![ \t]*(?:=[^=~>]|\.|:[^:])))/u;
+const COOLDOWN = new RegExp(String.raw`${KEY}[ \t]*(?<value>[^,)\s#]*)`, "u");
+const HEREDOC = /<<[~-]?(["'`]?)([A-Za-z_][A-Za-z0-9_]*)\1/gu;
+/** The value of a Ruby string literal (only the escapes of quotes and backslashes matter for a URL). */
+function literal$1(text) {
+	return text.slice(1, -1).replace(/\\(.)/gu, "$1");
+}
+/**
+* Which lines are Ruby code: not inside =begin … =end or the body of a heredoc (<<~ID … ID). A rough reading that errs
+* towards leaving a line alone: the start of a heredoc is looked for anywhere on its line.
+*/
+function codeLines(lines) {
+	const code = [];
+	let comment = false;
+	const heredocs = [];
+	for (const raw of lines) {
+		const line = raw.replace(/\r$/u, "");
+		if (comment) {
+			code.push(false);
+			if (/^=end(?:\s|$)/u.test(line)) comment = false;
+			continue;
+		}
+		const open = heredocs[0];
+		if (open !== void 0) {
+			code.push(false);
+			if ((open.indented ? line.trim() : line) === open.id) heredocs.shift();
+			continue;
+		}
+		if (/^=begin(?:\s|$)/u.test(line)) {
+			comment = true;
+			code.push(false);
+			continue;
+		}
+		code.push(true);
+		for (const match of line.matchAll(HEREDOC)) {
+			const id = match[2];
+			if (id !== void 0) heredocs.push({
+				id,
+				indented: match[0].startsWith("<<~") || match[0].startsWith("<<-")
+			});
+		}
+	}
+	return code;
+}
+/** Every source call of the text, in order. */
+function gemfileSources(text) {
+	const lines = text.split("\n");
+	const code = codeLines(lines);
+	const found = [];
+	lines.forEach((raw, index) => {
+		const line = raw.replace(/\r$/u, "");
+		if (code[index] !== true || !CALL.test(line)) return;
+		const plain = PLAIN$2.exec(line);
+		const opened = /^[ \t]*source\(/u.test(line);
+		if (plain?.groups !== void 0 && plain.groups["close"] !== void 0 === opened) {
+			const days = plain.groups["days"];
+			found.push({
+				line: index + 1,
+				url: literal$1(plain.groups["url"] ?? ""),
+				...days === void 0 ? {} : { cooldown: Number(days) },
+				plain: true,
+				block: false
+			});
+			return;
+		}
+		const rest = line.replace(/^[ \t]*source\(?[ \t]*/u, "");
+		const url = new RegExp(`^(?:${QUOTED})`, "u").exec(rest)?.[0];
+		const value = COOLDOWN.exec(line)?.groups?.["value"];
+		const block = /\bdo(?:[ \t]*\|[^|]*\|)?[ \t]*(?:#.*)?$/u.test(line) || /\{[^}]*$/u.test(line.replace(/#\{[^}]*\}/gu, ""));
+		found.push({
+			line: index + 1,
+			...url === void 0 ? {} : { url: literal$1(url) },
+			...value === void 0 ? {} : { cooldown: /^\d+$/u.test(value) ? Number(value) : "other" },
+			plain: false,
+			block
+		});
+	});
+	return found;
+}
+/** Whether a URL names a gem server: the same host, with or without a trailing slash, in any case. */
+function sameServer(url, server) {
+	const normalized = (value) => value.trim().replace(/\/+$/u, "").toLowerCase();
+	const target = normalized(server).replace(/^https?:\/\//u, "");
+	const value = normalized(url);
+	return value === `https://${target}` || value === `http://${target}`;
+}
+/** The text with the cooldown of the plain source call on each of `lines` set to `days`; other lines stay as they are. */
+function setSourceCooldown(text, lines, days) {
+	const all = text.split("\n");
+	for (const number of lines) {
+		const raw = all[number - 1];
+		if (raw === void 0) continue;
+		const cr = raw.endsWith("\r") ? "\r" : "";
+		const line = cr === "" ? raw : raw.slice(0, -1);
+		const groups = PLAIN$2.exec(line)?.groups;
+		if (groups === void 0) continue;
+		const head = groups["head"] ?? "";
+		const url = groups["url"] ?? "";
+		const option = groups["option"];
+		const written = groups["days"];
+		const tail = groups["tail"] ?? "";
+		const replaced = option === void 0 || written === void 0 ? `${head}${url}, cooldown: ${days}${tail}` : `${head}${url}${option.slice(0, option.length - written.length)}${days}${tail}`;
+		all[number - 1] = `${replaced}${cr}`;
+	}
+	return all.join("\n");
+}
+/**
+* The Gemfile Bundler reads in a directory: gems.rb when it is there, otherwise Gemfile (extra.gemfileNames, which
+* lists the names in the order Bundler looks for them).
+*/
+function gemfileIn(isFile, names = ["gems.rb", "Gemfile"], directory = "") {
+	const join = (name) => directory === "" || directory === "." ? name : `${directory}/${name}`;
+	return join(names.find((name) => isFile(join(name))) ?? names.at(-1) ?? "Gemfile");
+}
+
 // src/doctor/settings.ts
 const NPMRC = extraOf(npm$1, "npmrcFormat", isRecord);
 const isChars = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
@@ -18845,9 +19192,26 @@ function readSetting(repository, file, setting, options = yamlOptionsFor(file)) 
 		const dot = setting.indexOf(".");
 		found = dot === -1 ? tomlSetting(text, "", setting) : tomlSetting(text, setting.slice(0, dot), setting.slice(dot + 1));
 	} else if (/\.jsonc?$/u.test(name)) found = jsonSetting(text, setting.split("."));
+	else if (GEMFILES.has(name)) found = gemfileSetting(text, setting);
 	return found === void 0 ? void 0 : {
 		file,
 		...found
+	};
+}
+/** The Gemfiles of Bundler (decision D-152). */
+const GEMFILES = /* @__PURE__ */ new Set(["Gemfile", "gems.rb"]);
+/**
+* A keyword of the source call of rubygems.org in a Gemfile (Bundler extra.rubygemsSource): the cooldown: of the first
+* such call without a block, as a number of days, with its line. A value that is not a number is not read.
+*/
+function gemfileSetting(text, setting) {
+	if (setting !== "cooldown") return void 0;
+	const fact = bundler$1.extra?.["rubygemsSource"];
+	const server = fact !== void 0 && fact.status !== "disputed" && isRecord(fact.value) && typeof fact.value["url"] === "string" ? fact.value["url"] : "https://rubygems.org";
+	const source = gemfileSources(text).find((item) => !item.block && item.url !== void 0 && sameServer(item.url, server));
+	return source === void 0 || typeof source.cooldown !== "number" ? void 0 : {
+		value: source.cooldown,
+		line: source.line
 	};
 }
 /** The 1-based line of the first occurrence of `needle`, or undefined. */
@@ -18936,6 +19300,7 @@ const EVIDENCE_ORDER = [
 const SOURCE_ORDER = [
 	"packageManager",
 	"tool-config",
+	"lockfile",
 	"devEngines",
 	"volta",
 	"tool-versions",
@@ -18997,6 +19362,29 @@ function createdBy(repository, file, key) {
 		} catch {
 			return;
 		}
+	}
+}
+/**
+* The version in a section of a lockfile, on the first line after the section's own line (Gemfile.lock: BUNDLED WITH,
+* then the version indented, at the end of the file).
+*/
+function readLockfileVersion(repository, id, section, file, collector) {
+	const text = repository.readText(file);
+	if (text === void 0) return;
+	const lines = text.split(/\r?\n/u);
+	const at = lines.findIndex((line) => line.trimEnd() === section);
+	if (at === -1) return;
+	for (let index = at + 1; index < lines.length; index++) {
+		const version = lines[index]?.trim() ?? "";
+		if (version === "") continue;
+		if (!/^\s/u.test(lines[index] ?? "")) return;
+		collector.addVersion(id, {
+			version,
+			source: "lockfile",
+			file,
+			line: index + 1
+		});
+		return;
 	}
 }
 function orList(items) {
@@ -19330,6 +19718,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment,
 		const present = [...owners].filter(([, owner]) => owner === manager.id).map(([file]) => file).sort(byPath);
 		if (present.length > 0) lockfiles.set(manager.id, present);
 		for (const file of present) collector.addEvidence(manager.id, "lockfile", file);
+		if (manager.lockfileVersion !== null) for (const file of present) readLockfileVersion(repository, manager.id, manager.lockfileVersion, file, collector);
 		for (const file of manager.configFiles.filter((name) => repository.isFile(name))) collector.addEvidence(manager.id, "config", file);
 	}
 	const workflows = readWorkflows(repository, facts);
@@ -19770,7 +20159,10 @@ const PYTHON_NAME$1 = "[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?";
 const COMPOSER_PART = "[a-z0-9*](?:[a-z0-9._*-]*[a-z0-9*])?";
 const PYPI_PREFIX = "pypi:";
 const COMPOSER_PREFIX = "composer:";
-/** The prefix of each registry but npm, whose names have none. */
+/**
+* The prefix of each registry but npm, whose names have none. Ruby gems have no prefix (decision D-152): Bundler has no
+* per-gem setting a name in the policy could go to, so no name of the policy is a gem's.
+*/
 const PREFIXES = {
 	pypi: PYPI_PREFIX,
 	packagist: COMPOSER_PREFIX
@@ -19835,7 +20227,7 @@ function ecosystemOf(pattern) {
 }
 /** The prefix of an ecosystem's names in the policy: pypi:, composer:, or none for npm. */
 function prefixOf(ecosystem) {
-	return ecosystem === "npm" ? "" : PREFIXES[ecosystem];
+	return ecosystem === "npm" || ecosystem === "rubygems" ? "" : PREFIXES[ecosystem];
 }
 /** The patterns of one ecosystem, without their prefix. */
 function patternsFor(patterns, ecosystem) {
@@ -19845,8 +20237,8 @@ function patternsFor(patterns, ecosystem) {
 
 // src/doctor/composer.ts
 const COMPOSER_MANIFEST = "composer.json";
-const isStrings$3 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-const isRepositoryTypes = (value) => isRecord(value) && isStrings$3(value["vcs"]) && isStrings$3(value["directory"]) && isStrings$3(value["file"]) && isStrings$3(value["inline"]) && typeof value["disable"] === "string";
+const isStrings$4 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isRepositoryTypes = (value) => isRecord(value) && isStrings$4(value["vcs"]) && isStrings$4(value["directory"]) && isStrings$4(value["file"]) && isStrings$4(value["inline"]) && typeof value["disable"] === "string";
 function repositoryTypes(tool) {
 	return extraOf(tool, "repositoryTypes", isRepositoryTypes);
 }
@@ -19930,7 +20322,7 @@ const REMOTE = /^[a-z][a-z0-9+.-]*:\/\//iu;
 function isLocal(url) {
 	return /^file:\/\//iu.test(url) || !REMOTE.test(url);
 }
-const isFormat = (value) => isRecord(value) && isStrings$3(value["sections"]) && typeof value["name"] === "string" && typeof value["version"] === "string" && typeof value["pluginType"] === "string" && isStrings$3(value["pluginTypes"]) && isStrings$3(value["optionalPlugin"]) && typeof value["pathType"] === "string";
+const isFormat = (value) => isRecord(value) && isStrings$4(value["sections"]) && typeof value["name"] === "string" && typeof value["version"] === "string" && typeof value["pluginType"] === "string" && isStrings$4(value["pluginTypes"]) && isStrings$4(value["optionalPlugin"]) && typeof value["pathType"] === "string";
 const isBranches = (value) => isRecord(value) && typeof value["prefix"] === "string" && typeof value["suffix"] === "string";
 function describe$2(location) {
 	return isRecord(location) ? [location["type"], location["url"]].filter((part) => typeof part === "string").join(" ") : "";
@@ -19944,7 +20336,7 @@ function hostOf(url) {
 * it knows by default (extra.registryDistHosts), and the hosts of the repositories composer.json declares.
 */
 function registryHosts(tool, repositories) {
-	const known = extraOf(tool, "registryDistHosts", isStrings$3);
+	const known = extraOf(tool, "registryDistHosts", isStrings$4);
 	const archives = repositoryArchiveHosts(tool);
 	return /* @__PURE__ */ new Set([...known, ...repositories.flatMap((entry) => {
 		if (entry.url === void 0 || entry.kind === "disable") return [];
@@ -19952,7 +20344,7 @@ function registryHosts(tool, repositories) {
 		return [host, ...entry.kind === "registry" && Object.hasOwn(archives, host) ? archives[host] ?? [] : []];
 	})]);
 }
-const isHostLists = (value) => isRecord(value) && Object.values(value).every(isStrings$3);
+const isHostLists = (value) => isRecord(value) && Object.values(value).every(isStrings$4);
 /** The hosts of the archives of Composer repositories other than Packagist.org, by the host of the repository (decision D-141). */
 function repositoryArchiveHosts(tool) {
 	return tool.extra?.["repositoryArchiveHosts"] === void 0 ? {} : extraOf(tool, "repositoryArchiveHosts", isHostLists);
@@ -20369,7 +20761,7 @@ function showsBuilds(tool, file, tools) {
 function hasBuildRecords(managers, tools, ecosystem = "any") {
 	return managers.some((manager) => {
 		const tool = tools.find((entry) => entry.id === manager.id);
-		if (!manager.supported || tool === void 0) return false;
+		if (!manager.supported || tool === void 0 || tool.extra?.["lockfileFormat"] === void 0) return false;
 		const python = ecosystemOfTool(tool) === "pypi";
 		if (ecosystem === "pypi" && !python) return false;
 		return manager.evidence.some((evidence) => evidence.kind === "lockfile" && (!python || showsBuilds(tool, evidence.file, tools)));
@@ -22030,6 +22422,12 @@ function requirementsOptions(repository, file, format) {
 }
 
 // src/doctor/effective.ts
+/** The names of the Gemfile in the order Bundler looks for them (extra.gemfileNames). */
+function gemfileNamesOf(tool) {
+	const fact = tool.extra?.["gemfileNames"];
+	const names = fact === void 0 ? void 0 : values$1(fact)[0];
+	return Array.isArray(names) && names.every((name) => typeof name === "string") ? names : ["gems.rb", "Gemfile"];
+}
 function latestVersion$1(tool) {
 	const fact = tool.extra?.["latestVersion"];
 	const value = fact === void 0 ? void 0 : values$1(fact)[0];
@@ -22046,6 +22444,7 @@ function versionedValue(list, version) {
 }
 function managerConfigFiles(tool, manager) {
 	if (tool.id === "deno") return manager.configFiles.filter((file) => /^deno\.jsonc?$/u.test(file));
+	if (tool.id === "bundler") return gemfileNamesOf(tool).filter((name) => manager.configFiles.includes(name)).slice(0, 1);
 	return (values$1(tool.cooldown.configFiles)[0] ?? []).filter((file) => file !== ".npmrc" || tool.id === "npm").slice(0, 1);
 }
 /**
@@ -22779,6 +23178,7 @@ function today() {
 const SOURCE_LABEL = {
 	packageManager: "packageManager",
 	"tool-config": "the required version",
+	lockfile: "the lockfile",
 	devEngines: "devEngines",
 	volta: "Volta",
 	"tool-versions": ".tool-versions",
@@ -22788,7 +23188,7 @@ const SOURCE_LABEL = {
 	"github-actions": "GitHub Actions",
 	dockerfile: "Dockerfile"
 };
-const RULE$3 = "manager-version-too-old";
+const RULE$4 = "manager-version-too-old";
 /** Where developers choose their Node.js; anyone can install another npm, so these give warnings. */
 const DEVELOPER_SOURCES = /* @__PURE__ */ new Set([
 	"nvmrc",
@@ -23506,7 +23906,7 @@ function report(context, helpers, check, place, resolution, facts) {
 	});
 }
 function unknown(context, subject, reason, file) {
-	context.notice(`${RULE$3} cannot tell which npm or pip comes with ${subject}: ${reason}`, file);
+	context.notice(`${RULE$4} cannot tell which npm or pip comes with ${subject}: ${reason}`, file);
 }
 /**
 * The npm an npm install -g npm@X puts in place, checked against the settings of the directory its installs run in, as
@@ -23520,7 +23920,7 @@ function checkUpgrade(context, helpers, check, place, facts) {
 	const where = place.label === place.file ? place.label : `${place.label} (${place.file})`;
 	const lowest = lowestVersion(spec);
 	if (lowest.kind === "unknown") {
-		context.notice(`${RULE$3} cannot evaluate ${name} version "${spec}" in ${place.file}`, place.file);
+		context.notice(`${RULE$4} cannot evaluate ${name} version "${spec}" in ${place.file}`, place.file);
 		return;
 	}
 	const missing = helpers.missing(placeFeatures(check.features, place.of), (since) => belowVersion(lowest, since));
@@ -23647,7 +24047,7 @@ function checkDockerfiles(context, helpers, checkFor, tool, facts) {
 					file: file.file,
 					line: root.line
 				},
-				message: `${RULE$3} cannot tell which ${tool} comes with ${subject}: ${runtime.unknown ?? "the tag names no version"}`,
+				message: `${RULE$4} cannot tell which ${tool} comes with ${subject}: ${runtime.unknown ?? "the tag names no version"}`,
 				fix: `Use a ${runtimeTool} image tag that names the ${runtimeName} version (such as ${runtimeTool}:${runtimeTool === "node" ? "24-alpine" : "3.13-slim"}, with the digest after it: ${runtimeTool}:<tag>@sha256:…), or check by hand that the ${tool} of that image supports ${list}`
 			});
 			continue;
@@ -23839,6 +24239,7 @@ const TOOL_IDS = [
 	"pdm",
 	"pipenv",
 	"composer",
+	"bundler",
 	"renovate",
 	"dependabot"
 ];
@@ -23948,6 +24349,7 @@ function configuredFeatures(context, tool) {
 }
 /** Where a version is declared, for messages; a tool's own required version is named by its key. */
 function sourceLabel(tool, declaration) {
+	if (declaration.source === "lockfile") return lockfileVersionOf(tool)?.section ?? SOURCE_LABEL[declaration.source];
 	if (declaration.source !== "tool-config") return SOURCE_LABEL[declaration.source];
 	const required = tool.extra?.["requiredVersion"] === void 0 ? void 0 : values$1(tool.extra["requiredVersion"])[0];
 	if (!isRecord(required) || typeof required["key"] !== "string") return SOURCE_LABEL[declaration.source];
@@ -23992,12 +24394,35 @@ function scriptFeatures(context, tool, policy) {
 		}
 	}];
 }
+/** The section of a lockfile that holds the version of the tool that wrote it, and the command that changes it (Bundler). */
+function lockfileVersionOf(tool) {
+	const fact = tool.extra?.["lockfileVersion"];
+	const value = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord(value) && typeof value["section"] === "string" && typeof value["update"] === "string" ? {
+		section: value["section"],
+		update: value["update"]
+	} : void 0;
+}
+/**
+* A version that has the cooldown but loses it where a lockfile exists (Bundler before 4.0.14 drops the keyword of a
+* Gemfile source then, extra.cooldownWithLockfile): a feature of its own, for a manager with a lockfile.
+*/
+function lockfileGap(context, tool, features) {
+	const fact = tool.extra?.["cooldownWithLockfile"];
+	const gap = fact === void 0 ? void 0 : values$1(fact)[0];
+	const setting = settingOf(tool.cooldown.setting);
+	if (!isRecord(gap) || typeof gap["since"] !== "string" || typeof gap["scope"] !== "string" || setting === null) return void 0;
+	if (!features.some((item) => item.setting === setting)) return void 0;
+	return context.detection.packageManagers.some((manager) => manager.id === tool.id && manager.evidence.some((entry) => entry.kind === "lockfile")) ? kinded("cooldown", feature(`${setting} ${gap["scope"]}`, gap["since"])) : void 0;
+}
 /** Every setting in use for a tool: the ones depcurfew.json needs and the ones already in its configuration. */
 function featuresOf(context, tool) {
 	const features = /* @__PURE__ */ new Map();
 	const policy = context.policy === void 0 ? void 0 : policyFor(context.policy, ecosystemOfTool(tool));
 	const fromPolicy = policy === void 0 ? [] : [...policyFeatures(tool, policy), ...scriptFeatures(context, tool, policy)];
 	for (const item of [...fromPolicy, ...configuredFeatures(context, tool)]) features.set(item.setting, item);
+	const gap = lockfileGap(context, tool, [...features.values()]);
+	if (gap !== void 0) features.set(gap.setting, gap);
 	return [...features.values()];
 }
 /** Features a version lacks, without "minimumReleaseAge for packages requested by exact version" when minimumReleaseAge itself is missing. */
@@ -24029,6 +24454,7 @@ function checkManager(context, manager, tool, features) {
 		const subject = lowest.kind === "exact" ? `${tool.name} ${formatBound(lowest)} in ${where} does not support ${list}` : `${where} allows ${tool.name} ${formatBound(lowest)} ("${declaration.version}"), which does not support ${list}`;
 		const alternative = alternativeOf(missing, tool.name, advice);
 		if (alternative !== void 0 && advice.now && advice.targeted && lowest.kind === "exact" && compareVersions$1(lowest.version, alternative.version) >= 0 && context.defaultPolicy === true) continue;
+		const locked = declaration.source === "lockfile" ? lockfileVersionOf(tool) : void 0;
 		context.report({
 			level: lowest.kind === "exact" ? "error" : "warning",
 			location: line === void 0 ? { file: declaration.file } : {
@@ -24036,7 +24462,7 @@ function checkManager(context, manager, tool, features) {
 				line
 			},
 			message: subject,
-			fix: alternative !== void 0 && lowest.kind === "exact" && compareVersions$1(lowest.version, alternative.version) >= 0 ? `${alternative.set.charAt(0).toUpperCase()}${alternative.set.slice(1)}, or require ${tool.name} ${formatVersion(needed)} or later in ${label}` : `Require ${tool.name} ${formatVersion(needed)} or later in ${label}${alternative === void 0 ? "" : `, or ${alternative.text}`}`
+			fix: locked !== void 0 ? `Run ${locked.update}, which locks the latest ${tool.name} release (${formatVersion(needed)} or later is needed), and commit ${declaration.file}` : alternative !== void 0 && lowest.kind === "exact" && compareVersions$1(lowest.version, alternative.version) >= 0 ? `${alternative.set.charAt(0).toUpperCase()}${alternative.set.slice(1)}, or require ${tool.name} ${formatVersion(needed)} or later in ${label}` : `Require ${tool.name} ${formatVersion(needed)} or later in ${label}${alternative === void 0 ? "" : `, or ${alternative.text}`}`
 		});
 	}
 }
@@ -24084,7 +24510,7 @@ const managerVersionTooOld = {
 	id: "manager-version-too-old",
 	checks: "The declared package manager versions, and the npm and pip that come with the declared Node.js and Python versions, support the settings the repository relies on",
 	summary: "A declared package manager version, or the npm or pip that comes with a declared Node.js or Python version, is older than a setting the repository relies on.",
-	description: "Package managers ignore settings they do not know yet; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, a CI step or a Dockerfile pins an older version, the setting is silently not applied there. The same holds for the npm that comes with the Node.js a CI job, a Dockerfile stage or a version file (.nvmrc, .node-version) chooses, and for the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age. Composer cannot pin its own version: a composer.lock whose plugin-api-version shows that a Composer older than 2.11 wrote it gives a warning, and otherwise a note says that the cooldown needs Composer 2.11.",
+	description: "Package managers ignore settings they do not know yet; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, a CI step or a Dockerfile pins an older version, the setting is silently not applied there. The same holds for the npm that comes with the Node.js a CI job, a Dockerfile stage or a version file (.nvmrc, .node-version) chooses, and for the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age. Composer cannot pin its own version: a composer.lock whose plugin-api-version shows that a Composer older than 2.11 wrote it gives a warning, and otherwise a note says that the cooldown needs Composer 2.11. Bundler switches to the version of BUNDLED WITH in Gemfile.lock, which counts as a pin (the cooldown: of a Gemfile source needs 4.0.14 once Gemfile.lock exists), as do the bundler input of ruby/setup-ruby and gem install bundler -v.",
 	help: "Raise the declared version to at least the version that introduced the setting, everywhere it is declared, or install a newer npm or pip before installing packages.",
 	level: "error",
 	requiresPolicy: false,
@@ -24585,7 +25011,7 @@ const policyShape = object({
 	targets: withDefault(targetsShape, "auto"),
 	projects: withDefault(projectsShape, []),
 	doctor: optional(doctorShape)
-}, { description: "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Composer, Renovate and Dependabot." });
+}, { description: "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Composer, Bundler, Renovate and Dependabot." });
 
 // src/policy/validate.ts
 /** Parses one section on its own, so rules spanning several fields still run when another part of the file is invalid. */
@@ -24800,6 +25226,12 @@ const SOURCE_LABELS = {
 		remoteTarball: "package repository",
 		file: "artifact repository",
 		directory: "path repository"
+	},
+	rubygems: {
+		git: "git",
+		remoteTarball: "archive URL",
+		file: "local archive",
+		directory: "path"
 	}
 };
 /** The cooldown in the tool's unit, or undefined (with a warning) when it cannot be written. */
@@ -25046,7 +25478,9 @@ const dependabot = (context, duration, repository) => {
 	const patternsOf = (ecosystem) => {
 		const covered = Array.isArray(managers[ecosystem]) ? managers[ecosystem] : [];
 		const tool = context.tools.find((entry) => covered.includes(entry.id));
-		return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], tool === void 0 ? "npm" : ecosystemOfTool(tool))) ?? [];
+		const registry = tool === void 0 ? "npm" : ecosystemOfTool(tool);
+		if (registry === "rubygems") return void 0;
+		return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], registry)) ?? [];
 	};
 	let configured = 0;
 	const others = /* @__PURE__ */ new Set();
@@ -25557,7 +25991,7 @@ function managerSources(repository, manager, tool, version) {
 			setting
 		}];
 	}
-	const sources = (values$1(tool.cooldown.configFiles)[0] ?? []).filter((file) => file !== ".npmrc" || tool.id === "npm").slice(0, 1).map((file) => ({
+	const sources = (tool.id === "bundler" ? gemfileNamesOf(tool).filter((file) => repository.isFile(file)).slice(0, 1) : (values$1(tool.cooldown.configFiles)[0] ?? []).filter((file) => file !== ".npmrc" || tool.id === "npm").slice(0, 1)).map((file) => ({
 		file,
 		setting
 	}));
@@ -26147,6 +26581,107 @@ const bun = (context) => {
 	return minutes;
 };
 
+// src/apply/generators/bundler.ts
+const isStrings$3 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isGap = (value) => isRecord(value) && typeof value["since"] === "string" && typeof value["scope"] === "string";
+const isServer = (value) => isRecord(value) && typeof value["url"] === "string";
+/** The Gemfile Bundler reads in the directory planned: gems.rb when it is there, otherwise Gemfile. */
+function plannedGemfile(context) {
+	const names = context.tool.extra?.["gemfileNames"] === void 0 ? ["gems.rb", "Gemfile"] : extraOf(context.tool, "gemfileNames", isStrings$3);
+	return gemfileIn((file) => context.exists(file), names);
+}
+/** Why apply does not edit a source call, for messages. */
+function whyNotPlain(source) {
+	if (source.block) return "it has a block, so it is the source of the gems in the block only";
+	if (source.cooldown === "other") return "its cooldown: is not a number";
+	return "it is not written as a plain source \"<URL>\" call on a line of its own";
+}
+function writeCooldown$1(context, file, days, server) {
+	const setting = settingOf(context.tool.cooldown.setting) ?? "cooldown";
+	const text = context.read(file);
+	const sources = gemfileSources(text);
+	const ours = sources.filter((source) => source.url !== void 0 && sameServer(source.url, server));
+	const plain = ours.filter((source) => source.plain);
+	for (const source of ours.filter((item) => !item.plain)) context.warn({
+		code: "cooldown-not-written",
+		location: {
+			file,
+			line: source.line
+		},
+		message: `${context.name}: cooldown not written: the source "${server}" call on line ${source.line} of ${file} is not edited, because ${whyNotPlain(source)}; depcurfew apply edits only a plain source "${server}" call on a line of its own`,
+		fix: `Add ${setting}: ${days} to that call by hand (source "${server}", ${setting}: ${days}${source.block ? " do" : ""}), or write it as a plain call on a line of its own and run depcurfew apply again`
+	});
+	if (plain.length > 0) {
+		if (plain.some((source) => source.cooldown !== days)) context.text(file, (body) => setSourceCooldown(body, plain.map((source) => source.line), days));
+		return true;
+	}
+	const unread = sources.filter((source) => source.url === void 0);
+	for (const source of unread) context.warn({
+		code: "cooldown-not-written",
+		location: {
+			file,
+			line: source.line
+		},
+		message: `${context.name}: cooldown not written: the URL of the source call on line ${source.line} of ${file} is not a literal string, so depcurfew cannot tell whether it is "${server}"`,
+		fix: `If it names rubygems.org, write it as source "${server}" on a line of its own and run depcurfew apply again, or add ${setting}: ${days} to that call by hand`
+	});
+	if (ours.length > 0 || unread.length > 0) return false;
+	context.warn({
+		code: "cooldown-not-written",
+		location: { file },
+		message: `${context.name}: cooldown not written: ${file} has no source "${server}" call, and depcurfew configures the cooldown of Bundler only on that source`,
+		fix: `If the gems come from another gem server, add ${setting}: ${days} to its source call by hand (Bundler holds back only versions the server gives a created_at date); if they come from rubygems.org, add source "${server}" to ${file} and run depcurfew apply again`
+	});
+	return false;
+}
+const bundler = (context) => {
+	const { tool, policy } = context;
+	let minutes;
+	if (policy.cooldown !== void 0) {
+		const file = plannedGemfile(context);
+		const cooldown = cooldownValue(context);
+		const locked = (tool.project === void 0 ? [] : (values$1(tool.project.lockfiles)[0] ?? []).flatMap((entry) => [...entry.value])).some((name) => context.exists(name));
+		const gap = tool.extra?.["cooldownWithLockfile"] === void 0 ? void 0 : extraOf(tool, "cooldownWithLockfile", isGap);
+		const setting = settingOf(tool.cooldown.setting) ?? "cooldown";
+		const keeps = !locked || gap === void 0 || context.supports(gap.since, `${setting} ${gap.scope}`);
+		if (cooldown !== void 0 && cooldown !== void 0 && keeps && typeof cooldown.value === "number") {
+			if (!context.exists(file)) context.warn({
+				code: "manifest-missing",
+				location: { file },
+				message: `${context.name}: there is no ${file}, so ${setting} is not written; depcurfew does not create project manifests`,
+				fix: policy.targets === "auto" ? `If ${context.name} installs gems for this project, create ${file} first, then run depcurfew apply again` : `If ${context.name} installs gems for this project, create ${file} first, then run depcurfew apply again; otherwise remove "${tool.id}" from targets in ${POLICY_FILE}`
+			});
+			else {
+				const server = tool.extra?.["rubygemsSource"] === void 0 ? "https://rubygems.org" : extraOf(tool, "rubygemsSource", isServer).url;
+				if (writeCooldown$1(context, file, cooldown.value, server)) minutes = cooldown.minutes;
+			}
+		}
+		if (context.policyExclusions.length > 0 && settingOf(tool.cooldown.exclude.setting) === null) {
+			const update = tool.extra?.["updateCommand"] === void 0 ? void 0 : values$1(tool.extra["updateCommand"])[0];
+			context.warn({
+				code: "exclude-unsupported",
+				message: `${context.name}: no setting exempts single gems from ${setting}, so every gem waits; the exceptions of cooldown.exclude in ${POLICY_FILE} name no Ruby gems and are not applied to ${context.name}`,
+				fix: `Nothing to set for ${context.name}. To take a newer version of one gem sooner, review it and run ${typeof update === "string" ? update : "bundle update GEM --cooldown 0"} for that gem`
+			});
+		}
+	}
+	if (policy.installScripts?.default === "deny" && settingOf(tool.installScripts.disableAll) === null && settingOf(tool.installScripts.allowList.setting) === null) context.warn({
+		code: "scripts-not-enforceable",
+		message: `${context.name} builds the native extensions of gems when it installs them, which runs code of the gem (extconf.rb, a Rakefile), and has no setting that blocks this or allows it for some gems only, so installScripts "deny" cannot be enforced`,
+		fix: `Review gems with native extensions (extensions in the gemspec, an ext directory) before you add or update them; there is nothing to set for ${context.name}`
+	});
+	const kinds = tool.extra?.["dependencySources"] === void 0 ? void 0 : extraOf(tool, "dependencySources", isStrings$3);
+	const sources = policy.sources === void 0 || kinds === void 0 ? policy.sources : Object.fromEntries(Object.entries(policy.sources).filter(([kind]) => kinds.includes(kind)));
+	eachSource({
+		...context,
+		policy: {
+			...policy,
+			...sources === void 0 ? {} : { sources }
+		}
+	}, () => void 0);
+	return minutes;
+};
+
 // src/apply/generators/composer.ts
 const isContentHash$1 = (value) => isRecord(value) && typeof value["file"] === "string" && Array.isArray(value["settings"]) && typeof value["command"] === "string" && typeof value["since"] === "string";
 /** The reason apply writes for a name it adds to an ignore object, whose values are reasons; it marks the entry as apply's. */
@@ -26724,6 +27259,11 @@ function createContext(options) {
 		return options.version === void 0 || required === void 0 || compareVersions$1(options.version, required) >= 0;
 	};
 	const unsupported = [];
+	const lockfileVersion = tool.extra?.["lockfileVersion"] === void 0 ? void 0 : values$1(tool.extra["lockfileVersion"])[0];
+	const locked = isRecord(lockfileVersion) && typeof lockfileVersion["section"] === "string" && typeof lockfileVersion["update"] === "string" ? {
+		section: lockfileVersion["section"],
+		update: lockfileVersion["update"]
+	} : void 0;
 	const where = options.project === void 0 ? {} : { project: options.project };
 	const warn = (warning) => {
 		const { code, ...rest } = warning;
@@ -26812,7 +27352,7 @@ function createContext(options) {
 			warn({
 				code: "version-too-old",
 				message: `${tool.name} ${versionLabel} does not support ${describeRequirements(unsupported)}; not written`,
-				fix: user ? `Update ${tool.name} to ${needed} or later, then run depcurfew apply --user again` : `Require ${tool.name} ${needed} or later where the version is pinned`
+				fix: user ? `Update ${tool.name} to ${needed} or later, then run depcurfew apply --user again` : locked === void 0 ? `Require ${tool.name} ${needed} or later where the version is pinned` : `Require ${tool.name} ${needed} or later where the version is pinned (${locked.section} of the lockfile changes with ${locked.update}), then run depcurfew apply again`
 			});
 		},
 		atLeast,
@@ -26847,7 +27387,9 @@ function createContext(options) {
 			parseToml(edited);
 			return edited;
 		})),
-		requirements: (file, entries, managedOptions) => guard(file, () => workspace.edit(file, (body) => writeRequirementsBlock(body, entries, managedOptions, requirementsLongOptions(requirementsFormatOf(tool)))))
+		requirements: (file, entries, managedOptions) => guard(file, () => workspace.edit(file, (body) => writeRequirementsBlock(body, entries, managedOptions, requirementsLongOptions(requirementsFormatOf(tool))))),
+		text: (file, change) => guard(file, () => workspace.edit(file, change)),
+		policyExclusions: options.policyExclusions ?? options.policy.cooldown?.exclude ?? []
 	};
 }
 
@@ -28082,7 +28624,11 @@ const renovate = (context, duration, repository) => {
 	const composerPatterns = exclusions(context, patternsFor(excluded, "packagist")) ?? [];
 	const negative = extraOf(tool, "negativeMatch", isString);
 	const uses = (ecosystem) => context.tools.some((entry) => entry.kind === "package-manager" && ecosystemOfTool(entry) === ecosystem && context.targets.has(entry.id));
-	const others = ["pypi", "packagist"].filter(uses).map((ecosystem) => `${negative}${String(datasources[ecosystem])}`);
+	const others = [
+		"pypi",
+		"packagist",
+		"rubygems"
+	].filter(uses).map((ecosystem) => `${negative}${String(datasources[ecosystem])}`);
 	const exclusionRule = {
 		[descriptionKey]: RULE_DESCRIPTION,
 		...others.length > 0 ? { matchDatasources: others } : {},
@@ -28168,7 +28714,8 @@ const renovate = (context, duration, repository) => {
 const ECOSYSTEM_LABELS = {
 	npm: "npm",
 	pypi: "Python",
-	packagist: "Composer"
+	packagist: "Composer",
+	rubygems: "Ruby"
 };
 /**
 * packageRules entries that apply does not manage and that give every package of a package manager in use (by
@@ -29528,7 +30075,8 @@ const MANAGERS = {
 	poetry,
 	pdm,
 	pipenv,
-	composer
+	composer,
+	bundler
 };
 const BOTS = {
 	renovate,
@@ -29554,6 +30102,9 @@ function pinPlaces(tool) {
 	const required = tool.extra?.["requiredVersion"];
 	const value = required === void 0 ? void 0 : values$1(required)[0];
 	const places = isRecord(value) && typeof value["key"] === "string" && typeof value["table"] === "string" ? [`${value["key"]} in [${value["table"]}]`] : [];
+	const lockfileVersion = tool.extra?.["lockfileVersion"] === void 0 ? void 0 : values$1(tool.extra["lockfileVersion"])[0];
+	const lockfile = tool.project === void 0 ? void 0 : values$1(tool.project.lockfiles)[0]?.at(-1)?.value[0];
+	if (isRecord(lockfileVersion) && typeof lockfileVersion["section"] === "string" && lockfile !== void 0) places.push(`${lockfileVersion["section"]} in ${lockfile}`);
 	const plugins = values$1(environment.asdf.plugins)[0] ?? {};
 	if (Object.values(plugins).includes(tool.id)) places.push(".tool-versions");
 	if (Object.values(environment.githubActions).flatMap((fact) => values$1(fact)).some((action) => isRecord(action) && Array.isArray(action["inputs"]) && action["inputs"].some((input) => isRecord(input) && input["tool"] === tool.id))) places.push("a CI setup step");
@@ -29769,6 +30320,7 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 			tools,
 			targets: tool.kind === "package-manager" ? targets : botTargets,
 			policy: view,
+			policyExclusions: policy.cooldown?.exclude ?? [],
 			version,
 			workspace,
 			warnings,
@@ -30029,7 +30581,7 @@ function countLevels(findings) {
 	for (const finding of findings) counts[finding.level] += 1;
 	return counts;
 }
-function plural$3(count, word) {
+function plural$4(count, word) {
 	return `${count} ${count === 1 ? word : `${word}s`}`;
 }
 function levelColor(level, colors) {
@@ -30070,7 +30622,7 @@ function resultText(result) {
 		[result.errors, "error"],
 		[result.warnings, "warning"],
 		[result.notes, "note"]
-	].filter(([count]) => count > 0).map(([count, word]) => plural$3(count, word)).join(", ");
+	].filter(([count]) => count > 0).map(([count, word]) => plural$4(count, word)).join(", ");
 }
 /** The checks that passed, failed or did not run, counted for one line. */
 function resultCounts(results) {
@@ -30121,7 +30673,7 @@ function renderText(report, rules, colors = PLAIN, options = {}) {
 	const lines = [];
 	if (report.findings.length === 0) lines.push(colors.green("No problems found."));
 	else {
-		const count = (level) => shown[level] === 0 ? plural$3(0, level) : levelColor(level, colors)(plural$3(shown[level], level));
+		const count = (level) => shown[level] === 0 ? plural$4(0, level) : levelColor(level, colors)(plural$4(shown[level], level));
 		lines.push(`${count("error")}, ${count("warning")}, ${count("note")}`);
 		const explanation = options.failOn === void 0 ? void 0 : failOnExplanation(options.failOn, counts);
 		if (explanation !== void 0) lines.push(printable(explanation.message), `  ${colors.green("fix:")} ${printable(explanation.fix)}`);
@@ -30166,7 +30718,7 @@ const LEVELS = [
 function fixOf(finding, rules) {
 	return finding.fix ?? rules.find((rule) => rule.id === finding.rule)?.help;
 }
-function plural$2(count, word) {
+function plural$3(count, word) {
 	return `${count} ${count === 1 ? word : `${word}s`}`;
 }
 function escaped(text, replacements) {
@@ -30268,7 +30820,7 @@ function checkRunAnnotations(report, rules, include, facts = values$1(environmen
 /** The line below the summary of the check when findings are not annotated there. */
 function checkRunAnnotationNote(omitted, max = 100) {
 	if (omitted === 0) return "";
-	return `\n${plural$2(omitted, "finding")} ${omitted === 1 ? "is" : "are"} not shown as annotations on the files: the check gets at most ${max}, errors first, and only on files in the workspace. The job log lists every finding.\n`;
+	return `\n${plural$3(omitted, "finding")} ${omitted === 1 ? "is" : "are"} not shown as annotations on the files: the check gets at most ${max}, errors first, and only on files in the workspace. The job log lists every finding.\n`;
 }
 /**
 * A notice annotation for a clean report, so that the run shows that doctor ran and what it checked: the tools, the
@@ -30279,7 +30831,7 @@ function cleanNotice(report, format = values$1(environment.githubActions.annotat
 	const data = (text) => escaped(text, format.escape);
 	const property = (text) => escaped(escaped(text, format.escape), format.escapeProperty);
 	const checked = report.checked;
-	const lines = checked === void 0 ? ["No problems found"] : [`No problems found in ${plural$2(checked.files.length, "file")}${checked.tools.length === 0 ? "" : ` for ${checked.tools.map(checkedTool).join(", ")}`}. ${resultCounts(checked.rules)}.`, ...checked.rules.map((result) => `${resultText(result)}: ${result.check}${result.result === "skipped" ? ` (${policyNeeded(checked.policyFile, report.policy)})` : ""}`)];
+	const lines = checked === void 0 ? ["No problems found"] : [`No problems found in ${plural$3(checked.files.length, "file")}${checked.tools.length === 0 ? "" : ` for ${checked.tools.map(checkedTool).join(", ")}`}. ${resultCounts(checked.rules)}.`, ...checked.rules.map((result) => `${resultText(result)}: ${result.check}${result.result === "skipped" ? ` (${policyNeeded(checked.policyFile, report.policy)})` : ""}`)];
 	return `::${format.commands.note} ${format.properties.title}=${property("depcurfew doctor: no problems found")}::${data(lines.map((line) => printable(line)).join("\n"))}`;
 }
 /** Markdown text with code spans kept: outside them special characters are escaped, inside only the table pipe. */
@@ -30305,7 +30857,7 @@ function jobSummary(report, rules, directory, maxBytes) {
 	const head = ["## depcurfew doctor", ""];
 	if (report.findings.length === 0) head.push(`**No problems found**${where}.`);
 	else {
-		const count = (level) => counts[level] === 0 ? plural$2(0, level) : `**${plural$2(counts[level], level)}**`;
+		const count = (level) => counts[level] === 0 ? plural$3(0, level) : `**${plural$3(counts[level], level)}**`;
 		head.push(`${count("error")}, ${count("warning")}, ${count("note")}${where}.`, "", "| Level | Where | Problem | How to fix |", "| --- | --- | --- | --- |");
 	}
 	const tail = [
@@ -30328,7 +30880,7 @@ function jobSummary(report, rules, directory, maxBytes) {
 		rows.push(row);
 	}
 	const omitted = report.findings.length - rows.length;
-	const more = omitted === 0 ? [] : ["", `${plural$2(omitted, "more finding")} did not fit in the summary; the step log lists every finding.`];
+	const more = omitted === 0 ? [] : ["", `${plural$3(omitted, "more finding")} did not fit in the summary; the step log lists every finding.`];
 	return [
 		...head,
 		...rows,
@@ -30409,7 +30961,7 @@ function fitSummary(markdown, limit) {
 	const cut = markdown.slice(0, limit - 73);
 	return `${cut.slice(0, Math.max(0, cut.lastIndexOf("\n")))}${note}`;
 }
-function plural$1(count, word) {
+function plural$2(count, word) {
 	return `${count} ${count === 1 ? word : `${word}s`}`;
 }
 function reason(error) {
@@ -30577,11 +31129,11 @@ async function createCheckRun(env, token, content, fetchImpl, options = {}) {
 		}
 	}
 	const commit = sha.slice(0, 12);
-	const withAnnotations = added === 0 ? "" : ` and ${plural$1(added, "annotation")}`;
+	const withAnnotations = added === 0 ? "" : ` and ${plural$2(added, "annotation")}`;
 	const line = updated ? `updated the check "${content.name}" on the commit ${commit} with the result of this run${withAnnotations}, instead of adding a second one${kept ? "; it keeps the annotations it has" : ""}` : `added the check "${content.name}" with the result${withAnnotations} to the commit ${commit}${replaced === void 0 ? "" : ", next to an earlier one with other annotations"}`;
 	const missing = (kept ? 0 : annotations.length) - added;
 	const lost = failure !== void 0 && missing !== 0;
-	const text = `${line}${lost ? `; ${plural$1(missing, "more annotation")} could not be added: ${failure}` : ""}${replacement}`;
+	const text = `${line}${lost ? `; ${plural$2(missing, "more annotation")} could not be added: ${failure}` : ""}${replacement}`;
 	return lost || replacementFailed ? warning(text) : `depcurfew: ${printable(text)}\n`;
 }
 
@@ -30725,9 +31277,16 @@ function usesManager(scope, ids) {
 function usesBot(scope, ids) {
 	return scope.detection.bots.some((bot) => ids === void 0 || ids.includes(bot.id));
 }
-/** A package manager has a lockfile, or for pip requirements files, which say where packages come from too. */
+/** Whether depcurfew reads the lockfile of a package manager (extra.lockfileFormat); it does not read Gemfile.lock (decision D-152). */
+function readsLockfile(tools, id) {
+	return tools.find((tool) => tool.id === id)?.extra?.["lockfileFormat"] !== void 0;
+}
+/**
+* A package manager has a lockfile depcurfew reads, or for pip requirements files, which say where packages come from
+* too.
+*/
 function hasLockfile(scope) {
-	return scope.detection.packageManagers.some((manager) => manager.supported && (manager.evidence.some((evidence) => evidence.kind === "lockfile") || manager.id === "pip" && manager.configFiles.length > 0));
+	return scope.detection.packageManagers.some((manager) => manager.supported && readsLockfile(scope.tools, manager.id) && (manager.evidence.some((evidence) => evidence.kind === "lockfile") || manager.id === "pip" && manager.configFiles.length > 0));
 }
 
 // src/doctor/rules/unreadable-config.ts
@@ -31644,6 +32203,209 @@ const broadExclusion = {
 		for (const bot of context.project === void 0 ? context.detection.bots : []) for (const file of bot.configFiles) {
 			if (bot.id === "dependabot") checkDependabot(context, file);
 			if (bot.id === "renovate") checkRenovate(context, file);
+		}
+	}
+};
+
+// src/doctor/rules/bundler-config.ts
+const RULE$3 = "bundler-config-weakens";
+/** Workflows as GitHub reads them: with their aliases expanded (environment.githubActions.yamlAliases, decision D-141). */
+const WORKFLOW_YAML$1 = evidenceOf(environment.githubActions.yamlAliases)[0]?.value.accepted === true ? { aliases: true } : {};
+const isSettingFacts = (value) => isRecord(value) && typeof value["key"] === "string" && typeof value["variable"] === "string" && typeof value["localFile"] === "string";
+/** What the cooldown setting reads from a text (extra.cooldownSettingValues): days as String#to_i gives them, or unset for "false". */
+function settingDays(value) {
+	if (value === "false") return "unset";
+	const digits = /^\s*([+-]?\d+(?:_\d+)*)/u.exec(value)?.[1];
+	return digits === void 0 ? 0 : Number(digits.replaceAll("_", ""));
+}
+/** The policy's delay in Bundler's whole days, rounded up; undefined without a cooldown. */
+function policyDays(context, tool) {
+	const minimum = context.policy?.cooldown?.minimum;
+	if (minimum === void 0) return void 0;
+	const converted = convertCooldown(tool, minimum);
+	return converted.ok && typeof converted.value === "number" ? converted.value : void 0;
+}
+const plural$1 = (days) => `${days} ${days === 1 ? "day" : "days"}`;
+/**
+* What a value does, after "which" or "and": turns the cooldown off, or sets a shorter one, `scope` (for every source,
+* for that command) in place of the cooldown: of the Gemfile; undefined when it is long enough.
+*/
+function effect(context, days, wanted, scope) {
+	if (days === "unset" || days >= wanted) return void 0;
+	if (days <= 0) return `turns off the cooldown of Bundler ${scope}, in place of the cooldown: of the Gemfile`;
+	return `sets the cooldown of Bundler to ${plural$1(days)} ${scope} in place of the cooldown: of the Gemfile, shorter than the ${context.policy?.cooldown?.minimum.text ?? ""} of ${POLICY_FILE}`;
+}
+/** .bundle/config of the project: the local config, which Bundler reads before the environment and the Gemfile. */
+function checkLocalConfig(context, facts, wanted) {
+	const file = facts.localFile;
+	const text = context.repository.readText(file);
+	if (text === void 0) return;
+	const found = yamlSetting(text, [facts.variable]);
+	if (found === void 0 || typeof found.value !== "string" && typeof found.value !== "number") return;
+	const value = String(found.value);
+	const days = settingDays(value);
+	const what = effect(context, days, wanted, "for every source");
+	if (what === void 0 || days === "unset") return;
+	context.report({
+		location: {
+			file,
+			line: found.line
+		},
+		message: `${facts.variable}: ${JSON.stringify(value)} in ${file} ${what}; Bundler reads ${file} before the environment`,
+		fix: `Remove ${facts.variable} from ${file} (bundle config unset --local ${facts.key}), so that the cooldown: of the Gemfile applies, or set it to at least ${wanted}`
+	});
+}
+/**
+* The env maps of a workflow that set the variable: the workflow's, each job's and its container's, and each step's,
+* read from the workflow once, so that thousands of steps cost one reading of the file (decision D-121).
+*/
+function environments$1(text, variable) {
+	const workflow = yamlSetting(text, [], WORKFLOW_YAML$1)?.value;
+	if (!isRecord(workflow)) return [];
+	const found = [{
+		path: ["env"],
+		where: () => "the workflow",
+		env: workflow["env"]
+	}];
+	const jobs = workflow["jobs"];
+	if (isRecord(jobs)) for (const [id, job] of Object.entries(jobs)) {
+		if (!isRecord(job)) continue;
+		const container = job["container"];
+		found.push({
+			path: [
+				"jobs",
+				id,
+				"env"
+			],
+			where: (label) => label(id),
+			job: id,
+			env: job["env"]
+		}, {
+			path: [
+				"jobs",
+				id,
+				"container",
+				"env"
+			],
+			where: (label) => `the container of ${label(id)}`,
+			job: id,
+			env: isRecord(container) ? container["env"] : void 0
+		});
+		const steps = job["steps"];
+		if (!Array.isArray(steps)) continue;
+		steps.forEach((step, index) => found.push({
+			path: [
+				"jobs",
+				id,
+				"steps",
+				String(index),
+				"env"
+			],
+			where: (label) => `step ${index + 1} of ${label(id)}`,
+			job: id,
+			env: isRecord(step) ? step["env"] : void 0
+		}));
+	}
+	return found.filter((entry) => isRecord(entry.env) && Object.hasOwn(entry.env, variable));
+}
+/** BUNDLE_COOLDOWN in the env maps of the workflows; returns the values it reported, per workflow file and job. */
+function checkWorkflowEnv(context, facts, wanted) {
+	const reported = /* @__PURE__ */ new Map();
+	for (const file of context.detection.workflows) {
+		const text = context.repository.readText(file);
+		if (text === void 0) continue;
+		const aliases = WORKFLOW_YAML$1.aliases === true ? yamlAliasProblem(text) : void 0;
+		if (aliases !== void 0) {
+			context.notice(`${RULE$3} could not read the env of ${file}: its YAML aliases cannot be expanded (${aliases})`, file, `Write the values out in place of the aliases in ${file}, then run depcurfew doctor again`);
+			continue;
+		}
+		const label = (id) => jobLabel(id, yamlSetting(text, ["jobs", id], WORKFLOW_YAML$1)?.line);
+		for (const { path, where: placeOf, job, env } of environments$1(text, facts.variable)) {
+			if (!isRecord(env)) continue;
+			const where = placeOf(label);
+			const raw = env[facts.variable];
+			const value = typeof raw === "string" ? raw : typeof raw === "number" || typeof raw === "boolean" ? String(raw) : void 0;
+			if (value === void 0) continue;
+			const line = yamlSetting(text, [...path, facts.variable], WORKFLOW_YAML$1)?.line;
+			const location = line === void 0 ? { file } : {
+				file,
+				line
+			};
+			const key = `${file}\u0000${job ?? ""}`;
+			if (value.includes("${{")) {
+				reported.set(key, /* @__PURE__ */ new Set([...reported.get(key) ?? [], value]));
+				context.report({
+					level: "warning",
+					location,
+					message: `${facts.variable}=${value} in the env of ${where} in ${file} reaches every Bundler command there and may turn off the cooldown of Bundler or shorten it, for every source`,
+					fix: `Remove ${facts.variable} from that env in ${file}, or make sure it is never shorter than ${wanted} days`
+				});
+				continue;
+			}
+			const days = settingDays(value);
+			const what = effect(context, days, wanted, "for every source");
+			if (what === void 0 || days === "unset") continue;
+			reported.set(key, /* @__PURE__ */ new Set([...reported.get(key) ?? [], value]));
+			context.report({
+				location,
+				message: `${facts.variable}=${value} in the env of ${where} in ${file} reaches every Bundler command there and ${what}`,
+				fix: `Remove ${facts.variable} from that env in ${file}; for a gem that cannot wait, run bundle update GEM --cooldown 0 by hand after reviewing it`
+			});
+		}
+	}
+	return reported;
+}
+/** The finding for a bundle command whose delay is shorter, when there is one. */
+function reportCommand(context, facts, wanted, command, file, where) {
+	if (command.delay === void 0 || command.delayUnknown === true) return;
+	if (command.delayOption === true && !/^\d+$/u.test(command.delay)) return;
+	const days = command.delayOption === true ? Number(command.delay) : settingDays(command.delay);
+	const what = effect(context, days, wanted, "for that command");
+	if (what === void 0 || days === "unset") return;
+	const how = command.delayOption === true ? `--cooldown ${command.delay}` : `${facts.variable}=${command.delay}`;
+	context.report({
+		location: {
+			file,
+			line: command.line
+		},
+		message: `${where} runs a bundle command with ${how}, which ${what}`,
+		fix: command.delayOption === true ? `Remove --cooldown ${command.delay} from that command in ${file}; for a gem that cannot wait, run bundle update GEM --cooldown 0 by hand after reviewing it` : `Remove ${facts.variable} from that command or the place that sets it in ${file}; for a gem that cannot wait, run bundle update GEM --cooldown 0 by hand after reviewing it`
+	});
+}
+const isBundle = (command) => command.tool === "bundler" && command.kind === "install";
+const bundlerConfigWeakens = {
+	id: RULE$3,
+	checks: ".bundle/config, the env of CI workflows and the bundle commands of CI jobs and Dockerfiles keep the cooldown of Bundler",
+	summary: ".bundle/config, the env of a CI workflow or a bundle command in a CI job or a Dockerfile turns the cooldown of Bundler off or makes it shorter than the policy.",
+	description: "Bundler 4.0.13 and later hold back gem versions younger than the cooldown: of the Gemfile source, but the cooldown setting and the --cooldown option take its place for every source. BUNDLE_COOLDOWN in .bundle/config (which Bundler reads first), in the env of a CI workflow, before a bundle command or in a Dockerfile ENV, and --cooldown on bundle install, update, lock, add or cache, with fewer days than depcurfew.json or 0 (any value that does not start with a digit counts as 0), turn the delay off or shorten it while the Gemfile still looks configured. A value with a ${{ }} expression gives a warning.",
+	help: "Remove the setting, the variable or the option, or give it at least the days of the policy; take a newer version of one gem by hand with bundle update GEM --cooldown 0 after reviewing it.",
+	level: "error",
+	requiresPolicy: true,
+	applies: (scope) => usesManager(scope, ["bundler"]) || scope.detection.jobs.some((job) => job.commands.some(isBundle)),
+	check(context) {
+		const tool = context.tools.find((entry) => entry.id === "bundler");
+		if (tool === void 0 || tool.extra?.["cooldownSetting"] === void 0) return;
+		const policy = context.policy;
+		if (policy === void 0 || policy.targets !== "auto" && !policy.targets.includes("bundler")) return;
+		const wanted = policyDays(context, tool);
+		if (wanted === void 0) return;
+		const facts = extraOf(tool, "cooldownSetting", isSettingFacts);
+		const used = context.detection.packageManagers.some((manager) => manager.id === "bundler" && manager.supported);
+		const commands = context.detection.jobs.some((job) => job.commands.some(isBundle)) || context.detection.dockerfiles.some((file) => file.stages.some((stage) => stage.commands.some(isBundle)));
+		if (!used && !commands) return;
+		if (used) checkLocalConfig(context, facts, wanted);
+		const reported = checkWorkflowEnv(context, facts, wanted);
+		for (const job of context.detection.jobs) {
+			const fromEnv = reported.get(`${job.file}\u0000${job.id}`) ?? /* @__PURE__ */ new Set();
+			const workflowEnv = reported.get(`${job.file}\u0000`) ?? /* @__PURE__ */ new Set();
+			for (const command of job.commands.filter(isBundle)) {
+				if (command.delayOption !== true && command.delay !== void 0 && (fromEnv.has(command.delay) || workflowEnv.has(command.delay))) continue;
+				reportCommand(context, facts, wanted, command, job.file, `${jobLabel(job.id, job.line)} in ${job.file} (line ${command.line})`);
+			}
+		}
+		for (const dockerfile of context.detection.dockerfiles) for (const stage of dockerfile.stages) {
+			const name = stage.name === void 0 ? `the stage at line ${stage.line}` : `stage ${stage.name}`;
+			for (const command of stage.commands.filter(isBundle)) reportCommand(context, facts, wanted, command, dockerfile.file, `${name} in ${dockerfile.file} (line ${command.line})`);
 		}
 	}
 };
@@ -33229,7 +33991,7 @@ const NO_DATA_MESSAGE = "known-malicious did not check the locked package versio
 const NO_DATA_FIX = "Run depcurfew osv update to download the OSV.dev data of known malicious packages (it requests only the public export files and sends no package names), then run depcurfew doctor again; or run depcurfew doctor --osv to ask api.osv.dev";
 /** The first lockfile (or requirements file of pip) of the directory, from detection: where the note without data stands. */
 function firstLockfile(context) {
-	for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
+	for (const manager of context.detection.packageManagers.filter((entry) => entry.supported && readsLockfile(context.tools, entry.id))) {
 		const lockfile = manager.evidence.find((evidence) => evidence.kind === "lockfile");
 		if (lockfile !== void 0) return lockfile.file;
 		if (manager.id === "pip" && manager.configFiles.length > 0) return manager.configFiles[0];
@@ -33277,6 +34039,12 @@ const LABELS = {
 		remoteTarball: "a package repository at a URL",
 		file: "an artifact repository",
 		directory: "a path repository"
+	},
+	rubygems: {
+		git: "a git repository",
+		remoteTarball: "an archive URL",
+		file: "a local archive",
+		directory: "a path"
 	}
 };
 /** Why a Python package is built from source, for messages. */
@@ -34844,6 +35612,7 @@ const RULES = [
 	pnpmSharedWorkspaceLockfile,
 	pythonConfigIgnored,
 	composerConfigWeakens,
+	bundlerConfigWeakens,
 	configDrift,
 	botCooldownMismatch,
 	broadExclusion,

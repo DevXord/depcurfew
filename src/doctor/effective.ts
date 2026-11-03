@@ -21,6 +21,13 @@ export interface Delay {
   byDefault?: true;
 }
 
+/** The names of the Gemfile in the order Bundler looks for them (extra.gemfileNames). */
+export function gemfileNamesOf(tool: ToolKnowledge): string[] {
+  const fact = tool.extra?.['gemfileNames'];
+  const names = fact === undefined ? undefined : values(fact)[0];
+  return Array.isArray(names) && names.every((name) => typeof name === 'string') ? names : ['gems.rb', 'Gemfile'];
+}
+
 export function latestVersion(tool: ToolKnowledge): Version | undefined {
   const fact = tool.extra?.['latestVersion'];
   const value = fact === undefined ? undefined : values(fact)[0];
@@ -39,6 +46,8 @@ export function versionedValue<T>(list: Versioned<T>, version: Version | undefin
 
 function managerConfigFiles(tool: ToolKnowledge, manager: PackageManagerInfo): string[] {
   if (tool.id === 'deno') return manager.configFiles.filter((file) => /^deno\.jsonc?$/u.test(file));
+  // Bundler reads gems.rb in place of the Gemfile when both are there (extra.gemfileNames, decision D-152).
+  if (tool.id === 'bundler') return gemfileNamesOf(tool).filter((name) => manager.configFiles.includes(name)).slice(0, 1);
   return (values(tool.cooldown.configFiles)[0] ?? []).filter((file) => file !== '.npmrc' || tool.id === 'npm').slice(0, 1);
 }
 

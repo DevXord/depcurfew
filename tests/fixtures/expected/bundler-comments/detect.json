@@ -1,0 +1,39 @@
+{
+  "packageManagers": [
+    {
+      "id": "bundler",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "gems.locked"
+        },
+        {
+          "kind": "config",
+          "file": "gems.rb"
+        }
+      ],
+      "versions": [
+        {
+          "version": "4.0.23",
+          "source": "lockfile",
+          "file": "gems.locked",
+          "line": 13
+        }
+      ],
+      "configFiles": [
+        "gems.rb"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
+  "warnings": []
+}

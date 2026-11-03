@@ -35,6 +35,7 @@ const EVIDENCE_ORDER: readonly EvidenceKind[] = ['lockfile', 'packageManager', '
 const SOURCE_ORDER: readonly VersionSource[] = [
   'packageManager',
   'tool-config',
+  'lockfile',
   'devEngines',
   'volta',
   'tool-versions',
@@ -113,6 +114,26 @@ function createdBy(repository: Repository, file: string, key: string): string | 
     }
   }
   return undefined;
+}
+
+/**
+ * The version in a section of a lockfile, on the first line after the section's own line (Gemfile.lock: BUNDLED WITH,
+ * then the version indented, at the end of the file).
+ */
+function readLockfileVersion(repository: Repository, id: PackageManagerId, section: string, file: string, collector: Collector): void {
+  const text = repository.readText(file);
+  if (text === undefined) return;
+  const lines = text.split(/\r?\n/u);
+  const at = lines.findIndex((line) => line.trimEnd() === section);
+  if (at === -1) return;
+  for (let index = at + 1; index < lines.length; index++) {
+    const version = lines[index]?.trim() ?? '';
+    if (version === '') continue;
+    // A line at the start is the next section: the version is missing.
+    if (!/^\s/u.test(lines[index] ?? '')) return;
+    collector.addVersion(id, { version, source: 'lockfile', file, line: index + 1 });
+    return;
+  }
 }
 
 function orList(items: readonly string[]): string {
@@ -414,6 +435,8 @@ export function detectProject(
     const present = [...owners].filter(([, owner]) => owner === manager.id).map(([file]) => file).sort(byPath);
     if (present.length > 0) lockfiles.set(manager.id, present);
     for (const file of present) collector.addEvidence(manager.id, 'lockfile', file);
+    // The version that wrote the lockfile, which the tool switches to (BUNDLED WITH of Gemfile.lock, decision D-152).
+    if (manager.lockfileVersion !== null) for (const file of present) readLockfileVersion(repository, manager.id, manager.lockfileVersion, file, collector);
     for (const file of manager.configFiles.filter((name) => repository.isFile(name))) collector.addEvidence(manager.id, 'config', file);
   }
 

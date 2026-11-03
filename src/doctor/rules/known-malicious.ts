@@ -13,7 +13,7 @@ import { linkedIds, osvEcosystem, osvKey, versionLabel, type OsvPackage, type Os
 import { listing } from '../../apply/requirements.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { ecosystemOfTool } from '../../policy/ecosystem.ts';
-import { hasLockfile } from '../applies.ts';
+import { hasLockfile, readsLockfile } from '../applies.ts';
 import { readLockfiles, type LockEntry, type Lockfile } from '../lockfiles.ts';
 import type { OsvLocalEcosystem, Rule, RuleContext } from '../types.ts';
 
@@ -207,7 +207,8 @@ export const NO_DATA_FIX =
 
 /** The first lockfile (or requirements file of pip) of the directory, from detection: where the note without data stands. */
 function firstLockfile(context: RuleContext): string | undefined {
-  for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
+  // Only lockfiles depcurfew reads: it does not look up the gems of Gemfile.lock (decision D-152).
+  for (const manager of context.detection.packageManagers.filter((entry) => entry.supported && readsLockfile(context.tools, entry.id))) {
     const lockfile = manager.evidence.find((evidence) => evidence.kind === 'lockfile');
     if (lockfile !== undefined) return lockfile.file;
     if (manager.id === 'pip' && manager.configFiles.length > 0) return manager.configFiles[0];

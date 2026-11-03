@@ -62,6 +62,7 @@ export interface StrictAdvice {
 export const SOURCE_LABEL: Record<VersionDeclaration['source'], string> = {
   packageManager: 'packageManager',
   'tool-config': 'the required version',
+  lockfile: 'the lockfile',
   devEngines: 'devEngines',
   volta: 'Volta',
   'tool-versions': '.tool-versions',

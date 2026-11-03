@@ -1,0 +1,21 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    {
+      "description": "depcurfew: packages excluded from minimumReleaseAge",
+      "matchDatasources": [
+        "!rubygems"
+      ],
+      "matchPackageNames": [
+        "@acme/*",
+        "left-pad"
+      ],
+      "minimumReleaseAge": null
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "minimumReleaseAge": null
+  }
+}

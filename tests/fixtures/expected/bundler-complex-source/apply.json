@@ -1,0 +1,52 @@
+{
+  "changed": [
+    "renovate.json"
+  ],
+  "warnings": [
+    {
+      "code": "version-not-pinned",
+      "tool": "bundler",
+      "message": "Bundler: no exact version is pinned, so depcurfew configures for Bundler 4.0.23, the latest version it knows",
+      "fix": "Pin the version you use (BUNDLED WITH in Gemfile.lock or a CI setup step) to configure for it"
+    },
+    {
+      "code": "cooldown-not-written",
+      "tool": "bundler",
+      "location": {
+        "file": "Gemfile",
+        "line": 3
+      },
+      "message": "Bundler: cooldown not written: the source \"https://rubygems.org\" call on line 3 of Gemfile is not edited, because it has a block, so it is the source of the gems in the block only; depcurfew apply edits only a plain source \"https://rubygems.org\" call on a line of its own",
+      "fix": "Add cooldown: 3 to that call by hand (source \"https://rubygems.org\", cooldown: 3 do), or write it as a plain call on a line of its own and run depcurfew apply again"
+    },
+    {
+      "code": "cooldown-not-written",
+      "tool": "bundler",
+      "location": {
+        "file": "Gemfile",
+        "line": 1
+      },
+      "message": "Bundler: cooldown not written: the URL of the source call on line 1 of Gemfile is not a literal string, so depcurfew cannot tell whether it is \"https://rubygems.org\"",
+      "fix": "If it names rubygems.org, write it as source \"https://rubygems.org\" on a line of its own and run depcurfew apply again, or add cooldown: 3 to that call by hand"
+    },
+    {
+      "code": "exclude-unsupported",
+      "tool": "bundler",
+      "message": "Bundler: no setting exempts single gems from cooldown, so every gem waits; the exceptions of cooldown.exclude in depcurfew.json name no Ruby gems and are not applied to Bundler",
+      "fix": "Nothing to set for Bundler. To take a newer version of one gem sooner, review it and run bundle update GEM --cooldown 0 --conservative for that gem"
+    },
+    {
+      "code": "scripts-not-enforceable",
+      "tool": "bundler",
+      "message": "Bundler builds the native extensions of gems when it installs them, which runs code of the gem (extconf.rb, a Rakefile), and has no setting that blocks this or allows it for some gems only, so installScripts \"deny\" cannot be enforced",
+      "fix": "Review gems with native extensions (extensions in the gemspec, an ext directory) before you add or update them; there is nothing to set for Bundler"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "bundler",
+      "message": "Bundler has no setting for git dependencies, so \"deny\" cannot be enforced",
+      "fix": "Review new dependencies by hand; depcurfew doctor cannot see them in the lockfile either"
+    }
+  ],
+  "snippets": []
+}

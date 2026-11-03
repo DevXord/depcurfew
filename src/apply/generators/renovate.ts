@@ -52,8 +52,8 @@ export const renovate: BotGenerator = (context, duration, repository) => {
   const composerPatterns = exclusions(context, patternsFor(excluded, 'packagist')) ?? [];
   const negative = extraOf(tool, 'negativeMatch', isString);
   const uses = (ecosystem: Ecosystem) => context.tools.some((entry) => entry.kind === 'package-manager' && ecosystemOfTool(entry) === ecosystem && context.targets.has(entry.id));
-  // The rule for npm names leaves out the datasources of the other registries in use.
-  const others = (['pypi', 'packagist'] as const).filter(uses).map((ecosystem) => `${negative}${String(datasources[ecosystem])}`);
+  // The rule for npm names leaves out the datasources of the other registries in use, Ruby gems too (decision D-152).
+  const others = (['pypi', 'packagist', 'rubygems'] as const).filter(uses).map((ecosystem) => `${negative}${String(datasources[ecosystem])}`);
   const exclusionRule = {
     [descriptionKey]: RULE_DESCRIPTION,
     ...(others.length > 0 ? { matchDatasources: others } : {}),
@@ -128,7 +128,7 @@ export const renovate: BotGenerator = (context, duration, repository) => {
   json.set(securityPath, security);
 };
 
-const ECOSYSTEM_LABELS: Readonly<Record<Ecosystem, string>> = { npm: 'npm', pypi: 'Python', packagist: 'Composer' };
+const ECOSYSTEM_LABELS: Readonly<Record<Ecosystem, string>> = { npm: 'npm', pypi: 'Python', packagist: 'Composer', rubygems: 'Ruby' };
 
 /**
  * packageRules entries that apply does not manage and that give every package of a package manager in use (by

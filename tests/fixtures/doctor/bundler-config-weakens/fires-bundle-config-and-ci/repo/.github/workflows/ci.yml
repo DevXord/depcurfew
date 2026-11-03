@@ -1,0 +1,24 @@
+name: ci
+on: [push]
+env:
+  BUNDLE_JOBS: 4
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      BUNDLE_COOLDOWN: 1
+    steps:
+      - uses: actions/checkout@v6
+      - run: bundle install
+  update:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cooldown: [0, 3]
+    steps:
+      - uses: actions/checkout@v6
+      - run: bundle update --cooldown 0
+      - run: BUNDLE_COOLDOWN=2 bundle lock --update
+      - run: bundle install
+        env:
+          BUNDLE_COOLDOWN: ${{ matrix.cooldown }}

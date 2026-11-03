@@ -9,6 +9,7 @@ const projects = verifiedOn('2026-11-01');
 const bots = verifiedOn('2026-11-02');
 const composer = verifiedOn('2026-11-02');
 const d151 = verifiedOn('2026-11-03');
+const d152 = verifiedOn('2026-11-03');
 
 const AT = 'https://github.com/renovatebot/renovate/blob/44.198.2';
 
@@ -153,10 +154,10 @@ export const renovate: ToolKnowledge = {
       'config:best-practices extends security:minimumReleaseAgeNpm (since 42.0.0): "3 days" and internalChecksFilter "strict" for the npm datasource, except pin, replacement, lockFileMaintenance, bump, lockfileUpdate and rollback',
       'https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm',
     ),
-    datasources: composer.verified(
-      { npm: 'npm', pypi: 'pypi', packagist: 'packagist' },
+    datasources: d152.verified(
+      { npm: 'npm', pypi: 'pypi', packagist: 'packagist', rubygems: 'rubygems' },
       'https://docs.renovatebot.com/modules/datasource/pypi/',
-      'Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version\'s files. Composer packages come from packagist, the datasource of the composer manager (static readonly id = \'packagist\' in lib/modules/datasource/packagist/index.ts and supportedDatasources in lib/modules/manager/composer/index.ts at 44.199.2, read 2026-11-02).',
+      'Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version\'s files. Composer packages come from packagist, the datasource of the composer manager (static readonly id = \'packagist\' in lib/modules/datasource/packagist/index.ts and supportedDatasources in lib/modules/manager/composer/index.ts at 44.199.2, read 2026-11-02). Ruby gems come from rubygems (static readonly id = \'rubygems\' in lib/modules/datasource/rubygems/index.ts at 44.198.2, one of the supportedDatasources of the bundler manager), which has releaseTimestampSupport: "The release timestamp is determined from the `created_at` field in the results" (read 2026-11-03).',
     ),
     packagistReleaseTime: composer.verified(
       { field: 'published-time', fallback: 'time' },
@@ -206,7 +207,7 @@ export const renovate: ToolKnowledge = {
       'https://docs.renovatebot.com/modules/manager/pep621/',
       'pep621 updates pyproject.toml with uv.lock (there is no uv manager) or pdm.lock; poetry updates pyproject.toml with poetry.lock; pipenv updates the Pipfile with Pipfile.lock; pip_requirements updates requirements files. pip-compile is off by default (lib/modules/manager/pep621/readme.md and pipenv/index.ts at 44.198.1).',
     ),
-    managers: bots.verified(
+    managers: d152.verified(
       {
         npm: 'npm',
         pnpm: 'npm',
@@ -219,12 +220,13 @@ export const renovate: ToolKnowledge = {
         pip: 'pip_requirements',
         pipenv: 'pipenv',
         composer: 'composer',
+        bundler: 'bundler',
         'github-actions': 'github-actions',
       },
       `${AT}/lib/modules/manager/api.ts`,
-      'The Renovate manager that updates the packages of each tool, by its id in api.ts; github-actions updates the actions the workflows run. The npm manager reads package.json with package-lock.json, pnpm-lock.yaml or yarn.lock (lockFileNames in npm/index.ts). bun and deno have managers of their own that take a package.json over from npm (supersedesManagers in bun/index.ts and deno/index.ts, applied by lib/workers/repository/extract/supersedes.ts), and poetry takes pyproject.toml over from pep621, which updates it for uv and PDM. composer updates composer.json (composer/index.ts).',
+      'The Renovate manager that updates the packages of each tool, by its id in api.ts; github-actions updates the actions the workflows run. The npm manager reads package.json with package-lock.json, pnpm-lock.yaml or yarn.lock (lockFileNames in npm/index.ts). bun and deno have managers of their own that take a package.json over from npm (supersedesManagers in bun/index.ts and deno/index.ts, applied by lib/workers/repository/extract/supersedes.ts), and poetry takes pyproject.toml over from pep621, which updates it for uv and PDM. composer updates composer.json (composer/index.ts), and bundler the Gemfile with Gemfile.lock (managerFilePatterns /(^|/)Gemfile$/ and lockFileNames in bundler/index.ts, so not gems.rb); bundler was read on 2026-11-03.',
     ),
-    managerCategories: bots.verified(
+    managerCategories: d152.verified(
       {
         npm: ['js'],
         bun: ['js'],
@@ -234,10 +236,11 @@ export const renovate: ToolKnowledge = {
         poetry: ['python'],
         pipenv: ['python'],
         composer: ['php'],
+        bundler: ['ruby'],
         'github-actions': ['ci'],
       },
       `${AT}/lib/config/index.ts`,
-      'getManagerConfig gives each dependency the categories its manager exports (categories in lib/modules/manager/<id>/index.ts; the list of categories is lib/constants/category.ts), and matchCategories matches them.',
+      'getManagerConfig gives each dependency the categories its manager exports (categories in lib/modules/manager/<id>/index.ts; the list of categories is lib/constants/category.ts), and matchCategories matches them. bundler exports the category ruby (read 2026-11-03).',
     ),
     botOnlyEcosystems: d151.verified(
       {

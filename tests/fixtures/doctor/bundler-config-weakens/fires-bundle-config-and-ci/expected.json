@@ -1,0 +1,56 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".bundle/config",
+      "line": 3
+    },
+    "message": "BUNDLE_COOLDOWN: \"0\" in .bundle/config turns off the cooldown of Bundler for every source, in place of the cooldown: of the Gemfile; Bundler reads .bundle/config before the environment",
+    "fix": "Remove BUNDLE_COOLDOWN from .bundle/config (bundle config unset --local cooldown), so that the cooldown: of the Gemfile applies, or set it to at least 3"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 9
+    },
+    "message": "BUNDLE_COOLDOWN=1 in the env of job test in .github/workflows/ci.yml reaches every Bundler command there and sets the cooldown of Bundler to 1 day for every source in place of the cooldown: of the Gemfile, shorter than the 3d of depcurfew.json",
+    "fix": "Remove BUNDLE_COOLDOWN from that env in .github/workflows/ci.yml; for a gem that cannot wait, run bundle update GEM --cooldown 0 by hand after reviewing it"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 20
+    },
+    "message": "job update in .github/workflows/ci.yml (line 20) runs a bundle command with --cooldown 0, which turns off the cooldown of Bundler for that command, in place of the cooldown: of the Gemfile",
+    "fix": "Remove --cooldown 0 from that command in .github/workflows/ci.yml; for a gem that cannot wait, run bundle update GEM --cooldown 0 by hand after reviewing it"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 21
+    },
+    "message": "job update in .github/workflows/ci.yml (line 21) runs a bundle command with BUNDLE_COOLDOWN=2, which sets the cooldown of Bundler to 2 days for that command in place of the cooldown: of the Gemfile, shorter than the 3d of depcurfew.json",
+    "fix": "Remove BUNDLE_COOLDOWN from that command or the place that sets it in .github/workflows/ci.yml; for a gem that cannot wait, run bundle update GEM --cooldown 0 by hand after reviewing it"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 24
+    },
+    "message": "BUNDLE_COOLDOWN=${{ matrix.cooldown }} in the env of step 4 of job update in .github/workflows/ci.yml reaches every Bundler command there and may turn off the cooldown of Bundler or shorten it, for every source",
+    "fix": "Remove BUNDLE_COOLDOWN from that env in .github/workflows/ci.yml, or make sure it is never shorter than 3 days"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "Dockerfile",
+      "line": 5
+    },
+    "message": "the stage at line 1 in Dockerfile (line 5) runs a bundle command with BUNDLE_COOLDOWN=0, which turns off the cooldown of Bundler for that command, in place of the cooldown: of the Gemfile",
+    "fix": "Remove BUNDLE_COOLDOWN from that command or the place that sets it in Dockerfile; for a gem that cannot wait, run bundle update GEM --cooldown 0 by hand after reviewing it"
+  }
+]
