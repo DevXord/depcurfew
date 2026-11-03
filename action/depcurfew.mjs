@@ -72,6 +72,7 @@ const user$9 = verifiedOn("2026-10-31");
 const runtimes$3 = verifiedOn("2026-11-01");
 const release14$6 = verifiedOn("2026-11-02");
 const runners$3 = verifiedOn("2026-11-03");
+const d170$9 = verifiedOn("2026-11-03");
 const BUN_V1_4_4 = "https://github.com/oven-sh/bun/blob/bun-v1.4.4";
 const BUNFIG_PARSER = `${BUN_V1_4_4}/src/bunfig/bunfig.rs`;
 const BUNFIG = "https://bun.com/docs/runtime/bunfig";
@@ -81,7 +82,7 @@ const ADD = "https://bun.com/docs/pm/cli/add";
 const BUN_1_4_4 = "https://bun.com/blog/bun-v1.4.4#minimumreleaseage-supports-units-and-per-version-exclusions";
 const DOCS_1_3_0 = "https://github.com/oven-sh/bun/blob/bun-v1.3.0/docs/cli/install.md";
 const noSetting$7 = (anchor, kind) => ({ setting: uncertain$14(null, `${ADD}#${anchor}`, `${kind} dependencies are supported with no setting to allow or forbid them (concluded from the full bunfig [install] list); install.blockExoticSubdeps is proposed in oven-sh/bun#30340 but not shipped.`) });
-const WORKSPACES$2 = "https://github.com/oven-sh/bun/blob/main/docs/pm/workspaces.mdx";
+const WORKSPACES$2 = `${BUN_V1_4_4}/docs/pm/workspaces.mdx`;
 const bun$1 = {
 	id: "bun",
 	name: "Bun",
@@ -126,23 +127,46 @@ const bun$1 = {
 		directory: noSetting$7("local-paths", "Local directory")
 	},
 	project: {
-		lockfiles: uncertain$14([{
+		lockfiles: d170$9.uncertain([{
 			since: "0.0.0",
 			value: ["bun.lockb"]
 		}, {
 			since: "1.2.0",
 			value: ["bun.lock", "bun.lockb"]
-		}], "https://github.com/oven-sh/bun/blob/main/docs/pm/lockfile.mdx", "Bun 1.2 made the text bun.lock the default (verified). That bun.lockb is still read afterwards is inferred from the documented migration command and from saveTextLockfile = false, which writes bun.lockb."),
-		manifests: verified$16(["package.json"], WORKSPACES$2),
-		workspaces: verified$16({
+		}], `${BUN_V1_4_4}/docs/pm/lockfile.mdx`, "Bun 1.2 made the text bun.lock the default (verified). That bun.lockb is still read afterwards is inferred from the documented migration command and from saveTextLockfile = false, which writes bun.lockb."),
+		manifests: d170$9.verified(["package.json"], WORKSPACES$2),
+		workspaces: d170$9.verified({
 			files: ["package.json"],
 			key: "workspaces"
 		}, WORKSPACES$2, "Full glob syntax, including ! patterns."),
-		workspacesObjectKey: verified$16("packages", "https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx", "The object form also holds catalog and catalogs.")
+		workspacesObjectKey: d170$9.verified("packages", `${BUN_V1_4_4}/docs/pm/catalogs.mdx`, "The object form also holds catalog and catalogs.")
 	},
 	user: {
-		files: user$9.verified([{
+		files: d170$9.verified([{
 			since: "0.0.0",
+			value: {
+				format: "toml",
+				locations: [{
+					platforms: [
+						"linux",
+						"darwin",
+						"win32"
+					],
+					directories: [{
+						from: {
+							env: "XDG_CONFIG_HOME",
+							emptyCounts: true
+						},
+						path: ""
+					}, {
+						from: "home",
+						path: ""
+					}],
+					file: ".bunfig.toml"
+				}]
+			}
+		}, {
+			since: "1.4.4",
 			value: {
 				format: "toml",
 				locations: [{
@@ -164,7 +188,7 @@ const bun$1 = {
 					file: ".bunfig.toml"
 				}]
 			}
-		}], `${BUN_V1_4_4}/docs/runtime/bunfig.mdx`, "\"When XDG_CONFIG_HOME is set to an absolute path, Bun reads the file there and not the one in $HOME\"; HOME is USERPROFILE on Windows (src/bun_core/env_var.rs). Only one file is read, with no fallback when the XDG one is missing (get_home_config_path in src/bunfig/arguments.rs). Only package manager commands read it (bun install, add, remove, update, pm, bunx and so on), before the project bunfig.toml, whose keys win. 1.2.0 already reads it, and the first version was not tracked; 1.2.0 and 1.3.0 used XDG_CONFIG_HOME whenever it was set, and the version that started requiring an absolute path was not pinned."),
+		}], `${BUN_V1_4_4}/src/bunfig/arguments.rs`, "Since 1.4.4 get_home_config_path takes the first of XDG_CONFIG_HOME and HOME that is a fully qualified path (\"The XDG specification says to ignore $XDG_CONFIG_HOME when it is empty or a relative path\"; docs/runtime/bunfig.mdx at 1.4.4: \"When XDG_CONFIG_HOME is set to an absolute path, Bun reads the file there and not the one in $HOME\"); HOME is USERPROFILE on Windows (src/bun_core/env_var.rs). Before 1.4.4 Bun uses XDG_CONFIG_HOME whenever it is set, also to an empty or relative value (XDG_CONFIG_HOME.get().or_else(HOME) in src/bunfig/arguments.rs at bun-v1.4.3; the same in 1.4.0 and, in Zig, getHomeConfigPath in src/cli/Arguments.zig at bun-v1.3.0 and bun-v1.3.14), and joins it with join_abs_string_buf, which puts a / in place of the first character of a value without a leading separator (_joinAbsStringBuf in src/resolver/resolve_path.zig at bun-v1.3.0, src/paths/resolve_path.rs at bun-v1.4.0): XDG_CONFIG_HOME=cfg gives /fg/.bunfig.toml, an empty value /bunfig.toml, so Bun then reads neither the file below the current directory nor ~/.bunfig.toml. Only one file is read, with no fallback when the XDG one is missing. Only package manager commands read it (bun install, add, remove, update, pm, bunx and so on), before the project bunfig.toml, whose keys win. 1.2.0 already reads it; the first version was not tracked."),
 		settings: user$9.verified([{
 			purpose: "cooldown",
 			key: "install.minimumReleaseAge",
@@ -347,7 +371,7 @@ const bun$1 = {
 			}],
 			variables: []
 		}, `${BUN_V1_4_4}/docs/snippets/cli/add.mdx`, "bun add: <ParamField path=\"--cwd\" type=\"string\"> \"Set a specific current working directory\" (Global Configuration & Context); bun install has the same option, \"Set a specific cwd\" (docs/snippets/cli/install.mdx at the same tag, General Configuration)."),
-		installOverrides: runtimes$3.verified({
+		installOverrides: d170$9.verified({
 			options: [{
 				name: "--minimum-release-age",
 				weakens: "delay",
@@ -358,7 +382,7 @@ const bun$1 = {
 				values: "any"
 			}],
 			variables: []
-		}, "https://github.com/oven-sh/bun/blob/main/docs/pm/cli/install.mdx", "bun add @types/bun --minimum-release-age 259200 # seconds: \"A number is in seconds\", or a number with a unit such as 90m, 12 hours, 3d or 2 weeks (durationStrings). The page lists no environment variable for it. bun add --trust \"adds the package to trustedDependencies in the project's package.json and installs it\", so its lifecycle scripts run (docs/snippets/cli/add.mdx and docs/pm/lifecycle.mdx at bun-v1.4.4); lifecycle.mdx names no variable that turns scripts on, and ignore-scripts read from the environment \"only turns scripts off\".")
+		}, `${BUN_V1_4_4}/docs/pm/cli/install.mdx`, "bun add @types/bun --minimum-release-age 259200 # seconds: \"A number is in seconds\", or a number with a unit such as 90m, 12 hours, 3d or 2 weeks (durationStrings). The page lists no environment variable for it. bun add --trust \"adds the package to trustedDependencies in the project's package.json and installs it\", so its lifecycle scripts run (docs/snippets/cli/add.mdx and docs/pm/lifecycle.mdx at bun-v1.4.4); lifecycle.mdx names no variable that turns scripts on, and ignore-scripts read from the environment \"only turns scripts off\".")
 	}
 };
 
@@ -708,6 +732,13 @@ const bundler$1 = {
 			file: ".bundle/config",
 			ignoredBy: "bundle gem"
 		}, `${LIB}/templates/newgem/gitignore.tt`, "bundle config set --local writes <project_root>/.bundle/config, which also holds machine paths such as path (bundle-config(1)); the .gitignore that bundle gem writes for a new gem ignores /.bundle/."),
+		configCommand: verified$15({
+			command: ["bundle", "config"],
+			set: "set",
+			scopes: ["--local", "--global"],
+			legacyArguments: 2,
+			keyAnyCase: true
+		}, `${LIB}/cli/config.rb`, "bundle config set [--local|--global] NAME VALUE (bundle-config(1)): set \"defaults to setting local configuration if executing from within a local application, otherwise it will set global configuration\"; --local writes <project_root>/.bundle/config (or $BUNDLE_APP_CONFIG/config), --global ~/.bundle/config. CLI::Config#set joins the value words with spaces (value_.unshift(value), then join(\" \")), and the hidden base command still runs bundle config NAME VALUE (two arguments, or one with --local or --global) as set, with a deprecation warning. Settings#set_key stores the key as key_for gives it (lib/bundler/settings.rb: dots to __, dashes to ___, upper case, BUNDLE_ in front), so cooldown in any case is BUNDLE_COOLDOWN. Both files replace the cooldown: of every Gemfile source (extra.cooldownSetting), so a 0 written there turns the delay off for the later bundle commands on that machine."),
 		updateCommand: verified$15("bundle update GEM --cooldown 0 --conservative", UPDATE, "--cooldown 0 disables the cooldown \"for this run, overriding any per-source or global configuration. Combine with --conservative to minimize transitive churn when bypassing cooldown for an urgent update.\""),
 		dependencySources: verified$15(["git", "directory"], GEMFILE, "Of the kinds of sources a policy names, a Gemfile can declare git sources (GIT, GITHUB and the other git sources) and path sources (PATH), with no setting that forbids them; it has no source for an archive URL or a local archive.")
 	}
@@ -715,6 +746,7 @@ const bundler$1 = {
 
 // src/knowledge/composer.ts
 const { verified: verified$14, uncertain: uncertain$12 } = verifiedOn("2026-11-02");
+const ciOverrides$1 = verifiedOn("2026-11-03");
 const COMPOSER = "https://github.com/composer/composer/blob/2.11.1";
 const CONFIG$3 = `${COMPOSER}/doc/06-config.md`;
 const CLI$1 = `${COMPOSER}/doc/03-cli.md`;
@@ -1422,6 +1454,30 @@ const composer$3 = {
 				unread: { file: HOME_FILES }
 			}
 		], `${CLI$1}#config`, "composer config [options] [setting-key] [setting-value1] ... changes a setting of composer.json (with --global, -g, of COMPOSER_HOME/config.json; with --file, -f, of that file), --unset removes one and --editor (-e) opens the file; with a key alone it shows the value (src/Composer/Command/ConfigCommand.php at 2.11.1). composer repository (repo) add, remove (rm, delete), set-url (seturl), enable and disable change the repositories, list (ls, show) and get-url (geturl) only read them (RepositoryCommand.php). composer policy add-source changes config.policy (PolicyCommand.php). config, repository and policy all take --global (-g, \"Apply command to the global config file\") and --file (-f, \"If you want to choose a different composer.json or config.json\"). The same commands after composer global change the files of COMPOSER_HOME: GlobalCommand runs them in the home directory, where composer.json is the one of composer global and config.json the configuration that Factory::createConfig merges under that of every project. depcurfew reads neither file (decision D-133), so a change there counts also without an install next to it (unread)."),
+		configCommandValues: ciOverrides$1.verified({
+			command: ["composer", "config"],
+			section: "config",
+			booleans: [
+				"policy",
+				"secure-http",
+				"disable-tls",
+				"allow-plugins"
+			],
+			accepted: [
+				"true",
+				"false",
+				"1",
+				"0"
+			],
+			falseValues: ["false", "0"],
+			period: "policy.cooldown.period",
+			otherFile: [
+				"--global",
+				"-g",
+				"--file",
+				"-f"
+			]
+		}, `${SRC}/Command/ConfigCommand.php`, "composer config KEY VALUE writes the setting into config of composer.json (JsonConfigSource::addConfigSetting at 2.11.1; --global, -g, --file and -f write another file, configCommands). ConfigCommand::execute at 2.11.1 takes a key of the form policy.<list> (policy.cooldown, policy.malware) and the block keys (policy.cooldown.block, policy.malware.block), secure-http, disable-tls and allow-plugins only with true, false, 1 or 0 ($booleanValidator) and stores $val !== 'false' && (bool) $val ($booleanNormalizer), so false and 0 are false; policy.cooldown.period takes a duration CooldownPolicyConfig::parseDuration reads, or null or the empty text for none, a number as an integer; policy.malware.block-scope one of all, update and install, as written. addConfigSetting nests a key that starts with policy. at its dots under config (policy.cooldown false gives \"config\": {\"policy\": {\"cooldown\": false}}), replacing the object that was there. So composer config policy.cooldown false in CI turns the cooldown off in the composer.json the later commands read."),
 		applicationOptions: verified$14([
 			{
 				name: "help",
@@ -1558,6 +1614,8 @@ const reviewed$3 = verifiedOn("2026-10-30");
 const user$8 = verifiedOn("2026-10-31");
 const leftovers$4 = verifiedOn("2026-11-01");
 const osvFacts$1 = verifiedOn("2026-11-02");
+const d170$8 = verifiedOn("2026-11-03");
+const d167$4 = verifiedOn("2026-11-03");
 const DENO_V2_9_8 = "https://github.com/denoland/deno/blob/v2.9.8";
 const NPMRC_PARSER = `${DENO_V2_9_8}/libs/npmrc/lib.rs`;
 const X_VALUE_OPTIONS = [
@@ -1590,6 +1648,11 @@ const deno$1 = {
 	cooldown: {
 		setting: verified$13("minimumDependencyAge", DENO_JSON, "A number or string, or the object form { \"age\": ..., \"exclude\": [...] }. Covers npm and JSR packages."),
 		configFiles: verified$13(["deno.json", ".npmrc"], SUPPLY_CHAIN, "min-release-age in .npmrc since 2.8; also NPM_CONFIG_MIN_RELEASE_AGE. This page does not state precedence; denoland/deno#35458 gives CLI flag, deno.json, .npmrc, environment, built-in default."),
+		fileSettings: d170$8.verified([{
+			file: ".npmrc",
+			setting: "min-release-age",
+			unit: "days"
+		}], NPMRC_PARSER, "NpmRc::parse reads min-release-age \"in days\" (min_release_age_days: Option<u64>; \"npm interprets the value as a number of days\"), the same in the .npmrc next to package.json or deno.json and in the home one (discover_npmrc in libs/resolver/npmrc.rs at v2.9.8); deno.json and --minimum-dependency-age take minutes (unit)."),
 		cliFlag: verified$13("--minimum-dependency-age", DENO_JSON, "Alias --min-dep-age since 2.9.3. deno install honors it since 2.5.5; deno add, deno remove and deno x since 2.9.4."),
 		unit: verified$13("minutes", SCHEMA$1, "Numbers are minutes; strings may be an ISO-8601 duration (P3D, PT72H), an absolute date or an RFC3339 timestamp; 0 turns it off. The .npmrc format differs (see npmrcFormat)."),
 		availableSince: disputed$5("The 2.5.5 release notes ship the flag, the deno.json key and exclude as unstable; the release blog says the feature was introduced in 2.6.", evidence$5("2.5.5", release$5("2.5.5")), evidence$5("2.6.0", "https://deno.com/blog/v2.9#minimum-dependency-age-enabled-by-default")),
@@ -1757,6 +1820,11 @@ const deno$1 = {
 			since: null,
 			syntax: "iso8601"
 		}, SCHEMA$1, "Strings are ISO-8601 durations (P3D, PT72H), an absolute date or an RFC3339 timestamp; the last two set a fixed cut-off instead of a delay."),
+		cutoffDates: d167$4.verified({
+			timestamps: true,
+			offsetRequired: true,
+			dates: "start-utc"
+		}, `${DENO_V2_9_8}/libs/config/util.rs`, "parse_enabled_minutes_duration_or_date: a string of digits is minutes, then an RFC 3339 timestamp (DateTime::parse_from_rfc3339), a timestamp whose offset has no colon or that has no seconds (%Y-%m-%dT%H:%M:%S%z, %Y-%m-%dT%H:%M%z), a date YYYY-MM-DD (\"treat as midnight UTC\"), then an ISO 8601 duration; \"0\" turns the delay off. A timestamp or a date is a fixed cutoff (NewestDependencyDate::Enabled), in the age of the object form too (to_minimum_dependency_age_config in libs/config/deno_json/mod.rs); a time without an offset is none of these and an error. The schema names the same forms: \"'2025-09-16' for cutoff date, '2025-09-16T12:00:00+00:00' for cutoff time\" (cli/schemas/config-file.v1.json)."),
 		ageObjectKey: verified$13("age", SCHEMA$1, "In the object form of minimumDependencyAge, age holds the delay and exclude the exemptions."),
 		excludeWildcards: verified$13({
 			since: "2.9.2",
@@ -1798,6 +1866,7 @@ const deno$1 = {
 
 // src/knowledge/dependabot.ts
 const { verified: verified$12, uncertain: uncertain$10, disputed: disputed$4, evidence: evidence$4 } = verifiedOn("2026-10-28");
+const d170$7 = verifiedOn("2026-11-03");
 const python$2 = verifiedOn("2026-10-30");
 const review = verifiedOn("2026-10-31");
 const projects$1 = verifiedOn("2026-11-01");
@@ -1805,10 +1874,11 @@ const bots$1 = verifiedOn("2026-11-02");
 const composer$2 = verifiedOn("2026-11-02");
 const d151$1 = verifiedOn("2026-11-03");
 const d152$1 = verifiedOn("2026-11-03");
+const d171$1 = verifiedOn("2026-11-03");
 const OPTIONS$1 = "https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference";
 const COOLDOWN_GA = "https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/";
 const DEFAULT_COOLDOWN = "https://github.blog/changelog/2026-07-14-dependabot-version-updates-introduce-default-package-cooldown/";
-const CORE = "https://github.com/dependabot/dependabot-core/blob/main";
+const CORE = "https://github.com/dependabot/dependabot-core/blob/v0.403.0";
 const dependabot$1 = {
 	id: "dependabot",
 	name: "Dependabot",
@@ -1834,7 +1904,7 @@ const dependabot$1 = {
 		securityUpdates: verified$12("bypass", `${OPTIONS$1}#cooldown`, "Cooldown exists only for version updates. dependabot-core also passes a zero age to npm, pnpm and Yarn for security updates, overriding repository gates.")
 	},
 	installScripts: {
-		defaultPolicy: uncertain$10([{
+		defaultPolicy: d170$7.uncertain([{
 			since: "0.0.0",
 			value: "deny"
 		}], `${CORE}/npm_and_yarn/lib/dependabot/npm_and_yarn/helpers.rb`, "From dependabot-core source, not the docs: npm, Yarn and Bun lockfile updates run with scripts disabled; for pnpm only --lockfile-only was found. bundler, mix and pip may execute external code."),
@@ -1891,11 +1961,11 @@ const dependabot$1 = {
 			bundler: ["bundler"]
 		}, `${OPTIONS$1}#package-ecosystem`, "The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). composer covers Composer v2, bundler Bundler (the table lists v2; dependabot-core v0.403.0 also builds a helper with Bundler ~> 4.0, bundler/helpers/v4/build). Cooldown, including the semver-* keys, is supported for all of them (the cooldown table of the same page lists Composer and Bundler with default and SemVer-bump days, read 2026-11-02 and, for Bundler, 2026-11-03). PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0)."),
 		yamlAliases: bots$1.verified({ accepted: false }, "https://github.com/dependabot/dependabot-core/blob/v0.402.0/common/lib/dependabot/config/file.rb", "Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load(config, symbolize_names: true); Psych.safe_load takes aliases: false unless told otherwise and raises Psych::AliasesNotEnabled on an alias (*name), so a file with one is not read. The issue that asks for aliases (https://github.com/dependabot/dependabot-core/issues/1582, \"YAML aliases\", open and labelled Keep on 2026-11-02) quotes the error users get, \"YAML aliases are not supported\"; the pull request that would allow them (#9653) is open and not merged. The reference of dependabot.yml (dependabot-options-reference.md in github/docs) does not mention anchors or aliases. An anchor (&name) that no alias refers to changes nothing."),
-		yamlScalars: bots$1.verified({
+		yamlScalars: d171$1.verified({
 			library: "psych",
 			version: "5.5.0",
 			integers: "legacy"
-		}, "https://github.com/ruby/psych/blob/v5.5.0/lib/psych/scalar_scanner.rb", "Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load (dependabot-core v0.402.0, common/lib/dependabot/config/file.rb), which is Psych: Ruby 4.0.5 (.ruby-version) with psych 5.5.0 (Gemfile.lock of dependabot-core at v0.402.0). ScalarScanner#tokenize reads a plain scalar in this order: words, booleans (yes, no, on, off, true, false) and null; times and dates; .inf and .nan; :symbols; base 60 integers [-+]?[0-9][0-9_]*(:[0-5]?[0-9]){1,2}, summed as part * 60 ** (index - 2).abs, so 1:30 is 5400; floats with a dot; then INTEGER_LEGACY, the default without strict_integer: 0b binary, 0 followed by octal digits, decimal without a leading zero, 0x hex, each with _ and , allowed, read with Integer(string.delete(',_')), so 010 is 8, 1_0 and 1,0 are 10; anything else, 0o12 and 08 too, is a string."),
+		}, "https://github.com/ruby/psych/blob/v5.5.0/lib/psych/scalar_scanner.rb", "Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load (dependabot-core v0.402.0, common/lib/dependabot/config/file.rb), which is Psych: Ruby 4.0.5 (.ruby-version) with psych 5.5.0 (Gemfile.lock of dependabot-core at v0.402.0). ScalarScanner#tokenize reads a plain scalar in this order: words, where a word of up to five characters is null when it is ~ or null and a boolean when it is yes, true or on (true) or no, false or off (false), all in any case (BOOLEAN_TRUE and BOOLEAN_FALSE of the default libyaml backend, the YAML 1.1 set; only the experimental libfyaml backend takes true and false alone), and the empty scalar is nil; times and dates; .inf and .nan; :symbols; base 60 integers [-+]?[0-9][0-9_]*(:[0-5]?[0-9]){1,2}, summed as part * 60 ** (index - 2).abs, so 1:30 is 5400; floats with a dot; then INTEGER_LEGACY, the default without strict_integer: 0b binary, 0 followed by octal digits, decimal without a leading zero, 0x hex, each with _ and , allowed, read with Integer(string.delete(',_')), so 010 is 8, 1_0 and 1,0 are 10; anything else, 0o12 and 08 too, is a string."),
 		githubActions: bots$1.verified({
 			ecosystem: "github-actions",
 			semverDays: false
@@ -1925,8 +1995,8 @@ const dependabot$1 = {
 		actionsReleaseDate: bots$1.uncertain("the publication date of the GitHub release of the tag, else the date of the tag, else the date of the commit; with no date the update does not wait", "https://github.com/dependabot/dependabot-core/blob/v0.402.0/github_actions/lib/dependabot/github_actions/update_checker/latest_version_finder.rb", "Read from the code, not the docs. A proposed commit SHA is aged by published_at of the GitHub release of its tag, else the creatordate of the tag (git for-each-ref), else the commit date; version tags by the creatordate of each tag (refs_for_tag_with_detail in common/lib/dependabot/git_metadata_fetcher.rb), which is the tagger date of an annotated tag and the commit date of a lightweight one, both set in git by whoever makes them. Only default-days counts. A missing or unreadable date lets the update through (check_if_version_in_cooldown_period? returns false)."),
 		dayRange: disputed$4("Matters for opting out of the default cooldown; cooldown.exclude: [\"*\"] works under the documented precedence rule either way. The announcement does not state its author's role.", evidence$4("1 to 90 days", "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates"), evidence$4("0 removes the cooldown", "https://github.com/dependabot/dependabot-core/discussions/15582")),
 		maximumDays: verified$12(90, "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates", "The page says the number of cooldown days must be between 1 and 90; whether 0 is accepted is disputed (see dayRange)."),
-		missingPublishDate: verified$12("Updates proceed when the registry gives no publication date (fail open); for Docker only Docker Hub tag_last_pushed is used", `${CORE}/docker/README.md`),
-		transitiveGating: uncertain$10("Regular updates pass the cooldown to npm (11.10+), pnpm (10.16+) and Yarn Berry to hold back transitive dependencies; the Bun updater passes none", `${CORE}/npm_and_yarn/lib/dependabot/npm_and_yarn/file_updater/npm_lockfile_updater.rb`, "Read from dependabot-core source."),
+		missingPublishDate: d170$7.verified("Updates proceed when the registry gives no publication date (fail open); for Docker only Docker Hub tag_last_pushed is used", `${CORE}/docker/README.md`),
+		transitiveGating: d170$7.uncertain("Regular updates pass the cooldown to npm (11.10+), pnpm (10.16+) and Yarn Berry to hold back transitive dependencies; the Bun updater passes none", `${CORE}/npm_and_yarn/lib/dependabot/npm_and_yarn/file_updater/npm_lockfile_updater.rb`, "Read from dependabot-core source."),
 		composerReleaseTime: composer$2.verified({
 			field: "time",
 			ignores: "published-time",
@@ -1944,6 +2014,7 @@ const dependabot$1 = {
 
 // src/knowledge/npm.ts
 const { verified: verified$11, uncertain: uncertain$9, disputed: disputed$3, evidence: evidence$3 } = verifiedOn("2026-10-28");
+const d170$6 = verifiedOn("2026-11-03");
 const checked$5 = verifiedOn("2026-10-29");
 const reviewed$2 = verifiedOn("2026-10-30");
 const rechecked$4 = verifiedOn("2026-10-31");
@@ -1951,6 +2022,9 @@ const runtimes$2 = verifiedOn("2026-11-01");
 const finalReview$3 = verifiedOn("2026-11-01");
 const release14$5 = verifiedOn("2026-11-02");
 const runners$2 = verifiedOn("2026-11-03");
+const secrets$3 = verifiedOn("2026-11-03");
+const d173$4 = verifiedOn("2026-11-03");
+const d172$1 = verifiedOn("2026-11-03");
 const CONFIG$2 = "https://docs.npmjs.com/cli/v12/using-npm/config";
 const NPMRC$1 = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
 const release$4 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
@@ -2100,7 +2174,7 @@ const npm$1 = {
 			files: ["package.json"],
 			key: "workspaces"
 		}, `${PACKAGE_JSON$1}#workspaces`, "An array of folder paths or globs."),
-		workspacesObjectKey: uncertain$9("packages", "https://github.com/npm/map-workspaces/blob/main/lib/index.js", "Not documented; npm's map-workspaces also accepts { \"packages\": [...] } and negated patterns.")
+		workspacesObjectKey: d170$6.uncertain("packages", "https://github.com/npm/map-workspaces/blob/v6.0.0/lib/index.js", "Not documented; npm's map-workspaces also accepts { \"packages\": [...] } and negated patterns.")
 	},
 	user: {
 		files: user$7.verified([{
@@ -2344,6 +2418,61 @@ const npm$1 = {
 			trailingOnly: false
 		}, NPM_DEFINITIONS, "min-release-age-exclude takes package names or minimatch globs from its first version."),
 		latestVersion: verified$11("12.2.1", release$4("12.2.1"), "Marked as the latest GitHub release on 2026-10-28; the 11.x line is still maintained (11.21.1)."),
+		lineReleases: d173$4.verified([
+			"6.14.18",
+			"7.24.2",
+			"8.19.4",
+			"9.0.1",
+			"9.1.3",
+			"9.2.0",
+			"9.3.1",
+			"9.4.2",
+			"9.5.1",
+			"9.6.7",
+			"9.7.2",
+			"9.8.1",
+			"9.9.4",
+			"10.0.0",
+			"10.1.0",
+			"10.2.5",
+			"10.3.0",
+			"10.4.0",
+			"10.5.2",
+			"10.6.0",
+			"10.7.0",
+			"10.8.3",
+			"10.9.9",
+			"11.0.0",
+			"11.1.0",
+			"11.2.0",
+			"11.3.0",
+			"11.4.2",
+			"11.5.2",
+			"11.6.4",
+			"11.7.0",
+			"11.8.0",
+			"11.9.0",
+			"11.10.1",
+			"11.11.1",
+			"11.12.1",
+			"11.13.0",
+			"11.14.1",
+			"11.15.0",
+			"11.16.0",
+			"11.17.0",
+			"11.18.0",
+			"11.19.1",
+			"11.20.0",
+			"11.21.1",
+			"12.0.2",
+			"12.1.0",
+			"12.2.1"
+		], "https://registry.npmjs.org/npm", "The newest release of each minor line from 9.0 to 12.2, and of the major lines 6, 7 and 8, among the versions of the npm package in the registry on 2026-11-03 (modified 2026-10-21); none of 10.x to 12.x is deprecated. The dist-tags agree (https://registry.npmjs.org/-/package/npm/dist-tags: latest 12.2.1, next-11 11.21.1, next-10 10.9.9, next-9 9.9.4, next-8 8.19.4, latest-7 7.24.2, latest-6 6.14.18), and so do the v<version> tags of npm/cli. npm does not publish a release twice, so a later run of npm install -g npm@11 installs this release or a newer 11.x."),
+		rangeInstall: d173$4.verified({
+			picks: "highest",
+			prefersTag: "latest",
+			enginesFirst: true
+		}, "https://github.com/npm/npm-pick-manifest/blob/v12.0.0/lib/index.js", "npm 12.2.1 depends on npm-pick-manifest ^12.0.0 and npm 11.21.1 on ^11.0.3 (package.json of npm/cli at those tags). For a range (npm install -g npm@11, npm@^11.10.0) or a tag (npm@latest, a bare npm), pickManifest returns the version of the latest dist-tag when it satisfies the range, runs on the Node.js in use (engineOk with nodeVersion, process.version by default) and is not deprecated; otherwise it sorts the versions that satisfy the range by: not avoided, not restricted, not staged, not deprecated and engine ok, engine ok, not deprecated, then semver.rcompare, and returns the first. So npm installs the newest release of the range that runs on that Node.js, and the newest release of the range when none does."),
 		beforeInteraction: reviewed$2.verified({
 			setting: "before",
 			exclusive: {
@@ -2687,6 +2816,30 @@ const npm$1 = {
 			key: "registry",
 			scopeKeySuffix: ":registry"
 		}, NPM_DEFINITIONS, "userconfig, the location of user-level settings, defaults to ~/.npmrc; registry is the base URL of the npm registry (default https://registry.npmjs.org/); a per-project .npmrc can set it like any config key (docs/lib/content/using-npm/config.md). npm config set @myco:registry=http://reg.example.com associates a scope with a registry, and any npm install of a package with that scope then requests it from there (https://docs.npmjs.com/cli/v12/using-npm/scope#associating-a-scope-with-a-registry)."),
+		globalConfig: secrets$3.verified({
+			userKey: "userconfig",
+			globalKey: "globalconfig",
+			prefixKey: "prefix",
+			file: "etc/npmrc",
+			prefixVariable: "PREFIX",
+			destDirVariable: "DESTDIR",
+			execPathLevels: {
+				win32: 1,
+				other: 2
+			},
+			order: [
+				"cli",
+				"env",
+				"project",
+				"user",
+				"global",
+				"builtin"
+			]
+		}, `${NPM_CONFIG_LIB}/index.js`, "load() reads the builtin config, the command line, the environment (loadEnv), the project .npmrc, the user file (#get(\"userconfig\")) and the global file (#get(\"globalconfig\")), and a key of an earlier source in the order above wins. loadGlobalPrefix: the default prefix is PREFIX of the environment, else on Windows the directory of the Node.js executable (\"c:\\node\\node.exe --> prefix=c:\\node\\\") and elsewhere the directory above it (\"/usr/local/bin/node --> prefix=/usr/local\"), with DESTDIR joined in front on POSIX only; the default of globalconfig is a getter, resolve(prefix, \"etc/npmrc\"), of the prefix the command line, the environment or the user file sets (loadDefaults). userconfig, globalconfig and prefix are of type path (definitions.js), which parseField (parse-field.js at the same tag) trims, expands ${VAR} in and resolves: ~/ against the home directory, anything else against the current directory."),
+		registryHostTarballs: secrets$3.verified({
+			dependencies: "registry specs",
+			match: "origin and path"
+		}, "https://github.com/npm/cli/blob/v12.2.1/workspaces/arborist/lib/arborist/reify.js", "#isRegistryResolvedTarball: a node whose every dependency edge has a registry spec (node.isRegistryDependency, workspaces/arborist/lib/node.js: npa(edge.spec).registry) and whose resolved URL, after replace-registry-host, has the origin of pickRegistry(npa(node.name)), the registry of its scope or else registry, and a path that starts with that registry's path, is extracted with allowRemote \"all\": \"pacote's npa re-parses our name@URL spec as type=remote, so allowRemote would mis-fire on registry tarballs\". The allow-remote definition says so for users: \"Tarballs that share a hostname with the configured registry (the typical case for the npm registry, GitHub Packages, and most private registries) are still installed normally\" (workspaces/config/lib/definitions/definitions.js)."),
 		registryOverrides: checked$5.verified({
 			registryOptions: ["--registry", "--@<scope>:registry"],
 			registryVariables: ["npm_config_registry"],
@@ -2719,6 +2872,7 @@ const npm$1 = {
 				manifest: true
 			}
 		], "https://github.com/npm/cli/blob/v12.2.1/lib/commands/config.js", "npm config set sets keys (in the user configuration unless location is given), delete (also rm and del) removes keys from every configuration file, edit opens a configuration file in an editor and fix repairs invalid items; get and list (ls) only read (the switch in exec, and docs/lib/content/commands/npm-config.md). npm set <key>=<value> runs npm config set with its arguments and fails without any (lib/commands/set.js); npm get only reads (lib/commands/get.js). npm pkg set, delete and fix write package.json back, get only reads (lib/commands/pkg.js). Other spellings of these commands come from commandNames."),
+		linkCommands: d172$1.verified([["npm", "link"]], `${NPM_GITHUB_V12}/lib/commands/link.js`, "npm link with package specs (linkInstall in lib/commands/link.js at v12.2.1, the same in 11.21.1): it loads the top-level packages of the global space, takes every spec that no package there matches (missingArgsFromTree), and installs those into the global space first (globalArb.reify with add: missing, after the strict-allow-scripts preflight of npm install and with its allow-scripts policy), so a registry name comes from the registry as with npm install -g; then it links each package into the project (localArb.reify with add: file:<global>/node_modules/<name>). A directory spec links that folder, and a spec that resolves to the project directory itself is dropped; without specs npm link links the current package into the global space (linkPkg). Its params include ignore-scripts, allow-directory, allow-file, allow-git and allow-remote; it refuses --global (ELINKGLOBAL). ln is its alias (commandNames), and unlink is an alias of uninstall."),
 		commandNames: runners$2.verified({
 			commands: [
 				"access",
@@ -2923,6 +3077,47 @@ const npm$1 = {
 				}
 			]
 		}, NPM_DEFINITIONS, "Settings that a single npm command can change on its command line or in its environment: \"Putting --foo bar on the command line sets the foo configuration parameter\", \"--flag without specifying any value will set the value to true\", \"Any environment variables that start with npm_config_ will be interpreted as a configuration parameter\", case-insensitive, and an environment configuration without a value is true (docs/lib/content/using-npm/config.md at v12.2.1). Types in definitions.js at v12.2.1: ignore-scripts Boolean, default false (\"If true, npm does not run scripts specified in package.json files\"); min-release-age null or Number of days; before null or Date; min-release-age-exclude a list exempt from min-release-age and before; dangerously-allow-all-scripts Boolean, which bypasses the allowScripts policy; allow-scripts a list of packages whose install scripts may run. A value other than true for ignore-scripts, any true value of dangerously-allow-all-scripts (the false values as in user.variables), any allow-scripts, before or min-release-age-exclude, and a min-release-age shorter than the policy weaken what depcurfew apply wrote."),
+		settingOverrides: runners$2.verified({
+			optionPrefix: "--",
+			negation: "--no-",
+			variablePrefix: "npm_config_",
+			settings: [
+				{
+					setting: "strict-allow-scripts",
+					weakens: "scripts",
+					values: [
+						"false",
+						"null",
+						"undefined"
+					],
+					when: "written"
+				},
+				{
+					setting: "allow-git",
+					weakens: "sources",
+					source: "git",
+					values: { except: ["none"] }
+				},
+				{
+					setting: "allow-remote",
+					weakens: "sources",
+					source: "remoteTarball",
+					values: { except: ["none"] }
+				},
+				{
+					setting: "allow-file",
+					weakens: "sources",
+					source: "file",
+					values: { except: ["none"] }
+				},
+				{
+					setting: "allow-directory",
+					weakens: "sources",
+					source: "directory",
+					values: { except: ["none"] }
+				}
+			]
+		}, `${NPM_GITHUB_V12}/docs/lib/content/using-npm/config.md`, "The settings depcurfew apply writes into .npmrc for installScripts and sources that installOverrides (the options and variables the install guard asks about) does not list, for doctor (decision D-166). npm takes its configuration from, \"sorted by priority\", the command line (\"Putting --foo bar on the command line sets the foo configuration parameter\", \"Using --flag without specifying any value will set the value to true\"), then the environment (\"Any environment variables that start with npm_config_ will be interpreted as a configuration parameter\", \"Config values are case-insensitive\", with underscores instead of dashes), then the .npmrc files, so either replaces a key of the project .npmrc for the commands it reaches; a --no- prefix sets false (booleanWords). In definitions.js at v12.2.1 strict-allow-scripts is a Boolean (default false), and parseField (workspaces/config/lib/parse-field.js) turns only \"false\", \"null\" and \"undefined\" into values that turn it off, so those weaken it where .npmrc sets it to true (apply writes it for an npm 11.16 to 11.x in use, which runs uncovered scripts without it). allow-git, allow-remote, allow-file and allow-directory take all, none or root; apply writes none for a source the policy denies, root allows the dependencies listed in the root package.json, and a value npm does not accept is reported as invalid and replaced by the default (all before npm 12; user.invalidValueFails), so every value but none weakens a denied source."),
 		directoryOptions: runtimes$2.verified({
 			options: [{
 				name: "--prefix",
@@ -3015,7 +3210,7 @@ const npm$1 = {
 
 // src/knowledge/pip.ts
 const { verified: verified$10, uncertain: uncertain$8 } = verifiedOn("2026-10-30");
-const guard$1 = verifiedOn("2026-11-01");
+verifiedOn("2026-11-01");
 const rechecked$3 = verifiedOn("2026-10-31");
 const PIP = "https://github.com/pypa/pip/blob/26.2.2";
 const NEWS = `${PIP}/NEWS.rst`;
@@ -3027,11 +3222,17 @@ const REQ_FILE = `${PIP}/src/pip/_internal/req/req_file.py`;
 const FORMAT_CONTROL = `${PIP}/src/pip/_internal/models/format_control.py`;
 const CMDOPTIONS = `${PIP}/src/pip/_internal/cli/cmdoptions.py`;
 const PIPX = "https://github.com/pypa/pipx/blob/1.18.10";
+const PIPX_CURRENT = "https://github.com/pypa/pipx/blob/1.18.12";
+const d172 = verifiedOn("2026-11-03");
 const PYLOCK = "https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst";
 const PARSER = `${PIP}/src/pip/_internal/cli/parser.py`;
 const user$6 = verifiedOn("2026-10-31");
 const finalReview$2 = verifiedOn("2026-11-01");
 const release14$4 = verifiedOn("2026-11-02");
+const d170$5 = verifiedOn("2026-11-03");
+const secrets$2 = verifiedOn("2026-11-03");
+const d167$3 = verifiedOn("2026-11-03");
+const CONFIGPARSER = "https://github.com/python/cpython/blob/v3.14.0/Lib/configparser.py";
 const noSetting$5 = (kind) => ({ setting: uncertain$8(null, `${PIP}/src/pip/_internal/cli/cmdoptions.py`, `No option allows or forbids ${kind} requirements (concluded from the list of options). Hash-checking mode (--require-hashes, or any --hash) rejects VCS and local directory requirements, unless --no-require-hashes (26.2) turns the automatic mode off.`) });
 const pip$1 = {
 	id: "pip",
@@ -3080,124 +3281,200 @@ const pip$1 = {
 		workspacesObjectKey: uncertain$8(null, REQUIREMENTS_FORMAT, "No workspaces.")
 	},
 	user: {
-		files: user$6.verified([{
-			since: "0.0.0",
-			value: {
-				format: "ini",
-				locations: [
-					{
-						platforms: ["linux"],
-						directories: [{
-							from: {
-								env: "XDG_CONFIG_HOME",
-								relativeToCwd: true
-							},
-							path: "pip"
-						}, {
-							from: "home",
-							path: ".config/pip"
-						}],
-						file: "pip.conf"
-					},
-					{
-						platforms: ["darwin"],
-						directories: [{
-							from: "home",
-							path: "Library/Application Support/pip",
-							ifExists: true
-						}, {
-							from: "home",
-							path: ".config/pip"
-						}],
-						file: "pip.conf"
-					},
-					{
-						platforms: ["win32"],
-						directories: [{
-							from: { env: "APPDATA" },
-							path: "pip"
-						}, {
-							from: "home",
-							path: "AppData/Roaming/pip"
-						}],
-						file: "pip.ini"
-					}
-				],
-				sections: [
-					"global",
-					"install",
-					"download",
-					"wheel",
-					"lock",
-					"index",
-					"list"
-				],
-				underscoresAsDashes: true
-			}
-		}, {
-			since: "26.2.0",
-			value: {
-				format: "ini",
-				locations: [
-					{
-						platforms: ["linux"],
-						directories: [{
-							from: {
-								env: "XDG_CONFIG_HOME",
-								relativeToCwd: true
-							},
-							path: "pip"
-						}, {
-							from: "home",
-							path: ".config/pip"
-						}],
-						file: "pip.conf"
-					},
-					{
-						platforms: ["darwin"],
-						directories: [
-							{
-								from: { env: "XDG_DATA_HOME" },
-								path: "pip",
-								ifExists: true
-							},
-							{
-								from: "home",
-								path: "Library/Application Support/pip",
-								ifExists: true,
-								unlessEnv: "XDG_DATA_HOME"
-							},
-							{
+		files: d170$5.verified([
+			{
+				since: "0.0.0",
+				value: {
+					format: "ini",
+					locations: [
+						{
+							platforms: ["linux"],
+							directories: [{
+								from: {
+									env: "XDG_CONFIG_HOME",
+									relativeToCwd: true
+								},
+								path: "pip"
+							}, {
 								from: "home",
 								path: ".config/pip"
-							}
-						],
-						file: "pip.conf"
-					},
-					{
-						platforms: ["win32"],
-						directories: [{
-							from: { env: "APPDATA" },
-							path: "pip"
-						}, {
-							from: "home",
-							path: "AppData/Roaming/pip"
-						}],
-						file: "pip.ini"
-					}
-				],
-				sections: [
-					"global",
-					"install",
-					"download",
-					"wheel",
-					"lock",
-					"index",
-					"list"
-				],
-				underscoresAsDashes: true
+							}],
+							file: "pip.conf"
+						},
+						{
+							platforms: ["darwin"],
+							directories: [{
+								from: "home",
+								path: "Library/Application Support/pip",
+								ifExists: true
+							}, {
+								from: "home",
+								path: ".config/pip"
+							}],
+							file: "pip.conf"
+						},
+						{
+							platforms: ["win32"],
+							directories: [{
+								from: { env: "APPDATA" },
+								path: "pip"
+							}, {
+								from: "home",
+								path: "AppData/Roaming/pip"
+							}],
+							file: "pip.ini"
+						}
+					],
+					sections: [
+						"global",
+						"install",
+						"download",
+						"wheel",
+						"lock",
+						"index",
+						"list"
+					],
+					underscoresAsDashes: true,
+					duplicateKeys: "case-insensitive"
+				}
+			},
+			{
+				since: "26.2.0",
+				value: {
+					format: "ini",
+					locations: [
+						{
+							platforms: ["linux"],
+							directories: [{
+								from: {
+									env: "XDG_CONFIG_HOME",
+									relativeToCwd: true
+								},
+								path: "pip"
+							}, {
+								from: "home",
+								path: ".config/pip"
+							}],
+							file: "pip.conf"
+						},
+						{
+							platforms: ["darwin"],
+							directories: [
+								{
+									from: { env: "XDG_DATA_HOME" },
+									path: "pip",
+									ifExists: true
+								},
+								{
+									from: "home",
+									path: "Library/Application Support/pip",
+									ifExists: true,
+									unlessEnv: "XDG_DATA_HOME"
+								},
+								{
+									from: "home",
+									path: ".config/pip"
+								}
+							],
+							file: "pip.conf"
+						},
+						{
+							platforms: ["win32"],
+							directories: [{
+								from: { env: "APPDATA" },
+								path: "pip"
+							}, {
+								from: "home",
+								path: "AppData/Roaming/pip"
+							}],
+							file: "pip.ini"
+						}
+					],
+					sections: [
+						"global",
+						"install",
+						"download",
+						"wheel",
+						"lock",
+						"index",
+						"list"
+					],
+					underscoresAsDashes: true,
+					duplicateKeys: "case-insensitive"
+				}
+			},
+			{
+				since: "26.3.0",
+				value: {
+					format: "ini",
+					locations: [
+						{
+							platforms: ["linux"],
+							directories: [{
+								from: {
+									env: "XDG_CONFIG_HOME",
+									absolute: true
+								},
+								path: "pip"
+							}, {
+								from: "home",
+								path: ".config/pip"
+							}],
+							file: "pip.conf"
+						},
+						{
+							platforms: ["darwin"],
+							directories: [
+								{
+									from: {
+										env: "XDG_DATA_HOME",
+										absolute: true
+									},
+									path: "pip",
+									ifExists: true
+								},
+								{
+									from: "home",
+									path: "Library/Application Support/pip",
+									ifExists: true,
+									unlessEnv: {
+										env: "XDG_DATA_HOME",
+										absolute: true
+									}
+								},
+								{
+									from: "home",
+									path: ".config/pip"
+								}
+							],
+							file: "pip.conf"
+						},
+						{
+							platforms: ["win32"],
+							directories: [{
+								from: { env: "APPDATA" },
+								path: "pip"
+							}, {
+								from: "home",
+								path: "AppData/Roaming/pip"
+							}],
+							file: "pip.ini"
+						}
+					],
+					sections: [
+						"global",
+						"install",
+						"download",
+						"wheel",
+						"lock",
+						"index",
+						"list"
+					],
+					underscoresAsDashes: true,
+					duplicateKeys: "as-read"
+				}
 			}
-		}], `${CONFIGURATION$4}#location`, "The user file is pip.conf (pip.ini on Windows) in appdirs.user_config_dir(\"pip\") (configuration.py), written in INI with [global] and per-command sections. Linux: $HOME/.config/pip/pip.conf, \"which respects the XDG_CONFIG_HOME environment variable\" (used when it is not empty after stripping spaces, vendored platformdirs _xdg.py). A relative XDG_CONFIG_HOME is used as it is, so pip reads <value>/pip/pip.conf relative to the directory each command runs in: XDGMixin.user_config_dir in src/pip/_vendor/platformdirs/_xdg.py at 26.2.2 returns the stripped value with no absolute-path check, _append_app_name_and_version (api.py) only joins the app name, and utils/appdirs.py and configuration.py (os.path.join, then os.path.exists and parser.read) make nothing absolute; 26.1.1 (platformdirs 4.5.1, Unix.user_config_dir in unix.py) does the same without stripping the value. macOS: ~/Library/Application Support/pip when that directory exists, else ~/.config/pip, where XDG_CONFIG_HOME is not used (utils/appdirs.py: _macos_user_config_dir takes platformdirs user_data_dir when os.path.isdir); since 26.2 that user_data_dir is $XDG_DATA_HOME/pip when XDG_DATA_HOME is not empty after stripping spaces, so with XDG_DATA_HOME set the Library directory is skipped and ~/.config/pip is used unless $XDG_DATA_HOME/pip exists (XDGMixin in src/pip/_vendor/platformdirs/_xdg.py at 26.2.2; src/pip/_vendor/vendor.txt names platformdirs 4.10.0 in 26.2 and 4.5.1 in 26.1.1, whose macos.py has no XDG handling). Windows: %APPDATA%\\pip\\pip.ini; platformdirs asks Windows for the Roaming AppData known folder, which APPDATA normally names. The legacy ~/.pip/pip.conf (%HOME%\\pip\\pip.ini) is loaded as well, below this file. Same path code in 25.0; earlier versions are not tracked. A command reads [global] and the section named after itself, which wins key by key (override_order [\"global\", self.name, \":env:\"] in cli/parser.py); the options doctor --user checks (index_group and package_selection_group in cli/cmdoptions.py) belong to install, download, wheel, lock, index and list (src/pip/_internal/commands at 26.2.2). Keys are read without regard to case and with underscores as dashes, so only_binary in a file is the same setting as only-binary, and the later one wins (_normalize_name in src/pip/_internal/configuration.py at 26.2.2: name.lower().replace(\"_\", \"-\"), applied to every key of every file)."),
+		], `${CONFIGURATION$4}#location`, "The user file is pip.conf (pip.ini on Windows) in appdirs.user_config_dir(\"pip\") (configuration.py), written in INI with [global] and per-command sections. Linux: $HOME/.config/pip/pip.conf, \"which respects the XDG_CONFIG_HOME environment variable\" (used when it is not empty after stripping spaces, vendored platformdirs _xdg.py). A relative XDG_CONFIG_HOME is used as it is, so pip reads <value>/pip/pip.conf relative to the directory each command runs in: XDGMixin.user_config_dir in src/pip/_vendor/platformdirs/_xdg.py at 26.2.2 returns the stripped value with no absolute-path check, _append_app_name_and_version (api.py) only joins the app name, and utils/appdirs.py and configuration.py (os.path.join, then os.path.exists and parser.read) make nothing absolute; 26.1.1 (platformdirs 4.5.1, Unix.user_config_dir in unix.py) does the same without stripping the value. From 26.3 (\"Upgrade platformdirs to 4.12.4\", NEWS.rst at 26.3) _xdg_dir in src/pip/_vendor/platformdirs/_xdg.py returns the stripped value only when posixpath.isabs, so a relative XDG_CONFIG_HOME is ignored and pip reads ~/.config/pip/pip.conf. macOS: ~/Library/Application Support/pip when that directory exists, else ~/.config/pip, where XDG_CONFIG_HOME is not used (utils/appdirs.py: _macos_user_config_dir takes platformdirs user_data_dir when os.path.isdir); since 26.2 that user_data_dir is $XDG_DATA_HOME/pip when XDG_DATA_HOME is not empty after stripping spaces, so with XDG_DATA_HOME set the Library directory is skipped and ~/.config/pip is used unless $XDG_DATA_HOME/pip exists (XDGMixin in src/pip/_vendor/platformdirs/_xdg.py at 26.2.2; src/pip/_vendor/vendor.txt names platformdirs 4.10.0 in 26.2 and 4.5.1 in 26.1.1, whose macos.py has no XDG handling); from 26.3 only an absolute XDG_DATA_HOME counts, so a relative one leaves the Library directory in use (XDGMixin.user_data_dir with _xdg_dir at 26.3). Windows: %APPDATA%\\pip\\pip.ini; platformdirs asks Windows for the Roaming AppData known folder, which APPDATA normally names. The legacy ~/.pip/pip.conf (%HOME%\\pip\\pip.ini) is loaded as well, below this file. Same path code in 25.0; earlier versions are not tracked. A command reads [global] and the section named after itself, which wins key by key (override_order [\"global\", self.name, \":env:\"] in cli/parser.py); the options doctor --user checks (index_group and package_selection_group in cli/cmdoptions.py) belong to install, download, wheel, lock, index and list (src/pip/_internal/commands at 26.2.2). Keys are read without regard to case, with underscores as dashes and without a leading -- (_normalize_name in src/pip/_internal/configuration.py at 26.2.2 and 26.3: name.lower().replace(\"_\", \"-\") and removeprefix(\"--\"), the same in 25.0), so only_binary and --only-binary in a file are the setting only-binary. pip parses each file with configparser.RawConfigParser, whose strict mode (strict=True by default, Lib/configparser.py of CPython 3.9 to 3.14) raises DuplicateSectionError for a section given twice and DuplicateOptionError for a key given twice in one section; pip turns that into ConfigurationFileCouldNotBeLoaded and stops (_construct_parser). Before 26.3 the parser compares keys in lower case only (the default optionxform), so only_binary next to only-binary in one section is read as one setting and the later line wins (_normalized_keys); from 26.3 the parser normalizes the names itself (_RawConfigParser.optionxform calls _normalize_name), so such a file stops pip."),
 		settings: user$6.verified([
 			{
 				purpose: "cooldown",
@@ -3239,7 +3516,7 @@ const pip$1 = {
 				effect: "adds find-links locations; packages from find-links directories skip uploaded-prior-to"
 			}
 		], FORMAT_CONTROL, "In any section of any pip.conf: [install] beats [global], and a later file (a virtual environment pip.conf, PIP_CONFIG_FILE) beats the user file per key, an empty value removing it (cli/parser.py). :all: in one of the lists clears the other and :none: clears its own (handle_mutual_excludes). P0D overrides a configured duration, and \"Local package files are allowed regardless of the --uploaded-prior-to setting\", find-links directories included (user_guide.rst). A requirements file can also pass --no-binary or --only-binary, but not --uploaded-prior-to."),
-		variables: user$6.verified([
+		variables: d170$5.verified([
 			{
 				name: "PIP_CONFIG_FILE",
 				values: "any",
@@ -3260,9 +3537,59 @@ const pip$1 = {
 				values: "any",
 				effect: "is applied after every pip.conf and builds these packages from source; :all: clears only-binary"
 			}
-		], CONFIGURATION$4, "\"Note that if a file exists at the location that this is set to, the user config file will not be loaded.\" PIP_<NAME> variables are applied after the [global] and command sections of all files, and the command line beats them (cli/parser.py, override_order). --isolated, a flag, ignores environment variables and user configuration. XDG_CONFIG_HOME (Linux) and XDG_DATA_HOME (macOS, 26.2) move the user directory (see files).")
+		], CONFIGURATION$4, "\"Note that if a file exists at the location that this is set to, the user config file will not be loaded.\" PIP_<NAME> variables are applied after the [global] and command sections of all files, and the command line beats them (cli/parser.py, override_order). --isolated, a flag, ignores environment variables and user configuration. XDG_CONFIG_HOME (Linux) and XDG_DATA_HOME (macOS, 26.2) move the user directory, from 26.3 only when they are absolute paths (see files).")
 	},
 	extra: {
+		machineSettings: secrets$2.verified({
+			variables: [
+				{
+					name: "PIP_INDEX_URL",
+					effect: "replaces"
+				},
+				{
+					name: "PIP_PYPI_URL",
+					effect: "replaces"
+				},
+				{
+					name: "PIP_EXTRA_INDEX_URL",
+					effect: "adds",
+					list: "spaces"
+				},
+				{
+					name: "PIP_FIND_LINKS",
+					effect: "adds",
+					list: "spaces"
+				}
+			],
+			configFile: {
+				variable: "PIP_CONFIG_FILE",
+				format: "ini",
+				whenMissing: "user-file"
+			},
+			sections: ["global", "install"],
+			keys: [
+				{
+					key: "index-url",
+					effect: "replaces"
+				},
+				{
+					key: "pypi-url",
+					effect: "replaces"
+				},
+				{
+					key: "extra-index-url",
+					effect: "adds"
+				},
+				{
+					key: "find-links",
+					effect: "adds"
+				}
+			],
+			legacyUserFiles: {
+				posix: ".pip/pip.conf",
+				win32: "pip/pip.ini"
+			}
+		}, `${PIP}/src/pip/_internal/configuration.py`, "iter_config_files: the global files, then the user files unless PIP_CONFIG_FILE names a file that exists (\"per-user config is not loaded when env_config_file exists\"), the legacy ~/.pip/pip.conf (~/pip/pip.ini on Windows, get_configuration_files) before the user file of user.files, the site file of the environment, and the file PIP_CONFIG_FILE names; each is read with configparser.RawConfigParser (= or : between key and value, full-line comments with # or ;, indented lines continue a value, keys in lower case) and _normalize_name writes _ as -. ConfigOptionParser (src/pip/_internal/cli/parser.py) takes the sections global, the name of the command (install for pip install) and :env: (the PIP_ variables, which win), matches a key to the long option of that name, so pypi-url sets --index-url too (-i, --index-url and --pypi-url are one option in cli/cmdoptions.py), and splits the value of an append option (--extra-index-url, --find-links) at whitespace. --index-url replaces the index, --extra-index-url adds indexes and --find-links adds pages or directories of archives (cmdoptions.py)."),
 		environmentNames: release14$4.verified([{
 			prefix: "PIP_",
 			match: "prefix-then-any-case"
@@ -3275,6 +3602,7 @@ const pip$1 = {
 				"edit"
 			]
 		}, `${PIP}/src/pip/_internal/commands/configuration.py`, "pip config: \"Manage local and global configuration\"; \"set: Set the command.option=value\", \"unset: Unset the value associated with command.option\", \"edit: Edit the configuration file in an editor\". Without --user, --global or --site it changes the configuration file of the active virtual environment when that file exists, otherwise the user file. So a CI step or RUN with pip config set can give the later pip installs a release-age delay that no environment variable shows (decision D-115)."),
+		configSectionNames: d167$3.verified({ exact: true }, CONFIGPARSER, "pip reads pip.conf with configparser.RawConfigParser (_construct_parser in src/pip/_internal/configuration.py at 26.2.2). configparser takes the name of a section from the header as written between [ and ] (SECTCRE, group \"header\", not stripped or lowercased; the same in Lib/configparser.py at v3.9.0 and v3.13.0), and pip keeps the keys of a section under that name (_normalized_keys: section + \".\" + key) and uses only the sections named exactly \"global\", the command and \":env:\" (section in override_order in src/pip/_internal/cli/parser.py). So [Global] and [ global ] are other sections, which pip ignores."),
 		configSections: user$6.verified({
 			global: "global",
 			commandsOverride: true
@@ -3344,6 +3672,14 @@ const pip$1 = {
 			since: "7.0.0",
 			covers: ["registry"]
 		}, NEWS, "The option exists since 7.0.0; when requirements files started to accept it is not recorded. pip applies it only to packages found on indexes and find-links (format_control is used only by the package finder), so VCS, local directory and direct URL source requirements are still built."),
+		formatControl: d167$3.verified({
+			noBinary: "--no-binary",
+			onlyBinary: "--only-binary",
+			all: ":all:",
+			none: ":none:",
+			separator: ",",
+			requirementLines: true
+		}, FORMAT_CONTROL, "One FormatControl holds no_binary and only_binary for the whole install. handle_mutual_excludes splits a value at commas: :all: clears both sets and puts :all: in its own, :none: clears its own set, and a name moves from the other set into its own; get_allowed_formats checks the name in only_binary, then in no_binary, then :all: in only_binary, then in no_binary. So after --only-binary=:all:, --no-binary <name> builds that package from source and --no-binary=:all: or --only-binary=:none: (or :none: after the last :all: of its value) builds every package again. req_file.py parses every line, requirement lines too, with the options of SUPPORTED_OPTIONS into the finder's FormatControl (get_line_parser: defaults.format_control = finder.format_control; break_args_options passes what follows the requirement to the option parser), in the order of the lines, with the lines of an included -r or -c file at the line that includes it (RequirementsFileParser._parse_and_recurse)."),
 		configFileNames: verified$10(["pip.conf", "pip.ini"], `${PIP}/src/pip/_internal/configuration.py`, "CONFIG_BASENAME is pip.ini on Windows and pip.conf elsewhere; pip looks for it only in the global, user and site locations, never in the project."),
 		configFileVariable: verified$10("PIP_CONFIG_FILE", `${CONFIGURATION$4}#environment-variable`, "Names a configuration file pip loads last; set to os.devnull it turns all configuration files off."),
 		environmentVariable: verified$10("PIP_UPLOADED_PRIOR_TO", `${CONFIGURATION$4}#environment-variables`, "Every long option has a PIP_<UPPER_LONG_NAME> variable with dashes replaced by underscores. Tested on 2026-10-30: pip 25.3 ignored PIP_UPLOADED_PRIOR_TO=P100000D without a word, 26.0 rejected the duration (dates only), 26.1 and 26.2.2 found no version."),
@@ -3572,8 +3908,8 @@ const pip$1 = {
 				offListVariables: ["PIP_ONLY_BINARY"]
 			}
 		}, `${PIPX}/docs/reference/environment-variables.rst`, "pipx forwards the standard PIP_* variables to pip (except PIP_USER, PIP_DISABLE_PIP_VERSION_CHECK, PIP_TARGET and PIP_KEYRING_PROVIDER); the uv backend ignores them (docs/how-to/use-private-index.rst). pipx has no option of its own for pre-releases or source builds; --pip-args may carry them."),
-		pipxCommandLine: verified$10({
-			add: [["pipx", "install"]],
+		pipxCommandLine: d172.verified({
+			add: [["pipx", "install"], ["pipx", "inject"]],
 			run: [{
 				command: ["pipx", "run"],
 				packageOptions: ["--spec"],
@@ -3619,14 +3955,36 @@ const pip$1 = {
 				"--no-path-check",
 				"--path",
 				"--pypackages",
-				"--version"
+				"--version",
+				"--include-apps",
+				"--with-suffix"
 			],
 			parsing: {
 				abbreviations: true,
 				groupedShortOptions: true
 			},
-			addPackageOptions: ["--preinstall"]
-		}, `${PIPX}/src/pipx/main.py`, "pipx installs applications from PyPI with pip (or uv) in environments of their own. pipx install takes one or more package specs, a VCS URL, a local path or archive, or a script (--preinstall adds packages to the environment; -f is --force, not find-links). pipx run takes the app first (argparse REMAINDER, so its options come before it), --spec names the package to install and run, --with adds packages; a first argument ending in .py is a local script, or a script to download when it is a URL (docs/how-to/run-scripts.rst). argparse accepts abbreviated long options."),
+			addPackageOptions: ["--preinstall"],
+			commandOptions: [{
+				command: ["pipx", "inject"],
+				valueOptions: ["-r", "--requirement"],
+				packageFileOptions: ["-r", "--requirement"]
+			}],
+			addOperands: [{
+				command: ["pipx", "inject"],
+				operands: 1
+			}],
+			passOn: [{
+				command: ["pipx", "runpip"],
+				operands: 1,
+				runs: "pip",
+				splitsOneWord: true
+			}],
+			fileCommands: [["pipx", "install-all"], [
+				"pipx",
+				"manifest",
+				"sync"
+			]]
+		}, `${PIPX_CURRENT}/src/pipx/main.py`, "pipx installs applications from PyPI with pip (or uv) in environments of their own. pipx install takes one or more package specs, a VCS URL, a local path or archive, or a script (--preinstall adds packages to the environment; -f is --force, not find-links). pipx run takes the app first (argparse REMAINDER, so its options come before it), --spec names the package to install and run, --with adds packages; a first argument ending in .py is a local script, or a script to download when it is a URL (docs/how-to/run-scripts.rst). argparse accepts abbreviated long options. pipx inject ENVIRONMENT takes the packages to install into an existing environment as further operands (any spec pip installs, installed as pipx install installs them, commands/inject.py) and with -r/--requirement a file of them, one per line; --include-apps and --with-suffix are flags. pipx runpip ENVIRONMENT takes every later word (argparse REMAINDER) as the arguments of pip in that environment, python -m pip under the pip backend and uv pip under the uv backend (backends/pip.py and backends/uv.py, run_raw_pip), and splits a lone argument that holds whitespace with shlex.split (_split_runpip_args). pipx install-all installs the environments of a spec metadata file that pipx list writes (commands/install.py, install_all), and pipx manifest sync the tools of a tool manifest (commands/manifest.py, sync_manifest). The same main.py as in 1.18.10."),
 		pipxRegistryOverrides: verified$10({
 			registryOptions: ["-i", "--index-url"],
 			registryVariables: [],
@@ -3634,7 +3992,7 @@ const pip$1 = {
 			configVariables: []
 		}, `${PIPX}/src/pipx/main.py`, "--index-url is the base URL of the index; --pip-args is split and handed to pip, so it may carry --extra-index-url, --find-links or --no-index. With the pip backend pipx passes the PIP_* variables on to pip; with the uv backend it ignores them and uv reads its own (docs/how-to/use-uv-backend.rst); both kinds are registry variables of pip and uv."),
 		latestVersion: verified$10("26.2.2", NEWS, "Released on 2026-10-20."),
-		configCommands: guard$1.verified([{
+		configCommands: d170$5.verified([{
 			command: ["pip", "config"],
 			writes: [
 				"set",
@@ -3648,8 +4006,8 @@ const pip$1 = {
 				"unset",
 				"edit"
 			]
-		}], "https://github.com/pypa/pip/blob/main/src/pip/_internal/commands/configuration.py", "pip config list, edit, get, set, unset and debug: set and unset change a value and save the file, edit opens it in an editor, list, get and debug only read. Without --user, --global or --site the site file is used if one exists, else the user file."),
-		installOverrides: guard$1.verified({
+		}], `${PIP}/src/pip/_internal/commands/configuration.py`, "pip config list, edit, get, set, unset and debug: set and unset change a value and save the file, edit opens it in an editor, list, get and debug only read. Without --user, --global or --site the site file is used if one exists, else the user file."),
+		installOverrides: d170$5.verified({
 			options: [{
 				name: "--uploaded-prior-to",
 				weakens: "delay",
@@ -3660,7 +4018,7 @@ const pip$1 = {
 				weakens: "delay",
 				values: "delay"
 			}]
-		}, "https://github.com/pypa/pip/blob/main/src/pip/_internal/cli/cmdoptions.py", "--uploaded-prior-to (metavar datetime_or_duration): \"Only consider packages uploaded prior to the given value\", an ISO 8601 datetime or a duration of whole days P<n>D. PIP_UPLOADED_PRIOR_TO is its environment variable (environmentVariable). A datetime is not compared with the policy, so it is asked about.")
+		}, CMDOPTIONS, "--uploaded-prior-to (metavar datetime_or_duration): \"Only consider packages uploaded prior to the given value\", an ISO 8601 datetime or a duration of whole days P<n>D. PIP_UPLOADED_PRIOR_TO is its environment variable (environmentVariable). A datetime is not compared with the policy, so it is asked about.")
 	}
 };
 
@@ -3719,10 +4077,12 @@ function platformdirsMacos(app) {
 
 // src/knowledge/pdm.ts
 const { verified: verified$9, uncertain: uncertain$7 } = verifiedOn("2026-10-30");
+const d173$3 = verifiedOn("2026-11-03");
 const rechecked$2 = verifiedOn("2026-10-31");
 const user$5 = verifiedOn("2026-10-31");
 const leftovers$3 = verifiedOn("2026-11-01");
 const current$1 = verifiedOn("2026-11-02");
+const d167$2 = verifiedOn("2026-11-03");
 const PDM = "https://github.com/pdm-project/pdm/blob/2.29.5";
 const LOCKFILE = `${PDM}/docs/usage/lockfile.md`;
 const CHANGELOG$2 = `${PDM}/CHANGELOG.md`;
@@ -3862,6 +4222,18 @@ const pdm$1 = {
 		], `${PDM}/src/pdm/project/core.py`, "env_or_setting returns os.getenv(var) or the pyproject.toml setting, so a non-empty PDM_ONLY_BINARY or PDM_NO_BINARY wins (environments/base.py). -c/--config and PDM_CONFIG_FILE name the home config file (src/pdm/core.py). PDM_USE_UV is the variable of use_uv, and variables beat pdm.toml and config.toml (src/pdm/project/config.py).")
 	},
 	extra: {
+		installedPackage: d173$3.verified({
+			name: "pdm",
+			commands: [
+				[
+					"uv",
+					"tool",
+					"install"
+				],
+				["pipx", "install"],
+				["pip", "install"]
+			]
+		}, `${PDM}/docs/index.md`, "The installation page lists uv tool install pdm, pipx install pdm and pip install --user pdm among the other installation methods. Each takes a version with the package: uv tool install \"package versions can be included without --from\" (uv tool install 'httpie>0.1.0', https://github.com/astral-sh/uv/blob/0.13.6/docs/guides/tools.md), as pipx and pip install do (pipx install poetry==1.8.4 on the installation page of Poetry). So pdm==<version> in such a command of a CI job or a Dockerfile is the PDM the later commands run (decision D-173)."),
 		environmentNames: current$1.verified([{
 			prefix: "",
 			match: "exact"
@@ -3884,6 +4256,11 @@ const pdm$1 = {
 			"days",
 			"weeks"
 		], `${LOCKFILE}#exclude-packages-newer-than-specific-date`, "Written as Nh, Nd and Nw."),
+		cutoffDates: d167$2.verified({
+			timestamps: true,
+			offsetRequired: false,
+			dates: "start-utc"
+		}, `${PDM}/src/pdm/utils.py`, "convert_to_datetime: N{d|h|w} is a duration from the current UTC time; a value with T is read with datetime.fromisoformat (\"A timestamp without an offset is read as UTC, like a bare date\"); anything else as %Y-%m-%d at midnight UTC. docs/usage/lockfile.md lists \"A RFC 3339 timestamp\", \"A UTC date\" and \"A relative duration in the format N{d|h|w}\". A timestamp or a date is a fixed cutoff, which holds back more every day."),
 		excludeWildcards: verified$9({
 			since: null,
 			trailingOnly: false
@@ -4114,6 +4491,7 @@ const pdm$1 = {
 
 // src/knowledge/pipenv.ts
 const { verified: verified$8, uncertain: uncertain$6 } = verifiedOn("2026-10-30");
+const d173$2 = verifiedOn("2026-11-03");
 const PIPENV = "https://github.com/pypa/pipenv/blob/v2026.10.4";
 const PIPFILE = `${PIPENV}/docs/pipfile.md`;
 const CHANGELOG$1 = `${PIPENV}/CHANGELOG.md`;
@@ -4196,6 +4574,10 @@ const pipenv$1 = {
 		], `${PIPENV}/pipenv/utils/resolver.py`, "PIPENV_RESOLVER is not documented. The code ranks it above the resolver key of the Pipfile (\"CLI/caller > env > current project's Pipfile > default\"), and the pure-python backend locked the newest versions despite cool-down-period when chosen in the Pipfile (extra.resolverBypass, tested on 2026-10-30); the variable itself was not tested. PIPENV_PYPI_MIRROR: \"When the index does not provide upload-time metadata (e.g. most private mirrors) the setting is accepted but has no filtering effect\" (docs/pipfile.md). PIP_* variables are merged over the environment of the pip subprocess (pipenv/utils/processes.py), so they still reach it while pip.conf does not; pipenv/routines/install.py also reads PIP_NO_BINARY.")
 	},
 	extra: {
+		installedPackage: d173$2.verified({
+			name: "pipenv",
+			commands: [["pipx", "install"], ["pip", "install"]]
+		}, `${PIPENV}/docs/installation.md`, "The installation page installs Pipenv with pipx install pipenv and pip install pipenv (pip install --user pipenv), and a given version with pip install --user pipenv==2022.1.8. So pipenv==<version> in such a command of a CI job or a Dockerfile is the Pipenv the later commands run (decision D-173)."),
 		environmentNames: osvFacts.verified([{
 			prefix: "PIPENV_",
 			match: "exact"
@@ -4328,6 +4710,7 @@ const pipenv$1 = {
 
 // src/knowledge/pnpm.ts
 const { verified: verified$7, uncertain: uncertain$5 } = verifiedOn("2026-10-28");
+const d170$4 = verifiedOn("2026-11-03");
 const checked$4 = verifiedOn("2026-10-29");
 const reviewed$1 = verifiedOn("2026-10-30");
 const rechecked$1 = verifiedOn("2026-10-31");
@@ -4335,7 +4718,9 @@ const user$3 = verifiedOn("2026-10-31");
 const runtimes$1 = verifiedOn("2026-11-01");
 const release14$3 = verifiedOn("2026-11-02");
 const runners$1 = verifiedOn("2026-11-03");
+const includes = verifiedOn("2026-11-03");
 const PNPM_V12 = "https://github.com/pnpm/pnpm/blob/v12.16.1";
+const PNPM_V12_17 = "https://github.com/pnpm/pnpm/blob/v12.17.0";
 const PNPM_V11_CODE = "https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/config/reader/src";
 /** A file in pnpm's config directory (getConfigDir): $XDG_CONFIG_HOME/pnpm when set, else the platform's own place. */
 const inConfigDir = (file) => [
@@ -4438,7 +4823,7 @@ const pnpm$1 = {
 			availableSince: verified$7("10.26.0", SETTINGS_V10),
 			format: verified$7("Map of package matcher to true (allow) or false (deny), e.g. esbuild: true or \"nx@21.6.4 || 21.6.5\": true; a bare name never approves git or tarball dependencies (pnpm 11+)", BUILD_V11)
 		},
-		disableAll: verified$7("ignoreScripts", "https://pnpm.io/cli/install", "Default false; --ignore-scripts on the CLI. Also skips the project's own scripts.")
+		disableAll: includes.verified("ignoreScripts", "https://pnpm.io/cli/install", "Default false; --ignore-scripts on the CLI. Also skips the project's own scripts. It does not stop the pnpmfiles (.pnpmfile.mjs, .pnpmfile.cjs, the pnpmfile and globalPnpmfile settings and the pnpmfiles of config-dependency plugins, extra.pnpmfiles), whose hooks still run and can change every setting; only ignorePnpmfile does (\"Useful together with --ignore-scripts when you want to make sure that no script gets executed during install\", pnpm/docs/pnpmfile.md at v12.17.0). resolve_pnpmfile_paths in pnpm/crates/cli/src/config_deps/hooks.rs at v12.17.0 tests ignore_pnpmfile only.")
 	},
 	sources: {
 		git: exoticSubdeps,
@@ -4796,7 +5181,7 @@ const pnpm$1 = {
 				y: ["--yes"]
 			}
 		}, `${PNPM_V12}/pnpm11/cli/parse-cli-args/src/index.ts`, "pnpm parses its command line with @pnpm/nopt 0.3.1 (github.com/pnpm/nopt, lib/nopt.js), a fork of nopt: every leading dash is stripped, an exact shorthand or a word of one-letter shorthands is expanded, and an unambiguous prefix of an option of the command is taken for that option, so pnpm add --reg=<url> sets registry; --no-<name> is a negated flag: lib/nopt.js strips every leading no- in any case, each one inverting it, before the prefix is resolved, so --no-ign is --no-ignore-scripts when no other option of the command starts with ign (parse-cli-args, shorthands.ts and pnpm/nopt read again 2026-11-01). Options pnpm does not know make it stop with an error (pnpm11/pnpm/src/main.ts, dropUnknownOptions). --config.<key>=<value> sets the setting <key> (separateConfigDotArgs, normalizeOptions), also in pnpm 10.34.9 (cli/parse-cli-args/src/index.ts). The shorthands are pnpm11/pnpm/src/shorthands.ts; pnpm 10.34.9 has the same without y."),
-		booleanWords: runtimes$1.verified(true, "https://github.com/pnpm/nopt/blob/main/lib/nopt.js", "The nopt fork pnpm imports (@pnpm/nopt, imported by pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1) reads a Boolean option followed by the word true or false as that value and skips the word, inverted after --no- (parse in lib/nopt.js)."),
+		booleanWords: d170$4.verified(true, "https://github.com/pnpm/nopt/blob/7f8522c60a84c04bed2ac792204d8c22172d295f/lib/nopt.js", "The nopt fork pnpm imports (@pnpm/nopt, imported by pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1) reads a Boolean option followed by the word true or false as that value and skips the word, inverted after --no- (parse in lib/nopt.js)."),
 		directoryOptions: runtimes$1.verified({
 			options: [{
 				name: "--dir",
@@ -5102,12 +5487,106 @@ const pnpm$1 = {
 		managesOwnVersion: release14$3.verified({
 			since: "10.0.0",
 			field: "packageManager"
-		}, "https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md", "10.0.0: \"manage-package-manager-versions: enabled by default. pnpm now manages its own version based on the packageManager field in package.json by default\" (added in 9.7.0, off by default: \"pnpm will switch to the version specified in the packageManager field of package.json ... This is the same field used by Corepack\"). The 11.0.0 release notes replace the setting with pmOnFail, which \"directly sets the onFail behavior of both packageManager and devEngines.packageManager\" (https://github.com/pnpm/pnpm/releases/tag/v11.0.0); pnpm 12 documents pmOnFail with the default download: \"download and run the declared pnpm version (this is the default and matches the previous managePackageManagerVersions: true behavior)\" (pnpm/docs/settings/cli.md at v12.16.1). So any pnpm 10 or later honors a pnpm pin without Corepack.")
+		}, "https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md", "10.0.0: \"manage-package-manager-versions: enabled by default. pnpm now manages its own version based on the packageManager field in package.json by default\" (added in 9.7.0, off by default: \"pnpm will switch to the version specified in the packageManager field of package.json ... This is the same field used by Corepack\"). The 11.0.0 release notes replace the setting with pmOnFail, which \"directly sets the onFail behavior of both packageManager and devEngines.packageManager\" (https://github.com/pnpm/pnpm/releases/tag/v11.0.0); pnpm 12 documents pmOnFail with the default download: \"download and run the declared pnpm version (this is the default and matches the previous managePackageManagerVersions: true behavior)\" (pnpm/docs/settings/cli.md at v12.16.1). So any pnpm 10 or later honors a pnpm pin without Corepack."),
+		configIncludes: includes.verified({
+			since: "12.15.0",
+			file: "pnpm-workspace.yaml",
+			key: "include",
+			unrestricted: "*",
+			localPrefixes: ["./", "../"],
+			localExtensions: [".yaml", ".yml"],
+			globCharacters: "*?[]{}",
+			spellings: {
+				enableGlobalVirtualStore: "virtualStoreType",
+				nodeExperimentalPackageMap: "nodePackageMap",
+				nodePackageMapType: "nodePackageMap",
+				noproxy: "noProxy",
+				proxy: "httpsProxy",
+				permissions: "allowBuilds",
+				auditConfig: "audit",
+				auditLevel: "audit",
+				cleanupUnusedCatalogs: "catalogPrune",
+				maxsockets: "maxSockets",
+				namedRegistries: "registries",
+				updateConfig: "update"
+			},
+			notForDependencies: [
+				"bootConfig",
+				"cacheDir",
+				"configDependencies",
+				"globalBinDir",
+				"globalDir",
+				"globalPnpmfile",
+				"globalVirtualStoreDir",
+				"lockfileDir",
+				"modulesDir",
+				"npmrcAuthFile",
+				"onlyBuiltDependenciesFile",
+				"packages",
+				"patchedDependencies",
+				"patchesDir",
+				"pnpmfile",
+				"scriptShell",
+				"stateDir",
+				"storeDir",
+				"virtualStoreDir"
+			],
+			dependencies: "configDependencies"
+		}, `${PNPM_V12_17}/pnpm/docs/config-includes.md`, "\"Added in: v12.15.0\" (12.15.0 release notes, 21 Oct: \"can now delegate settings to other YAML files and to config dependencies through a new include field\"). include in the root pnpm-workspace.yaml maps a source to the settings it may define: a list of settings, which the source both may define and owns (\"A list both permits and reserves its settings ... no other source may define them, even when the file omits them\"), or '*' for a local file, which then owns the settings it defines that no other source owns. A local source starts with ./ or ../, is resolved from the workspace root, must end in .yaml or .yml and exist; a glob is rejected, and so is a file named twice or the root itself. Every other source is a config dependency named in configDependencies, which always needs a list. Settings defined in pnpm-workspace.yaml itself belong to it; a setting reserved twice, or defined where another source owns it, fails with ERR_PNPM_DUPLICATE_SETTING, a listed file that defines another setting with ERR_PNPM_SETTING_NOT_DELEGATED, a bad source with ERR_PNPM_INVALID_WORKSPACE_INCLUDE. A delegated setting the owner omits is not set by the project. Writes go to the owner: a delegated setting to its file even when the file omits it, a setting a '*' file defines stays there, one no source owns goes to pnpm-workspace.yaml, and one a config dependency owns cannot be changed (ERR_PNPM_SETTING_OWNED_BY_CONFIG_DEPENDENCY). Relative paths in an included file are relative to that file. The included files are read with merge keys like the root (normalize.rs applies <<). The spellings share one owner, so permissions and allowBuilds are one setting for ownership (canonical_setting_name in pnpm/crates/workspace/src/include/selector.rs); catalog is catalogs.default, catalogs.<name> one catalog and catalogs every catalog. Code: pnpm/crates/workspace/src/include.rs, include/selector.rs (parse_source, is_package_name_shaped, parse_delegation, SETTINGS_FORBIDDEN_TO_PACKAGES in include.rs), include/ownership.rs (reservations before definitions; the owner of a setting is its reservation, else its definition), include/package.rs (a config dependency's settings come from the YAML file its package.json names in pnpm.config, read from node_modules/.pnpm-config/<name> once installed); the same code at v12.15.0. Decision D-164."),
+		bootConfig: includes.verified({
+			since: "12.15.0",
+			setting: "bootConfig",
+			settings: [
+				"minimumReleaseAge",
+				"minimumReleaseAgeExclude",
+				"minimumReleaseAgeStrict",
+				"minimumReleaseAgeIgnoreMissingTime",
+				"trustPolicy",
+				"trustPolicyExclude",
+				"trustPolicyIgnoreAfter"
+			]
+		}, `${PNPM_V12_17}/pnpm/docs/config-includes.md`, "bootConfig in pnpm-workspace.yaml sets the release-age and trust policy pnpm resolves and installs config dependencies and the pnpm version of packageManager under, before the settings of config dependencies are loaded (12.15.0 release notes: \"The new bootConfig setting sets the release-age and trust policy pnpm uses to install config dependencies\"). A setting it leaves unset or null takes its regular value; for a setting a config dependency owns, the value of the global config.yaml, the environment or the built-in default. The environment and the command line beat bootConfig (for_boot in pnpm/crates/config/src/boot_config.rs at v12.17.0). A config dependency cannot be delegated bootConfig (configIncludes.notForDependencies). Config dependencies pinned with version+integrity keep that pin (docs/config-dependencies.md). depcurfew neither writes nor checks it."),
+		pnpmfiles: includes.verified({
+			updateConfigSince: "10.8.0",
+			defaults: [{
+				since: "6.0.0",
+				value: [".pnpmfile.cjs"]
+			}, {
+				since: "11.0.0",
+				value: [".pnpmfile.mjs", ".pnpmfile.cjs"]
+			}],
+			setting: "pnpmfile",
+			ignore: "ignorePnpmfile",
+			global: "globalPnpmfile"
+		}, `${PNPM_V12_17}/pnpm/docs/pnpmfile.md`, "hooks.updateConfig \"Allows you to modify the configuration settings used by pnpm\" and \"runs after the settings are merged and can still change any of them\" (config-includes.md); since v12.4.1 it receives the resolved configuration, and since v12.8.0 only a setting given on the command line wins over it. Added in 10.8.0 (\"Experimental. A new hook is supported for updating configuration settings. The hook can be provided via .pnpmfile.cjs\", pnpm/CHANGELOG.md at v10.34.9). The project pnpmfile sits next to the lockfile (the workspace root): .pnpmfile.cjs since 6.0.0 (\"pnpmfile.js renamed to .pnpmfile.cjs\"); since 11.0.0 .pnpmfile.mjs, which \"takes priority over .pnpmfile.cjs when present\" (11.0.0 release notes). When the pnpmfile setting is set, also to [], pnpm does not look for these files (\"Set pnpmfile: [] in pnpm-workspace.yaml when the workspace has no pnpmfile, so a new .pnpmfile.mjs is not picked up automatically\", config-includes.md); its paths are relative to the file that sets it. globalPnpmfile is loaded first. ignorePnpmfile: true loads no pnpmfile, those of config-dependency plugins included: cli/cli-utils/src/getConfig.ts at v10.34.9, pnpm11/pnpm/src/getConfig.ts at v11.28.10 (installConfigDepsAndLoadHooks, tryLoadDefaultPnpmfile = config.pnpmfile == null), pnpm/crates/hooks/src/finder.rs (find_pnpmfiles) and pnpm/crates/cli/src/config_deps/hooks.rs (resolve_pnpmfile_paths, may_update_config) at v12.17.0; pnpm 12 does not take ignorePnpmfile from the global config.yaml (workspace_scope.rs). With sharedWorkspaceLockfile: false each project also runs the pnpmfile in its own directory (pnpmfile.md). ignoreScripts does not stop any of them (installScripts.disableAll)."),
+		configPlugins: includes.verified({
+			setting: "configDependencies",
+			patterns: [{
+				since: "10.13.0",
+				value: ["pnpm-plugin-*", "@pnpm/plugin-*"]
+			}, {
+				since: "10.15.0",
+				value: [
+					"pnpm-plugin-*",
+					"@pnpm/plugin-*",
+					"@*/pnpm-plugin-*"
+				]
+			}]
+		}, `${PNPM_V12_17}/pnpm/docs/config-dependencies.md`, "\"If your config dependency is named following the pnpm-plugin-*, @*/pnpm-plugin-*, or @pnpm/plugin-* pattern, pnpm will automatically load its pnpmfile.mjs (falling back to pnpmfile.cjs) from the package root.\" 10.13.0: \"pnpm will now automatically load the pnpmfile.cjs file from any config dependency named @pnpm/plugin-* or pnpm-plugin-*\"; 10.15.0: \"Automatically load pnpmfiles from config dependencies that are named @*/pnpm-plugin-*\" (pnpm/CHANGELOG.md at v10.34.9). The test is a prefix pnpm-plugin- or @pnpm/plugin-, or a scoped name containing /pnpm-plugin- (isPluginName in cli/cli-utils/src/getConfig.ts at v10.34.9 and pnpm11/pnpm/src/getConfig.ts at v11.28.10, is_plugin_name in pnpm/crates/hooks/src/finder.rs at v12.17.0). Such a pnpmfile loads also when the package supplies settings through include (\"A config dependency whose name follows the plugin naming pattern still loads its pnpmfile\", config-includes.md), unless ignorePnpmfile is true (extra.pnpmfiles). Config dependencies came in 10.0.0 (\"configurational dependencies\", then in the pnpm field of package.json); the docs of 10.x, 11.x and 12.17.0 declare them in pnpm-workspace.yaml."),
+		knownPlugins: includes.verified([{
+			name: "@pnpm/plugin-better-defaults",
+			since: "0.3.0",
+			settings: {
+				minimumReleaseAge: 1440,
+				blockExoticSubdeps: true
+			}
+		}], "https://github.com/pnpm/plugin-better-defaults/blob/v0.3.0/src/pnpmfile.cjs", "The official plugin's updateConfig sets minimumReleaseAge: 1 * 24 * 60 (\"1 day in minutes\") and blockExoticSubdeps: true with Object.assign, so it replaces a longer delay of pnpm-workspace.yaml. Versions 0.1.0 to 0.2.1 (the pnpmfile.cjs of the published packages on registry.npmjs.org) set neither; 0.3.0, published on 2026-03-01, is the latest. pnpm/docs/pnpmfile.md at v12.17.0 names it as the example of the hook.")
 	}
 };
 
 // src/knowledge/poetry.ts
 const { verified: verified$6, uncertain: uncertain$4, disputed: disputed$2, evidence: evidence$2 } = verifiedOn("2026-10-30");
+const d170$3 = verifiedOn("2026-11-03");
 const user$2 = verifiedOn("2026-10-31");
 const leftovers$2 = verifiedOn("2026-11-01");
 const finalReview$1 = verifiedOn("2026-11-01");
@@ -5206,8 +5685,8 @@ const poetry$1 = {
 			value: ["poetry.lock"]
 		}], `${POETRY}/src/poetry/factory.py`, "Next to pyproject.toml."),
 		manifests: verified$6(["pyproject.toml"], `${POETRY}/docs/pyproject.md`),
-		workspaces: uncertain$4(null, "https://github.com/python-poetry/poetry/issues/2270", "Poetry has no workspaces: the 2.5.1 docs do not mention them and the request for subprojects is open."),
-		workspacesObjectKey: uncertain$4(null, "https://github.com/python-poetry/poetry/issues/2270", "No workspaces.")
+		workspaces: d170$3.uncertain(null, `${POETRY}/docs/pyproject.md`, "Poetry has no workspaces: the pyproject.toml reference at 2.5.1 has no workspace or subproject setting, and the request for subprojects (python-poetry/poetry#2270) is open."),
+		workspacesObjectKey: d170$3.uncertain(null, `${POETRY}/docs/pyproject.md`, "No workspaces.")
 	},
 	user: {
 		files: user$2.verified(userFiles([MACOS_DIRECTORY]), `${CONFIGURATION$2}#config-directory`, "\"Linux: $XDG_CONFIG_HOME/pypoetry or ~/.config/pypoetry - Windows: %APPDATA%\\pypoetry - macOS: ~/Library/Application Support/pypoetry\". The code agrees on Linux and Windows: CONFIG_DIR = POETRY_CONFIG_DIR or user_config_path(\"pypoetry\", appauthor=False, roaming=True) from platformdirs, without an override (src/poetry/locations.py; on Windows platformdirs asks for the Roaming AppData known folder, which APPDATA normally names). On macOS the directory depends on the installed platformdirs (libraryDirectories); the docs' directory is used when its version cannot be read. config.toml holds the settings as nested tables ([solver] min-release-age = 7); auth.toml next to it holds credentials. POETRY_CONFIG_DIR replaces the directory. Checked at 2.4.0 and 2.5.1; 2.0.0 removed the special handling of the platformdirs 2 macOS directory (#8916, CHANGELOG.md), and older versions are not tracked."),
@@ -5318,7 +5797,7 @@ const poetry$1 = {
 			since: "2.0.0",
 			covers: ["registry"]
 		}, CHANGELOG, "installer.only-binary was added in 2.0.0; [\":all:\"] forbids source distributions of index packages when installing. Git and directory dependencies, and source archives from a URL or path, are built regardless (src/poetry/installation/executor.py at 2.5.1)."),
-		excludeFormat: disputed$2("The 2.5.1 docs give the type string, a comma-separated list; the docs on main (pull request #11087, not released) give array and say to use a TOML array in poetry.toml. The 2.5.1 code iterates the value as it is, so a string would be read letter by letter. Tested on 2026-10-30: a TOML array exempted the package in Poetry 2.4.0 and 2.5.1.", evidence$2("comma-separated string", `${CONFIGURATION$2}#solvermin-release-age-exclude`), evidence$2("TOML array", "https://github.com/python-poetry/poetry/pull/11087")),
+		excludeFormat: disputed$2("The 2.5.1 docs give the type string, a comma-separated list; the docs on main (from pull request #11087, not released; read at commit 6ecadf5b) give array and say to use a TOML array in poetry.toml. The 2.5.1 code iterates the value as it is, so a string would be read letter by letter. Tested on 2026-10-30: a TOML array exempted the package in Poetry 2.4.0 and 2.5.1.", evidence$2("comma-separated string", `${CONFIGURATION$2}#solvermin-release-age-exclude`), d170$3.evidence("TOML array", "https://github.com/python-poetry/poetry/blob/6ecadf5b71309b1da4f00949cc349a79884cff8f/docs/configuration.md#solvermin-release-age-exclude")),
 		excludeWildcards: verified$6({
 			since: null,
 			trailingOnly: false
@@ -5455,7 +5934,7 @@ const poetry$1 = {
 			command: ["poetry", "source"],
 			writes: ["add", "remove"]
 		}], `${POETRY}/docs/cli.md`, "poetry config [options] [setting-key] [setting-value1] ... [setting-valueN] sets a key to a value (--local in poetry.toml of the project); --unset removes the key, --migrate migrates outdated settings and --list only shows them. \"The source namespace groups subcommands to manage repository sources for a Poetry project\": source add adds a source to pyproject.toml (also the priority of PyPI, with --priority), source remove removes one from it, and source show only shows them (docs/cli.md; src/poetry/console/commands/source/add.py and remove.py write pyproject.poetry_config[\"source\"], and src/poetry/console/application.py lists source add, source remove and source show). The sources of pyproject.toml are where poetry add and poetry install take packages from (registrySettings)."),
-		installOverrides: leftovers$2.verified({
+		installOverrides: d170$3.verified({
 			options: [],
 			variables: [
 				{
@@ -5474,12 +5953,13 @@ const poetry$1 = {
 					values: "any"
 				}
 			]
-		}, "https://github.com/python-poetry/poetry/blob/main/docs/configuration.md", "Settings can be set with environment variables prefixed by POETRY_, the upper-case setting name with dots and dashes replaced by underscores; solver.min-release-age (int, days) is POETRY_SOLVER_MIN_RELEASE_AGE. poetry add has no option for it.")
+		}, CONFIGURATION$2, "Settings can be set with environment variables prefixed by POETRY_, the upper-case setting name with dots and dashes replaced by underscores; solver.min-release-age (int, days) is POETRY_SOLVER_MIN_RELEASE_AGE. poetry add has no option for it.")
 	}
 };
 
 // src/knowledge/renovate.ts
 const { verified: verified$5, uncertain: uncertain$3, disputed: disputed$1, evidence: evidence$1 } = verifiedOn("2026-10-28");
+const d170$2 = verifiedOn("2026-11-03");
 const python$1 = verifiedOn("2026-10-30");
 const reviewed = verifiedOn("2026-10-30");
 const rules = verifiedOn("2026-10-30");
@@ -5488,7 +5968,9 @@ const bots = verifiedOn("2026-11-02");
 const composer$1 = verifiedOn("2026-11-02");
 const d151 = verifiedOn("2026-11-03");
 const d152 = verifiedOn("2026-11-03");
+const d171 = verifiedOn("2026-11-03");
 const AT = "https://github.com/renovatebot/renovate/blob/44.198.2";
+const LATEST = "https://github.com/renovatebot/renovate/blob/44.209.0";
 const OPTIONS = "https://docs.renovatebot.com/configuration-options/";
 const MINIMUM_RELEASE_AGE = "https://docs.renovatebot.com/key-concepts/minimum-release-age/";
 const release$2 = (version) => `https://github.com/renovatebot/renovate/releases/tag/${version}`;
@@ -5498,7 +5980,7 @@ const renovate$1 = {
 	kind: "update-bot",
 	cooldown: {
 		setting: verified$5("minimumReleaseAge", `${OPTIONS}#minimumreleaseage`, "Formerly stabilityDays; old configs are migrated to \"N days\". Can be scoped with packageRules, vulnerabilityAlerts and update types."),
-		configFiles: verified$5([
+		configFiles: d170$2.verified([
 			"renovate.json",
 			"renovate.jsonc",
 			"renovate.json5",
@@ -5512,14 +5994,14 @@ const renovate$1 = {
 			".renovaterc.json",
 			".renovaterc.jsonc",
 			".renovaterc.json5"
-		], OPTIONS, "Searched in this order. The \"renovate\" key in package.json still works but is deprecated. Shared presets (extends) can also set it."),
+		], `${LATEST}/lib/workers/repository/init/merge.ts`, "Searched in this order, and the first file that exists is the configuration (configFileNames in lib/config/app-strings.ts). The list is the same on every platform: detectConfigFile calls getConfigFileNames() without a platform, so a .gitlab/renovate.json counts in a GitHub repository and a .github/renovate.json on GitLab; only the validation of onboardingConfigFileName filters the names by platform (getPossibleConfigFileNames in lib/config/validation.ts). The \"renovate\" key in package.json still works but is deprecated. Shared presets (extends) can also set it."),
 		cliFlag: verified$5("--minimum-release-age", `${OPTIONS}#minimumreleaseage`, "Self-hosted CLI only; environment variable RENOVATE_MINIMUM_RELEASE_AGE."),
 		unit: verified$5("duration-string", MINIMUM_RELEASE_AGE, "For example \"3 days\" or \"14 days\". Since 42.19.5 \"0 days\" is treated like null."),
 		availableSince: verified$5("35.46.0", release$2("35.46.0"), "Earlier versions had the same feature as stabilityDays (first version not tracked)."),
-		default: verified$5([{
+		default: d170$2.verified([{
 			since: "0.0.0",
 			value: null
-		}], "https://github.com/renovatebot/renovate/blob/main/lib/config/options/index.ts", "Off unless configured; the docs table shows no default. config:best-practices adds \"3 days\" for npm (see presets). Since 44.96.0 minimumReleaseAgeBuffer adds 30 minutes once a delay is set."),
+		}], `${LATEST}/lib/config/options/index.ts`, "Off unless configured; the docs table shows no default. config:best-practices adds \"3 days\" for npm (see presets). Since 44.96.0 minimumReleaseAgeBuffer adds 30 minutes once a delay is set."),
 		exclude: {
 			setting: verified$5("packageRules: matchPackageNames + minimumReleaseAge: null", `${MINIMUM_RELEASE_AGE}#how-do-i-opt-out-dependencies-from-minimum-release-age-checks`, "No dedicated exclusion list."),
 			availableSince: uncertain$3("35.46.0", release$2("35.46.0"), "Assumed to work since the option exists with packageRule scope; not stated by a release note."),
@@ -5540,32 +6022,32 @@ const renovate$1 = {
 			from: "repository-root",
 			branch: "default"
 		}, `${AT}/lib/workers/repository/init/merge.ts`, "detectConfigFile looks for each name in configFiles (lib/config/app-strings.ts) in the file list of the repository, whose paths start at the repository root, so a renovate.json in a subdirectory is never read. The configuration options page (docs/usage/configuration-options.md at 44.198.2): \"Any config you define applies to the whole repository (e.g. if you have a monorepo)\" and \"Renovate always uses the config from the repository's default branch\"."),
-		durationStrings: verified$5({
+		durationStrings: d170$2.verified({
 			since: null,
 			syntax: "words"
-		}, "https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md", "Values such as \"3 days\" or \"1 hour\", parsed by toMs (lib/util/pretty-time.ts)."),
-		minimumReleaseAgePresets: verified$5({
+		}, `${LATEST}/docs/usage/key-concepts/minimum-release-age.md`, "Values such as \"3 days\" or \"1 hour\", parsed by toMs (lib/util/pretty-time.ts)."),
+		minimumReleaseAgePresets: d171.verified({
 			presets: ["config:best-practices", "security:minimumReleaseAgeNpm"],
 			value: "3 days",
 			since: "42.0.0",
 			datasource: "npm"
-		}, "https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm", "config:best-practices extends security:minimumReleaseAgeNpm, which sets minimumReleaseAge \"3 days\" for the npm datasource (see presets)."),
-		excludeRule: verified$5({
+		}, `${LATEST}/lib/config/presets/internal/security.preset.ts`, "security:minimumReleaseAgeNpm is built by buildMinimumReleaseAgePreset: a packageRules entry { internalChecksFilter: \"strict\", matchDatasources: [\"npm\"], minimumReleaseAge: \"3 days\" }, then entries with the same matchDatasources that set minimumReleaseAge: null for the update types without release timestamps (lockFileMaintenance, replacement, pin, and bump, lockfileUpdate and rollback). config:best-practices extends it (config.preset.ts in the same directory)."),
+		excludeRule: d170$2.verified({
 			list: "packageRules",
 			match: "matchPackageNames",
 			value: null
-		}, "https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md", "The documented opt-out: a packageRules entry with matchPackageNames and minimumReleaseAge: null."),
-		securityUpdatesSetting: verified$5(["vulnerabilityAlerts", "minimumReleaseAge"], "https://github.com/renovatebot/renovate/blob/main/lib/config/options/index.ts", "The vulnerabilityAlerts default sets minimumReleaseAge to null, so security updates skip the delay unless a value is set there."),
+		}, `${LATEST}/docs/usage/key-concepts/minimum-release-age.md`, "The documented opt-out: a packageRules entry with matchPackageNames and minimumReleaseAge: null."),
+		securityUpdatesSetting: d170$2.verified(["vulnerabilityAlerts", "minimumReleaseAge"], `${LATEST}/lib/config/options/index.ts`, "The vulnerabilityAlerts default sets minimumReleaseAge to null, so security updates skip the delay unless a value is set there."),
 		excludeWildcards: verified$5({
 			since: "38.0.0",
 			trailingOnly: false
 		}, `${OPTIONS}#matchpackagenames`, "matchPackageNames accepts globs (and regex) since 38.0.0."),
-		ruleDescription: verified$5("description", "https://github.com/renovatebot/renovate/blob/main/docs/usage/configuration-options.md#description", "A human-readable description allowed inside any configuration object; depcurfew uses it to recognize the packageRules entry it manages."),
-		packageJsonConfig: verified$5({
+		ruleDescription: d170$2.verified("description", `${LATEST}/docs/usage/configuration-options.md#description`, "A human-readable description allowed inside any configuration object; depcurfew uses it to recognize the packageRules entry it manages."),
+		packageJsonConfig: d170$2.verified({
 			file: "package.json",
 			key: "renovate"
-		}, "https://github.com/renovatebot/renovate/blob/main/lib/workers/repository/init/merge.ts", "Deprecated: the configuration options page warns that support may be removed, and Renovate logs that using package.json is deprecated."),
-		durationUnits: verified$5(["hours", "days"], "https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md", "Units shown in the docs: minimumReleaseAge=1 hour on this page and \"3 days\" in the configuration options. The value is parsed by toMs (lib/util/pretty-time.ts), whose tests also accept 1 day, 1 week and combined values."),
+		}, `${LATEST}/lib/workers/repository/init/merge.ts`, "Deprecated: the configuration options page warns that support may be removed, and Renovate logs that using package.json is deprecated."),
+		durationUnits: d170$2.verified(["hours", "days"], `${LATEST}/docs/usage/key-concepts/minimum-release-age.md`, "Units shown in the docs: minimumReleaseAge=1 hour on this page and \"3 days\" in the configuration options. The value is parsed by toMs (lib/util/pretty-time.ts), whose tests also accept 1 day, 1 week and combined values."),
 		presets: verified$5("config:best-practices extends security:minimumReleaseAgeNpm (since 42.0.0): \"3 days\" and internalChecksFilter \"strict\" for the npm datasource, except pin, replacement, lockFileMaintenance, bump, lockfileUpdate and rollback", "https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm"),
 		datasources: d152.verified({
 			npm: "npm",
@@ -5585,16 +6067,16 @@ const renovate$1 = {
 			datasourceMatcher: "matchDatasources",
 			updateTypeMatcher: "matchUpdateTypes"
 		}, `${AT}/docs/usage/configuration-options.md#packagerules`, "A packageRules entry applies to a dependency when all of its matchers match. Within one matcher, at least one positive pattern must match when there are any, and no negative pattern (starting with !) may match, so a list of only negative patterns matches every name it does not exclude (docs/usage/string-pattern-matching.md and matchRegexOrGlobList in lib/util/string-match.ts). matchPackageNames, matchDepNames, matchDatasources and matchUpdateTypes all match this way; \"*\" alone matches everything."),
-		packageRulesOrder: rules.verified({
+		packageRulesOrder: d171.verified({
 			presetsFirst: true,
 			overridesTopLevel: true,
 			laterWins: true
-		}, `${AT}/docs/usage/configuration-options.md#packagerules`, "All packageRules are evaluated and later rules override options set by earlier ones; a matching rule overrides the top-level configuration (\"Package rule config overrides any existing config\", lib/util/package-rules/index.ts). Presets in extends are merged before the repository configuration, and packageRules is mergeable, so the rules of presets come first and the repository's rules after them, while a top-level option of the repository replaces the same option of a preset (resolveConfigPresets in lib/config/presets/index.ts and mergeChildConfig in lib/config/utils.ts)."),
-		delayedUpdateTypes: rules.verified([
+		}, `${LATEST}/lib/config/presets/index.ts`, "resolveConfigPresets merges the presets of extends from left to right and then the configuration itself on top with mergeChildConfig, which for packageRules (mergeable, type array in lib/config/options/index.ts) concatenates the parent's list with the child's (lib/config/utils.ts): the rules of presets come first and the repository's rules after them. applyPackageRules (lib/util/package-rules/index.ts) goes through the list in order and merges every matching rule over the configuration so far (\"Package rule config overrides any existing config\"), so a later rule wins, and a matching rule wins over the top-level configuration. A top-level option of the repository replaces the same option of a preset (mergeChildConfig takes the child's value for an option that is not mergeable). Read at 44.209.0."),
+		delayedUpdateTypes: d171.verified([
 			"major",
 			"minor",
 			"patch"
-		], `${AT}/docs/usage/key-concepts/minimum-release-age.md#which-update-types-take-minimumreleaseage-into-account`, "The update types that take minimumReleaseAge into account; digest and pinDigest only for some datasources, and pin, lockFileMaintenance, lockfileUpdate, rollback, bump and replacement not at all."),
+		], `${LATEST}/docs/usage/key-concepts/minimum-release-age.md#which-update-types-take-minimumreleaseage-into-account`, "The update types that take minimumReleaseAge into account; digest and pinDigest only for some datasources, and pin, lockFileMaintenance, lockfileUpdate, rollback, bump and replacement not at all. The table is kept in sync with the null rules of the security:minimumReleaseAge* presets (security.preset.ts), so a rule with matchUpdateTypes of these three leaves those rules as they are."),
 		internalPresets: rules.verified({
 			prefixes: [
 				":",
@@ -5622,12 +6104,12 @@ const renovate$1 = {
 				"security:minimumReleaseAgePypi"
 			]
 		}, `${AT}/lib/config/presets/internal/index.ts`, "The built-in preset groups; a default preset is written :name or default:name. Other presets (github>, gitlab>, local>, npm packages and so on) are fetched from elsewhere. Among the built-in presets only the security:minimumReleaseAge* presets set minimumReleaseAge, each in a packageRules entry with matchDatasources for its datasource, and config:best-practices extends security:minimumReleaseAgeNpm (security.preset.ts and config.preset.ts in the same directory)."),
-		pypiPresets: python$1.verified({
+		pypiPresets: d171.verified({
 			presets: ["security:minimumReleaseAgePypi"],
 			value: "3 days",
 			since: "44.8.0",
 			datasource: "pypi"
-		}, "https://docs.renovatebot.com/presets-security/#securityminimumreleaseagepypi", "Added in 44.8.0; config:best-practices does not include it (it includes only security:minimumReleaseAgeNpm)."),
+		}, `${LATEST}/lib/config/presets/internal/security.preset.ts`, "Added in 44.8.0; the same rules as security:minimumReleaseAgeNpm with matchDatasources [\"pypi\"] (buildMinimumReleaseAgePreset). config:best-practices does not include it (it includes only security:minimumReleaseAgeNpm, config.preset.ts)."),
 		pnpmSecurityExclusions: reviewed.uncertain({
 			managers: ["pnpm"],
 			file: "pnpm-workspace.yaml",
@@ -5696,12 +6178,12 @@ const renovate$1 = {
 				categories: ["dotnet"]
 			}
 		}, `${AT}/lib/modules/manager/api.ts`, "The Renovate manager of each ecosystem depcurfew delays only through the bots (decision D-151), by its id in api.ts, with the datasource it gives the packages and its categories (categories in lib/modules/manager/<id>/index.ts, all in lib/constants/category.ts): cargo updates Cargo.toml (managerFilePatterns, lockFileNames Cargo.lock) from the crate datasource (lib/modules/manager/cargo/schema.ts) in the rust category; gomod updates go.mod from the go datasource (line-parser.ts) in golang; maven updates pom.xml and gradle the .gradle(.kts) files, gradle.properties and the version catalogs in gradle/, both from the maven datasource, in java; nuget updates .csproj, .fsproj, .vbproj, .props and .targets files, dotnet-tools.json and global.json from the nuget datasource in dotnet. getManagerConfig (lib/config/index.ts) starts every manager from the whole configuration, so the top-level minimumReleaseAge applies to them as to the other managers. All four datasources have releaseTimestampSupport: crate takes pubtime of the crates.io index or created_at of the crates.io API, go the Time of the module proxy (or a later GitHub release or tag of a module on GitHub), maven the Last-Modified header, nuget the published date (index.ts of each datasource)."),
-		cratePresets: d151.verified({
+		cratePresets: d171.verified({
 			presets: ["security:minimumReleaseAgeCrate"],
 			value: "3 days",
 			since: "44.5.0",
 			datasource: "crate"
-		}, `${AT}/lib/config/presets/internal/security.preset.ts`, "security:minimumReleaseAgeCrate sets minimumReleaseAge \"3 days\" (with internalChecksFilter \"strict\") in a packageRules entry with matchDatasources [\"crate\"], and turns it off for lockFileMaintenance, replacement, pin, bump, lockfileUpdate and rollback updates of that datasource. Added in 44.5.0 (\"presets: add security:minimumReleaseAgeCrate preset\", https://github.com/renovatebot/renovate/releases/tag/44.5.0); config:best-practices does not include it."),
+		}, `${LATEST}/lib/config/presets/internal/security.preset.ts`, "security:minimumReleaseAgeCrate sets minimumReleaseAge \"3 days\" (with internalChecksFilter \"strict\") in a packageRules entry with matchDatasources [\"crate\"], and turns it off for lockFileMaintenance, replacement, pin, bump, lockfileUpdate and rollback updates of that datasource. Added in 44.5.0 (\"presets: add security:minimumReleaseAgeCrate preset\", https://github.com/renovatebot/renovate/releases/tag/44.5.0); config:best-practices does not include it."),
 		managerMatching: bots.verified({
 			managerMatcher: "matchManagers",
 			categoryMatcher: "matchCategories",
@@ -5747,7 +6229,9 @@ const renovate$1 = {
 
 // src/knowledge/uv.ts
 const { verified: verified$4, uncertain: uncertain$2 } = verifiedOn("2026-10-30");
+const d173$1 = verifiedOn("2026-11-03");
 const guard = verifiedOn("2026-11-01");
+const secrets$1 = verifiedOn("2026-11-03");
 const UV = "https://github.com/astral-sh/uv/blob/0.13.6";
 const RESOLUTION = `${UV}/docs/concepts/resolution.md`;
 const CONFIGURATION$1 = `${UV}/docs/concepts/configuration-files.md`;
@@ -5761,6 +6245,7 @@ const user$1 = verifiedOn("2026-10-31");
 const release13$1 = verifiedOn("2026-11-01");
 const final = verifiedOn("2026-11-01");
 const release14$2 = verifiedOn("2026-11-02");
+const d167$1 = verifiedOn("2026-11-03");
 /** The values clap's BoolishValueParser reads as true, compared without regard to case (user.variables). */
 const TRUE_VALUES = [
 	"1",
@@ -5998,6 +6483,46 @@ const uv$1 = {
 		], `${UV}/crates/uv-static/src/env_vars.rs`, "\"Settings provided via environment variables take precedence over persistent configuration, and settings provided via the command line take precedence over both\" (docs/concepts/configuration-files.md). UV_NO_BUILD_PACKAGE since 0.6.5, UV_NO_BINARY and UV_NO_BINARY_PACKAGE since 0.5.30 (lists separated by spaces), UV_NO_CONFIG since 0.2.30, UV_CONFIG_FILE since 0.1.34. UV_NO_BUILD, UV_NO_BINARY and UV_NO_CONFIG are flags parsed with the BoolishValueParser of clap (crates/uv-cli/src/lib.rs), whose true values are y, yes, t, true, on and 1 and false values n, no, f, false, off and 0, in any case (https://github.com/clap-rs/clap/blob/v4.6.7/clap_builder/src/util/str_to_bool.rs, the clap_builder version in the Cargo.lock of uv); a false value leaves the flag unset (flag() in crates/uv-cli/src/options.rs gives None), so the files decide (with UV_NO_BUILD=0 uv 0.11.32 still refused to build in a review test on 2026-10-31). XDG_CONFIG_HOME and APPDATA move the user directory (see files).")
 	},
 	extra: {
+		machineSettings: secrets$1.verified({
+			variables: [
+				{
+					name: "UV_DEFAULT_INDEX",
+					effect: "replaces"
+				},
+				{
+					name: "UV_INDEX_URL",
+					effect: "replaces"
+				},
+				{
+					name: "UV_INDEX",
+					effect: "adds",
+					list: "spaces"
+				},
+				{
+					name: "UV_EXTRA_INDEX_URL",
+					effect: "adds",
+					list: "spaces"
+				},
+				{
+					name: "UV_FIND_LINKS",
+					effect: "adds",
+					list: "commas"
+				}
+			],
+			configFile: {
+				variable: "UV_CONFIG_FILE",
+				format: "toml",
+				whenMissing: "nothing"
+			}
+		}, `${UV}/crates/uv-static/src/env_vars.rs`, "UV_DEFAULT_INDEX (\"uv will use this index as the default index\") and UV_INDEX_URL (the same, deprecated) replace PyPI; UV_INDEX (\"this space-separated list of additional indexes\", entries may be name=url), UV_EXTRA_INDEX_URL (space-separated, deprecated) and UV_FIND_LINKS (\"this comma-separated list of additional locations\") add places to install from; UV_CONFIG_FILE \"Expects a path to a local uv.toml file to use as the configuration file\", which \"will be used in place of any discovered configuration files (e.g., user-level configuration will be ignored)\" (docs/concepts/configuration-files.md at the same tag, which also says that variables win over configuration files and that the user uv.toml is merged under the project's, arrays concatenated). uv reads none of pip's variables or files (docs/pip/compatibility.md)."),
+		dockerImage: d173$1.verified({
+			image: "ghcr.io/astral-sh/uv",
+			versionTag: "^(\\d+\\.\\d+(?:\\.\\d+)?)(?:-.+)?$"
+		}, `${UV}/docs/guides/integration/docker.md`, "The distroless image is published as ghcr.io/astral-sh/uv:latest, :{major}.{minor}.{patch} and :{major}.{minor} (\"the latest patch version\"), and each derived image (uv on a base such as python3.12-bookworm-slim, alpine or debian) \"is published with uv version tags as ghcr.io/astral-sh/uv:{major}.{minor}.{patch}-{base} and ghcr.io/astral-sh/uv:{major}.{minor}-{base}\"; tags of a base alone (debian, alpine) and latest name no version. \"Use one of the above images with uv pre-installed or install uv by copying the binary from the official distroless Docker image\": COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /uvx /bin/, which it calls best practice to pin. COPY --from takes an image, a build stage or a named context (frontend/dockerfile/docs/reference.md of moby/buildkit at c1cfdbd30b79b4a4908cdccc3c0f9849c30e34e5)."),
+		installedPackage: d173$1.verified({
+			name: "uv",
+			commands: [["pipx", "install"], ["pip", "install"]]
+		}, `${UV}/docs/getting-started/installation.md`, "Besides the standalone installer, the installation page installs uv from PyPI with pipx install uv or pip install uv. So uv==<version> in such a command of a CI job or a Dockerfile is the uv the later commands run (decision D-173)."),
 		environmentNames: release14$2.verified([{
 			prefix: "",
 			match: "exact"
@@ -6153,6 +6678,11 @@ const uv$1 = {
 			"days",
 			"weeks"
 		], RESOLUTION, "Units in the documented examples: 24 hours, 1 week, 30 days."),
+		cutoffDates: d167$1.verified({
+			timestamps: true,
+			offsetRequired: true,
+			dates: "next-day-system-time-zone"
+		}, `${UV}/crates/uv-distribution-types/src/exclude_newer.rs`, "FromStr of ExcludeNewerValue tries an RFC 3339 timestamp (jiff Timestamp, which needs an offset), then a date, which counts from the start of the next day in the system time zone (date.checked_add(1.day()) and to_zoned(TimeZone::system())), then a span. A timestamp or a date is a fixed cutoff: uv uses no file uploaded after it (docs/concepts/resolution.md, \"Reproducible resolutions\"), so it holds back more every day."),
 		excludeWildcards: verified$4({
 			since: null,
 			trailingOnly: false
@@ -6558,6 +7088,7 @@ const uv$1 = {
 
 // src/knowledge/yarn.ts
 const { verified: verified$3, uncertain: uncertain$1, disputed, evidence } = verifiedOn("2026-10-28");
+const d170$1 = verifiedOn("2026-11-03");
 const checked$3 = verifiedOn("2026-10-29");
 const rechecked = verifiedOn("2026-10-31");
 const user = verifiedOn("2026-10-31");
@@ -6565,6 +7096,8 @@ const leftovers$1 = verifiedOn("2026-11-01");
 const novemberSecond = verifiedOn("2026-11-02");
 const release14$1 = verifiedOn("2026-11-02");
 const runners = verifiedOn("2026-11-03");
+const yarnPathPins = verifiedOn("2026-11-03");
+const d167 = verifiedOn("2026-11-03");
 const BERRY = "https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1";
 const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
 /** Variables for settings with a single value, which both the docs and the code accept. */
@@ -6581,7 +7114,7 @@ const SCALAR_VARIABLES = [{
 }];
 const YARNRC = "https://yarnpkg.com/configuration/yarnrc";
 const MANIFEST = "https://yarnpkg.com/configuration/manifest";
-const SCHEMA = "https://github.com/yarnpkg/berry/blob/master/packages/docusaurus/static/configuration/yarnrc.json";
+const SCHEMA = `${BERRY}/packages/docusaurus/static/configuration/yarnrc.json`;
 const release$1 = (version) => `https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F${version}`;
 const noSetting = (source, note) => ({ setting: uncertain$1(null, source, note) });
 const yarn$1 = {
@@ -6592,7 +7125,7 @@ const yarn$1 = {
 		setting: verified$3("npmMinimalAgeGate", `${YARNRC}#npmMinimalAgeGate`),
 		configFiles: verified$3([".yarnrc.yml"], YARNRC, "Also YARN_NPM_MINIMAL_AGE_GATE (general YARN_ env rule) and, since 4.17.0, npmScopes.<scope>.npmMinimalAgeGate. package.json cannot set it."),
 		cliFlag: uncertain$1(null, "https://yarnpkg.com/cli/install", "No flag sets the gate. --no-time-gate on yarn add and yarn up (4.15.0+) disables it for one command; yarn install has no such flag."),
-		unit: verified$3("minutes", "https://github.com/yarnpkg/berry/pull/6942", "Bare numbers are minutes. Since 4.11.0 duration strings with ms, s, m, h, d or w (e.g. 3d, 1w) also work; on 4.10.x a string such as 7d silently had no effect."),
+		unit: d170$1.verified("minutes", `${BERRY}/packages/plugin-npm/sources/index.ts`, "npmMinimalAgeGate is a DURATION setting with unit: DurationUnit.MINUTES, and parseDuration (yarnpkg-core miscUtils.ts) takes a number without a unit in that unit, so bare numbers are minutes. Since 4.11.0 duration strings with ms, s, m, h, d or w (e.g. 3d, 1w) also work; on 4.10.x a string such as 7d silently had no effect."),
 		availableSince: checked$3.verified("4.10.2", release$1("4.10.2"), "The setting arrived in 4.10.0 (release notes, pull request and source; the security docs page at https://yarnpkg.com/features/security says 4.12). 4.10.2 fixed it: \"Bust the metadata cache\" (#6908) and \"support registries without publish times using minimalAgeGate\" (#6907). On 2026-10-29 Yarn 4.10.1 with npmMinimalAgeGate: 4320 refused zod@3.23.8 and esbuild@0.25.0, both over a year old (\"No candidates found\"), while 4.10.2, 4.10.3, 4.11.0 and 4.12.0 installed them and refused a version 4 hours old. depcurfew writes the setting from 4.10.2 on."),
 		default: disputed("The code is unambiguous: off until 4.14.x, 1d from 4.15.0. The published settings schema claimed 3d for 4.11.0-4.14.x and 0m in 4.16.0; the live yarnrc page shows \"1w\", which is an example value. Upgraded projects with an old lockfile get npmMinimalAgeGate: 0 written to .yarnrc.yml (see upgradeMigration).", evidence([{
 			since: "4.10.0",
@@ -6632,7 +7165,7 @@ const yarn$1 = {
 		allowList: {
 			setting: verified$3("dependenciesMeta.<package>.built", `${MANIFEST}#dependenciesMeta.built`),
 			file: verified$3("package.json", `${MANIFEST}#dependenciesMeta`, "Root package.json only; ignored inside workspaces."),
-			availableSince: uncertain$1("2.0.0", "https://github.com/yarnpkg/berry/blob/master/CHANGELOG.md", "dependenciesMeta is documented in the changelog from the 2.x line; the exact first version was not pinned down."),
+			availableSince: d170$1.uncertain("2.0.0", `${BERRY}/CHANGELOG.md`, "dependenciesMeta is documented in the changelog from the 2.x line; the exact first version was not pinned down."),
 			format: verified$3("Object keyed by package name or name@version: { built: true } allows a package when enableScripts is false; { built: false } denies it when enableScripts is true", `${MANIFEST}#dependenciesMeta.built`)
 		},
 		disableAll: verified$3("enableScripts: false", `${YARNRC}#enableScripts`, "Set in .yarnrc.yml; the default since 4.14.0. yarn install --mode=skip-build skips builds for one run. Berry ignores YARN_IGNORE_SCRIPTS.")
@@ -6642,7 +7175,7 @@ const yarn$1 = {
 			setting: verified$3("approvedGitRepositories", `${YARNRC}#approvedGitRepositories`),
 			values: verified$3(["repository URL glob patterns, e.g. https://github.com/org/*"], `${YARNRC}#approvedGitRepositories`),
 			availableSince: verified$3("4.14.0", release$1("4.14.0")),
-			default: verified$3([{
+			default: d170$1.verified([{
 				since: "4.14.0",
 				value: "[] (every git dependency is blocked)"
 			}], SCHEMA, "Upgraded projects with an old lockfile get [\"**\"] written to .yarnrc.yml.")
@@ -6652,16 +7185,16 @@ const yarn$1 = {
 		directory: noSetting("https://yarnpkg.com/protocol/file", "No setting restricts local directory dependencies (file:, link:, portal:), as for local tarballs.")
 	},
 	project: {
-		lockfiles: verified$3([{
+		lockfiles: d170$1.verified([{
 			since: "0.0.0",
 			value: ["yarn.lock"]
-		}], "https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-fslib/sources/path.ts", "Yarn Classic uses the same name; see berryLockfileMarker and classicLockfileHeader to tell them apart."),
+		}], `${BERRY}/packages/yarnpkg-fslib/sources/path.ts`, "Yarn Classic uses the same name; see berryLockfileMarker and classicLockfileHeader to tell them apart."),
 		manifests: verified$3(["package.json"], MANIFEST),
 		workspaces: verified$3({
 			files: ["package.json"],
 			key: "workspaces"
 		}, `${MANIFEST}#workspaces`, "Array of folder glob patterns."),
-		workspacesObjectKey: uncertain$1("packages", "https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Manifest.ts", "Not documented; the manifest parser also accepts { \"packages\": [...] }.")
+		workspacesObjectKey: d170$1.uncertain("packages", `${BERRY}/packages/yarnpkg-core/sources/Manifest.ts`, "Not documented; the manifest parser also accepts { \"packages\": [...] }.")
 	},
 	user: {
 		files: user.verified([{
@@ -6788,7 +7321,28 @@ const yarn$1 = {
 			file: ".yarnrc.yml",
 			key: "yarnPath",
 			classicSince: "1.18.0"
-		}, "https://github.com/yarnpkg/yarn/blob/v1.22.22/src/cli/index.js", "Yarn Classic 1.18.0 and later read yarnPath from .yarnrc.yml (CHANGELOG 1.18.0: \"Adds support for reading yarnPath from v2-produced .yarnrc.yml files\", #7350): getRcPaths in src/util/rc.js looks for .yarnrc and .yarnrc.yml in the folder and its parents, loadRcFile in src/rc.js keeps only yarnPath of a .yml file, resolved against its folder, and start() in src/cli/index.js runs node <yarnPath> before anything else, also before the check that packageManager names Yarn 1 (which only main() does). Yarn 2 and later do the same (run and runYarnPath in packages/yarnpkg-cli/sources/lib.ts at @yarnpkg/cli/4.18.1), unless YARN_IGNORE_PATH is set. So a release committed under yarnPath is the Yarn that runs, whichever Yarn starts, with or without Corepack."),
+		}, "https://github.com/yarnpkg/yarn/blob/v1.22.22/src/cli/index.js", "Yarn Classic 1.18.0 and later read yarnPath from .yarnrc.yml (CHANGELOG 1.18.0: \"Adds support for reading yarnPath from v2-produced .yarnrc.yml files\", #7350): getRcPaths in src/util/rc.js looks for .yarnrc and .yarnrc.yml in the folder and its parents, loadRcFile in src/rc.js keeps only yarnPath of a .yml file, resolved against its folder, and start() in src/cli/index.js runs node <yarnPath> before anything else, also before the check that packageManager names Yarn 1 (which only main() does). Yarn 2 and later do the same (run and runYarnPath in packages/yarnpkg-cli/sources/lib.ts at @yarnpkg/cli/4.18.1), unless YARN_IGNORE_PATH is set. So a release committed under yarnPath is the Yarn that runs, whichever Yarn starts, with or without Corepack, and its version (from the file name, extra.yarnPath) is the version of the project (decision D-165)."),
+		setVersion: yarnPathPins.verified({
+			command: "yarn set version",
+			releases: ".yarn/releases",
+			sets: ["yarnPath", "packageManager"]
+		}, `${BERRY}/packages/plugin-essentials/sources/commands/set/version.ts`, "setVersion saves the release as .yarn/releases/yarn-<version>.cjs, points yarnPath of the project .yarnrc.yml to it (a path relative to the project) and sets packageManager of package.json to yarn@<version>. In 4.18.1 it keeps yarnPath when the project already has one, when the release cannot be represented by Corepack, with --yarn-path or without Corepack enabled; otherwise it removes yarnPath and sets only packageManager. 3.6.4 always writes both (the same file at https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/3.6.4/packages/plugin-essentials/sources/commands/set/version.ts). The command runs in the Yarn yarnPath names, which is the one to upgrade."),
+		classicLockfile: yarnPathPins.verified({
+			lockfileVersion: 1,
+			versionComment: "^yarn lockfile v(\\d+)$",
+			version: "version",
+			resolved: "resolved",
+			hash: "#",
+			alias: "npm:",
+			gitResolved: "^git(\\+[a-z0-9]+)?://",
+			local: [
+				"file:",
+				"link:",
+				"./",
+				"../",
+				"/"
+			]
+		}, "https://github.com/yarnpkg/yarn/blob/v1.22.22/src/lockfile/parse.js", "Yarn Classic (1.22.22) reads yarn.lock with its own parser: a comment that says yarn lockfile v<N> with N above LOCKFILE_VERSION 1 (src/constants.js) makes it throw \"Can't install from a lockfile of version N\"; indentation is two spaces per level (an odd count throws), keys and values are JSON strings in double quotes or words, several keys separated by commas share one value, key: value and key value both set a value, and a later key replaces an earlier one. A file with git conflict markers is read as its two sides, the second side winning per key (parseWithConflict). When the parser fails Yarn retries the file as YAML (FAILSAFE_SCHEMA), and a file with __metadata (Yarn 2 and later) is ignored (src/lockfile/index.js). Each top-level key is a pattern name@range (normalizePattern), an npm: range names another package (registry-resolver.js: npm:<name>@<range>), and its value is an entry, or a string naming another pattern that Yarn follows (Lockfile.getLocked). Lockfile.getLockfile writes version, resolved and integrity of an entry, and its name only when it differs from the name of the pattern, which it never does. An entry with resolved is fetched from that URL without the part after # (explodeHashedUrl in src/util/version.js; getLocked in src/package-request.js), with git (git+<protocol>:// or git://) for URLs that match gitResolved and from the disk for file: and relative paths (src/fetchers/tarball-fetcher.js), whatever its version field says; an entry without resolved is resolved again from its pattern. file:, link:, ./, ../ and absolute paths are local (file-resolver.js, link-resolver.js), whose entries have no resolved. depcurfew reads the name and version of a registry tarball URL as for package-lock.json (npm extra.tarballIdentity and lockfileFormat.registryTarball)."),
 		denyList: user.verified({
 			file: "package.json",
 			setting: "dependenciesMeta.<package>.built",
@@ -6799,7 +7353,7 @@ const yarn$1 = {
 			commands: ["install"],
 			bare: true
 		}, `${BERRY}/packages/plugin-essentials/sources/commands/install.ts`, "The install command (\"install the project dependencies\") has the paths [`install`] and Command.Default, so yarn without a command installs too. yarn add (commandLine.add) adds packages."),
-		commandLine: checked$3.verified({
+		commandLine: d170$1.verified({
 			add: [["yarn", "add"]],
 			run: [{
 				command: ["yarn", "dlx"],
@@ -6815,7 +7369,7 @@ const yarn$1 = {
 				operands: 1
 			}],
 			valueOptions: ["--mode"]
-		}, "https://github.com/yarnpkg/berry/tree/master/packages/plugin-dlx/sources/commands", "dlx.ts (documented at https://yarnpkg.com/cli/dlx) downloads the package named by the command, or the ones given with -p/--package, into a temporary environment and runs it. create.ts (yarn create, not on yarnpkg.com) takes -p/--package as well and runs create-<name>: @foo becomes @foo/create, @foo/app becomes @foo/create-app, foo becomes create-foo, and a name that already matches ^create(-|$) is kept (so is create alone). yarn add (https://yarnpkg.com/cli/add) takes packages as arguments; of its options only --mode takes a value. yarn workspace <workspaceName> <commandName> … runs a command within that workspace, e.g. yarn workspace components add -D react (https://yarnpkg.com/cli/workspace)."),
+		}, "https://github.com/yarnpkg/berry/tree/%40yarnpkg/cli/4.18.1/packages/plugin-dlx/sources/commands", "dlx.ts (documented at https://yarnpkg.com/cli/dlx) downloads the package named by the command, or the ones given with -p/--package, into a temporary environment and runs it. create.ts (yarn create, not on yarnpkg.com) takes -p/--package as well and runs create-<name>: @foo becomes @foo/create, @foo/app becomes @foo/create-app, foo becomes create-foo, and a name that already matches ^create(-|$) is kept (so is create alone). yarn add (https://yarnpkg.com/cli/add) takes packages as arguments; of its options only --mode takes a value. yarn workspace <workspaceName> <commandName> … runs a command within that workspace, e.g. yarn workspace components add -D react (https://yarnpkg.com/cli/workspace)."),
 		runnerOptions: runners.verified({ beforeCommand: [{
 			command: ["yarn", "dlx"],
 			values: "separate"
@@ -6832,12 +7386,12 @@ const yarn$1 = {
 			],
 			workspace: ["workspace:"]
 		}, "https://yarnpkg.com/protocols", "Protocols besides npm: and git: exec:, file:, jsr:, link:, patch:, portal: and workspace:. link: connects an external directory (https://yarnpkg.com/protocol/link), portal: a relative path to a package folder (https://yarnpkg.com/protocol/portal) and file: copies a folder or tarball."),
-		registryOverrides: checked$3.verified({
+		registryOverrides: d170$1.verified({
 			registryOptions: [],
 			registryVariables: ["YARN_NPM_REGISTRY_SERVER"],
 			configOptions: [],
 			configVariables: ["YARN_RC_FILENAME"]
-		}, "https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Configuration.ts", "Environment variables that start with yarn_ (any case) set the setting named by the camel-cased rest, so YARN_NPM_REGISTRY_SERVER sets npmRegistryServer, the registry packages are fetched from (https://yarnpkg.com/configuration/yarnrc#npmRegistryServer). getRcFilename reads yarn_rc_filename (any case) as the name of the configuration file instead of .yarnrc.yml. npmScopes, an object, cannot be set this way."),
+		}, CONFIGURATION, "Environment variables that start with yarn_ (any case) set the setting named by the camel-cased rest, so YARN_NPM_REGISTRY_SERVER sets npmRegistryServer, the registry packages are fetched from (https://yarnpkg.com/configuration/yarnrc#npmRegistryServer). getRcFilename reads yarn_rc_filename (any case) as the name of the configuration file instead of .yarnrc.yml. npmScopes, an object, cannot be set this way."),
 		registryFetch: release14$1.verified({
 			protocol: "npm:",
 			patch: "patch:",
@@ -6854,22 +7408,28 @@ const yarn$1 = {
 			gitCommit: "#commit=",
 			tarball: "\\.(?:tar\\.gz|tgz)$"
 		}, "https://github.com/yarnpkg/berry/blob/@yarnpkg/cli/4.18.1/packages/yarnpkg-core/sources/Project.ts", "Each entry has resolution: name@<locator>: npm:<version> for the registry, <repository>#commit=<sha> for git (GitHub shortcuts become https://github.com/<owner>/<repo>.git), an http(s) URL for tarballs, file:<path> (a .tgz or .tar.gz path is a tarball, anything else a directory), portal: and link: for directories, workspace: for workspace packages, and patch: around the URL-encoded original locator. No field records install scripts; dependenciesMeta.built: false is a user opt-out."),
-		durationStrings: verified$3({
+		durationStrings: d170$1.verified({
 			since: "4.11.0",
 			syntax: "compact",
 			before: "no effect"
-		}, "https://github.com/yarnpkg/berry/pull/6942", "npmMinimalAgeGate accepts a number followed by ms, s, m, h, d or w (e.g. 3d, 1w) since 4.11.0; on 4.10.x such a string silently had no effect."),
-		scriptsSwitch: verified$3({
+		}, release$1("4.11.0"), "The 4.11.0 release notes list \"Core: Create DURATION settings type\" (#6942): npmMinimalAgeGate accepts a number followed by ms, s, m, h, d or w (e.g. 3d, 1w) since 4.11.0 (the pattern ^(\\d*\\.?\\d+)(ms|s|m|h|d|w)?$ in the settings schema at 4.18.1); on 4.10.x such a string silently had no effect."),
+		scriptsSwitch: d167.verified({
 			setting: "enableScripts",
 			allow: true,
-			deny: false
-		}, `${YARNRC}#enableScripts`),
+			deny: false,
+			off: [
+				false,
+				0,
+				"false",
+				"0"
+			]
+		}, `${BERRY}/packages/yarnpkg-core/sources/miscUtils.ts`, "off: the values Yarn reads as false. Configuration.ts reads a BOOLEAN setting with parseBoolean of miscUtils.ts, which takes true, 1, \"true\" and \"1\" as true and false, 0, \"false\" and \"0\" as false and throws on anything else, so enableScripts: 1 or \"true\" runs dependency build scripts like true (yarnrc docs: enableScripts, default true); depcurfew counts every value but the off ones as on, as for YARN_ENABLE_SCRIPTS (decision D-092)."),
 		excludeWildcards: verified$3({
 			since: "4.10.0",
 			trailingOnly: false
 		}, `${YARNRC}#npmPreapprovedPackages`, "Name globs such as @scope/* or package* in npmPreapprovedPackages."),
-		berryLockfileMarker: uncertain$1("__metadata", "https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Project.ts", "Read from code: Yarn 2+ writes a __metadata key into yarn.lock and treats a lockfile without it but with \"yarn lockfile v1\" as Yarn Classic."),
-		classicLockfileHeader: verified$3("# yarn lockfile v1", "https://github.com/yarnpkg/yarn/blob/master/src/lockfile/stringify.js", "Written as # yarn lockfile v${LOCKFILE_VERSION} with LOCKFILE_VERSION = 1 (src/constants.js)."),
+		berryLockfileMarker: d170$1.uncertain("__metadata", `${BERRY}/packages/yarnpkg-core/sources/Project.ts`, "Read from code: Yarn 2+ writes a __metadata key into yarn.lock and treats a lockfile without it but with \"yarn lockfile v1\" as Yarn Classic."),
+		classicLockfileHeader: d170$1.verified("# yarn lockfile v1", "https://github.com/yarnpkg/yarn/blob/v1.22.22/src/lockfile/stringify.js", "Written as # yarn lockfile v${LOCKFILE_VERSION} with LOCKFILE_VERSION = 1 (src/constants.js)."),
 		latestVersion: verified$3("4.18.1", release$1("4.18.1"), "Yarn 6 is still in preview."),
 		bypassFlag: verified$3("--no-time-gate on yarn add and yarn up (4.15.0+)", "https://yarnpkg.com/cli/add"),
 		directoryOptions: leftovers$1.verified({
@@ -6919,21 +7479,21 @@ const yarn$1 = {
 			since: "4.17.0",
 			unset: "1d"
 		}, "https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1/packages/plugin-npm/sources/npmConfigUtils.ts", "getMinimalAgeGate: for a scoped package, a number in npmScopes.<scope>.npmMinimalAgeGate (the scope name without @) replaces the global gate, longer or shorter, and 0 turns the gate off for that scope (acceptance tests \"npmScopes override\" in features/npmMinimalAgeGate.test.ts at 4.18.1; the code is the same in 4.17.0 and absent in 4.16.0). Each npmScopes entry is a shape whose unset properties get their defaults (parseShape and getDefaultValue in yarnpkg-core Configuration.ts), so a scope listed only for its registry gets the default of 1d (scopablePackageGateSettings in plugin-npm index.ts) instead of the global gate; read from the code, no test covers that case."),
-		upgradeMigration: verified$3("When the lockfile predates the new defaults and the key is unset, yarn install writes enableScripts: true, approvedGitRepositories: [\"**\"] and npmMinimalAgeGate: 0 into .yarnrc.yml", "https://github.com/yarnpkg/berry/pull/7135", "Explicit values written by depcurfew prevent the migration."),
-		missingPublishTime: verified$3("Versions without a publish time are quarantined while the gate is on", "https://github.com/yarnpkg/berry/pull/6907"),
-		unknownSettings: uncertain$1("Unknown keys in the project .yarnrc.yml throw (unless enableStrictSettings is false), so settings newer than the pinned Yarn break installs", "https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Configuration.ts", "Read from the current source code; older releases were not checked.")
+		upgradeMigration: d170$1.verified("When the lockfile predates the new defaults and the key is unset, yarn install writes enableScripts: true, approvedGitRepositories: [\"**\"] and npmMinimalAgeGate: 0 into .yarnrc.yml", `${BERRY}/packages/plugin-essentials/sources/commands/install.ts`, "LOCKFILE_MIGRATION_RULES: a lockfile of version below 9 gets approvedGitRepositories [\"**\"] and enableScripts true, below 10 npmMinimalAgeGate 0, each only when no configuration source sets the key (configuration.sources.get(rule.name) === undefined), saved with Configuration.updateConfiguration (\"Migrated your project to the latest Yarn version\"). Explicit values written by depcurfew prevent the migration."),
+		missingPublishTime: d170$1.verified("Versions without a publish time are quarantined while the gate is on", `${BERRY}/packages/plugin-npm/sources/npmConfigUtils.ts`, "shouldBeQuarantined: with a gate, a version whose publish time is missing from the registry document (publishTimes?.[version] undefined) is quarantined; since 4.10.2 (\"fix: support registries without publish times using minimalAgeGate\", #6907)."),
+		unknownSettings: d170$1.uncertain("Unknown keys in the project .yarnrc.yml throw (unless enableStrictSettings is false), so settings newer than the pinned Yarn break installs", CONFIGURATION, "Read from the code at 4.18.1; older releases were not checked.")
 	}
 };
 
 // src/knowledge/osv.ts
 const { verified: verified$2 } = verifiedOn("2026-11-02");
 const { verified: verifiedLater } = verifiedOn("2026-11-03");
-const OSV_DOCS = "https://github.com/google/osv.dev/blob/master/docs";
-const OSV_SCHEMA = "https://github.com/ossf/osv-schema/blob/main/docs/schema.md";
+const OSV_DOCS = "https://github.com/google/osv.dev/blob/v2026.11.03/docs";
+const OSV_SCHEMA = "https://github.com/ossf/osv-schema/blob/v1.9.2/docs/schema.md";
 /** The Go code of the API and the workers of OSV.dev, at the commit that was read. */
 const OSV_GO = "https://github.com/google/osv.dev/blob/b7449847246af793439d06284d340af40cdae854/go";
 const osv = {
-	api: verified$2({
+	api: verifiedLater({
 		url: "https://api.osv.dev",
 		queryBatchPath: "/v1/querybatch",
 		vulnerabilityPath: "/v1/vulns/{id}",
@@ -6946,33 +7506,33 @@ const osv = {
 		pageTokenField: "page_token",
 		maxQueriesPerBatch: 1e3
 	}, `${OSV_DOCS}/api/post-v1-querybatch.md`, "POST /v1/querybatch takes {\"queries\": [...]}, each query as for POST /v1/query: a package by name and ecosystem with a top-level version, or by purl (a version in both places is a 400). It \"Returns vulnerability ids and modified field only. The response ordering will be guaranteed to match the input\": {\"results\": [{\"vulns\": [{\"id\", \"modified\"}], \"next_page_token\"?}]}. A result with more pages has next_page_token; the next request sends page_token only for those queries, and rarely a result holds only a token, so the caller keeps asking until no token comes back. The response is the JSON of v1BatchVulnerabilityList (docs/osv_service_v1.swagger.json), where an empty list is left out. \"MaxQueriesPerQueryBatchRequest is a limit set in osv.dev's API, so is not configurable\" = 1000 (bindings/go/osvdev/osvdev.go, with DefaultBaseURL https://api.osv.dev). A record's page is https://osv.dev/vulnerability/<ID> (docs/faq.md); GET /v1/vulns/{id} returns the record (docs/api/get-v1-vulns.md). Requests are case-sensitive (\"use 'PyPI' instead of 'pypi'\"), and PyPI names are matched after PEP 503 normalization (docs/api/post-v1-query.md). api.osv.dev could not be reached from the machine that read these sources."),
-	paging: verified$2({
+	paging: verifiedLater({
 		perQuery: 1e3,
 		perBatch: 3e3
 	}, `${OSV_DOCS}/api/post-v1-querybatch.md#pagination`, "Pagination happens when \"An individual query within the queryset returns more than 1,000 vulnerabilities\" or \"The entire queryset returns more than 3,000 vulnerabilities total\"; \"These numbers can vary slightly because of threading and the page size may change in the future.\""),
 	ids: verified$2({ pattern: "^[a-zA-Z0-9:_.-]+$" }, "https://github.com/ossf/osv-schema/blob/v1.9.2/docs/schema.md#character-set-constraints", "Version 1.9.2 (October 13, 2026) of the OSV schema: an id is \"<DB>-<ENTRYID>\", and it \"must strictly use ASCII characters matching the regular expression ^[a-zA-Z0-9:_.-]+$\"; \"Characters outside this set (such as spaces, slashes /, backslashes \\, parentheses, or exclamation marks) are not allowed.\" The JSON schema of the same release (validation/schema.json) checks only the prefix (MAL- among the home databases). The schema sets no length for an id."),
-	service: verified$2({
+	service: verifiedLater({
 		rateLimit: null,
 		freshnessMinutes: 15,
 		freshnessShare: .995,
 		responseLimitBytes: 33554432
 	}, `${OSV_DOCS}/faq.md`, "\"Is the API rate limited? No. Currently there is not a limit on the API.\" The response size limit is 32 MiB over HTTP/1.1 and none over HTTP/2. Data freshness objective: \"Data sources no more than 15 minutes stale, 99.5% of the time\". Availability objective 99.9% over 7 days; POST /v1/querybatch latency P50 500 ms, P90 4 s, P95 6 s."),
-	withdrawn: verified$2({
+	withdrawn: verifiedLater({
 		field: "withdrawn",
 		inQueryResponses: false,
 		inRecordResponses: true
 	}, `${OSV_DOCS}/faq.md#how-does-osvdev-handle-withdrawn-records`, "Records with the withdrawn field (an RFC 3339 time, ossf/osv-schema docs/schema.md) \"will be excluded from: the responses to POST API queries\"; they stay in the database, are \"returned by the /vulns/<ID> GET API\" and shown at https://osv.dev/vulnerability/<ID> marked as withdrawn."),
-	malicious: verified$2({
+	malicious: verifiedLater({
 		idPrefix: "MAL-",
 		database: "OpenSSF Malicious Packages",
 		license: "Apache-2.0"
 	}, `${OSV_SCHEMA}`, "The prefix table of the OSV schema lists MAL for the \"Malicious Packages Repository\" (github.com/ossf/malicious-packages/tree/main/osv/); OSV.dev imports it under Apache 2.0 (google/osv.dev docs/data.md). Its README (github.com/ossf/malicious-packages/blob/main/README.md) says false positives \"may be present in our dataset from time-to-time\": a report that is wholly a false positive is moved to osv/withdrawn/ with a withdrawn time, and for false-positive versions of a report those versions move into a database_specific array; reports are not removed. Its CONTRIBUTING.md says ids are assigned automatically and the summary is replaced by a standard one (\"Malicious code in <name> (<ecosystem>)\" in the records)."),
-	ecosystems: verified$2({
+	ecosystems: verifiedLater({
 		npm: "npm",
 		pypi: "PyPI",
 		packagist: "Packagist"
 	}, `${OSV_SCHEMA}#affectedpackage-field`, "Keys are the ecosystems of depcurfew (npm, pypi and packagist; in package names of the policy no prefix, pypi: and composer:), values the ecosystem names of the OSV schema: \"npm\" (an NPM package name), \"PyPI\" (a normalized PyPI package name), \"Packagist\" (a PHP package name; without a :<REMOTE-REPO-URL> suffix it means https://packagist.org). OSV.dev covers all three (google/osv.dev docs/data.md, Covered Ecosystems). How it compares Packagist versions: versionMatching."),
-	versionMatching: verified$2({ packagist: { ignoredPrefixes: ["v", "V"] } }, `${OSV_GO}/internal/database/datastore/vulnerability_matching.go`, "The API (go/cmd/api, with the Datastore store of go/internal/database/datastore) answers a query with a version by buildVersionMatcher: for an ecosystem it knows, it parses the version with the ecosystem helper and keeps the AffectedVersions whose coarse range holds Coarse(version), then matches each listed version of a record by parsing it too and comparing the two (versionIsMatchEcosystemVersionsList, cmp == 0), and the events of its ranges the same way. The Packagist helper (go/osv/ecosystem/packagist.go) parses with semantic.ParsePackagistVersion of google/osv-scalibr v0.5.3 (go/go.mod), whose canonicalizePackagistVersion removes one leading v or V before it compares as PHP's version_compare does (semantic/version-packagist.go at v0.5.3), and its Coarse removes them too, so v8.1.9 and 8.1.9 are the same version both in a query and in a record (also the coarse range the importer stores, go/internal/database/datastore/affected_versions.go). The Python helper of the workers (osv/ecosystems/packagist.py, PackagistVersion.php_canonicalize_version) removes a leading v as well. All at google/osv.dev b7449847246af793439d06284d340af40cdae854 (master on 2026-11-02). A version of composer.lock is therefore sent as Composer wrote it."),
+	versionMatching: verifiedLater({ packagist: { ignoredPrefixes: ["v", "V"] } }, `${OSV_GO}/internal/database/datastore/vulnerability_matching.go`, "The API (go/cmd/api, with the Datastore store of go/internal/database/datastore) answers a query with a version by buildVersionMatcher: for an ecosystem it knows, it parses the version with the ecosystem helper and keeps the AffectedVersions whose coarse range holds Coarse(version), then matches each listed version of a record by parsing it too and comparing the two (versionIsMatchEcosystemVersionsList, cmp == 0), and the events of its ranges the same way. The Packagist helper (go/osv/ecosystem/packagist.go) parses with semantic.ParsePackagistVersion of google/osv-scalibr v0.5.3 (go/go.mod), whose canonicalizePackagistVersion removes one leading v or V before it compares as PHP's version_compare does (semantic/version-packagist.go at v0.5.3), and its Coarse removes them too, so v8.1.9 and 8.1.9 are the same version both in a query and in a record (also the coarse range the importer stores, go/internal/database/datastore/affected_versions.go). The Python helper of the workers (osv/ecosystems/packagist.py, PackagistVersion.php_canonicalize_version) removes a leading v as well. All at google/osv.dev b7449847246af793439d06284d340af40cdae854 (master on 2026-11-02). A version of composer.lock is therefore sent as Composer wrote it."),
 	dataExport: verifiedLater({
 		url: "https://storage.googleapis.com/osv-vulnerabilities",
 		archivePath: "/{folder}/all.zip",
@@ -7092,6 +7652,7 @@ const botOnlyEcosystems = {
 
 // src/knowledge/environment.ts
 const { verified } = verifiedOn("2026-10-28");
+const d170 = verifiedOn("2026-11-03");
 const checked$2 = verifiedOn("2026-10-29");
 const python = verifiedOn("2026-10-30");
 const gitFacts = verifiedOn("2026-10-30");
@@ -7105,8 +7666,12 @@ const recheck = verifiedOn("2026-11-01");
 const finalReview = verifiedOn("2026-11-01");
 const release14 = verifiedOn("2026-11-02");
 const ruby = verifiedOn("2026-11-03");
-const COREPACK_README = "https://github.com/nodejs/corepack/blob/main/README.md";
-const COREPACK_CHANGELOG = "https://github.com/nodejs/corepack/blob/main/CHANGELOG.md";
+const ciOverrides = verifiedOn("2026-11-03");
+const secrets = verifiedOn("2026-11-03");
+const d173 = verifiedOn("2026-11-03");
+const MISE = "https://github.com/jdx/mise/blob/v2026.11.0/docs";
+const COREPACK_README = "https://github.com/nodejs/corepack/blob/v0.36.0/README.md";
+const COREPACK_CHANGELOG = "https://github.com/nodejs/corepack/blob/v0.36.0/CHANGELOG.md";
 const COREPACK_V0_36_0 = "https://github.com/nodejs/corepack/blob/v0.36.0";
 /** The variables Corepack's code reads for its home folder, in order; a variable counts when it is set, even empty (??). */
 const COREPACK_VARIABLES = [
@@ -7149,7 +7714,7 @@ const FSEVENTS = "https://github.com/fsevents/fsevents/blob/v2.3.3";
 const environment = {
 	botOnlyEcosystems,
 	corepack: {
-		packageManagerField: verified({
+		packageManagerField: d170.verified({
 			key: "packageManager",
 			managers: [
 				"npm",
@@ -7157,9 +7722,9 @@ const environment = {
 				"yarn"
 			]
 		}, COREPACK_README, "Format name@x.y.z, optionally followed by +<hash algorithm>.<hash>; a URL to a .js or .tgz file is also allowed. setup-bun also reads bun@x from this key."),
-		devEnginesSince: verified("0.32.0", COREPACK_CHANGELOG, "Limited support at first; since 0.36.0 Corepack uses the devEngines.packageManager range when packageManager is missing."),
-		envFileSince: verified("0.32.0", COREPACK_CHANGELOG, "Corepack reads COREPACK_* keys from .corepack.env; since 0.36.0 only the closest file. COREPACK_ENV_FILE=0 turns it off."),
-		bundledWithNode: verified([
+		devEnginesSince: d170.verified("0.32.0", COREPACK_CHANGELOG, "Limited support at first; since 0.36.0 Corepack uses the devEngines.packageManager range when packageManager is missing."),
+		envFileSince: d170.verified("0.32.0", COREPACK_CHANGELOG, "Corepack reads COREPACK_* keys from .corepack.env; since 0.36.0 only the closest file. COREPACK_ENV_FILE=0 turns it off."),
+		bundledWithNode: d170.verified([
 			{
 				since: "0.0.0",
 				value: false
@@ -7172,7 +7737,7 @@ const environment = {
 				since: "25.0.0",
 				value: false
 			}
-		], "https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V25.md", "Node.js 25.0.0 stopped distributing Corepack; the Corepack README says it ships with Node.js from 14.19.0 up to (but not including) 25.0.0."),
+		], "https://github.com/nodejs/node/blob/v25.9.0/doc/changelogs/CHANGELOG_V25.md", "Node.js 25.0.0 stopped distributing Corepack; the Corepack README says it ships with Node.js from 14.19.0 up to (but not including) 25.0.0."),
 		package: leftovers.verified("corepack", `${COREPACK_V0_36_0}/package.json`, "Its published bin field (publishConfig.bin) declares yarn (./dist/yarn.js), yarnpkg, pnpm and pnpx next to corepack. corepack enable links them from the folder of the corepack executable (a relative symlink to dist/<name>.js on Linux and macOS, a cmd-shim on Windows; sources/commands/Enable.ts), so the package.json behind a yarn or pnpm shim is Corepack's, which says nothing about the version the shim runs."),
 		toolPackages: leftovers.verified({
 			npm: ["npm"],
@@ -7220,7 +7785,7 @@ const environment = {
 				file: "lastKnownGood.json"
 			}]
 		}, `${COREPACK_V0_36_0}/README.md`, "\"COREPACK_HOME can be set in order to define where Corepack should install the package managers. By default it is set to %LOCALAPPDATA%\\node\\corepack on Windows, and to $HOME/.cache/node/corepack everywhere else.\"")),
-		enableNpm: runtimes.verified({
+		enableNpm: d170.verified({
 			command: "enable",
 			npmOnlyWhenNamed: true
 		}, COREPACK_README, "corepack enable [... name] creates shims for the package managers it is given, or for all of them without parameters: \"Note that the npm shims will not be installed unless explicitly requested, as npm is currently distributed with Node.js through other means\". So corepack enable npm makes npm the version Corepack picks (packageManager), while a bare corepack enable leaves the bundled npm."),
@@ -7952,7 +8517,18 @@ const environment = {
 			".nvmrc",
 			".node-version",
 			".tool-versions"
-		], "https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/README.md", "nvm: \"nvm use et. al. will traverse directory structure upwards from the current directory looking for the .nvmrc file\". nodenv: find_local_version_file in libexec/nodenv-version-file checks the directory for .node-version and then each parent up to the root (https://github.com/nodenv/nodenv/blob/5083e9819756c1a127a626a874703349f4ddb2e4/libexec/nodenv-version-file). asdf: the tool versions a .tool-versions file declares \"will be used in that directory and any subdirectories\" (https://github.com/asdf-vm/asdf/blob/master/docs/manage/configuration.md). Volta is not one of them: for_dir in crates/volta-core/src/project/mod.rs \"will search ancestors to find a package.json and use that as the root of the project\" and reads a parent package.json only through extends (https://github.com/volta-cli/volta/blob/main/crates/volta-core/src/project/mod.rs), so the volta key of the root package.json does not reach a project with a package.json of its own.")
+		], "https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/README.md", "nvm: \"nvm use et. al. will traverse directory structure upwards from the current directory looking for the .nvmrc file\". nodenv: find_local_version_file in libexec/nodenv-version-file checks the directory for .node-version and then each parent up to the root (https://github.com/nodenv/nodenv/blob/5083e9819756c1a127a626a874703349f4ddb2e4/libexec/nodenv-version-file). asdf: the tool versions a .tool-versions file declares \"will be used in that directory and any subdirectories\" (https://github.com/asdf-vm/asdf/blob/master/docs/manage/configuration.md). Volta is not one of them: for_dir in crates/volta-core/src/project/mod.rs \"will search ancestors to find a package.json and use that as the root of the project\" and reads a parent package.json only through extends (https://github.com/volta-cli/volta/blob/main/crates/volta-core/src/project/mod.rs), so the volta key of the root package.json does not reach a project with a package.json of its own."),
+		environmentProxy: secrets.verified({
+			variable: "NODE_USE_ENV_PROXY",
+			value: "1",
+			option: "--use-env-proxy",
+			since: ["22.21.0", "24.0.0"],
+			proxyVariables: [
+				"HTTPS_PROXY",
+				"HTTP_PROXY",
+				"NO_PROXY"
+			]
+		}, "https://github.com/nodejs/node/blob/v26.13.0/doc/api/cli.md", "NODE_USE_ENV_PROXY=1 (added in v24.0.0 and v22.21.0, \"Stability: 1.1 - Active Development\"): \"When enabled, Node.js parses the HTTP_PROXY, HTTPS_PROXY and NO_PROXY environment variables during startup, and routes requests through the specified proxy\"; --use-env-proxy does the same and wins over it. doc/api/http.md at the same tag (Built-in Proxy Support, http.setGlobalProxyFromEnv) names fetch() among the requests it covers, and the lower-case spellings win over the upper-case ones. Without it, fetch connects directly, whatever the proxy variables say; Node.js before 22.21.0 has no such switch.")
 	},
 	docker: {
 		imageReference: runtimes.verified({
@@ -7981,6 +8557,13 @@ const environment = {
 			inheritedByStages: true,
 			spaceForm: true
 		}, `${DOCKERFILE_REFERENCE}#env`, "ENV <key>=<value> [<key>=<value>...]: \"This value will be in the environment for all subsequent instructions in the build stage\", and \"A stage inherits any environment variables that were set using ENV by its parent stage or any ancestor\". \"Like command line parsing, quotes and backslashes can be used to include spaces within values\". The alternative \"ENV <key> <value>, omitting the =\" sets one variable, and is discouraged. RUN commands see these variables, and ENV wins over an ARG of the same name."),
+		buildArguments: ciOverrides.verified({
+			instruction: "ARG",
+			runEnvironment: true,
+			inheritedByStages: true,
+			globalNeedsDeclaration: true,
+			environmentWins: true
+		}, `${DOCKERFILE_REFERENCE}#arg`, "ARG <name>[=<default value>]: the variable \"is also passed to all subsequent RUN instructions as a build-time environment variable\"; \"If an ARG instruction has a default value and if there is no value passed at build-time, the builder uses the default\" (--build-arg can give another). \"An ARG variable declared within a build stage is automatically inherited by other stages based on that stage. Unrelated build stages do not have access to the variable.\" \"An ARG declared before a FROM is outside of a build stage, so it can't be used in any instruction after a FROM. To use the default value of an ARG declared before the first FROM use an ARG instruction without a value inside of a build stage.\" \"Environment variables defined using the ENV instruction always override an ARG instruction of the same name.\" (Using ARG variables; Impact on build caching: \"all RUN instructions following an ARG instruction use the ARG variable implicitly (as an environment variable)\".)"),
 		dockerfileNames: runtimes.verified({
 			defaultName: "Dockerfile",
 			suffix: ".Dockerfile"
@@ -8032,7 +8615,7 @@ const environment = {
 	}, `${NPM_PACKAGE_JSON}#devengines`, "Each entry is an object or a list of objects with name (required), version and onFail (warn, error by default, or ignore). Corepack and the setup actions read it too."),
 	devEnginesSince: verified("10.9.0", "https://github.com/npm/cli/blob/v10.9.0/CHANGELOG.md", "npm version that introduced devEngines."),
 	volta: {
-		manifest: verified({
+		manifest: d170.verified({
 			key: "volta",
 			tools: [
 				"node",
@@ -8040,11 +8623,11 @@ const environment = {
 				"pnpm",
 				"yarn"
 			]
-		}, "https://github.com/volta-cli/volta/blob/main/crates/volta-core/src/project/serial.rs", "Also extends: a path to another JSON file with a volta key. pnpm support is experimental and needs VOLTA_FEATURE_PNPM=1."),
-		maintained: verified(false, "https://github.com/volta-cli/volta/blob/main/README.md", "The README says Volta is unmaintained and recommends migrating to mise.")
+		}, "https://github.com/volta-cli/volta/blob/v2.0.2/crates/volta-core/src/project/serial.rs", "Also extends: a path to another JSON file with a volta key. pnpm support is experimental and needs VOLTA_FEATURE_PNPM=1."),
+		maintained: d170.verified(false, "https://github.com/volta-cli/volta/blob/5eedd5fb2f682baceb47a242289111fcd79435a5/README.md", "The README says Volta is unmaintained and recommends migrating to mise.")
 	},
 	asdf: {
-		toolVersionsFile: verified(".tool-versions", "https://github.com/asdf-vm/asdf/blob/master/docs/manage/configuration.md", "One tool per line followed by one or more versions separated by spaces (fallbacks); # starts a comment."),
+		toolVersionsFile: d170.verified(".tool-versions", "https://github.com/asdf-vm/asdf/blob/v0.20.2/docs/manage/configuration.md", "One tool per line followed by one or more versions separated by spaces (fallbacks); # starts a comment."),
 		plugins: verified({
 			nodejs: "node",
 			pnpm: "pnpm",
@@ -8056,13 +8639,30 @@ const environment = {
 			poetry: "poetry"
 		}, "https://github.com/asdf-vm/asdf-plugins/tree/master/plugins", "Short names in the asdf plugin index; there is no plugin named node. python, uv and poetry checked on 2026-10-30 (danhper/asdf-python, asdf-community/asdf-uv, asdf-community/asdf-poetry).")
 	},
+	mise: { config: d173.verified({
+		files: [
+			".mise.toml",
+			"mise.toml",
+			"mise/config.toml",
+			".mise/config.toml",
+			".config/mise.toml",
+			".config/mise/mise.toml",
+			".config/mise/config.toml"
+		],
+		table: "tools",
+		versionKey: "version",
+		tools: {
+			node: "node",
+			python: "python"
+		}
+	}, `${MISE}/configuration.md`, "Config file locations: in each directory \"a file higher in the table overrides one lower down\": mise.local.toml (personal overrides, kept out of version control), mise.toml, mise/config.toml, mise/conf.d/*.toml, .mise/config.toml, .config/mise.toml, .config/mise/mise.toml, .config/mise/config.toml, then .tool-versions; \".mise.toml overrides mise.toml\". [tools] merges per tool: \"The nearest file's entry replaces that tool's whole entry\". Requests (dev-tools/versions.md at the same tag): node = \"24\" is \"a 24.x release\", python = \"3.14.8\" exactly that release, a table names the request kind (node = { path = ... }, a version key in the examples of dev-tools/index.md), and python = [\"3.14\", \"3.13\"] installs both, \"the first one provides the unversioned command\". \"mise does not accept npm-style ranges such as ^24 or >=20 outside package.json\". MISE_NODE_VERSION overrides every file.") },
 	githubActions: {
 		workflows: verified({
 			directory: ".github/workflows",
 			extensions: [".yml", ".yaml"]
 		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax"),
 		jobId: release14.verified({ pattern: "^[A-Za-z_][A-Za-z0-9_-]*$" }, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id", "Read from the page source in github/docs (data/reusables/actions/jobs/section-using-jobs-in-a-workflow-id.md, main on 2026-11-02): \"You must replace <job_id> with a string that is unique to the jobs object. The <job_id> must start with a letter or _ and contain only alphanumeric characters, -, or _.\" The runner checks names the same way with ASCII letters and digits (NameValidation.IsValid in src/Sdk/DTPipelines/Pipelines/Validation/NameValidation.cs of actions/runner, main on 2026-11-02: a-z, A-Z, _ anywhere, digits and, with hyphens allowed, - after the first character)."),
-		setupNode: verified({
+		setupNode: d170.verified({
 			action: "actions/setup-node",
 			installs: ["node"],
 			inputs: [{
@@ -8074,7 +8674,7 @@ const environment = {
 				kind: "version-file",
 				tool: "node"
 			}]
-		}, "https://github.com/actions/setup-node/blob/main/action.yml", "Current major v7. node-version-file reads package.json, .nvmrc, .node-version, .tool-versions or mise.toml; node-version wins when both are set."),
+		}, "https://github.com/actions/setup-node/blob/v7.1.0/action.yml", "Current major v7. node-version-file reads package.json, .nvmrc, .node-version, .tool-versions or mise.toml; node-version wins when both are set."),
 		setupNodeVersions: runtimes.verified({
 			newest: [
 				"latest",
@@ -8086,15 +8686,20 @@ const environment = {
 			ltsPrefix: "lts/",
 			previousLtsPrefix: "lts/-"
 		}, `${SETUP_NODE}/README.md`, "Tag v7.1.0. node-version takes semver (22, 24.8.0, >=10.15.0, 12.x), the NVM LTS syntax (lts/jod, lts/*, lts/-n) and latest, current, node or * for the latest release. A matching version in the runner's tool cache is used first, so a major version such as 24 may give an older release of the line unless check-latest is set."),
-		setupNodeVersionFile: runtimes.verified({
+		setupNodeVersionFile: d173.verified({
 			packageJson: "package.json",
 			packageJsonOrder: [
 				"volta.node",
 				"devEngines.runtime",
 				"engines.node"
 			],
-			textPattern: "^(?:node(js)?\\s+)?v?(?<version>[^\\s]+)$"
-		}, `${SETUP_NODE}/docs/advanced-usage.md`, "node-version-file accepts .nvmrc, .node-version, .tool-versions, mise.toml or package.json, relative to GITHUB_WORKSPACE. In package.json it checks volta.node, then the devEngines.runtime entry named node, then engines.node, then volta.extends. getNodeVersionFromFile in src/util.ts tries JSON, then TOML tools.node, then the first line that matches the pattern, then the whole text trimmed."),
+			textPattern: "^(?:node(js)?\\s+)?v?(?<version>[^\\s]+)$",
+			toml: {
+				table: "tools",
+				key: "node",
+				versionKey: "version"
+			}
+		}, `${SETUP_NODE}/src/util.ts`, "node-version-file accepts .nvmrc, .node-version, .tool-versions, mise.toml or package.json, relative to GITHUB_WORKSPACE (docs/advanced-usage.md at the same commit). In package.json it checks volta.node, then the devEngines.runtime entry named node, then engines.node, then volta.extends. getNodeVersionFromFile tries JSON, then parses the file as TOML (\"Try parsing the file as a mise `mise.toml` file\") and returns tools.node when it is a string, or tools.node.version when it is a table with one, and null for any other tools.node (a list included), then the first line that matches the pattern, then the whole text trimmed."),
 		jobContainer: finalReview.verified({
 			key: "container",
 			imageKey: "image",
@@ -8108,8 +8713,15 @@ const environment = {
 				"step"
 			]
 		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env", "Read from the page source in github/docs (content/actions/reference/workflows-and-actions/workflow-syntax.md and data/reusables/repositories/actions-env-var-note.md, main on 2026-11-01): env is \"A map of variables that are available to the steps of all jobs in the workflow\", jobs.<job_id>.env \"A map of variables that are available to all steps in the job\", and jobs.<job_id>.steps[*].env \"Sets variables for steps to use in the runner environment\"; for the same name GitHub \"uses the most specific variable\": the step's over the job's over the workflow's."),
+		environmentFile: ciOverrides.verified({
+			variable: "GITHUB_ENV",
+			format: "NAME=value",
+			multilineMarker: "<<",
+			laterSteps: true,
+			stepEnvironmentWins: true
+		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable", "Read from the page source in github/docs (content/actions/reference/workflows-and-actions/workflow-commands.md, commit 9e46fa1 of main on 2026-11-03): echo \"{environment_variable_name}={value}\" >> \"$GITHUB_ENV\"; \"You can make an environment variable available to any subsequent steps in a workflow job by defining or updating the environment variable and writing this to the GITHUB_ENV environment file. The step that creates or updates the environment variable does not have access to the new value, but all subsequent steps in a job will have access.\" Multiline values use {name}<<{delimiter}. In actions/runner v2.338.2, SetEnvFileCommand writes each pair into Global.EnvironmentVariables (src/Runner.Worker/FileCommandManager.cs), which holds the env of the workflow and the job, and StepsRunner merges that global env first and the env of the step over it (\"Merge global env\", then \"Evaluate and merge step env\" in src/Runner.Worker/StepsRunner.cs), so a value written there replaces the env of the workflow and the job for the later steps, and the env of a step still wins."),
 		yamlAliases: release14.verified({ accepted: true }, "https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations#yaml-anchors-and-aliases", "Read from the page source in github/docs (content/actions/reference/workflows-and-actions/reusing-workflow-configurations.md, commit 23809bf of main on 2026-11-02), for GitHub.com and GitHub Enterprise Cloud: \"You can use YAML anchors and aliases to reduce repetition in your workflows. An anchor (marked with &) identifies a piece of content that you want to reuse, while an alias (marked with *) repeats that content in another location.\" Its examples reuse the env map of a job (env: *env_vars) and a whole job (alt-test: *base_job), and say that this \"is equivalent to writing the following YAML without anchors and aliases\". The page does not mention merge keys (<<), so depcurfew does not apply them in workflows."),
-		pnpmActionSetup: verified({
+		pnpmActionSetup: d170.verified({
 			action: "pnpm/action-setup",
 			installs: ["pnpm"],
 			inputs: [{
@@ -8117,8 +8729,8 @@ const environment = {
 				kind: "version",
 				tool: "pnpm"
 			}]
-		}, "https://github.com/pnpm/action-setup/blob/master/action.yml", "Current major v6. Without version the action reads devEngines.packageManager or packageManager from package.json (package_json_file)."),
-		pnpmSetup: verified({
+		}, "https://github.com/pnpm/action-setup/blob/v6.1.1/action.yml", "Current major v6. Without version the action reads devEngines.packageManager or packageManager from package.json (package_json_file)."),
+		pnpmSetup: d170.verified({
 			action: "pnpm/setup",
 			installs: ["pnpm"],
 			inputs: [
@@ -8137,8 +8749,8 @@ const environment = {
 					tool: "node"
 				}
 			]
-		}, "https://github.com/pnpm/setup/blob/main/action.yml", "For pnpm 11 and later. Without version it reads devEngines.packageManager or packageManager; runtime takes <name>@<version> for node, bun or deno."),
-		setupBun: verified({
+		}, "https://github.com/pnpm/setup/blob/v3.1.2/action.yml", "For pnpm 11 and later. Without version it reads devEngines.packageManager or packageManager; runtime takes <name>@<version> for node, bun or deno."),
+		setupBun: d170.verified({
 			action: "oven-sh/setup-bun",
 			installs: ["bun"],
 			inputs: [{
@@ -8150,8 +8762,8 @@ const environment = {
 				kind: "version-file",
 				tool: "bun"
 			}]
-		}, "https://github.com/oven-sh/setup-bun/blob/main/action.yml", "Current major v2. Without bun-version it reads packageManager (bun@x), then engines.bun, then installs latest."),
-		setupDeno: verified({
+		}, "https://github.com/oven-sh/setup-bun/blob/v2.2.0/action.yml", "Current major v2. Without bun-version it reads packageManager (bun@x), then engines.bun, then installs latest."),
+		setupDeno: d170.verified({
 			action: "denoland/setup-deno",
 			installs: ["deno"],
 			inputs: [{
@@ -8163,7 +8775,7 @@ const environment = {
 				kind: "version-file",
 				tool: "deno"
 			}]
-		}, "https://github.com/denoland/setup-deno/blob/main/action.yml", "Current major v2. deno-version defaults to 2.x; deno-version-file reads .dvmrc or .tool-versions."),
+		}, "https://github.com/denoland/setup-deno/blob/v2.0.5/action.yml", "Current major v2. deno-version defaults to 2.x; deno-version-file reads .dvmrc or .tool-versions."),
 		setupPython: python.verified({
 			action: "actions/setup-python",
 			installs: ["python"],
@@ -8198,6 +8810,37 @@ const environment = {
 				tool: "uv"
 			}]
 		}, "https://github.com/astral-sh/setup-uv/blob/v10.3.3/action.yml", "Current version v10.3.3, with no moving v10 tag. Without version or version-file it reads required-version from uv.toml, then pyproject.toml, in the working directory, and installs the latest uv when neither has one."),
+		setupPdm: d173.verified({
+			action: "pdm-project/setup-pdm",
+			installs: ["pdm"],
+			inputs: [
+				{
+					name: "version",
+					kind: "version",
+					tool: "pdm",
+					keywords: ["head"]
+				},
+				{
+					name: "python-version",
+					kind: "version",
+					tool: "python"
+				},
+				{
+					name: "python-version-file",
+					kind: "version-file",
+					tool: "python"
+				}
+			]
+		}, "https://github.com/pdm-project/setup-pdm/blob/v4.6/action.yml", "Current version v4.6 (the moving tag v4 is the same commit). version: \"The version of PDM to install, or 'head' to install from the main branch\"; without it the installer installs the latest PDM. src/setup-pdm.ts passes it as --version to the installer script (cmdArgs.push('--version', pdmVersion)). python-version and python-version-file choose the Python it sets up."),
+		miseAction: d173.verified({
+			action: "jdx/mise-action",
+			inputs: {
+				install: "install",
+				inlineConfig: "mise_toml",
+				workingDirectory: "working_directory"
+			},
+			inlineFile: "mise.toml"
+		}, "https://github.com/jdx/mise-action/blob/v5.2.6/action.yml", "Current version v5.2.6 (the moving tag v5 is the same commit). install (default \"true\"): \"if false, will not run `mise install` or `mise bootstrap`\"; mise_toml: \"If present, this value will be written to the mise.toml file\"; working_directory: \"The directory that mise runs in\"; add_shims_to_path (default \"true\") puts the shims of the installed tools on PATH, so the later steps of the job run the Node.js and Python of the mise configuration."),
 		installPoetry: python.verified({
 			action: "snok/install-poetry",
 			installs: ["poetry"],
@@ -8249,7 +8892,7 @@ const environment = {
 			stop: "::stop-commands::{token}",
 			resume: "::{token}::"
 		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#stopping-and-starting-workflow-commands", "Lines between the two are logged without being processed as workflow commands. The token must be randomly generated and unique for each run. Read from the page source in github/docs."),
-		annotations: checked$2.verified({
+		annotations: d170.verified({
 			commands: {
 				error: "error",
 				warning: "warning",
@@ -8266,11 +8909,11 @@ const environment = {
 				["\n", "%0A"]
 			],
 			escapeProperty: [[":", "%3A"], [",", "%2C"]]
-		}, "https://github.com/actions/toolkit/blob/main/packages/core/src/command.ts", "escapeData and escapeProperty in @actions/core: the message and property values replace %, CR and LF; property values also replace : and , because properties are separated by commas. The commands and their file, line and title parameters are on https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands (line counts from 1)."),
-		annotationLimits: checked$2.verified({
+		}, "https://github.com/actions/toolkit/blob/0c3a9c332b678ff1e776f93d728a4ad279803abe/packages/core/src/command.ts", "escapeData and escapeProperty in @actions/core: the message and property values replace %, CR and LF; property values also replace : and , because properties are separated by commas. The commands and their file, line and title parameters are on https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands (line counts from 1)."),
+		annotationLimits: d170.verified({
 			perLevelPerStep: 10,
 			perJob: 50
-		}, "https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations", "10 error, 10 warning and 10 notice annotations per step; 50 annotations per job, summed over all steps. Annotations over the limit are not shown."),
+		}, "https://github.com/actions/toolkit/blob/0c3a9c332b678ff1e776f93d728a4ad279803abe/docs/problem-matchers.md#limitations", "10 error, 10 warning and 10 notice annotations per step; 50 annotations per job, summed over all steps. Annotations over the limit are not shown."),
 		checkRuns: actionChecks.verified({
 			endpoints: {
 				create: "/repos/{repository}/check-runs",
@@ -8297,14 +8940,20 @@ const environment = {
 				apiUrl: "GITHUB_API_URL",
 				repository: "GITHUB_REPOSITORY",
 				sha: "GITHUB_SHA",
-				eventPath: "GITHUB_EVENT_PATH"
+				eventPath: "GITHUB_EVENT_PATH",
+				eventName: "GITHUB_EVENT_NAME"
 			},
 			pullRequestHeadSha: [
 				"pull_request",
 				"head",
 				"sha"
+			],
+			mergeCommitEvents: [
+				"pull_request",
+				"pull_request_review",
+				"pull_request_review_comment"
 			]
-		}, "https://docs.github.com/en/rest/checks/runs", "Read from the sources of this page (#create-a-check-run, #update-a-check-run, #list-check-runs-for-a-git-reference), the REST description github/rest-api-description (descriptions/api.github.com/api.github.com.json, commit f9ed74230d54847b5ca00a1343e8e349e858b8fb) and github/docs (commit 33b1f4a6fec2d9b6fd3d374afa56bcd9f0875b57); content/rest/checks/runs.md is generated from the REST description. POST /repos/{owner}/{repo}/check-runs (\"Create a check run\") needs name and head_sha and takes external_id, \"A reference for the run on the integrator's system\"; PATCH /repos/{owner}/{repo}/check-runs/{check_run_id} (\"Update a check run\") takes the same fields but head_sha, with only summary required in output, and \"OAuth apps and personal access tokens (classic) cannot use this endpoint\"; GET /repos/{owner}/{repo}/commits/{ref}/check-runs (\"List check runs for a Git reference\", ref a SHA, heads/BRANCH or tags/TAG) takes check_name (\"Returns check runs with the specified name\"), filter (latest, the default, or all: \"latest returns the most recent check runs\"), per_page (at most 100) and app_id, and answers {total_count, check_runs}, each with id, name, external_id (nullable), app (with slug, not required) and output.annotations_count. Fine-grained permissions (src/github-apps/data/fpt-2022-11-28/server-to-server-permissions.json in github/docs): the list needs Checks read, update and create need Checks write; \"write includes read\" (github-token-scope-descriptions.md). output.annotations: \"maxItems\": 50 per request, \"To create more than 50 annotations, you have to make multiple requests to the Update a check run endpoint. Each time you update the check run, annotations are appended\"; each annotation requires path, start_line, end_line (lines start at 1), annotation_level (notice, warning or failure) and message (\"The maximum size is 64 KB\"), with an optional title (\"The maximum size is 255 characters\"). No total per check run is documented; the same description says \"GitHub Actions are limited to 10 warning annotations and 10 error annotations per step\" without saying whether that binds check runs created through the API (uncertain). Not documented either: whether only the app that created a run may update it, and the app slug of runs created with the workflow token. A check suite holds the runs of one GitHub App for one commit (using-the-rest-api-to-interact-with-checks.md), and GitHub keeps at most 1000 runs of the same name per suite. status completed needs a conclusion (success, neutral, failure and others); output.title and output.summary (Markdown, maxLength 65535) show in the Checks tab; only GitHub Apps can create check runs, which the workflow token is. checks: write \"permits an action to create a check run\" (data/reusables/actions/github-token-scope-descriptions.md in github/docs, which links the permissions with apiVersion=2022-11-28); a pull request from a fork gets a read-only token unless the repository sends write tokens to such workflows (workflow-syntax.md, How permissions are calculated). For pull_request, GITHUB_SHA is the \"Last merge commit on the GITHUB_REF branch\" (events-that-trigger-workflows.md), so the check goes on pull_request.head.sha from the payload file GITHUB_EVENT_PATH names (webhook-pull-request-opened schema; variables.md for GITHUB_API_URL, GITHUB_REPOSITORY and GITHUB_EVENT_PATH)."),
+		}, "https://docs.github.com/en/rest/checks/runs", "Read from the sources of this page (#create-a-check-run, #update-a-check-run, #list-check-runs-for-a-git-reference), the REST description github/rest-api-description (descriptions/api.github.com/api.github.com.json, commit f9ed74230d54847b5ca00a1343e8e349e858b8fb) and github/docs (commit 33b1f4a6fec2d9b6fd3d374afa56bcd9f0875b57); content/rest/checks/runs.md is generated from the REST description. POST /repos/{owner}/{repo}/check-runs (\"Create a check run\") needs name and head_sha and takes external_id, \"A reference for the run on the integrator's system\"; PATCH /repos/{owner}/{repo}/check-runs/{check_run_id} (\"Update a check run\") takes the same fields but head_sha, with only summary required in output, and \"OAuth apps and personal access tokens (classic) cannot use this endpoint\"; GET /repos/{owner}/{repo}/commits/{ref}/check-runs (\"List check runs for a Git reference\", ref a SHA, heads/BRANCH or tags/TAG) takes check_name (\"Returns check runs with the specified name\"), filter (latest, the default, or all: \"latest returns the most recent check runs\"), per_page (at most 100) and app_id, and answers {total_count, check_runs}, each with id, name, external_id (nullable), app (with slug, not required) and output.annotations_count. Fine-grained permissions (src/github-apps/data/fpt-2022-11-28/server-to-server-permissions.json in github/docs): the list needs Checks read, update and create need Checks write; \"write includes read\" (github-token-scope-descriptions.md). output.annotations: \"maxItems\": 50 per request, \"To create more than 50 annotations, you have to make multiple requests to the Update a check run endpoint. Each time you update the check run, annotations are appended\"; each annotation requires path, start_line, end_line (lines start at 1), annotation_level (notice, warning or failure) and message (\"The maximum size is 64 KB\"), with an optional title (\"The maximum size is 255 characters\"). No total per check run is documented; the same description says \"GitHub Actions are limited to 10 warning annotations and 10 error annotations per step\" without saying whether that binds check runs created through the API (uncertain). Not documented either: whether only the app that created a run may update it, and the app slug of runs created with the workflow token. A check suite holds the runs of one GitHub App for one commit (using-the-rest-api-to-interact-with-checks.md), and GitHub keeps at most 1000 runs of the same name per suite. status completed needs a conclusion (success, neutral, failure and others); output.title and output.summary (Markdown, maxLength 65535) show in the Checks tab; only GitHub Apps can create check runs, which the workflow token is. checks: write \"permits an action to create a check run\" (data/reusables/actions/github-token-scope-descriptions.md in github/docs, which links the permissions with apiVersion=2022-11-28); a pull request from a fork gets a read-only token unless the repository sends write tokens to such workflows (workflow-syntax.md, How permissions are calculated). For pull_request, pull_request_review and pull_request_review_comment, GITHUB_SHA is the \"Last merge commit on the GITHUB_REF branch\" (events-that-trigger-workflows.md), so the check goes on pull_request.head.sha from the payload file GITHUB_EVENT_PATH names; for pull_request_target it is the \"Last commit on the PR base branch\", which actions/checkout checks out by default, so the check goes on GITHUB_SHA there (GITHUB_EVENT_NAME names the event, variables.md) (webhook-pull-request-opened schema; variables.md for GITHUB_API_URL, GITHUB_REPOSITORY and GITHUB_EVENT_PATH)."),
 		stepSummary: checked$2.verified({
 			variable: "GITHUB_STEP_SUMMARY",
 			maxBytes: 1048576
@@ -8331,7 +8980,13 @@ const environment = {
 			path: "/-/v1/search",
 			maxSize: 250,
 			weeklyDownloadsField: "downloads.weekly"
-		}, "https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md", "The description documents text, size (at most 250) and from. Results carried downloads.weekly on 2026-10-29, which the description does not list, and from was ignored, so one query returns at most 250 packages.")
+		}, "https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md", "The description documents text, size (at most 250) and from. Results carried downloads.weekly on 2026-10-29, which the description does not list, and from was ignored, so one query returns at most 250 packages."),
+		githubPackagesTarballs: secrets.verified({
+			host: "npm.pkg.github.com",
+			path: "/download/{scope}/{name}/{version}/{digest}"
+		}, "https://github.com/pnpm/pnpm/blob/v11.28.9/pnpm11/core/types/src/misc.ts", "RegistryServerType: \"A registry that serves tarballs from a content-derived path (GitHub Packages /download/<scope>/<name>/<version>/<sha256>) has no value: the digest is a fact about the bytes rather than about the package's identity, so its URLs are kept in the lockfile instead\"; the test \"keeps GitHub Packages /download/ tarball URLs\" of pnpm11/lockfile/utils/test/toLockfileResolution.ts at the same tag uses https://npm.pkg.github.com/download/@example/private/1.2.3/<40 hex digits>. npm.pkg.github.com is the npm registry of GitHub Packages on github.com; GitHub Enterprise uses npm.SUBDOMAIN.ghe.com or npm.HOSTNAME (content/packages/working-with-a-github-packages-registry/working-with-the-npm-registry.md in github/docs), which depcurfew recognizes only through the .npmrc of the project (npm extra.registryHostTarballs)."),
+		gitlabTarballs: secrets.verified({ path: "{scope}/{name}/-/{scope}/{name}-{version}.tgz" }, "https://gitlab.com/gitlab-org/gitlab/-/blob/v18.5.0-ee/doc/api/packages/npm.md", "GET projects/:id/packages/npm/:package_name/-/:file_name downloads a package file; the metadata names the tarball https://gitlab.example.com/api/v4/projects/1/packages/npm/@myscope/my-pkg/-/@myscope/my-pkg-1.3.7.tgz, so the file name keeps the scope, and the registry is mounted below /api/v4/projects/<id>/packages/npm (or the group and instance endpoints)."),
+		artifactoryTarballs: secrets.verified({ path: "{scope}/{name}/-/{scope}/{name}-{version}.tgz" }, "https://github.com/pnpm/pnpm/blob/v11.28.9/pnpm11/resolving/tarball-url/src/index.ts", "getNpmTarballUrl: \"Artifactory keeps the scope in the filename of a scoped package's tarball (@acme/widget/-/@acme/widget-1.0.0.tgz); the npm layout strips it\". npm's versionFromTgz reads no name and version from such a URL (the part after /-/ is not the file name alone), so npm 12 cannot match it in allowScripts by version.")
 	},
 	pypiIndex: {
 		api: python.verified({
@@ -8954,20 +9609,45 @@ function extraString(tool, key) {
 	if (typeof value !== "string") throw new Error(`knowledge base: ${tool.id} extra.${key} must be a string`);
 	return value;
 }
-function extraValue(tool, key) {
+function extraValue$1(tool, key) {
 	const fact = tool.extra?.[key];
 	return fact === void 0 ? void 0 : first$1(fact);
 }
+/** Where yarnPath is set and how yarn set version names the release (decision D-165). */
+function yarnPathFacts(tool) {
+	const runs = extraValue$1(tool, "yarnPathRuns");
+	const release = extraValue$1(tool, "yarnPath");
+	if (!isRecord(runs) || typeof runs["file"] !== "string" || typeof runs["key"] !== "string") return null;
+	if (!isRecord(release) || typeof release["releaseFile"] !== "string") return null;
+	return {
+		file: runs["file"],
+		key: runs["key"],
+		releaseFile: release["releaseFile"]
+	};
+}
 /** required-version in [tool.uv] of pyproject.toml and at the top of uv.toml; requires-poetry in [tool.poetry]. */
 function requiredVersions(tool, pythonProject) {
-	const required = extraValue(tool, "requiredVersion");
+	const required = extraValue$1(tool, "requiredVersion");
 	if (!isRecord(required) || typeof required["table"] !== "string" || typeof required["key"] !== "string") return [];
 	const key = required["key"];
-	const tables = extraValue(tool, "configTables");
+	const tables = extraValue$1(tool, "configTables");
 	return (isRecord(tables) ? Object.entries(tables).filter((entry) => typeof entry[1] === "string") : [[pythonProject, required["table"]]]).map(([file, table]) => ({
 		file,
 		path: [...table === "" ? [] : table.split("."), key]
 	}));
+}
+/** The official images that hold a tool (ghcr.io/astral-sh/uv), with the tags that name its version (decision D-173). */
+function toolImages(tools) {
+	return ["uv"].flatMap((id) => {
+		const entry = tools.find((candidate) => candidate.id === id);
+		const value = entry === void 0 ? void 0 : extraValue$1(entry, "dockerImage");
+		if (!isRecord(value) || typeof value["image"] !== "string" || typeof value["versionTag"] !== "string") return [];
+		return [{
+			tool: id,
+			image: value["image"],
+			versionTag: new RegExp(value["versionTag"], "u")
+		}];
+	});
 }
 function workspaceFacts(declaration, objectKey) {
 	return declaration === null ? null : {
@@ -8989,13 +9669,13 @@ function detectionFacts(tools, environment) {
 		if (project === void 0) throw new Error(`knowledge base: ${id} has no project facts`);
 		const manifests = unique(values(project.manifests).flat());
 		const ownConfig = values(entry.cooldown.configFiles).flat();
-		const pyprojectTable = extraValue(entry, "pyprojectTable");
-		const order = extraValue(entry, "configFileOrder");
-		const pattern = extraValue(entry, "lockfilePattern");
-		const lockfileFormat = extraValue(entry, "lockfileFormat");
+		const pyprojectTable = extraValue$1(entry, "pyprojectTable");
+		const order = extraValue$1(entry, "configFileOrder");
+		const pattern = extraValue$1(entry, "lockfilePattern");
+		const lockfileFormat = extraValue$1(entry, "lockfileFormat");
 		const createdBy = isRecord(lockfileFormat) ? lockfileFormat["createdBy"] : void 0;
-		const pylockCreatedBy = extraValue(entry, "pylockCreatedBy");
-		const lockfileVersion = extraValue(entry, "lockfileVersion");
+		const pylockCreatedBy = extraValue$1(entry, "pylockCreatedBy");
+		const lockfileVersion = extraValue$1(entry, "lockfileVersion");
 		return {
 			id,
 			ecosystem: entry.ecosystem ?? "npm",
@@ -9026,31 +9706,44 @@ function detectionFacts(tools, environment) {
 	const actions = environment.githubActions;
 	const npm = tool$1(tools, "npm");
 	const pip = tool$1(tools, "pip");
-	const installs = extraValue(npm, "installCommands");
+	const installs = extraValue$1(npm, "installCommands");
 	const installCommands = isRecord(installs) ? Object.values(installs).flatMap((list) => Array.isArray(list) ? list.filter((item) => typeof item === "string") : []) : [];
-	const globalOptions = extraValue(npm, "globalOption");
-	const npmValues = extraValue(npm, "valueOptions");
-	const pipLine = extraValue(pip, "commandLine");
+	const globalOptions = extraValue$1(npm, "globalOption");
+	const npmValues = extraValue$1(npm, "valueOptions");
+	const pipLine = extraValue$1(pip, "commandLine");
 	const interpreter = first$1(environment.python.interpreter);
-	const scope = extraValue(npm, "npmrcScope");
-	const clean = extraValue(npm, "cleanInstall");
+	const scope = extraValue$1(npm, "npmrcScope");
+	const clean = extraValue$1(npm, "cleanInstall");
 	const pipFlag = pip.cooldown.cliFlag === void 0 ? void 0 : first$1(pip.cooldown.cliFlag);
-	const pipVariable = extraValue(pip, "environmentVariable");
-	const pipConfig = extraValue(pip, "configFileVariable");
-	const pipConfigCommand = extraValue(pip, "configCommand");
-	const pipConfigFiles = extraValue(pip, "configFileNames");
-	const poetryTool = tools.find((candidate) => candidate.id === "poetry");
-	const poetryPackage = poetryTool === void 0 ? void 0 : extraValue(poetryTool, "installedPackage");
-	const off = extraValue(npm, "scriptsOff");
-	const omitOptional = npm.extra?.["omitOptional"] === void 0 ? void 0 : extraValue(npm, "omitOptional");
-	const localPrefix = npm.extra?.["localPrefix"] === void 0 ? void 0 : extraValue(npm, "localPrefix");
+	const pipVariable = extraValue$1(pip, "environmentVariable");
+	const pipConfig = extraValue$1(pip, "configFileVariable");
+	const pipConfigCommand = extraValue$1(pip, "configCommand");
+	const pipConfigFiles = extraValue$1(pip, "configFileNames");
+	const installed = [
+		"poetry",
+		"pdm",
+		"pipenv",
+		"uv"
+	].flatMap((id) => {
+		const entry = tools.find((candidate) => candidate.id === id);
+		const value = entry === void 0 ? void 0 : extraValue$1(entry, "installedPackage");
+		if (!isRecord(value) || typeof value["name"] !== "string" || !Array.isArray(value["commands"])) return [];
+		return [{
+			tool: id,
+			name: value["name"],
+			commands: value["commands"].filter((item) => Array.isArray(item) && item.every((word) => typeof word === "string"))
+		}];
+	});
+	const off = extraValue$1(npm, "scriptsOff");
+	const omitOptional = npm.extra?.["omitOptional"] === void 0 ? void 0 : extraValue$1(npm, "omitOptional");
+	const localPrefix = npm.extra?.["localPrefix"] === void 0 ? void 0 : extraValue$1(npm, "localPrefix");
 	const corepackInstall = first$1(environment.corepack.manualInstall);
 	const bundlerTool = tools.find((candidate) => candidate.id === "bundler");
-	const resolve = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "resolveCommands");
-	const bundlerSetting = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "cooldownSetting");
-	const gemInstall = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "gemInstall");
-	const bundlerCli = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "cliCommands");
-	const versionSelector = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "versionSelector");
+	const resolve = bundlerTool === void 0 ? void 0 : extraValue$1(bundlerTool, "resolveCommands");
+	const bundlerSetting = bundlerTool === void 0 ? void 0 : extraValue$1(bundlerTool, "cooldownSetting");
+	const gemInstall = bundlerTool === void 0 ? void 0 : extraValue$1(bundlerTool, "gemInstall");
+	const bundlerCli = bundlerTool === void 0 ? void 0 : extraValue$1(bundlerTool, "cliCommands");
+	const versionSelector = bundlerTool === void 0 ? void 0 : extraValue$1(bundlerTool, "versionSelector");
 	const isStringMap = (value) => isRecord(value) && Object.values(value).every((item) => typeof item === "string");
 	const strings = (value) => Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
 	const others = [
@@ -9059,8 +9752,8 @@ function detectionFacts(tools, environment) {
 		"bun"
 	].flatMap((id) => {
 		const entry = tools.find((candidate) => candidate.id === id);
-		const install = entry === void 0 ? void 0 : extraValue(entry, "projectInstall");
-		const line = entry === void 0 ? void 0 : extraValue(entry, "commandLine");
+		const install = entry === void 0 ? void 0 : extraValue$1(entry, "projectInstall");
+		const line = entry === void 0 ? void 0 : extraValue$1(entry, "commandLine");
 		if (!isRecord(install)) return [];
 		const add = (line?.add ?? []).filter((command) => command[0] === id && command.length === 2).map((command) => command[1] ?? "");
 		return [{
@@ -9114,10 +9807,7 @@ function detectionFacts(tools, environment) {
 			enableCommand: first$1(environment.corepack.enableNpm).command,
 			package: corepackInstall.package
 		},
-		...isRecord(poetryPackage) && typeof poetryPackage["name"] === "string" && Array.isArray(poetryPackage["commands"]) ? { poetry: {
-			name: poetryPackage["name"],
-			commands: poetryPackage["commands"].filter((item) => Array.isArray(item))
-		} } : {},
+		installed,
 		...isRecord(resolve) && typeof resolve["option"] === "string" && isRecord(bundlerSetting) && typeof bundlerSetting["variable"] === "string" && isRecord(gemInstall) && typeof gemInstall["name"] === "string" && typeof gemInstall["separator"] === "string" ? { bundler: {
 			executables: strings(resolve["executables"]),
 			commands: strings(resolve["commands"]),
@@ -9150,7 +9840,8 @@ function detectionFacts(tools, environment) {
 		bots,
 		yarn: {
 			berryMarker: extraString(yarn, "berryLockfileMarker"),
-			classicHeader: extraString(yarn, "classicLockfileHeader")
+			classicHeader: extraString(yarn, "classicLockfileHeader"),
+			yarnPath: yarnPathFacts(yarn)
 		},
 		packageManagerKey: first$1(environment.corepack.packageManagerField).key,
 		devEngines: first$1(environment.devEngines),
@@ -9159,9 +9850,12 @@ function detectionFacts(tools, environment) {
 			file: first$1(environment.asdf.toolVersionsFile),
 			plugins: first$1(environment.asdf.plugins)
 		},
+		mise: first$1(environment.mise.config),
+		miseAction: first$1(actions.miseAction),
 		workflows: first$1(actions.workflows),
 		jobContainer: first$1(actions.jobContainer),
 		workflowEnvironment: { key: first$1(actions.environmentKeys).key },
+		environmentFile: first$1(actions.environmentFile).variable,
 		setupActions: [
 			actions.setupNode,
 			actions.pnpmActionSetup,
@@ -9170,6 +9864,7 @@ function detectionFacts(tools, environment) {
 			actions.setupDeno,
 			actions.setupPython,
 			actions.setupUv,
+			actions.setupPdm,
 			actions.installPoetry,
 			actions.actionsPoetry,
 			actions.setupRuby
@@ -9198,6 +9893,8 @@ function detectionFacts(tools, environment) {
 			pythonTags: first$1(docker.pythonImageTags).tags,
 			codenames: first$1(environment.node.releaseSchedule).flatMap((line) => line.codename === void 0 ? [] : [line.codename]),
 			environment: first$1(docker.environment),
+			buildArguments: first$1(docker.buildArguments),
+			toolImages: toolImages(tools),
 			commands
 		},
 		commands
@@ -9225,6 +9922,23 @@ function isAbsoluteAnywhere(path) {
 
 // src/detect/repository.ts
 const MAX_FILE_SIZE = 1048576;
+/** Lockfiles are often larger than configuration files. */
+const MAX_LOCKFILE_SIZE = 67108864;
+/** The names of lockfiles in the knowledge base (project.lockfiles of every tool), and the pattern of named pylock files. */
+const LOCKFILE_NAMES = new Set(knowledgeBase.flatMap((tool) => tool.project === void 0 ? [] : evidenceOf(tool.project.lockfiles).flatMap((entry) => entry.value.flatMap((version) => [...version.value]))));
+const LOCKFILE_PATTERNS = knowledgeBase.flatMap((tool) => {
+	const pattern = tool.extra?.["lockfilePattern"] === void 0 ? void 0 : evidenceOf(tool.extra["lockfilePattern"])[0]?.value;
+	return typeof pattern === "string" ? [new RegExp(pattern, "u")] : [];
+});
+/**
+* The most a read of the file takes: the limit of lockfiles for a file named as a lockfile of a tool (in any directory),
+* the limit of configuration files otherwise. Every reader of a lockfile then uses the same limit, so that a lockfile a
+* lockfile rule reads is not reported as too large by another reader (decision D-166).
+*/
+function readLimitFor(path) {
+	const name = path.slice(path.lastIndexOf("/") + 1);
+	return LOCKFILE_NAMES.has(name) || LOCKFILE_PATTERNS.some((pattern) => pattern.test(name)) ? MAX_LOCKFILE_SIZE : MAX_FILE_SIZE;
+}
 /** Directories never searched for workspace packages or configuration. */
 const SKIPPED_DIRECTORIES = /* @__PURE__ */ new Set(["node_modules", ".git"]);
 function errorMessage(error) {
@@ -9328,8 +10042,11 @@ var Repository = class {
 		const stats = this.#resolve(path, false)?.stats;
 		return stats !== void 0 && !stats.isFile() && !stats.isDirectory();
 	}
-	/** The text of a file, without a byte order mark; undefined (with a warning when useful) if it cannot be read. */
-	readText(path, limit = MAX_FILE_SIZE) {
+	/**
+	* The text of a file, without a byte order mark; undefined (with a warning when useful) if it cannot be read. The
+	* limit is that of lockfiles for a lockfile and that of configuration files for the rest (readLimitFor).
+	*/
+	readText(path, limit = readLimitFor(path)) {
 		const resolved = this.#resolve(path, true, true);
 		if (resolved === void 0) return void 0;
 		const { real, stats } = resolved;
@@ -9470,10 +10187,10 @@ var TomlDateTime = class {
 		return this.text;
 	}
 };
-const BARE_KEY = /^[A-Za-z0-9_-]+/u;
+const BARE_KEY$1 = /^[A-Za-z0-9_-]+/u;
 const DATE_TIME = /^\d{4}-\d{2}-\d{2}(?:[Tt ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:[Zz]|[+-]\d{2}:\d{2})?)?|^\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?/u;
 const NUMBER = /^[+-]?(?:0x[0-9A-Fa-f_]+|0o[0-7_]+|0b[01_]+|inf|nan|[0-9][0-9_]*(?:\.[0-9][0-9_]*)?(?:[eE][+-]?[0-9_]+)?)/u;
-const ESCAPES = {
+const ESCAPES$1 = {
 	b: "\b",
 	t: "	",
 	n: "\n",
@@ -9552,7 +10269,7 @@ function parseToml(input) {
 		if (char === "u") return unicode(4);
 		if (char === "U") return unicode(8);
 		if (char === "x") return unicode(2);
-		return ESCAPES[char] ?? fail(`invalid escape \\${char}`);
+		return ESCAPES$1[char] ?? fail(`invalid escape \\${char}`);
 	};
 	const basicString = () => {
 		const start = line;
@@ -9615,7 +10332,7 @@ function parseToml(input) {
 		const char = text[index];
 		if (char === "\"") return text.startsWith("\"\"\"", index) ? fail("a key cannot be a multi-line string") : basicString();
 		if (char === "'") return text.startsWith("'''", index) ? fail("a key cannot be a multi-line string") : literalString();
-		const match = BARE_KEY.exec(text.slice(index, index + 256));
+		const match = BARE_KEY$1.exec(text.slice(index, index + 256));
 		if (match === null) return fail("expected a key");
 		index += match[0].length;
 		return match[0];
@@ -16529,12 +17246,31 @@ function rubyInteger$1(text) {
 	return Number(negative ? -big : big);
 }
 /**
-* A plain scalar as Psych 5.5.0's ScalarScanner#tokenize reads it (extra.yamlScalars of Dependabot), as far as numbers
-* go: words, booleans, null, times, dates, infinities and symbols are `other` (no number either way), so are floats;
-* base 60 and INTEGER_LEGACY integers are integers; any other text is a string, also where YAML 1.2 reads a number.
+* A word of up to five characters as Psych 5.5.0 reads it with its default libyaml backend (extra.yamlScalars of
+* Dependabot): ~ and null in any case are null, yes, true and on true, no, false and off false, in any case (YAML 1.1);
+* undefined for any other word, which Psych reads as text.
+*/
+function psychWord(text) {
+	if (text.length > 5 || /^[^ytonf~]/iu.test(text)) return void 0;
+	if (text === "~" || /^null$/iu.test(text)) return { kind: "null" };
+	if (/^(?:yes|true|on)$/iu.test(text)) return {
+		kind: "boolean",
+		value: true
+	};
+	if (/^(?:no|false|off)$/iu.test(text)) return {
+		kind: "boolean",
+		value: false
+	};
+}
+/**
+* A plain scalar as Psych 5.5.0's ScalarScanner#tokenize reads it (extra.yamlScalars of Dependabot), as far as it
+* differs from YAML 1.2: the YAML 1.1 booleans and nulls are `boolean` and `null`; other words, times, dates,
+* infinities, symbols and floats are `other` (as YAML 1.2 reads them, or no number either way); base 60 and
+* INTEGER_LEGACY integers are integers; any other text is a string, also where YAML 1.2 reads a number.
 */
 function psychScalar(text) {
-	if (text === "" || PSYCH_WORD.test(text) || text.includes("\n")) return { kind: "other" };
+	if (text === "") return { kind: "other" };
+	if (PSYCH_WORD.test(text) || text.includes("\n")) return (text.includes("\n") ? void 0 : psychWord(text)) ?? { kind: "other" };
 	if (PSYCH_TIME.test(text) || PSYCH_DATE.test(text)) return { kind: "other" };
 	if (/^\+?\.inf$/iu.test(text) || /^-\.inf$/iu.test(text) || /^\.nan$/iu.test(text) || /^:./u.test(text)) return { kind: "other" };
 	if (PSYCH_BASE60.test(text)) {
@@ -16555,12 +17291,28 @@ function psychScalar(text) {
 		value: text
 	};
 }
-/** Gives the plain values of a document the numbers Psych reads (YamlOptions.psychScalars). */
+/**
+* Whether Psych 5.5.0 reads a plain scalar as this very text (ScalarScanner#tokenize): not for the empty scalar (nil),
+* the YAML 1.1 booleans and nulls, times and dates (which YAML.safe_load does not even accept), infinities, NaN,
+* symbols, base 60 numbers, floats and integers. A string for which this is false has to be quoted in a file Psych
+* reads, so that it stays a string (decision D-171).
+*/
+function psychReadsAsString(text) {
+	if (text === "") return false;
+	if (PSYCH_WORD.test(text) || text.includes("\n")) return text.includes("\n") || psychWord(text) === void 0;
+	if (PSYCH_TIME.test(text) || PSYCH_DATE.test(text)) return false;
+	if (/^\+?\.inf$/iu.test(text) || /^-\.inf$/iu.test(text) || /^\.nan$/iu.test(text) || /^:./u.test(text)) return false;
+	if (PSYCH_BASE60.test(text) || PSYCH_BASE60_FLOAT.test(text)) return false;
+	if (PSYCH_FLOAT.test(text)) return /^[-+]?\.$/u.test(text);
+	return !PSYCH_INTEGER.test(text);
+}
+/** Gives the plain values of a document the numbers, booleans and nulls Psych reads (YamlOptions.psychScalars). */
 function readLikePsych(document) {
 	(0, import_dist.visit)(document, { Scalar(key, node) {
 		if (key === "key" || node.type !== "PLAIN" || typeof node.source !== "string") return;
 		const reading = psychScalar(node.source);
-		if (reading.kind === "integer") node.value = reading.value;
+		if (reading.kind === "integer" || reading.kind === "boolean") node.value = reading.value;
+		else if (reading.kind === "null") node.value = null;
 		else if (reading.kind === "string" && typeof node.value === "number") node.value = reading.value;
 	} });
 }
@@ -16766,24 +17518,24 @@ function parseYamlDocuments(text, lineCounter = new import_dist.LineCounter()) {
 	return (Array.isArray(parsed) ? parsed : []).map((document) => checked$1(document, lineCounter, false));
 }
 /** Parsed documents for reading, newest last: detection and the rules read the same file several times in one run. */
-const READ_CACHE = /* @__PURE__ */ new Map();
-const READ_CACHE_SIZE = 4;
+const READ_CACHE$1 = /* @__PURE__ */ new Map();
+const READ_CACHE_SIZE$1 = 4;
 /**
 * A parsed document and its line counter for reading only, shared by every reader of the same text in a run, so that
 * a large file is parsed once. Nothing may change the document; apply parses its own copy to edit.
 */
 function readYamlDocument(text, options = {}) {
 	const key = `${options.merge === true ? "merge" : "plain"}${options.psychScalars === true ? " psych" : ""}\n${text}`;
-	const cached = READ_CACHE.get(key);
+	const cached = READ_CACHE$1.get(key);
 	if (cached !== void 0) return cached;
 	const lineCounter = new import_dist.LineCounter();
 	const entry = {
 		document: parseYamlDocument(text, lineCounter, options),
 		lineCounter
 	};
-	READ_CACHE.set(key, entry);
-	const oldest = READ_CACHE.keys().next().value;
-	if (READ_CACHE.size > READ_CACHE_SIZE && oldest !== void 0) READ_CACHE.delete(oldest);
+	READ_CACHE$1.set(key, entry);
+	const oldest = READ_CACHE$1.keys().next().value;
+	if (READ_CACHE$1.size > READ_CACHE_SIZE$1 && oldest !== void 0) READ_CACHE$1.delete(oldest);
 	return entry;
 }
 /** One YAML document as plain values; throws its first error, like parse from the yaml package. */
@@ -16838,6 +17590,13 @@ const RESERVED = /* @__PURE__ */ new Set([
 	"}"
 ]);
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/u;
+/**
+* Splits a script into simple commands of words, in one pass over the text. Quotes are removed, a backslash before a
+* line break joins the lines, and `#` at the start of a word starts a comment.
+*/
+function splitCommands(script) {
+	return splitWithDepth(script).map((command) => command.words);
+}
 /**
 * The same, with how deep in ( ) and $( ) each command is: a cd in a subshell does not change the directory of the
 * commands after it (decision D-115).
@@ -17209,18 +17968,25 @@ function pipVersion(spec) {
 	}
 	return spec.trim();
 }
-/** poetry==2.3.0 (or poetry>=2.4) among the operands of an install: the Poetry it installs, as written (decision D-115). */
-function poetryVersions(words, at, facts) {
-	const name = facts.poetry?.name;
-	if (name === void 0) return [];
+/**
+* poetry==2.3.0 (or poetry>=2.4), pdm==2.20.1, pipenv==2025.0.4 or uv==0.8.22 among the operands of an install that the
+* tool's documentation names (`via`, such as pipx install): the tool it installs, with the version as written
+* (decisions D-115 and D-173).
+*/
+function installedVersions(words, at, facts, via) {
+	const tools = facts.installed.filter((entry) => entry.commands.some((command) => command.length === via.length && command.every((word, index) => word === via[index])));
+	if (tools.length === 0) return [];
 	return words.flatMap((word) => {
-		const spec = new RegExp(`^${name}(?:\\[[^\\]]*\\])?\\s*([=<>~!].*)$`, "iu").exec(word.text)?.[1];
-		return spec === void 0 ? [] : [{
-			kind: "upgrade",
-			tool: "poetry",
-			version: pipVersion(spec),
-			offset: at
-		}];
+		for (const tool of tools) {
+			const spec = new RegExp(`^${tool.name}(?:\\[[^\\]]*\\])?\\s*([=<>~!].*)$`, "iu").exec(word.text)?.[1];
+			if (spec !== void 0) return [{
+				kind: "upgrade",
+				tool: tool.tool,
+				version: pipVersion(spec),
+				offset: at
+			}];
+		}
+		return [];
 	});
 }
 /**
@@ -17266,7 +18032,7 @@ function pipCommand(args, at, facts, environment) {
 		tool: "pip",
 		...pipDelay(rest, environment, facts),
 		offset: at
-	}, ...poetryVersions(operands(rest, values), at, facts)];
+	}, ...installedVersions(operands(rest, values), at, facts, ["pip", "install"])];
 }
 /**
 * The command Bundler's CLI runs for its first argument (Thor, extra.cliCommands): a command, an alias (i, package), or
@@ -17362,12 +18128,23 @@ function gemCommand(args, at, facts) {
 		offset: at
 	}] : [];
 }
-/** pipx install poetry==2.3.0: the Poetry it installs. */
+/** pipx install poetry==2.3.0: the Poetry it installs, or the PDM, Pipenv or uv (decision D-173). */
 function pipxCommand(args, at, facts) {
-	const pipx = facts.poetry?.commands.find((command) => command[0] === "pipx");
 	const index = args.findIndex((word) => !word.text.startsWith("-"));
-	if (pipx === void 0 || args[index]?.text !== pipx[1]) return [];
-	return poetryVersions(args.slice(index + 1).filter((word) => !word.text.startsWith("-")), at, facts);
+	const command = args[index]?.text;
+	if (command === void 0) return [];
+	return installedVersions(args.slice(index + 1).filter((word) => !word.text.startsWith("-")), at, facts, ["pipx", command]);
+}
+/** uv tool install pdm==2.20.1: the tool it installs (decision D-173); --from pdm==2.20.1 names it too. */
+function uvCommand(args, at, facts) {
+	const words = args.filter((word) => !word.text.startsWith("-"));
+	const [group, command] = words;
+	if (group === void 0 || command === void 0) return [];
+	return installedVersions(words.slice(2), at, facts, [
+		"uv",
+		group.text,
+		command.text
+	]);
 }
 /**
 * Whether a simple command may change pip's configuration: pip config set, unset or edit, or a word naming pip.conf or
@@ -17430,6 +18207,10 @@ function readCommand(words, facts, depth, environment = /* @__PURE__ */ new Map(
 	};
 	if (name === "pipx") return {
 		found: pipxCommand(args, first.offset, facts),
+		runsNode
+	};
+	if (name === "uv") return {
+		found: uvCommand(args, first.offset, facts),
 		runsNode
 	};
 	if (facts.bundler !== void 0 && facts.bundler.executables.includes(name)) return {
@@ -17702,6 +18483,25 @@ function heredocMarkers(text) {
 	endCommand();
 	return markers;
 }
+/** Dockerfiles already read in this process, newest last: detection and doctor read the same file (decision D-166). */
+const READ_CACHE = /* @__PURE__ */ new Map();
+const READ_CACHE_SIZE = 4;
+/**
+* readDockerfile, shared by every reader of the same text in a run, so that a large Dockerfile is read once. Nothing may
+* change the instructions it returns.
+*/
+function readDockerfileOnce(source, syntax) {
+	const cached = READ_CACHE.get(source);
+	if (cached !== void 0 && cached.syntax === syntax) return cached.instructions;
+	const instructions = readDockerfile(source, syntax);
+	READ_CACHE.set(source, {
+		syntax,
+		instructions
+	});
+	const oldest = READ_CACHE.keys().next().value;
+	if (READ_CACHE.size > READ_CACHE_SIZE && oldest !== void 0) READ_CACHE.delete(oldest);
+	return instructions;
+}
 /** Reads the instructions of a Dockerfile. Every line is looked at once, so the time grows with the size of the file. */
 function readDockerfile(source, syntax) {
 	const lines = source.split(/\r?\n/u);
@@ -17897,6 +18697,73 @@ function substitute(text, args, escape, unreadable = /* @__PURE__ */ new Map()) 
 		ok: true,
 		value: result
 	};
+}
+
+// src/detect/mise.ts
+function isTable(value) {
+	return typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof TomlDateTime);
+}
+/**
+* The request of a tool's entry: "24", ["24", "22"] (the first provides the command) or { version = "24" }; undefined
+* for anything else (a table without a version, such as { path = ... }). `lists`: whether a list gives its first entry.
+*/
+function miseRequest(value, versionKey, lists = true) {
+	if (typeof value === "string") return {
+		request: value,
+		path: []
+	};
+	if (lists && Array.isArray(value)) {
+		const found = miseRequest(value[0], versionKey, false);
+		return found === void 0 ? void 0 : {
+			request: found.request,
+			path: [0, ...found.path]
+		};
+	}
+	if (isTable(value) && typeof value[versionKey] === "string") return {
+		request: value[versionKey],
+		path: [versionKey]
+	};
+}
+/** A tool's request in one parsed mise file, with the line of the request. */
+function requestIn(document, facts, name) {
+	const table = document.root[facts.table];
+	if (!isTable(table) || !Object.hasOwn(table, name)) return void 0;
+	const found = miseRequest(table[name], facts.versionKey);
+	if (found === void 0) return void 0;
+	const line = document.lineOf([
+		facts.table,
+		name,
+		...found.path
+	]) ?? document.lineOf([facts.table, name]);
+	return {
+		request: found.request.trim(),
+		...line === void 0 ? {} : { line }
+	};
+}
+/**
+* The request of each tool mise reads in `directory` (relative to the root, '' or '.' for it), from the nearest
+* directory up to the root and in each from the file that wins first; a file that cannot be parsed is skipped.
+*/
+function miseTools(read, facts, directory = "") {
+	const found = /* @__PURE__ */ new Map();
+	const parts = directory === "" || directory === "." ? [] : directory.split("/").filter((part) => part !== "" && part !== ".");
+	for (let depth = parts.length; depth >= 0; depth--) {
+		const base = depth === 0 ? "." : parts.slice(0, depth).join("/");
+		for (const name of facts.files) {
+			const file = joinPath(base, name);
+			const document = read(file);
+			if (document === void 0) continue;
+			for (const [key, tool] of Object.entries(facts.tools)) {
+				if (found.has(tool)) continue;
+				const request = requestIn(document, facts, key);
+				if (request !== void 0) found.set(tool, {
+					...request,
+					file
+				});
+			}
+		}
+	}
+	return found;
 }
 
 // src/detect/dockerfiles.ts
@@ -18109,17 +18976,83 @@ function copySources(text) {
 	if (/(?:^|\s)--from\b/iu.test(text.trim().slice(0, offset))) return [];
 	return (execWords(rest.trim()) ?? rest.trim().split(/\s+/u).filter(Boolean)).slice(0, -1).filter((word) => !word.startsWith("<<")).slice(0, MAX_COPIES);
 }
+/** The tool an image holds and the version its tag names (ghcr.io/astral-sh/uv:0.8.22, decision D-173). */
+function toolImageVersion(reference, facts) {
+	const [named = ""] = reference.split("@", 1);
+	const slash = named.lastIndexOf("/");
+	const colon = named.lastIndexOf(":");
+	if (colon <= slash) return void 0;
+	const name = named.slice(0, colon).toLowerCase();
+	const tag = named.slice(colon + 1);
+	for (const image of facts.toolImages) {
+		if (name !== image.image.toLowerCase()) continue;
+		const version = image.versionTag.exec(tag)?.[1];
+		return version === void 0 ? void 0 : {
+			tool: image.tool,
+			version
+		};
+	}
+}
+/** The image of COPY --from=<image> (or a stage name, which is no image of a tool). */
+function copyFrom(text) {
+	const { offset } = withoutOptions(text.trim());
+	return /(?:^|\s)--from=(\S+)/iu.exec(text.trim().slice(0, offset))?.[1];
+}
+/** The most variables of a stage kept to expand the versions of its RUN instructions (decision D-173). */
+const MAX_STAGE_VARIABLES = 256;
+/** Tools whose versions read like pip's: ==2.0.1 is 2.0.1. */
+const PIP_SPECS = /* @__PURE__ */ new Set([
+	"pip",
+	"poetry",
+	"pdm",
+	"pipenv",
+	"uv"
+]);
 /** Reads one Dockerfile. */
 function readDockerStages(file, text, facts) {
-	const instructions = readDockerfile(text, facts.syntax);
+	const instructions = readDockerfileOnce(text, facts.syntax);
 	const escape = facts.syntax.escapeCharacters[0] ?? "\\";
 	const args = /* @__PURE__ */ new Map();
 	const unreadable = /* @__PURE__ */ new Map();
 	const stages = [];
 	const named = /* @__PURE__ */ new Map();
 	const environments = [];
+	const buildArguments = [];
 	const versions = [];
 	const notices = [];
+	const stageEnvironment = [];
+	const stageArguments = [];
+	const owned = [];
+	const setVariable = (kind, name, value) => {
+		const index = stageEnvironment.length - 1;
+		const own = owned[index];
+		const list = kind === "env" ? stageEnvironment : stageArguments;
+		const map = list[index];
+		if (own === void 0 || map === void 0) return;
+		if (!own[kind]) {
+			list[index] = new Map(map);
+			own[kind] = true;
+		}
+		const target = list[index];
+		if (target.has(name) || target.size < MAX_STAGE_VARIABLES) target.set(name, value);
+	};
+	const lookup = { get: (name) => {
+		const env = stageEnvironment.at(-1)?.get(name);
+		const arg = stageArguments.at(-1)?.get(name);
+		return facts.buildArguments.environmentWins ? env ?? arg : arg ?? env;
+	} };
+	/** A version written with $VAR or ${VAR}, with the values of the stage; as written when one has none. */
+	const expand = (command) => {
+		const version = command.version;
+		if (version === void 0 || !version.includes("$")) return command;
+		const result = substitute(version, lookup, escape);
+		if (!result.ok) return command;
+		return {
+			...command,
+			version: PIP_SPECS.has(command.tool) ? pipVersion(result.value) : result.value.trim()
+		};
+	};
+	const configVariable = facts.commands.pip.delay?.configVariable;
 	for (const instruction of instructions) {
 		if (instruction.keyword === facts.syntax.globalArgInstruction && stages.length === 0) {
 			for (const [name, value] of argDeclarations(instruction.text)) {
@@ -18181,6 +19114,25 @@ function readDockerStages(file, text, facts) {
 			if (alias !== void 0 && !named.has(alias)) named.set(alias, stages.length);
 			const parent = stage.from === void 0 || !facts.environment.inheritedByStages ? void 0 : environments[stage.from];
 			environments.push(parent ?? /* @__PURE__ */ new Map());
+			const parentArguments = stage.from === void 0 || !facts.buildArguments.inheritedByStages ? void 0 : buildArguments[stage.from];
+			buildArguments.push(parentArguments ?? /* @__PURE__ */ new Map());
+			stageEnvironment.push((stage.from === void 0 || !facts.environment.inheritedByStages ? void 0 : stageEnvironment[stage.from]) ?? /* @__PURE__ */ new Map());
+			stageArguments.push((stage.from === void 0 || !facts.buildArguments.inheritedByStages ? void 0 : stageArguments[stage.from]) ?? /* @__PURE__ */ new Map());
+			owned.push({
+				env: false,
+				args: false
+			});
+			const held = stage.image === void 0 ? void 0 : toolImageVersion(stage.image, facts);
+			if (held !== void 0) versions.push({
+				tool: held.tool,
+				declaration: {
+					version: held.version,
+					source: "dockerfile",
+					file,
+					line: instruction.line,
+					stage: alias ?? String(stages.length)
+				}
+			});
 			stages.push({
 				...fields,
 				commands: []
@@ -18189,17 +19141,46 @@ function readDockerStages(file, text, facts) {
 		}
 		const stage = stages.at(-1);
 		const environment = environments.at(-1);
+		if (instruction.keyword === facts.buildArguments.instruction && facts.buildArguments.runEnvironment && buildArguments.length > 0) {
+			const declared = argDeclarations(instruction.text).flatMap(([name, value]) => {
+				const given = value ?? (facts.buildArguments.globalNeedsDeclaration ? args.get(name) : void 0);
+				return given === void 0 ? [] : [[name, given]];
+			});
+			buildArguments[buildArguments.length - 1] = withVariables(facts.commands, buildArguments.at(-1), declared);
+			for (const [name, value] of declared) setVariable("args", name, value);
+			continue;
+		}
 		if (instruction.keyword === facts.environment.instruction && environment !== void 0) {
-			environments[environments.length - 1] = withVariables(facts.commands, environment, envDeclarations(instruction.text, facts.environment.spaceForm));
+			const declared = envDeclarations(instruction.text, facts.environment.spaceForm);
+			environments[environments.length - 1] = withVariables(facts.commands, environment, declared);
+			for (const [name, value] of declared) setVariable("env", name, value);
 			continue;
 		}
 		if ((instruction.keyword === "COPY" || instruction.keyword === "ADD") && stage !== void 0) {
+			const from = instruction.keyword === "COPY" ? copyFrom(instruction.text) : void 0;
+			const held = from === void 0 ? void 0 : toolImageVersion(from, facts);
+			if (held !== void 0) versions.push({
+				tool: held.tool,
+				declaration: {
+					version: held.version,
+					source: "dockerfile",
+					file,
+					line: instruction.line,
+					stage: stage.name ?? String(stages.length - 1)
+				}
+			});
 			const sources = copySources(instruction.text);
 			if (sources.length > 0) stage.copies = [...stage.copies ?? [], ...sources].slice(0, MAX_COPIES);
 			continue;
 		}
 		if (instruction.keyword !== "RUN" || stage === void 0) continue;
-		const run = runCommands(instruction, facts, environment ?? /* @__PURE__ */ new Map());
+		const runEnvironment = facts.buildArguments.environmentWins ? withVariables(facts.commands, buildArguments.at(-1), environment) : withVariables(facts.commands, environment, buildArguments.at(-1));
+		const run = runCommands(instruction, facts, runEnvironment);
+		const configFile = configVariable === void 0 ? void 0 : runEnvironment.get(configVariable);
+		if (configFile !== void 0 && configFile !== "" && run.commands.some((command) => command.tool === "pip" && command.kind === "install")) {
+			const files = stage.pipConfigFiles ?? [];
+			if (!files.includes(configFile) && files.length < 16) stage.pipConfigFiles = [...files, configFile];
+		}
 		if (run.pipConfig === true) stage.pipConfig = true;
 		const seenCorepack = stage.corepack !== void 0;
 		if (run.corepack !== void 0) stage.corepack ??= run.corepack;
@@ -18207,12 +19188,13 @@ function readDockerStages(file, text, facts) {
 			message,
 			line: instruction.line
 		});
-		for (const command of run.commands) {
+		for (const found of run.commands) {
+			const command = expand(found);
 			stage.commands.push(seenCorepack && command.afterCorepack !== true ? {
 				...command,
 				afterCorepack: true
 			} : command);
-			if ((command.kind === "upgrade" || command.tool === "bundler") && command.version !== void 0 && (command.tool === "npm" || command.tool === "pip" || command.tool === "poetry" || command.tool === "bundler")) versions.push({
+			if ((command.kind === "upgrade" || command.tool === "bundler") && command.version !== void 0 && command.tool !== "pnpm" && command.tool !== "yarn" && command.tool !== "bun") versions.push({
 				tool: command.tool,
 				declaration: {
 					version: command.version,
@@ -18245,8 +19227,120 @@ function dockerfileCandidates(repository, facts, manifests, packages) {
 	return [...new Set(files)].sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
 }
 
+// src/detect/script-variables.ts
+const NAME$2 = /^[A-Za-z_][A-Za-z0-9_]*$/u;
+const REDIRECTION = /^\d?>>?$/u;
+/** Whether a word, with the quotes the splitter removed, is the variable of the environment file: $GITHUB_ENV or ${GITHUB_ENV}. */
+function namesFile(text, variable) {
+	return text === `$${variable}` || text === `\${${variable}}`;
+}
+/**
+* The index of the words that redirect the output of a command into the environment file (`>> "$GITHUB_ENV"`, also
+* written as one word), and how many words the redirection takes; undefined when it writes elsewhere.
+*/
+function fileRedirection(words, variable) {
+	for (let index = 0; index < words.length; index++) {
+		const text = words[index]?.text ?? "";
+		if (REDIRECTION.test(text) && namesFile(words[index + 1]?.text ?? "", variable)) return {
+			index,
+			count: 2
+		};
+		const attached = /^\d?>>?(.+)$/u.exec(text)?.[1];
+		if (attached !== void 0 && namesFile(attached, variable)) return {
+			index,
+			count: 1
+		};
+	}
+}
+/**
+* The lines echo or printf write: echo joins its arguments with spaces (-e reads \n as a line break); printf writes its
+* format, with \n as a line break, or each argument on a line of its own for the format %s\n. undefined for another
+* program or another format.
+*/
+function writtenLines(words) {
+	const program = words[0]?.text;
+	const args = words.slice(1).map((word) => word.text);
+	if (program === "echo") {
+		let escapes = false;
+		while (args.length > 0 && /^-[neE]+$/u.test(args[0] ?? "")) {
+			if ((args[0] ?? "").includes("e")) escapes = true;
+			args.shift();
+		}
+		const text = args.join(" ");
+		return escapes ? text.split("\\n") : [text];
+	}
+	if (program === "printf") {
+		const format = args[0];
+		if (format === void 0) return void 0;
+		if (format === "%s\\n") return args.slice(1);
+		return format.includes("%") ? void 0 : format.split("\\n");
+	}
+}
+/**
+* The variables a script sets and the commands it runs. `environmentFile` names the variable of the environment file
+* (GITHUB_ENV) in a CI run step; a Dockerfile has none. A name=value line written there with a name that is not a
+* variable name, or a multiline value (NAME<<DELIMITER), is not read.
+*/
+function readScript(script, environmentFile) {
+	const variables = [];
+	const commands = [];
+	for (const words of splitCommands(script)) {
+		const { command, assignments } = commandParts(words);
+		const first = command[0];
+		const offset = first?.offset ?? words[0]?.offset ?? 0;
+		if (first === void 0) continue;
+		if (first.text === "export") {
+			for (const word of command.slice(1)) {
+				const equals = word.text.indexOf("=");
+				const name = word.text.slice(0, equals);
+				if (equals > 0 && NAME$2.test(name)) variables.push({
+					name,
+					value: word.text.slice(equals + 1),
+					offset: word.offset,
+					how: "export"
+				});
+			}
+			continue;
+		}
+		for (const [name, value] of assignments) variables.push({
+			name,
+			value,
+			offset,
+			how: "command",
+			program: first.text
+		});
+		commands.push({
+			words: command,
+			assignments,
+			offset
+		});
+		if (environmentFile === void 0) continue;
+		const redirection = fileRedirection(command, environmentFile);
+		if (redirection === void 0) continue;
+		const lines = writtenLines([...command.slice(0, redirection.index), ...command.slice(redirection.index + redirection.count)]);
+		for (const line of lines ?? []) {
+			const equals = line.indexOf("=");
+			const name = line.slice(0, equals);
+			if (equals > 0 && NAME$2.test(name)) variables.push({
+				name,
+				value: line.slice(equals + 1),
+				offset,
+				how: "environment-file"
+			});
+		}
+	}
+	return {
+		variables,
+		commands
+	};
+}
+
 // src/detect/workflows.ts
-const MATRIX_VALUE = /^\$\{\{\s*matrix\.([A-Za-z_][A-Za-z0-9_-]*)\s*\}\}$/u;
+/**
+* One ${{ matrix.<key> }} or ${{ matrix.<key>.<property> }} in a value, with text around it (${{ matrix.node }}.x,
+* decision D-173): the path of the value and the text before and after it.
+*/
+const MATRIX_VALUE = /^([^$]*)\$\{\{\s*matrix\.([A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z_][A-Za-z0-9_-]*)*)\s*\}\}([^$]*)$/u;
 /** At most this many values of one matrix key are checked; a longer list is reported as not checked (a notice). */
 const MAX_MATRIX_VALUES = 256;
 /** The ids GitHub accepts as keys of jobs (environment.githubActions.jobId). */
@@ -18265,7 +19359,7 @@ function declarationJob(declaration, jobs) {
 	const job = jobs.find((entry) => entry.file === declaration.file && entry.id === declaration.job);
 	return jobLabel(declaration.job, job?.line);
 }
-function scalarText(node) {
+function scalarText$1(node) {
 	if (!(0, import_dist.isScalar)(node) || node.value === null || node.value === void 0) return void 0;
 	return String(node.value);
 }
@@ -18273,49 +19367,66 @@ function findAction(actions, uses) {
 	const name = uses.split("@", 1)[0]?.toLowerCase();
 	return actions.find((action) => action.action.toLowerCase() === name);
 }
+/** The scalar of a matrix value at the properties after its key (matrix.cfg.node: node of each object of cfg). */
+function valueAt$1(node, properties) {
+	let current = node;
+	for (const property of properties) {
+		if (!(0, import_dist.isMap)(current)) return void 0;
+		current = current.get(property, true);
+	}
+	return (0, import_dist.isScalar)(current) ? current : void 0;
+}
 /**
-* The values of a matrix key: its list and the values include entries give it, each value once (at its first line),
-* without the values an exclude entry with only this key removes (an entry with more keys removes some combinations
-* only, so the value stays). undefined when they cannot be listed, `too-many` past MAX_MATRIX_VALUES.
+* The values of a matrix key, or of a property of its objects (cfg.node, decision D-173): its list and the values
+* include entries give it, each value once (at its first line), without the values an exclude entry with only this key
+* removes (an entry with more keys removes some combinations only, so the value stays; an object is removed only by an
+* exclude entry equal to it). undefined when they cannot be listed, `too-many` past MAX_MATRIX_VALUES.
 */
-function matrixValues(job, key) {
+function matrixValues(job, path) {
+	const [key = "", ...properties] = path.split(".");
 	const strategy = job.get("strategy");
 	const matrix = (0, import_dist.isMap)(strategy) ? strategy.get("matrix") : void 0;
 	if (!(0, import_dist.isMap)(matrix)) return void 0;
 	const values = /* @__PURE__ */ new Map();
 	const add = (item) => {
-		const text = scalarText(item);
-		if (text === void 0 || values.has(text)) return true;
+		const text = scalarText$1(item);
+		if (item === void 0 || text === void 0 || values.has(text)) return true;
 		if (values.size >= 256) return false;
 		values.set(text, item);
 		return true;
 	};
 	const list = matrix.get(key, true);
-	if ((0, import_dist.isSeq)(list)) for (const item of list.items) {
-		if (!(0, import_dist.isScalar)(item)) return void 0;
-		if (!add(item)) return "too-many";
-	}
-	else if (list !== void 0) return;
-	const include = matrix.get("include");
-	if ((0, import_dist.isSeq)(include)) for (const entry of include.items) {
-		const value = (0, import_dist.isMap)(entry) ? entry.get(key, true) : void 0;
-		if ((0, import_dist.isScalar)(value) && !add(value)) return "too-many";
-	}
+	const excluded = /* @__PURE__ */ new Set();
 	const exclude = matrix.get("exclude");
-	if ((0, import_dist.isSeq)(exclude) && (0, import_dist.isSeq)(list)) {
-		const included = new Set((0, import_dist.isSeq)(include) ? include.items.map((item) => (0, import_dist.isMap)(item) ? scalarText(item.get(key, true)) : void 0) : []);
+	const include = matrix.get("include");
+	if ((0, import_dist.isSeq)(list) && (0, import_dist.isSeq)(exclude)) {
+		const same = (a, b) => JSON.stringify((0, import_dist.isScalar)(a) || (0, import_dist.isMap)(a) || (0, import_dist.isSeq)(a) ? a.toJSON() : a) === JSON.stringify((0, import_dist.isScalar)(b) || (0, import_dist.isMap)(b) || (0, import_dist.isSeq)(b) ? b.toJSON() : b);
+		const included = new Set((0, import_dist.isSeq)(include) ? include.items.map((item) => (0, import_dist.isMap)(item) ? scalarText$1(valueAt$1(item.get(key, true), properties)) : void 0) : []);
 		for (const entry of exclude.items) {
 			if (!(0, import_dist.isMap)(entry) || entry.items.length !== 1) continue;
 			const value = entry.get(key, true);
-			const text = (0, import_dist.isScalar)(value) ? scalarText(value) : void 0;
-			if (text !== void 0 && !included.has(text)) values.delete(text);
+			for (const item of list.items) {
+				if (!same(item, value)) continue;
+				if (properties.length === 0 && included.has(scalarText$1(item))) continue;
+				excluded.add(item);
+			}
 		}
+	}
+	if ((0, import_dist.isSeq)(list)) for (const item of list.items) {
+		if (properties.length === 0 ? !(0, import_dist.isScalar)(item) : !(0, import_dist.isMap)(item)) return void 0;
+		if (excluded.has(item)) continue;
+		if (!add(valueAt$1(item, properties))) return "too-many";
+	}
+	else if (list !== void 0) return;
+	if ((0, import_dist.isSeq)(include)) for (const entry of include.items) {
+		const value = (0, import_dist.isMap)(entry) ? valueAt$1(entry.get(key, true), properties) : void 0;
+		if (value !== void 0 && !add(value)) return "too-many";
 	}
 	return values.size === 0 ? void 0 : [...values.values()];
 }
 /** A working directory as written, without ./ and a trailing /; undefined for the root. */
 function workingDirectory(node) {
-	const text = scalarText(node)?.trim();
+	const text = scalarText$1(node)?.trim();
 	if (text === void 0) return void 0;
 	let value = text.replace(/\\/gu, "/");
 	while (value.startsWith("./")) value = value.slice(2);
@@ -18345,9 +19456,9 @@ function environmentOf(node, resolve = (item) => item, asWritten = /* @__PURE__ 
 	const map = resolve(node);
 	if (!(0, import_dist.isMap)(map)) return found;
 	for (const pair of map.items) {
-		const key = scalarText(pair.key);
+		const key = scalarText$1(pair.key);
 		const item = resolve(pair.value);
-		const value = (key !== void 0 && asWritten.has(key) && (0, import_dist.isScalar)(item) && item.type === "PLAIN" && typeof item.source === "string" ? item.source : void 0) ?? scalarText(item);
+		const value = (key !== void 0 && asWritten.has(key) && (0, import_dist.isScalar)(item) && item.type === "PLAIN" && typeof item.source === "string" ? item.source : void 0) ?? scalarText$1(item);
 		if (key !== void 0 && value !== void 0) found.set(key, value);
 	}
 	return found;
@@ -18359,7 +19470,7 @@ function defaultDirectory(node) {
 	return (0, import_dist.isMap)(run) ? workingDirectory(run.get("working-directory", true)) : void 0;
 }
 /** Whether GitHub expands YAML aliases in workflows (environment.githubActions.yamlAliases, decision D-141). */
-const EXPANDS_ALIASES = evidenceOf(environment.githubActions.yamlAliases)[0]?.value.accepted === true;
+const EXPANDS_ALIASES$1 = evidenceOf(environment.githubActions.yamlAliases)[0]?.value.accepted === true;
 /**
 * Reads an alias (*name) as the node of its anchor, as GitHub expands aliases in workflows (decision D-141): at most
 * MAX_YAML_ALIASES of them in a file, after which the others are not followed and a notice says so.
@@ -18367,7 +19478,7 @@ const EXPANDS_ALIASES = evidenceOf(environment.githubActions.yamlAliases)[0]?.va
 function aliasResolver(document, file, repository, lineOf) {
 	let left = 100;
 	return (node) => {
-		if (!EXPANDS_ALIASES || !(0, import_dist.isAlias)(node)) return node;
+		if (!EXPANDS_ALIASES$1 || !(0, import_dist.isAlias)(node)) return node;
 		if (left <= 0) {
 			if (left === 0) {
 				const line = lineOf(node);
@@ -18393,8 +19504,7 @@ function readWorkflows(repository, facts) {
 	for (const file of files) {
 		const text = repository.readText(file);
 		if (text === void 0) continue;
-		const lineCounter = new import_dist.LineCounter();
-		const document = parseYamlDocument(text, lineCounter);
+		const { document, lineCounter } = readYamlDocument(text);
 		if (document.errors.length > 0) {
 			const message = document.errors[0]?.message.split("\n", 1)[0] ?? "invalid YAML";
 			repository.warn("invalid-file", `cannot parse ${file}: ${message}`, [file]);
@@ -18405,15 +19515,21 @@ function readWorkflows(repository, facts) {
 		const jobs = resolve(document.get("jobs"));
 		if (!(0, import_dist.isMap)(jobs)) continue;
 		const workflowDirectory = defaultDirectory(document.contents);
+		let workflowValues;
+		const workflowLookup = () => {
+			workflowValues ??= environmentOf((0, import_dist.isMap)(document.contents) ? document.contents.get(facts.workflowEnvironment.key) : void 0, resolve);
+			return workflowValues;
+		};
 		const { key: envKey } = facts.workflowEnvironment;
 		const workflowEnvironment = withVariables(facts.commands, environmentOf((0, import_dist.isMap)(document.contents) ? document.contents.get(envKey) : void 0, resolve, asWritten));
 		for (const pair of jobs.items) {
-			const id = scalarText(pair.key);
+			const id = scalarText$1(pair.key);
 			const job = resolve(pair.value);
 			if (id === void 0 || !(0, import_dist.isMap)(job)) continue;
 			const keyLine = (0, import_dist.isScalar)(pair.key) ? lineOf(pair.key) : void 0;
 			const declare = (tool, value, node, step) => {
-				const matrix = "version" in value ? MATRIX_VALUE.exec(value.version)?.[1] : void 0;
+				const parts = "version" in value ? MATRIX_VALUE.exec(value.version) : null;
+				const matrix = parts?.[2];
 				const expanded = matrix === void 0 ? void 0 : matrixValues(job, matrix);
 				if (matrix !== void 0 && expanded === "too-many") {
 					const line = lineOf(node);
@@ -18435,7 +19551,8 @@ function readWorkflows(repository, facts) {
 				}
 				if (matrix !== void 0 && Array.isArray(expanded)) {
 					for (const item of expanded) {
-						const version = scalarText(item);
+						const text = scalarText$1(item);
+						const version = text === void 0 ? void 0 : `${parts?.[1] ?? ""}${text}${parts?.[3] ?? ""}`;
 						const line = lineOf(item);
 						if (version !== void 0) findings.versions.push({
 							tool,
@@ -18472,12 +19589,20 @@ function readWorkflows(repository, facts) {
 				commands: [],
 				runsNode: false
 			};
+			let jobValues;
+			const jobLookup = () => {
+				jobValues ??= {
+					job: environmentOf(job.get(envKey), resolve),
+					container: environmentOf((0, import_dist.isMap)(container) ? container.get(containerEnvKey) : void 0, resolve)
+				};
+				return jobValues;
+			};
 			findings.jobs.push(record);
 			const jobDirectory = defaultDirectory(job) ?? workflowDirectory;
 			const { key: containerKey, imageKey, envKey: containerEnvKey } = facts.jobContainer;
 			const container = resolve(job.get(containerKey, true));
 			const imageNode = (0, import_dist.isMap)(container) ? container.get(imageKey, true) : container;
-			const image = scalarText(imageNode);
+			const image = scalarText$1(imageNode);
 			if (image !== void 0 && (0, import_dist.isScalar)(imageNode) && !image.includes("${{")) {
 				const runtime = imageRuntime(image.trim(), facts.docker);
 				const line = lineOf(imageNode);
@@ -18501,12 +19626,67 @@ function readWorkflows(repository, facts) {
 				}
 			}
 			const jobEnvironment = withVariables(facts.commands, environmentOf((0, import_dist.isMap)(container) ? container.get(containerEnvKey) : void 0, resolve, asWritten), workflowEnvironment, environmentOf(job.get(envKey), resolve, asWritten));
+			/**
+			* jdx/mise-action (decision D-173): the Node.js and Python of the mise configuration of its working directory, which
+			* detection reads from the files there (reader mise, versionFile the directory), or of its mise_toml input; none
+			* with install: false.
+			*/
+			const declareMise = (step, stepLine) => {
+				const known = facts.miseAction;
+				const inputs = step.get("with");
+				const input = (name) => (0, import_dist.isMap)(inputs) ? inputs.get(name, true) : void 0;
+				if (scalarText$1(input(known.inputs.install))?.trim().toLowerCase() === "false") return;
+				const at = {
+					source: "github-actions",
+					file,
+					...stepLine === void 0 ? {} : {
+						line: stepLine,
+						step: stepLine
+					},
+					job: id,
+					reader: "mise"
+				};
+				const inline = input(known.inputs.inlineConfig);
+				const text = scalarText$1(inline);
+				if (text !== void 0) {
+					let document;
+					try {
+						document = parseToml(text);
+					} catch {
+						document = void 0;
+					}
+					for (const [name, tool] of Object.entries(facts.mise.tools)) {
+						const found = document === void 0 ? void 0 : requestIn(document, facts.mise, name);
+						const line = (0, import_dist.isScalar)(inline) ? lineOf(inline) : void 0;
+						if (found !== void 0) findings.versions.push({
+							tool,
+							declaration: {
+								version: found.request,
+								versionFile: `the ${known.inputs.inlineConfig} input`,
+								...at,
+								...line === void 0 ? {} : { line }
+							}
+						});
+					}
+					return;
+				}
+				const directory = workingDirectory(input(known.inputs.workingDirectory)) ?? "";
+				for (const tool of new Set(Object.values(facts.mise.tools))) findings.versions.push({
+					tool,
+					declaration: {
+						versionFile: directory,
+						...at
+					}
+				});
+			};
+			let written = /* @__PURE__ */ new Map();
+			const runDirectories = [];
 			const steps = resolve(job.get("steps"));
 			if (!(0, import_dist.isSeq)(steps)) continue;
 			for (const item of steps.items) {
 				const step = resolve(item);
 				if (!(0, import_dist.isMap)(step)) continue;
-				const uses = scalarText(step.get("uses", true));
+				const uses = scalarText$1(step.get("uses", true));
 				const action = uses === void 0 ? void 0 : findAction(facts.setupActions, uses);
 				if (action !== void 0) {
 					const stepLine = lineOf(step);
@@ -18517,7 +19697,7 @@ function readWorkflows(repository, facts) {
 					const inputs = step.get("with");
 					if ((0, import_dist.isMap)(inputs)) for (const input of action.inputs) {
 						const node = inputs.get(input.name, true);
-						const value = scalarText(node);
+						const value = scalarText$1(node);
 						if (value === void 0 || !(0, import_dist.isScalar)(node)) continue;
 						if (input.kind === "version" && input.tool !== void 0 && input.keywords?.includes(value) !== true) declare(input.tool, { version: value }, node, stepLine);
 						if (input.kind === "version-file" && input.tool !== void 0) declare(input.tool, { versionFile: value }, node, stepLine);
@@ -18527,20 +19707,44 @@ function readWorkflows(repository, facts) {
 						}
 					}
 				}
+				if (uses !== void 0 && uses.split("@", 1)[0]?.toLowerCase() === facts.miseAction.action.toLowerCase()) declareMise(step, lineOf(step));
 				const run = resolve(step.get("run", true));
 				if ((0, import_dist.isScalar)(run) && typeof run.value === "string" && run.range !== void 0 && run.range !== null) {
 					const start = run.range[0];
-					const environment = withVariables(facts.commands, jobEnvironment, environmentOf(step.get(envKey), resolve, asWritten));
-					const found = findToolCommands(text.slice(start, run.range[1]), facts.commands, 0, environment);
+					const environment = withVariables(facts.commands, jobEnvironment, written, environmentOf(step.get(envKey), resolve, asWritten));
+					const script = text.slice(start, run.range[1]);
+					const found = findToolCommands(script, facts.commands, 0, environment);
+					if (script.includes(facts.environmentFile)) {
+						const writes = readScript(script, facts.environmentFile).variables.filter((variable) => variable.how === "environment-file");
+						if (writes.length > 0) written = withVariables(facts.commands, written, writes.map((variable) => [variable.name, variable.value]));
+					}
 					const runLine = lineCounter.linePos(start).line;
 					for (const message of overLimitMessages(found.overLimit, `the run step of ${jobLabel(id, keyLine)} in ${file} (line ${runLine})`)) repository.warn("script-not-followed", message, [file], runLine);
 					record.runsNode ||= found.runsNode;
 					const configVariable = facts.commands.pip.delay?.configVariable;
-					if (found.pipConfig === true || configVariable !== void 0 && (environment.get(configVariable) ?? "") !== "") record.pipConfig = true;
+					const configFile = configVariable === void 0 ? void 0 : environment.get(configVariable);
+					if (found.pipConfig === true || (configFile ?? "") !== "") record.pipConfig = true;
+					if (configFile !== void 0 && configFile !== "" && !(record.pipConfigFiles ?? []).includes(configFile) && (record.pipConfigFiles?.length ?? 0) < 16) record.pipConfigFiles = [...record.pipConfigFiles ?? [], configFile];
 					const seenCorepack = record.corepack !== void 0;
 					if (found.corepack !== void 0) record.corepack ??= lineCounter.linePos(start + found.corepack).line;
 					const stepDirectory = step.has("working-directory") ? workingDirectory(step.get("working-directory", true)) : jobDirectory;
-					for (const { offset, cd, ...command } of found.commands) {
+					if (!runDirectories.includes(stepDirectory ?? "") && runDirectories.length < 64) runDirectories.push(stepDirectory ?? "");
+					let stepValues;
+					const lookup = { get: (name) => {
+						stepValues ??= environmentOf(stepEnvironment, resolve);
+						const { job: own, container: image } = jobLookup();
+						return stepValues.get(name) ?? own.get(name) ?? workflowLookup().get(name) ?? image.get(name);
+					} };
+					const stepEnvironment = step.get(envKey);
+					for (const { offset, cd, ...written } of found.commands) {
+						let command = written;
+						if (command.version?.includes("$") === true) {
+							const result = substitute(command.version, lookup, "\\");
+							if (result.ok) command = {
+								...command,
+								version: command.tool === "npm" || command.tool === "bundler" ? result.value.trim() : pipVersion(result.value)
+							};
+						}
 						const line = lineCounter.linePos(start + offset).line;
 						const directory = commandDirectory(stepDirectory, cd);
 						const afterCorepack = seenCorepack || found.corepack !== void 0 && found.corepack < offset;
@@ -18550,7 +19754,7 @@ function readWorkflows(repository, facts) {
 							...directory === void 0 ? {} : { directory },
 							...afterCorepack ? { afterCorepack: true } : {}
 						});
-						if ((command.tool === "npm" || command.tool === "poetry" || command.tool === "bundler") && (command.kind === "upgrade" || command.tool === "bundler") && command.version !== void 0) findings.versions.push({
+						if (command.tool !== "pip" && command.tool !== "pnpm" && command.tool !== "yarn" && command.tool !== "bun" && (command.kind === "upgrade" || command.tool === "bundler") && command.version !== void 0) findings.versions.push({
 							tool: command.tool,
 							declaration: {
 								version: command.version,
@@ -18563,6 +19767,7 @@ function readWorkflows(repository, facts) {
 					}
 				}
 			}
+			if (runDirectories.some((directory) => directory !== "")) record.directories = runDirectories;
 		}
 	}
 	return findings;
@@ -18705,9 +19910,11 @@ const REPLACEMENT = rule?.value.replacement ?? "-";
 function normalizePythonName(name) {
 	return name.replace(SEPARATORS, REPLACEMENT).toLowerCase();
 }
+const SEPARATOR = new RegExp(`^(?:${SEPARATORS.source})$`, "u");
+const REPLACEMENT_LENGTH = REPLACEMENT.toLowerCase().length;
 
 // src/apply/expected.ts
-function isObject$3(value) {
+function isObject$4(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 /** A copy of `data` with `value` at `path`; missing objects on the way, or values that are not objects, become objects. */
@@ -18719,7 +19926,7 @@ function withValue(data, path, value) {
 		copy[segment] = withValue(data[segment], rest, value);
 		return copy;
 	}
-	const copy = isObject$3(data) ? { ...data } : {};
+	const copy = isObject$4(data) ? { ...data } : {};
 	const key = String(segment);
 	const current = Object.hasOwn(copy, key) ? copy[key] : void 0;
 	Object.defineProperty(copy, key, {
@@ -18748,7 +19955,7 @@ function withValues(data, edits) {
 			root = value;
 			continue;
 		}
-		if (!(Array.isArray(root) && typeof path[0] === "number") && !isObject$3(root)) root = {};
+		if (!(Array.isArray(root) && typeof path[0] === "number") && !isObject$4(root)) root = {};
 		let container = root;
 		for (const [index, segment] of path.entries()) {
 			const last = index === path.length - 1;
@@ -18758,7 +19965,7 @@ function withValues(data, edits) {
 				else {
 					const next = container[segment];
 					const nextSegment = path[index + 1];
-					if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject$3(next)) container[segment] = {};
+					if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject$4(next)) container[segment] = {};
 					container = container[segment];
 				}
 				continue;
@@ -18770,7 +19977,7 @@ function withValues(data, edits) {
 			}
 			const next = Object.hasOwn(object, key) ? object[key] : void 0;
 			const nextSegment = path[index + 1];
-			if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject$3(next)) define(object, key, {});
+			if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject$4(next)) define(object, key, {});
 			container = object[key];
 		}
 	}
@@ -18779,8 +19986,8 @@ function withValues(data, edits) {
 /** A copy of `data` without the key `key` of the object at `path`; `data` itself when there is no object there. */
 function withoutKey(data, path, key) {
 	let current = data;
-	for (const segment of path) current = (isObject$3(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
-	if (!isObject$3(current)) return data;
+	for (const segment of path) current = (isObject$4(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
+	if (!isObject$4(current)) return data;
 	const copy = {};
 	for (const [name, value] of Object.entries(current)) if (name !== key) Object.defineProperty(copy, name, {
 		value,
@@ -18793,7 +20000,7 @@ function withoutKey(data, path, key) {
 /** A copy of `data` with the array at `path` changed by `change`. */
 function withArray(data, path, change) {
 	let current = data;
-	for (const segment of path) current = (isObject$3(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
+	for (const segment of path) current = (isObject$4(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
 	return withValue(data, path, change(Array.isArray(current) ? [...current] : []));
 }
 /** Whether two parsed documents hold the same data, keys in the same order. */
@@ -19072,6 +20279,28 @@ function jsonArrayAppend(text, path, value) {
 		return insertItem(body, array, array.elements.at(-1)?.end, array.elements[0]?.start, (indent) => serialize(value, unit, indent));
 	}, (data) => withArray(data, path, (array) => [...array, value]));
 }
+/**
+* Inserts `value` as element `index` of the array at `path`, before the element there now (after the last one when
+* there is none): on the same line in an inline array; in one written over several lines on a line of its own, right
+* after the line of the [ or of the comma before, so that comments above the element there now stay with it.
+*/
+function jsonArrayInsert(text, path, index, value) {
+	return checked(text, `adding ${JSON.stringify(value)} to ${path.join(".")}`, (body) => {
+		const array = arrayAt(body, path);
+		const element = array.elements[index];
+		if (element === void 0) return jsonArrayAppend(body, path, value);
+		const unit = indentUnit$1(body);
+		if (isSameLine(body, array.start, element.start)) return `${body.slice(0, element.start)}${serialize(value, unit, "").replaceAll(/\n\s*/gu, " ")}, ${body.slice(element.start)}`;
+		const indent = lineIndent(body, element.start);
+		const previous = array.elements[index - 1];
+		const at = endOfLine(body, previous === void 0 ? array.start + 1 : nextSignificant(body, previous.end) + 1);
+		return `${body.slice(0, at)}\n${indent}${serialize(value, unit, indent)},${body.slice(at)}`;
+	}, (data) => withArray(data, path, (array) => [
+		...array.slice(0, index),
+		value,
+		...array.slice(index)
+	]));
+}
 function jsonArrayReplace(text, path, index, value) {
 	return checked(text, `replacing element ${index} of ${path.join(".")}`, (body) => {
 		const element = arrayAt(body, path).elements[index];
@@ -19239,6 +20468,342 @@ function insertBlock(lines, at, entries, separate, marker = BLOCK_START) {
 	];
 }
 
+// src/apply/toml.ts
+const BARE_KEY = /^[A-Za-z0-9_-]+/u;
+const ESCAPES = {
+	b: "\b",
+	t: "	",
+	n: "\n",
+	f: "\f",
+	r: "\r",
+	e: "\x1B",
+	"\"": "\"",
+	"\\": "\\"
+};
+/** A "basic" or 'literal' key part from the quote at `start`, with the index after it; undefined when it does not close on the line. */
+function quotedPart(text, start) {
+	const quote = text[start] ?? "";
+	if (text.startsWith(quote.repeat(3), start)) return void 0;
+	let value = "";
+	let index = start + 1;
+	for (;;) {
+		const char = text[index];
+		if (char === void 0) return void 0;
+		index += 1;
+		if (char === quote) return {
+			value,
+			end: index
+		};
+		if (quote === "'" || char !== "\\") {
+			value += char;
+			continue;
+		}
+		const escape = text[index] ?? "";
+		const digits = escape === "u" ? 4 : escape === "U" ? 8 : escape === "x" ? 2 : 0;
+		if (digits === 0) {
+			const replaced = ESCAPES[escape];
+			if (replaced === void 0) return void 0;
+			value += replaced;
+			index += 1;
+			continue;
+		}
+		const hex = text.slice(index + 1, index + 1 + digits);
+		if (hex.length !== digits || !/^[0-9A-Fa-f]+$/u.test(hex) || Number.parseInt(hex, 16) > 1114111) return void 0;
+		value += String.fromCodePoint(Number.parseInt(hex, 16));
+		index += 1 + digits;
+	}
+}
+/**
+* A key as TOML reads it, from `start` of `text`: bare, "basic" (with escapes) and 'literal' parts joined by dots, with
+* spaces or tabs around each dot (decision D-167), and the index after it; undefined when no key starts there.
+*/
+function readKey(text, start) {
+	const parts = [];
+	let index = start;
+	const spaces = () => {
+		while (text[index] === " " || text[index] === "	") index += 1;
+	};
+	for (;;) {
+		spaces();
+		const char = text[index];
+		if (char === "\"" || char === "'") {
+			const part = quotedPart(text, index);
+			if (part === void 0) return void 0;
+			parts.push(part.value);
+			index = part.end;
+		} else {
+			const bare = BARE_KEY.exec(text.slice(index, index + 256))?.[0];
+			if (bare === void 0) return void 0;
+			parts.push(bare);
+			index += bare.length;
+		}
+		spaces();
+		if (text[index] !== ".") return {
+			parts,
+			end: index
+		};
+		index += 1;
+	}
+}
+/**
+* A key path in one spelling, so that [tool."uv"], [tool . uv] and [tool.uv] name the same table, as they do in TOML:
+* parts that can be bare are written bare, the others as JSON strings.
+*/
+function keyName(parts) {
+	return parts.map((part) => /^[A-Za-z0-9_-]+$/u.test(part) ? part : JSON.stringify(part)).join(".");
+}
+/** The table a header line names ([table] or [[table]]), in the spelling of keyName; undefined for any other line. */
+function headerOf(line) {
+	const start = line.search(/\S/u);
+	if (start === -1 || line[start] !== "[") return void 0;
+	const array = line[start + 1] === "[";
+	const key = readKey(line, start + (array ? 2 : 1));
+	if (key === void 0) return void 0;
+	const close = array ? "]]" : "]";
+	if (!line.startsWith(close, key.end)) return void 0;
+	const rest = line.slice(key.end + close.length).trim();
+	return rest === "" || rest.startsWith("#") ? {
+		name: keyName(key.parts),
+		array
+	} : void 0;
+}
+function isHeader(line) {
+	return headerOf(line) !== void 0;
+}
+/** The key of a `key = value` line in the spelling of keyName: quoted and dotted keys as TOML reads them. */
+function keyOf$2(line) {
+	const trimmed = line.trim();
+	if (trimmed === "" || trimmed.startsWith("#") || trimmed.startsWith("[")) return void 0;
+	const key = readKey(trimmed, 0);
+	if (key !== void 0 && trimmed[key.end] === "=") return keyName(key.parts);
+	const equals = trimmed.indexOf("=");
+	if (equals === -1) return void 0;
+	return trimmed.slice(0, equals).trim().replace(/^["']|["']$/gu, "");
+}
+/** Follows a value through one line: strings (with escapes), multi-line strings, arrays, inline tables, comments. */
+function scanLine(line, state) {
+	let { depth, string } = state;
+	for (let index = 0; index < line.length; index++) {
+		const char = line[index];
+		if (string === "\"\"\"" || string === "'''") {
+			if (string === "\"\"\"" && char === "\\") index += 1;
+			else if (line.startsWith(string, index)) {
+				string = "";
+				index += 2;
+			}
+			continue;
+		}
+		if (string === "\"") {
+			if (char === "\\") index += 1;
+			else if (char === "\"") string = "";
+			continue;
+		}
+		if (string === "'") {
+			if (char === "'") string = "";
+			continue;
+		}
+		if (char === "#") break;
+		if (line.startsWith("\"\"\"", index) || line.startsWith("'''", index)) {
+			string = line.startsWith("\"\"\"", index) ? "\"\"\"" : "'''";
+			index += 2;
+		} else if (char === "\"" || char === "'") string = char;
+		else if (char === "[" || char === "{") depth += 1;
+		else if (char === "]" || char === "}") depth -= 1;
+	}
+	return {
+		depth,
+		string: string === "\"" || string === "'" ? "" : string
+	};
+}
+/** The index of the last line of the value that starts after the `=` on line `index`. */
+function valueEnd(lines, index) {
+	const line = lines[index] ?? "";
+	let state = scanLine(line.slice(line.indexOf("=") + 1), {
+		depth: 0,
+		string: ""
+	});
+	let end = index;
+	while ((state.depth > 0 || state.string !== "") && end + 1 < lines.length) {
+		end += 1;
+		state = scanLine(lines[end] ?? "", state);
+	}
+	return end;
+}
+/** The table each line is in (undefined before the first table), following values over several lines. */
+function tablesOf(lines) {
+	const tables = [];
+	let current;
+	for (let index = 0; index < lines.length; index++) {
+		const line = lines[index] ?? "";
+		const header = headerOf(line);
+		if (header !== void 0) current = header.name;
+		tables[index] = current;
+		if (header === void 0 && keyOf$2(line) !== void 0) {
+			const end = valueEnd(lines, index);
+			for (let next = index + 1; next <= end; next++) tables[next] = current;
+			index = end;
+		}
+	}
+	return tables;
+}
+/**
+* Removes the block with this marker. A labeled block that is not there yet may have been written by an earlier
+* version without the label: an unlabeled block inside the same table is then taken for it.
+*/
+function removeOwnBlock(lines, table, label) {
+	const removed = removeBlock(lines, blockStart(label));
+	if (removed.at !== void 0 || label === void 0) return removed;
+	const tables = tablesOf(lines);
+	const legacy = lines.findIndex((line, index) => blockLabel(line) === "" && (tables[index] ?? "") === table);
+	return legacy === -1 ? removed : removeBlockAt(lines, legacy);
+}
+/**
+* Lines apply commented out in this table (and the dotted keys and subtables of it) come back as they were, every
+* line of the value, when the policy no longer manages their key. Lines commented out in other tables stay.
+*/
+function restoreLines(lines, table, isManaged) {
+	const topLevel = table === "";
+	const prefix = topLevel ? "" : `${table}.`;
+	let current;
+	let section = "table";
+	for (let index = 0; index < lines.length; index++) {
+		const line = lines[index] ?? "";
+		const header = headerOf(line);
+		if (header !== void 0) {
+			current = header.name;
+			section = "table";
+			continue;
+		}
+		const original = commentedOut(line);
+		if (original === void 0) {
+			if (keyOf$2(line) !== void 0) index = valueEnd(lines, index);
+			continue;
+		}
+		const noted = headerOf(original);
+		if (noted !== void 0) {
+			const name = noted.name;
+			section = name.startsWith(prefix) && !isManaged(name.slice(prefix.length)) ? "restored" : "kept";
+			if (section === "restored") lines[index] = original;
+			continue;
+		}
+		const key = keyOf$2(original);
+		if (key === void 0 || section === "kept") continue;
+		const dotted = !topLevel && current === void 0 && key.startsWith(prefix);
+		if (section === "table" && !((topLevel ? current === void 0 : current === table) && !isManaged(key) || dotted && !isManaged(key.slice(prefix.length)))) continue;
+		lines[index] = original;
+		let state = scanLine(original.slice(original.indexOf("=") + 1), {
+			depth: 0,
+			string: ""
+		});
+		while ((state.depth > 0 || state.string !== "") && lines[index + 1]?.startsWith("# ") === true) {
+			index += 1;
+			lines[index] = (lines[index] ?? "").slice(2);
+			state = scanLine(lines[index] ?? "", state);
+		}
+	}
+}
+function writeTomlBlock(body, table, entries, managedKeys, label, scope = "project") {
+	const managed = new Set(managedKeys);
+	const marker = blockStart(label, scope);
+	const removed = removeOwnBlock(splitLines(body), table, label);
+	const lines = [...removed.lines];
+	const topLevel = table === "";
+	if (topLevel && entries.length === 0 && removed.at === 0 && lines[0]?.trim() === "") lines.shift();
+	const headers = /* @__PURE__ */ new Map();
+	const boundaries = [];
+	let current;
+	let definedAtTop = false;
+	const isManaged = (key) => managed.has(key) || [...managed].some((name) => key.startsWith(`${name}.`));
+	restoreLines(lines, table, isManaged);
+	const prefix = topLevel ? "" : `${table}.`;
+	const note = entries.length === 0 ? TURNED_OFF : SUPERSEDED;
+	let inManagedTable = false;
+	for (let index = 0; index < lines.length; index++) {
+		const line = lines[index] ?? "";
+		const header = headerOf(line);
+		if (header !== void 0) {
+			const name = header.name;
+			inManagedTable = name.startsWith(prefix) && isManaged(name.slice(prefix.length));
+			if (inManagedTable) {
+				lines[index] = `${note}${line.trim()}`;
+				continue;
+			}
+			current = name;
+			boundaries.push(index);
+			if (!header.array) headers.set(index, current);
+			continue;
+		}
+		const key = keyOf$2(line);
+		if (key === void 0) continue;
+		const end = valueEnd(lines, index);
+		const inTable = (topLevel ? current === void 0 : current === table) && isManaged(key);
+		const dotted = !topLevel && current === void 0 && key.startsWith(`${table}.`) && isManaged(key.slice(table.length + 1));
+		if (inManagedTable || inTable || dotted) {
+			lines[index] = `${note}${line.trim()}`;
+			for (let next = index + 1; next <= end; next++) lines[next] = `# ${lines[next] ?? ""}`;
+		} else if (!topLevel && current === void 0 && (key === table || key.startsWith(`${table}.`) || table.startsWith(`${key}.`))) definedAtTop = true;
+		index = end;
+	}
+	if (entries.length === 0) return joinLines(withoutCreatedTable(lines, table, removed));
+	if (topLevel) {
+		const firstTable = boundaries[0] ?? lines.length;
+		if (removed.at !== void 0 && removed.at <= firstTable) return joinLines(topBlock(lines, removed.at, entries, removed.separated, marker));
+		let end = firstTable;
+		while (end > 0 && lines[end - 1]?.trim() === "") end -= 1;
+		return joinLines(topBlock(lines, end, entries, void 0, marker));
+	}
+	const headerIndex = [...headers].find(([, name]) => name === table)?.[0] ?? -1;
+	const nextHeaderAfter = (from) => boundaries.find((index) => index > from) ?? -1;
+	if (headerIndex === -1) {
+		if (definedAtTop) throw new Error(`${table} is defined with dotted keys or an inline table, so a [${table}] table cannot be added; move its settings under a [${table}] header`);
+		const prefix = lines.length > 0 && lines.at(-1)?.trim() !== "" ? [...lines, ""] : lines;
+		return joinLines([
+			...prefix,
+			`[${table}]`,
+			...insertBlock([], 0, entries, void 0, marker)
+		]);
+	}
+	if (removed.at !== void 0 && removed.at > headerIndex) {
+		const nextHeader = nextHeaderAfter(headerIndex);
+		if (nextHeader === -1 || removed.at <= nextHeader) return joinLines(insertBlock(lines, removed.at, entries, removed.separated, marker));
+	}
+	let end = nextHeaderAfter(headerIndex);
+	if (end === -1) end = lines.length;
+	while (end > headerIndex + 1 && lines[end - 1]?.trim() === "") end -= 1;
+	return joinLines(insertBlock(lines, end, entries, void 0, marker));
+}
+/**
+* The table apply created for its block goes away with the block when nothing else is in it (decision D-116). apply
+* writes such a table as its header with the block right below it, and the blank line before the header; a block it
+* added to a table that was there follows a blank line after the header, which removeBlockAt reports as `separated`.
+* So a table with anything else in it, with a comment on its header line, or with the block apart from the header, is
+* the user's and stays, also when it is empty.
+*/
+function withoutCreatedTable(lines, table, removed) {
+	const at = removed.at;
+	if (table === "" || at === void 0 || removed.separated || at === 0) return lines;
+	const header = at - 1;
+	if (lines[header]?.trim() !== `[${table}]`) return lines;
+	let end = at;
+	while (end < lines.length && !isHeader(lines[end] ?? "")) {
+		if ((lines[end] ?? "").trim() !== "") return lines;
+		end += 1;
+	}
+	const rest = [...lines.slice(0, header), ...lines.slice(at)];
+	if (header > 0 && rest[header - 1]?.trim() === "" && (header === rest.length || rest[header]?.trim() === "")) rest.splice(header - 1, 1);
+	return rest;
+}
+/**
+* A top-level block, with a blank line before a table header that follows it right away. A key that follows it stays
+* where it is, so that a second run changes nothing.
+*/
+function topBlock(lines, at, entries, separate, marker) {
+	const result = insertBlock(lines, at, entries, separate, marker);
+	const after = at + (result.length - lines.length);
+	if (isHeader(result[after] ?? "")) result.splice(after, 0, "");
+	return result;
+}
+
 // src/apply/gemfile-scan.ts
 const isStrings$7 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 const isSyntax = (value) => isRecord(value) && isRecord(value["endOfScript"]) && typeof value["endOfScript"]["marker"] === "string" && isStrings$7(value["endOfScript"]["characters"]) && isStrings$7(value["embeddedDocument"]) && value["embeddedDocument"].length === 2 && isRecord(value["percentLiterals"]) && isStrings$7(value["percentLiterals"]["expanding"]) && isStrings$7(value["percentLiterals"]["plain"]) && isRecord(value["pairedDelimiters"]) && isStrings$7(value["heredocIndent"]) && typeof value["globalPunctuation"] === "string" && isStrings$7(value["numberSuffixes"]) && typeof value["lineEnding"] === "string" && isRecord(value["keywords"]) && Object.values(value["keywords"]).every(isStrings$7) && [
@@ -19247,35 +20812,35 @@ const isSyntax = (value) => isRecord(value) && isRecord(value["endOfScript"]) &&
 	"closing"
 ].every((key) => isRecord(value["keywords"]) && isStrings$7(value["keywords"][key])) && value["keywords"]["closing"].length === 1;
 const isParsers = (value) => isRecord(value) && isRecord(value["differences"]) && typeof value["differences"]["characterBeyondAscii"] === "boolean" && isStrings$7(value["differences"]["embeddedDocumentAfter"]) && typeof value["differences"]["globalZeroWithName"] === "boolean";
-const SYNTAX$1 = extraOf(bundler$1, "rubySyntax", isSyntax);
+const SYNTAX$2 = extraOf(bundler$1, "rubySyntax", isSyntax);
 const DIFFERENCES = extraOf(bundler$1, "rubyParsers", isParsers).differences;
-const [EMBEDDED_BEGIN, EMBEDDED_END] = SYNTAX$1.embeddedDocument;
-const END_CHARACTERS = new Set(SYNTAX$1.endOfScript.characters);
-const PAIRS = new Map(Object.entries(SYNTAX$1.pairedDelimiters).filter((entry) => typeof entry[1] === "string"));
-const EXPANDING = new Set(SYNTAX$1.percentLiterals.expanding);
-const PERCENT_TYPES = /* @__PURE__ */ new Set([...SYNTAX$1.percentLiterals.expanding, ...SYNTAX$1.percentLiterals.plain]);
-const HEREDOC_INDENT = new Set(SYNTAX$1.heredocIndent);
-const GLOBAL_PUNCTUATION = new Set(SYNTAX$1.globalPunctuation);
+const [EMBEDDED_BEGIN, EMBEDDED_END] = SYNTAX$2.embeddedDocument;
+const END_CHARACTERS = new Set(SYNTAX$2.endOfScript.characters);
+const PAIRS = new Map(Object.entries(SYNTAX$2.pairedDelimiters).filter((entry) => typeof entry[1] === "string"));
+const EXPANDING = new Set(SYNTAX$2.percentLiterals.expanding);
+const PERCENT_TYPES = /* @__PURE__ */ new Set([...SYNTAX$2.percentLiterals.expanding, ...SYNTAX$2.percentLiterals.plain]);
+const HEREDOC_INDENT = new Set(SYNTAX$2.heredocIndent);
+const GLOBAL_PUNCTUATION = new Set(SYNTAX$2.globalPunctuation);
 /** The characters after =begin that start a comment for parse.y only (extra.rubyParsers). */
 const EMBEDDED_PARSE_Y_ONLY = new Set(DIFFERENCES.embeddedDocumentAfter);
 /** Keywords whose code end closes, the loops whose condition may end with do, and end. */
-const OPENING = new Set(SYNTAX$1.keywords.opening);
-const LOOPS = new Set(SYNTAX$1.keywords.loops);
-const CLOSING = new Set(SYNTAX$1.keywords.closing);
-const END_KEYWORD = SYNTAX$1.keywords.closing.join(" ");
+const OPENING = new Set(SYNTAX$2.keywords.opening);
+const LOOPS = new Set(SYNTAX$2.keywords.loops);
+const CLOSING = new Set(SYNTAX$2.keywords.closing);
+const END_KEYWORD = SYNTAX$2.keywords.closing.join(" ");
 /** The brackets that nest code: ( [ { and what closes them (pairedDelimiters without <). */
 const BRACKETS = new Map([...PAIRS].filter(([open]) => open !== "<"));
 const KEYWORD_STATES = new Map([
-	...SYNTAX$1.keywords.end.map((word) => [word, "end"]),
-	...SYNTAX$1.keywords.statement.map((word) => [word, "stmt"]),
-	...SYNTAX$1.keywords.value.map((word) => [word, "beg"]),
-	...SYNTAX$1.keywords.mid.map((word) => [word, "mid"]),
-	...SYNTAX$1.keywords.argument.map((word) => [word, "arg"]),
-	...SYNTAX$1.keywords.methodName.map((word) => [word, "def"]),
-	...SYNTAX$1.keywords.className.map((word) => [word, "class"]),
-	...SYNTAX$1.keywords.names.map((word) => [word, "names"])
+	...SYNTAX$2.keywords.end.map((word) => [word, "end"]),
+	...SYNTAX$2.keywords.statement.map((word) => [word, "stmt"]),
+	...SYNTAX$2.keywords.value.map((word) => [word, "beg"]),
+	...SYNTAX$2.keywords.mid.map((word) => [word, "mid"]),
+	...SYNTAX$2.keywords.argument.map((word) => [word, "arg"]),
+	...SYNTAX$2.keywords.methodName.map((word) => [word, "def"]),
+	...SYNTAX$2.keywords.className.map((word) => [word, "class"]),
+	...SYNTAX$2.keywords.names.map((word) => [word, "names"])
 ]);
-const MODIFIERS = new Set(SYNTAX$1.keywords.modifiers);
+const MODIFIERS = new Set(SYNTAX$2.keywords.modifiers);
 /** Where an expression begins: %, / and << start literals there, ? a character literal. */
 const BEGINS = /* @__PURE__ */ new Set([
 	"stmt",
@@ -19509,7 +21074,7 @@ var Scanner = class {
 			if ((text[j] === "e" || text[j] === "E") && (isDigit(text[j + 1]) || (text[j + 1] === "+" || text[j + 1] === "-") && isDigit(text[j + 2]))) j = run(text[j + 1] === "+" || text[j + 1] === "-" ? j + 2 : j + 1, isDigit);
 		}
 		let k = j;
-		for (const suffix of SYNTAX$1.numberSuffixes) if (text[k] === suffix) k++;
+		for (const suffix of SYNTAX$2.numberSuffixes) if (text[k] === suffix) k++;
 		if (!isIdentChar(text[k])) return k;
 		let end = j;
 		while (isIdentChar(text[end])) end++;
@@ -19661,8 +21226,8 @@ var Scanner = class {
 			this.#atLineStart = true;
 			return true;
 		}
-		if (text.startsWith(SYNTAX$1.endOfScript.marker, this.#i) && this.#lineText(this.#i) === SYNTAX$1.endOfScript.marker) {
-			if (this.#stack.length > 1) this.#syntaxError(`${SYNTAX$1.endOfScript.marker} inside an interpolation`);
+		if (text.startsWith(SYNTAX$2.endOfScript.marker, this.#i) && this.#lineText(this.#i) === SYNTAX$2.endOfScript.marker) {
+			if (this.#stack.length > 1) this.#syntaxError(`${SYNTAX$2.endOfScript.marker} inside an interpolation`);
 			this.#endOfScript();
 		}
 		if (this.#stack.length === 1) this.#maybeRecord(frame);
@@ -20555,7 +22120,7 @@ var Scanner = class {
 };
 /** Reads a Gemfile as Ruby's lexer does (see the comment at the top). */
 function scanRuby(text, options = {}) {
-	const read = options.newlinesRead === true || !text.includes(SYNTAX$1.lineEnding) ? text : text.replaceAll(SYNTAX$1.lineEnding, "\n");
+	const read = options.newlinesRead === true || !text.includes(SYNTAX$2.lineEnding) ? text : text.replaceAll(SYNTAX$2.lineEnding, "\n");
 	return new Scanner(read).run();
 }
 /**
@@ -20576,9 +22141,9 @@ function originalPosition(crs, at) {
 function lineEndingPositions(original) {
 	const positions = [];
 	let removed = 0;
-	for (let at = original.indexOf(SYNTAX$1.lineEnding); at !== -1; at = original.indexOf(SYNTAX$1.lineEnding, at + SYNTAX$1.lineEnding.length)) {
+	for (let at = original.indexOf(SYNTAX$2.lineEnding); at !== -1; at = original.indexOf(SYNTAX$2.lineEnding, at + SYNTAX$2.lineEnding.length)) {
 		positions.push(at - removed);
-		removed += SYNTAX$1.lineEnding.length - 1;
+		removed += SYNTAX$2.lineEnding.length - 1;
 	}
 	return positions;
 }
@@ -20614,13 +22179,13 @@ const NOT_A_CALL = /* @__PURE__ */ new Set([
 	":"
 ]);
 /** The digits of each base of a Ruby integer literal (parse_numeric, extra.rubySyntax). */
-const DIGITS = {
+const DIGITS$1 = {
 	2: /^[01](?:_?[01])*$/u,
 	8: /^[0-7](?:_?[0-7])*$/u,
 	10: /^[0-9](?:_?[0-9])*$/u,
 	16: /^[0-9a-fA-F](?:_?[0-9a-fA-F])*$/u
 };
-const PREFIXES$1 = {
+const PREFIXES$2 = {
 	x: 16,
 	b: 2,
 	o: 8,
@@ -20633,7 +22198,7 @@ const PREFIXES$1 = {
 function rubyInteger(text) {
 	let base = 10;
 	let body = text;
-	const prefix = PREFIXES$1[text[1]?.toLowerCase() ?? ""];
+	const prefix = PREFIXES$2[text[1]?.toLowerCase() ?? ""];
 	if (text[0] === "0" && prefix !== void 0) {
 		base = prefix;
 		body = text.slice(2);
@@ -20642,7 +22207,7 @@ function rubyInteger(text) {
 		base = 8;
 		body = text.slice(text[1] === "_" ? 2 : 1);
 	}
-	const digits = DIGITS[base];
+	const digits = DIGITS$1[base];
 	if (digits === void 0 || !digits.test(body)) return void 0;
 	return Number.parseInt(body.replaceAll("_", ""), base);
 }
@@ -21121,15 +22686,15 @@ function tomlSetting(text, table, key) {
 	let found;
 	text.split(/\r?\n/u).forEach((raw, index) => {
 		const line = raw.trim();
-		const header = /^\[\s*([^\]]+?)\s*\]/u.exec(line);
-		if (header !== null) {
-			current = header[1] ?? "";
+		const header = headerOf(line);
+		if (header !== void 0) {
+			current = header.name;
 			return;
 		}
-		if (line === "" || line.startsWith("#")) return;
+		if (line === "" || line.startsWith("#") || line.startsWith("[")) return;
 		const equals = line.indexOf("=");
 		if (equals === -1) return;
-		const name = line.slice(0, equals).trim().replace(/^["']|["']$/gu, "");
+		const name = keyOf$2(line) ?? "";
 		if (current === table && name === key || current === "" && name === `${table}.${key}`) found = {
 			value: tomlScalar(line.slice(equals + 1)),
 			line: index + 1
@@ -21196,10 +22761,465 @@ function lineOf$1(text, needle) {
 	return offset === -1 ? void 0 : lineAt$1(text, offset);
 }
 
+// src/apply/pnpm-includes.ts
+const isIncludesFact = (value) => isRecord(value) && typeof value["since"] === "string" && typeof value["key"] === "string" && isRecord(value["spellings"]) && Array.isArray(value["notForDependencies"]);
+/** The facts of include, when the version reads it (the latest known when the version is unknown). */
+function includesFacts(tool, version) {
+	if (tool.extra?.["configIncludes"] === void 0) return void 0;
+	const facts = extraOf(tool, "configIncludes", isIncludesFact);
+	const since = parseVersion(facts.since);
+	return version !== void 0 && since !== void 0 && compareVersions$1(version, since) < 0 ? void 0 : facts;
+}
+/** The slot a selector of a list names, as pnpm reads it (SettingSlot::parse_selector); undefined for an invalid one. */
+function selectorSlot(facts, selector) {
+	if (selector === "" || selector === facts.key) return void 0;
+	if (selector === "catalog") return "catalogs.default";
+	if (selector === "catalogs") return "catalogs";
+	if (selector.startsWith("catalogs.")) return selector === "catalogs." ? void 0 : selector;
+	if (selector.includes(".")) return void 0;
+	return facts.spellings[selector] ?? selector;
+}
+/** The slots a top-level key of a settings file defines (defined_slots). */
+function definedSlots(facts, key, value) {
+	if (key === "$schema") return [];
+	if (key === "catalog") return ["catalogs.default"];
+	if (key === "catalogs") return isRecord(value) ? Object.keys(value).map((name) => `catalogs.${name}`) : [];
+	return [facts.spellings[key] ?? key];
+}
+/** A slot as pnpm names it in messages. */
+function slotName(slot) {
+	return slot === "catalogs.default" ? "catalog" : slot;
+}
+/** A source that can only be a package name: no path, URL or protocol (is_package_name_shaped). */
+function isPackageName(spec) {
+	let unscoped = spec;
+	if (spec.startsWith("@")) {
+		const slash = spec.indexOf("/");
+		if (slash <= 1) return false;
+		unscoped = spec.slice(slash + 1);
+	}
+	return unscoped !== "" && !/[/\\:]/u.test(unscoped) && !unscoped.startsWith(".");
+}
+/** A local path from the directory, or undefined when it leads out of it (or has a backslash, which pnpm reads by platform). */
+function localPath(spec) {
+	if (spec.includes("\\")) return void 0;
+	const path = posix.normalize(spec);
+	return path === ".." || path.startsWith("../") || path.startsWith("/") ? void 0 : path;
+}
+/** The most problems of one index that are reported (pnpm itself stops at the first). */
+const MAX_PROBLEMS = 20;
+/**
+* The include index of `manifest` as pnpm reads it, or undefined when the version does not read include (before
+* 12.15.0), the manifest is missing or cannot be parsed (unreadable-config reports that), or has no include. `read`
+* gives the text of a file of the directory, undefined when it is missing or cannot be read.
+*/
+function readPnpmIncludes(tool, version, read, manifest = "pnpm-workspace.yaml") {
+	const facts = includesFacts(tool, version);
+	if (facts === void 0) return void 0;
+	const text = read(manifest);
+	if (text === void 0 || !text.includes(facts.key)) return void 0;
+	const options = { merge: mergesYamlKeys(tool) };
+	let root;
+	try {
+		root = parseYaml(text, options);
+	} catch {
+		return;
+	}
+	if (!isRecord(root) || !Object.hasOwn(root, facts.key)) return void 0;
+	const lineOf = (path) => yamlSetting(text, path, options)?.line ?? 1;
+	const entryLine = entryLines$1(text, facts.key, options);
+	const line = lineOf([facts.key]);
+	const problems = [];
+	const add = (found) => {
+		if (problems.length < 20) problems.push(found);
+	};
+	const problem = (code, message, at) => add({
+		code,
+		message,
+		file: manifest,
+		line: at
+	});
+	const sources = [];
+	const index = root[facts.key];
+	if (!isRecord(index)) problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `${facts.key} is not a mapping of sources to the settings they may define`, line);
+	for (const [spec, delegation] of Object.entries(isRecord(index) ? index : {})) {
+		const at = entryLine.get(spec) ?? line;
+		const local = facts.localPrefixes.some((prefix) => spec.startsWith(prefix));
+		if (!local && !isPackageName(spec)) {
+			problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `the source "${spec}" is neither a relative path that starts with ${facts.localPrefixes.join(" or ")} nor the name of a config dependency`, at);
+			continue;
+		}
+		if (local && [...facts.globCharacters].some((character) => spec.includes(character))) {
+			problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `the source "${spec}" is a glob, which pnpm does not accept`, at);
+			continue;
+		}
+		if (local && !facts.localExtensions.some((extension) => spec.endsWith(extension))) {
+			problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `the source "${spec}" is not a ${facts.localExtensions.join(" or ")} file`, at);
+			continue;
+		}
+		const all = delegation === facts.unrestricted;
+		const slots = [];
+		const selectors = [];
+		if (!all) {
+			if (!Array.isArray(delegation) || delegation.some((item) => typeof item !== "string")) {
+				problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `"${spec}" is delegated neither '${facts.unrestricted}' nor a list of settings`, at);
+				continue;
+			}
+			let valid = true;
+			const seenSlots = /* @__PURE__ */ new Set();
+			for (const selector of delegation) {
+				const slot = selectorSlot(facts, selector);
+				if (slot === void 0 || seenSlots.has(slot)) {
+					problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `"${selector}" in the list of "${spec}" is ${slot === void 0 ? "not a setting that can be delegated" : "listed twice"}`, at);
+					valid = false;
+					break;
+				}
+				slots.push(slot);
+				seenSlots.add(slot);
+				selectors.push(selector);
+			}
+			if (!valid) continue;
+		}
+		if (!local) {
+			if (all) {
+				problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `the config dependency ${spec} is delegated '${facts.unrestricted}', but a config dependency always needs a list of settings`, at);
+				continue;
+			}
+			const forbidden = slots.find((slot) => facts.notForDependencies.includes(slot));
+			if (forbidden !== void 0) {
+				problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `${forbidden} cannot be delegated to the config dependency ${spec}`, at);
+				continue;
+			}
+			sources.push({
+				spec,
+				kind: "dependency",
+				line: at,
+				all,
+				slots,
+				selectors
+			});
+			continue;
+		}
+		const file = localPath(spec);
+		sources.push({
+			spec,
+			kind: "file",
+			...file === void 0 ? {} : { file },
+			line: at,
+			all,
+			slots,
+			selectors
+		});
+	}
+	const fragments = /* @__PURE__ */ new Map();
+	const seen = /* @__PURE__ */ new Map();
+	for (const [position, source] of sources.entries()) {
+		if (source.kind !== "file" || source.file === void 0) continue;
+		if (source.file === posix.normalize(manifest)) {
+			problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `the source "${source.spec}" is ${manifest} itself`, source.line);
+			continue;
+		}
+		const other = seen.get(source.file);
+		if (other !== void 0) {
+			problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `"${source.spec}" names the same file as "${other}"`, source.line);
+			continue;
+		}
+		seen.set(source.file, source.spec);
+		const fragment = read(source.file);
+		if (fragment === void 0) {
+			problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `${source.file}, which include names, does not exist or cannot be read (pnpm needs every included file, also an empty one)`, source.line);
+			continue;
+		}
+		let settings;
+		try {
+			settings = parseYaml(fragment, options);
+		} catch {
+			continue;
+		}
+		if (settings === null || settings === void 0) settings = {};
+		if (!isRecord(settings)) {
+			problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `${source.file}, which include names, is not a mapping of settings`, source.line);
+			continue;
+		}
+		if (Object.hasOwn(settings, facts.key)) {
+			problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `${source.file} has an ${facts.key} of its own, which only ${manifest} may have`, source.line);
+			continue;
+		}
+		fragments.set(position, settings);
+	}
+	const describe = (claimant) => claimant === "root" ? manifest : sources[claimant]?.spec ?? "";
+	const reserved = /* @__PURE__ */ new Map();
+	const defined = /* @__PURE__ */ new Map();
+	const reservationOf = (slot) => reserved.get(slot) ?? (slot.startsWith("catalogs.") ? reserved.get("catalogs") : void 0);
+	let firstCatalog;
+	const overlapping = (slot) => {
+		if (reserved.has(slot)) return slot;
+		if (slot.startsWith("catalogs.") && reserved.has("catalogs")) return "catalogs";
+		return slot === "catalogs" ? firstCatalog : void 0;
+	};
+	for (const [position, source] of sources.entries()) for (const slot of source.slots) {
+		const listed = overlapping(slot);
+		const other = listed === void 0 ? void 0 : reserved.get(listed);
+		if (listed !== void 0 && other !== void 0) {
+			problem("ERR_PNPM_DUPLICATE_SETTING", `${slotName(listed === "catalogs" ? slot : slot === "catalogs" ? listed : listed < slot ? listed : slot)} is delegated to ${describe(other)} and to ${source.spec}`, source.line);
+			continue;
+		}
+		reserved.set(slot, position);
+		if (slot.startsWith("catalogs.")) firstCatalog ??= slot;
+	}
+	const listed = sources.map((source) => new Set(source.slots));
+	const permits = (claimant, slot) => listed[claimant]?.has(slot) === true || slot.startsWith("catalogs.") && listed[claimant]?.has("catalogs") === true;
+	const define = (claimant, settings, at) => {
+		const source = claimant === "root" ? void 0 : sources[claimant];
+		for (const [key, value] of Object.entries(settings)) {
+			if (key === facts.key) continue;
+			for (const slot of definedSlots(facts, key, value)) {
+				if (source !== void 0 && claimant !== "root" && !source.all && !permits(claimant, slot)) {
+					if (problems.length < 20) add({
+						code: "ERR_PNPM_SETTING_NOT_DELEGATED",
+						message: `${source.spec} defines ${key}, which include does not give to it`,
+						file: source.file ?? manifest,
+						line: (source.file === void 0 ? void 0 : yamlLine(read(source.file), key, options)) ?? source.line
+					});
+					continue;
+				}
+				const owner = reservationOf(slot);
+				const where = () => claimant === "root" ? yamlLine(text, key, options) ?? at : at;
+				if (owner !== void 0 && owner !== claimant) {
+					if (problems.length < 20) problem("ERR_PNPM_DUPLICATE_SETTING", `${slotName(slot)} is delegated to ${describe(owner)} and defined in ${describe(claimant)}`, where());
+					continue;
+				}
+				const other = defined.get(slot);
+				if (other !== void 0 && other !== claimant) {
+					if (problems.length < 20) problem("ERR_PNPM_DUPLICATE_SETTING", `${slotName(slot)} is defined in ${describe(other)} and in ${describe(claimant)}`, where());
+					continue;
+				}
+				if (owner === void 0) defined.set(slot, claimant);
+			}
+		}
+	};
+	define("root", root, line);
+	for (const [position, settings] of fragments) define(position, settings, sources[position]?.line ?? line);
+	const declared = /* @__PURE__ */ new Set();
+	for (const settings of [root, ...fragments.values()]) {
+		const dependencies = settings[facts.dependencies];
+		if (isRecord(dependencies)) for (const name of Object.keys(dependencies)) declared.add(name);
+	}
+	for (const source of sources) if (source.kind === "dependency" && !declared.has(source.spec)) problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `the config dependency ${source.spec} is not declared in ${facts.dependencies}`, source.line);
+	const ownerOf = (claimant) => {
+		const source = claimant === "root" ? void 0 : sources[claimant];
+		if (source === void 0) return {
+			kind: "file",
+			file: manifest
+		};
+		if (source.kind === "dependency") return {
+			kind: "dependency",
+			name: source.spec,
+			line: source.line
+		};
+		return source.file === void 0 ? {
+			kind: "outside",
+			spec: source.spec,
+			line: source.line
+		} : {
+			kind: "file",
+			file: source.file
+		};
+	};
+	return {
+		manifest,
+		line,
+		sources,
+		problems,
+		owner(setting) {
+			const slot = definedSlots(facts, setting, {})[0] ?? setting;
+			const claimant = reservationOf(slot) ?? defined.get(slot);
+			return ownerOf(claimant ?? "root");
+		},
+		files: sources.flatMap((source) => source.kind === "file" && source.file !== void 0 ? [source.file] : [])
+	};
+}
+/** The line of each entry of the include map, read once: a lookup per entry would walk the map once per entry. */
+function entryLines$1(text, key, options) {
+	const lines = /* @__PURE__ */ new Map();
+	const { document, lineCounter } = readYamlDocument(text, options);
+	const root = document.contents;
+	if (!(0, import_dist.isMap)(root)) return lines;
+	const index = root.items.find((pair) => (0, import_dist.isScalar)(pair.key) && String(pair.key.value) === key)?.value;
+	if (!(0, import_dist.isMap)(index)) return lines;
+	for (const pair of index.items) {
+		if (!(0, import_dist.isScalar)(pair.key) || pair.key.range === void 0 || pair.key.range === null) continue;
+		const name = String(pair.key.value);
+		if (!lines.has(name)) lines.set(name, lineCounter.linePos(pair.key.range[0]).line);
+	}
+	return lines;
+}
+/** The line of a top-level key of a YAML file, for messages. */
+function yamlLine(text, key, options) {
+	return text === void 0 ? void 0 : yamlSetting(text, [key], options)?.line;
+}
+/** Where pnpm takes `setting` from: its owner in include, else pnpm-workspace.yaml. */
+function pnpmOwner(includes, setting, manifest = "pnpm-workspace.yaml") {
+	return includes?.owner(setting) ?? {
+		kind: "file",
+		file: manifest
+	};
+}
+/** The owner in words, for messages: "the config dependency @acme/policy (include in pnpm-workspace.yaml, line 3)". */
+function ownerText(owner, manifest = "pnpm-workspace.yaml") {
+	return owner.kind === "dependency" ? `the config dependency ${owner.name} (include in ${manifest}, line ${owner.line})` : `${owner.spec}, which lies outside the directory (include in ${manifest}, line ${owner.line})`;
+}
+
+// src/apply/pnpm-hooks.ts
+const isPnpmfiles = (value) => isRecord(value) && typeof value["updateConfigSince"] === "string" && Array.isArray(value["defaults"]) && typeof value["setting"] === "string";
+const isPlugins = (value) => isRecord(value) && typeof value["setting"] === "string" && Array.isArray(value["patterns"]);
+const isKnownPlugins = (value) => Array.isArray(value) && value.every((item) => isRecord(item) && typeof item["name"] === "string" && typeof item["since"] === "string" && isRecord(item["settings"]));
+const atLeast$2 = (version, since) => {
+	const required = parseVersion(since);
+	return version === void 0 || required === void 0 || compareVersions$1(version, required) >= 0;
+};
+/** The value of a versioned list in effect at `version` (the latest entry when it is unknown). */
+function inEffect(list, version) {
+	let current;
+	for (const entry of list) if (atLeast$2(version, entry.since)) current = entry.value;
+	return current;
+}
+/** A name pattern with * for any text, as a regular expression. */
+function patternOf(pattern) {
+	return new RegExp(`^${pattern.split("*").map((part) => part.replace(/[.*+?^${}()|[\]\\/]/gu, "\\$&")).join(".*")}$`, "u");
+}
+/** Whether a configDependencies entry may be a release from `since` on: an exact version below it is not. */
+function mayBeFrom(spec, since) {
+	const exact = /^v?(\d+\.\d+\.\d+)(?:\+.*)?$/u.exec(spec.trim())?.[1];
+	const version = exact === void 0 ? void 0 : parseVersion(exact);
+	const required = parseVersion(since);
+	return version === void 0 || required === void 0 || compareVersions$1(version, required) >= 0;
+}
+/** A path a setting names, from the directory: undefined when it lies outside it (absolute, ~, an environment variable, ..). */
+function insidePath(from, path) {
+	if (path === "" || path.includes("\\") || /^[~$/]/u.test(path) || /^[A-Za-z]:/u.test(path)) return void 0;
+	const joined = posix.normalize(posix.join(posix.dirname(from), path));
+	return joined === ".." || joined.startsWith("../") ? void 0 : joined;
+}
+/**
+* The pnpmfiles and plugins the pnpm version loads in the directory, in the order pnpm loads them; none before the
+* version whose pnpmfiles can change settings, and none with ignorePnpmfile: true.
+*/
+function pnpmHooks(tool, version, sources, manifest = "pnpm-workspace.yaml") {
+	if (tool.extra?.["pnpmfiles"] === void 0) return [];
+	const facts = extraOf(tool, "pnpmfiles", isPnpmfiles);
+	if (!atLeast$2(version, facts.updateConfigSince)) return [];
+	const options = { merge: mergesYamlKeys(tool) };
+	const includes = sources.includes ?? readPnpmIncludes(tool, version, sources.read, manifest);
+	/** A setting where pnpm reads it, with the file; undefined when it is not set or not in a file depcurfew reads. */
+	const settingOf = (setting) => {
+		const owner = pnpmOwner(includes, setting, manifest);
+		if (owner.kind !== "file") return void 0;
+		const text = sources.read(owner.file);
+		const found = text === void 0 ? void 0 : yamlSetting(text, [setting], options);
+		return found === void 0 ? void 0 : {
+			value: found.value,
+			file: owner.file,
+			line: found.line
+		};
+	};
+	if (settingOf(facts.ignore)?.value === true) return [];
+	const hooks = [];
+	const pnpmfileAt = (file) => {
+		const text = sources.read(file);
+		const index = text?.indexOf("updateConfig") ?? -1;
+		return {
+			kind: "pnpmfile",
+			file,
+			...text === void 0 || index === -1 ? {} : { updateConfigLine: text.slice(0, index).split("\n").length }
+		};
+	};
+	const named = (setting, from) => {
+		const paths = Array.isArray(from.value) ? from.value : [from.value];
+		for (const path of paths.filter((item) => typeof item === "string")) {
+			const inside = insidePath(from.file, path);
+			if (inside !== void 0 && sources.isFile(inside)) hooks.push({
+				...pnpmfileAt(inside),
+				setting
+			});
+			else if (inside === void 0) hooks.push({
+				kind: "pnpmfile",
+				file: from.file,
+				line: from.line,
+				setting,
+				path
+			});
+		}
+	};
+	const global = settingOf(facts.global);
+	if (global !== void 0 && typeof global.value === "string") named(facts.global, global);
+	const plugins = tool.extra?.["configPlugins"] === void 0 ? void 0 : extraOf(tool, "configPlugins", isPlugins);
+	const patterns = (plugins === void 0 ? void 0 : inEffect(plugins.patterns, version))?.map(patternOf) ?? [];
+	const dependencies = plugins === void 0 ? void 0 : settingOf(plugins.setting);
+	if (plugins !== void 0 && dependencies !== void 0 && isRecord(dependencies.value)) {
+		const known = tool.extra?.["knownPlugins"] === void 0 ? [] : values$1(tool.extra["knownPlugins"])[0];
+		const list = isKnownPlugins(known) ? known : [];
+		const text = sources.read(dependencies.file) ?? "";
+		for (const name of Object.keys(dependencies.value).filter((key) => patterns.some((pattern) => pattern.test(key))).sort()) {
+			const spec = String(dependencies.value[name] ?? "");
+			const entry = list.find((item) => item.name === name && mayBeFrom(spec, item.since));
+			hooks.push({
+				kind: "plugin",
+				name,
+				spec,
+				file: dependencies.file,
+				line: yamlSetting(text, [plugins.setting, name], options)?.line ?? dependencies.line,
+				...entry === void 0 ? {} : { known: entry }
+			});
+		}
+	}
+	const configured = settingOf(facts.setting);
+	const defaults = inEffect(facts.defaults, version) ?? [];
+	const lookFor = (directory) => {
+		const file = defaults.map((name) => directory === "" ? name : `${directory}/${name}`).find((candidate) => sources.isFile(candidate));
+		if (file !== void 0) hooks.push(pnpmfileAt(file));
+	};
+	if (configured !== void 0 && configured.value !== null) named(facts.setting, configured);
+	else lookFor("");
+	if (settingOf("sharedWorkspaceLockfile")?.value === false) {
+		for (const directory of sources.packages ?? []) if (directory !== "" && directory !== ".") lookFor(directory);
+	}
+	const key = (hook) => `${hook.kind}\0${hook.file}\0${hook.kind === "plugin" ? hook.name : hook.path ?? ""}`;
+	return hooks.filter((hook, index) => hooks.findIndex((other) => key(other) === key(hook)) === index);
+}
+/** The settings a known plugin sets, for messages: "minimumReleaseAge: 1440 and blockExoticSubdeps: true". */
+function knownSettingsText(known) {
+	const items = Object.entries(known.settings).map(([key, value]) => `${key}: ${JSON.stringify(value)}`);
+	return items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
+}
+/**
+* What a hook is, in one sentence of doctor and explain (one source for both): what pnpm loads and why depcurfew cannot
+* verify the settings, with what a known plugin sets.
+*/
+function hookMessage(hook, name) {
+	const can = `can change every setting after pnpm has read its configuration files, so depcurfew cannot verify the settings it checks`;
+	if (hook.kind === "plugin") {
+		const known = hook.known === void 0 ? "" : `; ${hook.name} ${hook.known.since} and later sets ${knownSettingsText(hook.known)}`;
+		return `${name} loads the pnpmfile of the config dependency ${hook.name} (configDependencies in ${hook.file}, line ${hook.line}) because of its name, and its updateConfig hook ${can}${known}`;
+	}
+	if (hook.path !== void 0) return `${name} loads the pnpmfile ${hook.path}, which ${hook.setting ?? "pnpmfile"} in ${hook.file} names and depcurfew cannot read, and the updateConfig hook of a pnpmfile ${can}`;
+	const named = hook.setting === void 0 ? "" : `, which ${hook.setting} names`;
+	const defines = hook.updateConfigLine === void 0 ? "" : ` and names updateConfig at line ${hook.updateConfigLine}`;
+	return `${name} loads ${hook.file}${named}${defines}, and the updateConfig hook of a pnpmfile ${can}`;
+}
+/** What to do about a hook, for doctor and explain. */
+function hookFix(hook, manifest = "pnpm-workspace.yaml") {
+	const check = "make sure its updateConfig hook leaves minimumReleaseAge, allowBuilds and the other security settings as they are";
+	const off = `ignorePnpmfile: true in ${manifest} stops every pnpmfile, those of plugins too`;
+	if (hook.kind === "plugin") return hook.known === void 0 ? `Remove ${hook.name} from configDependencies in ${hook.file} if the project does not need it, or read the pnpmfile of the version you install and ${check} (${off})` : `Remove ${hook.name} from configDependencies in ${hook.file}: what it sets replaces the settings of ${manifest} (${off})`;
+	if (hook.setting !== void 0) return `Read ${hook.path ?? hook.file} and ${check}, or take it out of ${hook.setting} in ${hook.path === void 0 ? manifest : hook.file} if the project does not need it`;
+	return `Read ${hook.file} and ${check}; if the project needs no pnpmfile, remove it and set pnpmfile: [] in ${manifest}, so that pnpm loads no new one by itself`;
+}
+
 // src/detect/bot-ecosystems.ts
 /** The ecosystems of the knowledge base, in its order; for a disputed fact the first variant. */
-function botEcosystemFacts(environment$2 = environment) {
-	return Object.entries(environment$2.botOnlyEcosystems).flatMap(([id, entry]) => {
+function botEcosystemFacts(environment$3 = environment) {
+	return Object.entries(environment$3.botOnlyEcosystems).flatMap(([id, entry]) => {
 		const project = evidenceOf(entry.project)[0]?.value;
 		const delay = evidenceOf(entry.releaseAge)[0]?.value;
 		return project === void 0 || delay === void 0 ? [] : [{
@@ -21209,8 +23229,8 @@ function botEcosystemFacts(environment$2 = environment) {
 		}];
 	});
 }
-function botEcosystemFact(id, environment$3 = environment) {
-	return botEcosystemFacts(environment$3).find((entry) => entry.id === id);
+function botEcosystemFact(id, environment$4 = environment) {
+	return botEcosystemFacts(environment$4).find((entry) => entry.id === id);
 }
 function byPath$1(a, b) {
 	return a < b ? -1 : a > b ? 1 : 0;
@@ -21277,19 +23297,21 @@ const EVIDENCE_ORDER = [
 	"default"
 ];
 const SOURCE_ORDER = [
+	"yarnPath",
 	"packageManager",
 	"tool-config",
 	"lockfile",
 	"devEngines",
 	"volta",
 	"tool-versions",
+	"mise",
 	"nvmrc",
 	"node-version",
 	"engines",
 	"github-actions",
 	"dockerfile"
 ];
-function isObject$2(value) {
+function isObject$3(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function stringList(value) {
@@ -21297,7 +23319,7 @@ function stringList(value) {
 }
 /** devEngines entries may be one object or a list of objects with a name and an optional version. */
 function devEngineEntries(value) {
-	return (Array.isArray(value) ? value : [value]).flatMap((entry) => isObject$2(entry) && typeof entry["name"] === "string" ? [{
+	return (Array.isArray(value) ? value : [value]).flatMap((entry) => isObject$3(entry) && typeof entry["name"] === "string" ? [{
 		name: entry["name"],
 		...typeof entry["version"] === "string" ? { version: entry["version"] } : {}
 	}] : []);
@@ -21389,7 +23411,7 @@ var Collector = class {
 function readPackageJson(repository) {
 	if (!repository.isFile("package.json")) return void 0;
 	const parsed = repository.parse("package.json", (text) => JSON.parse(text));
-	return isObject$2(parsed) ? parsed : void 0;
+	return isObject$3(parsed) ? parsed : void 0;
 }
 function readPackageManagerField(repository, facts, manifest, collector) {
 	const value = manifest[facts.packageManagerKey];
@@ -21415,7 +23437,7 @@ function readPackageManagerField(repository, facts, manifest, collector) {
 }
 function readDevEngines(facts, manifest, collector) {
 	const devEngines = manifest[facts.devEngines.key];
-	if (!isObject$2(devEngines)) return;
+	if (!isObject$3(devEngines)) return;
 	for (const entry of devEngineEntries(devEngines[facts.devEngines.packageManagerKey])) {
 		const manager = facts.managers.find((item) => item.id === entry.name);
 		if (manager === void 0) continue;
@@ -21434,7 +23456,7 @@ function readDevEngines(facts, manifest, collector) {
 }
 function readVolta(facts, manifest, collector) {
 	const volta = manifest[facts.volta.key];
-	if (!isObject$2(volta)) return;
+	if (!isObject$3(volta)) return;
 	for (const tool of facts.volta.tools) {
 		const version = volta[tool];
 		if (typeof version === "string") collector.addVersion(tool, {
@@ -21443,6 +23465,26 @@ function readVolta(facts, manifest, collector) {
 			file: "package.json"
 		});
 	}
+}
+/** A TOML file of the repository, parsed once, without a warning when it is no TOML (mise files and version files). */
+function quietToml(repository, file) {
+	if (!repository.isFile(file)) return void 0;
+	const text = repository.readText(file);
+	if (text === void 0) return void 0;
+	try {
+		return parseToml(text);
+	} catch {
+		return;
+	}
+}
+/** The Node.js and Python [tools] of the mise files of the root request (decision D-173). */
+function readMise(repository, facts, collector) {
+	for (const [tool, found] of miseTools((file) => quietToml(repository, file), facts.mise)) collector.addVersion(tool, {
+		version: found.request,
+		source: "mise",
+		file: found.file,
+		...found.line === void 0 ? {} : { line: found.line }
+	});
 }
 function readToolVersions(repository, facts, collector) {
 	const file = facts.toolVersions.file;
@@ -21489,7 +23531,7 @@ function readNodeFiles(repository, facts, manifest, collector) {
 		}
 	}
 	const engines = manifest?.[facts.nodeFiles.engines.key];
-	const range = isObject$2(engines) ? engines[facts.nodeFiles.engines.runtimeKey] : void 0;
+	const range = isObject$3(engines) ? engines[facts.nodeFiles.engines.runtimeKey] : void 0;
 	if (typeof range === "string") collector.addVersion("node", {
 		version: range,
 		source: "engines",
@@ -21503,24 +23545,64 @@ function versionFromFile(repository, facts, path, manifest) {
 	if (file === "" || !repository.isFile(file)) return void 0;
 	if (file.endsWith(".json")) {
 		const json = file === versionFile.packageJson ? manifest : repository.parse(file, (text) => JSON.parse(text));
-		if (!isObject$2(json)) return void 0;
+		if (!isObject$3(json)) return void 0;
 		for (const key of versionFile.packageJsonOrder) {
 			if (key === `${facts.devEngines.key}.${facts.devEngines.runtimeKey}`) {
 				const devEngines = json[facts.devEngines.key];
-				const entry = (isObject$2(devEngines) ? devEngineEntries(devEngines[facts.devEngines.runtimeKey]) : []).find((item) => item.name.toLowerCase() === "node" && item.version !== void 0);
+				const entry = (isObject$3(devEngines) ? devEngineEntries(devEngines[facts.devEngines.runtimeKey]) : []).find((item) => item.name.toLowerCase() === "node" && item.version !== void 0);
 				if (entry?.version !== void 0) return entry.version;
 				continue;
 			}
-			const value = key.split(".").reduce((node, part) => isObject$2(node) ? node[part] : void 0, json);
+			const value = key.split(".").reduce((node, part) => isObject$3(node) ? node[part] : void 0, json);
 			if (typeof value === "string") return value;
 		}
 		return;
 	}
-	if (file.endsWith(".toml")) return void 0;
 	const text = repository.readText(file);
 	if (text === void 0) return void 0;
+	const toml = versionFile.toml;
+	if (toml !== void 0) {
+		let document;
+		try {
+			document = parseToml(text);
+		} catch {
+			document = void 0;
+		}
+		const table = document === void 0 ? void 0 : tomlAt(document, [toml.table]);
+		if (typeof table === "object" && table !== null && !Array.isArray(table) && Object.hasOwn(table, toml.key)) return miseRequest(table[toml.key], toml.versionKey, false)?.request;
+		if (document !== void 0 && file.endsWith(".toml")) return void 0;
+	}
 	const version = new RegExp(versionFile.textPattern, "mu").exec(text)?.groups?.["version"] ?? text.trim();
 	return version === "" ? void 0 : version;
+}
+/**
+* The version of the release yarnPath in the root .yarnrc.yml names (decision D-165): every Yarn from 1.18 runs that
+* release instead of itself, with or without Corepack (yarn extra.yarnPathRuns), so it is a version the project
+* declares. Only a relative path to a file of the repository named as yarn set version names it,
+* yarn-<exact version>.cjs (extra.yarnPath), gives one; a ${VARIABLE}, which Yarn replaces from its environment, a path
+* outside the repository and any other name give none, and the version stays unknown.
+*/
+function readYarnPath(repository, facts, collector) {
+	const known = facts.yarn.yarnPath;
+	if (known === null || !repository.isFile(known.file)) return;
+	const text = repository.readText(known.file);
+	const found = text === void 0 ? void 0 : yamlSetting(text, [known.key], yamlOptionsFor(known.file));
+	if (found === void 0 || typeof found.value !== "string") return;
+	const value = found.value.trim();
+	if (value === "" || value.includes("${") || isAbsoluteAnywhere(value)) return;
+	const path = posix.normalize(value.replaceAll("\\", "/"));
+	if (path === ".." || path.startsWith("../") || !repository.isFile(path)) return;
+	const [before = "", after = ""] = known.releaseFile.split("<version>");
+	const name = posix.basename(path);
+	if (name.length <= before.length + after.length || !name.startsWith(before) || !name.endsWith(after)) return;
+	const version = name.slice(before.length, name.length - after.length);
+	if (parseVersion(version) === void 0) return;
+	collector.addVersion("yarn", {
+		version,
+		source: "yarnPath",
+		file: known.file,
+		line: found.line
+	});
 }
 function yarnVariant(repository, facts, collector) {
 	if (repository.isFile("yarn.lock")) {
@@ -21534,10 +23616,10 @@ function yarnVariant(repository, facts, collector) {
 			file: "yarn.lock"
 		};
 	}
-	const declared = collector.versions.get("yarn")?.find((entry) => entry.source === "packageManager");
-	if (declared !== void 0 && "version" in declared && /^1\./u.test(declared.version)) return {
+	const declared = [...collector.versions.get("yarn") ?? []].filter((entry) => entry.source === "yarnPath" || entry.source === "packageManager").sort(compareVersions)[0];
+	if (declared !== void 0 && "version" in declared && /^v?1\./u.test(declared.version)) return {
 		variant: "classic",
-		file: "package.json"
+		file: declared.file
 	};
 	return {
 		variant: "berry",
@@ -21555,10 +23637,10 @@ function readWorkspaces(repository, facts, manifest) {
 			if (seen.has(id) || !repository.isFile(file)) continue;
 			seen.add(id);
 			const document = file.endsWith(".toml") ? readToml(repository, file)?.root : readDocument(repository, file, manifest);
-			if (!isObject$2(document)) continue;
-			const value = key.split(".").reduce((node, part) => isObject$2(node) && Object.hasOwn(node, part) ? node[part] : void 0, document);
-			const patterns = stringList(value) ?? (objectKey !== null && isObject$2(value) ? stringList(value[objectKey]) : void 0);
-			const excluded = excludeKey !== void 0 && isObject$2(value) ? stringList(value[excludeKey]) ?? [] : [];
+			if (!isObject$3(document)) continue;
+			const value = key.split(".").reduce((node, part) => isObject$3(node) && Object.hasOwn(node, part) ? node[part] : void 0, document);
+			const patterns = stringList(value) ?? (objectKey !== null && isObject$3(value) ? stringList(value[objectKey]) : void 0);
+			const excluded = excludeKey !== void 0 && isObject$3(value) ? stringList(value[excludeKey]) ?? [] : [];
 			const manifests = [...new Set(facts.managers.filter((other) => other.ecosystem === manager.ecosystem).flatMap((other) => other.manifests))];
 			if (patterns !== void 0) declarations.push({
 				file,
@@ -21618,6 +23700,28 @@ function configFiles(repository, manager, directories, project) {
 	return directories.flatMap((directory) => [...manager.configFiles.map((file) => joinPath(directory, file)).filter((file) => repository.isFile(file)), ...table !== void 0 && tomlAt(readToml(repository, joinPath(directory, project)), table) !== void 0 ? [joinPath(directory, project)] : []]).sort(byPath);
 }
 /**
+* pnpm 12.15+: the local files include in pnpm-workspace.yaml names are configuration files of pnpm too; the pnpmfiles
+* and config-dependency plugins whose updateConfig can change every setting are warnings, which explain shows and
+* doctor reports as pnpm-config-unverifiable (decision D-164). The version is the pinned one, else the latest known.
+*/
+function readPnpmSources(repository, manager, tool, packages) {
+	const latest = tool.extra?.["latestVersion"] === void 0 ? void 0 : values$1(tool.extra["latestVersion"])[0];
+	const version = pinnedVersion(manager) ?? (typeof latest === "string" ? parseVersion(latest) : void 0);
+	const read = (file) => repository.readText(file);
+	const includes = readPnpmIncludes(tool, version, read);
+	const found = (includes?.files ?? []).filter((file) => !manager.configFiles.includes(file) && repository.isFile(file));
+	if (found.length > 0) manager.configFiles = [...manager.configFiles, ...found].sort(byPath);
+	for (const hook of pnpmHooks(tool, version, {
+		read,
+		isFile: (file) => repository.isFile(file),
+		packages,
+		...includes === void 0 ? {} : { includes }
+	})) {
+		const line = hook.kind === "plugin" ? hook.line : hook.line ?? hook.updateConfigLine;
+		repository.warn("pnpm-hook", hookMessage(hook, tool.name), [hook.file], line);
+	}
+}
+/**
 * What the project .npmrc of the repository says about optional dependencies (omit, include and optional, as npm
 * reads them: the last line of a key wins, key[] lines add to the list), for the npm installs of CI jobs and
 * Dockerfiles, whose command line and variables override it key by key (decision D-143). The installs are read with
@@ -21668,9 +23772,9 @@ function withProjectOptional(facts, repository) {
 * Describes the repository at `root`. Never executes anything from the repository and never leaves it;
 * problems with individual files become warnings.
 */
-function detectProject(root, tools = knowledgeBase, environment$1 = environment, options = {}) {
+function detectProject(root, tools = knowledgeBase, environment$2 = environment, options = {}) {
 	const repository = new Repository(root);
-	const facts = withProjectOptional(detectionFacts(tools, environment$1), repository);
+	const facts = withProjectOptional(detectionFacts(tools, environment$2), repository);
 	const collector = new Collector();
 	const managerIds = new Set(facts.managers.map((manager) => manager.id));
 	const ecosystemOf = (id) => facts.managers.find((manager) => manager.id === id)?.ecosystem ?? "npm";
@@ -21680,7 +23784,9 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment,
 		readDevEngines(facts, manifest, collector);
 		readVolta(facts, manifest, collector);
 	}
+	readYarnPath(repository, facts, collector);
 	readToolVersions(repository, facts, collector);
+	readMise(repository, facts, collector);
 	readNodeFiles(repository, facts, manifest, collector);
 	readPythonConfig(repository, facts, collector);
 	const owners = /* @__PURE__ */ new Map();
@@ -21702,6 +23808,15 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment,
 	}
 	const workflows = readWorkflows(repository, facts);
 	for (const { tool, declaration } of workflows.versions) {
+		if (declaration.reader === "mise" && !("version" in declaration)) {
+			const found = miseTools((file) => quietToml(repository, file), facts.mise, declaration.versionFile).get(tool);
+			if (found !== void 0) collector.addVersion(tool, {
+				...declaration,
+				version: found.request,
+				versionFile: found.file
+			});
+			continue;
+		}
 		const version = tool === "node" && !("version" in declaration) ? versionFromFile(repository, facts, declaration.versionFile, manifest) : void 0;
 		collector.addVersion(tool, version === void 0 ? declaration : {
 			version,
@@ -21770,6 +23885,9 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment,
 			configFiles: configFiles(repository, manager, directories, facts.pythonProject)
 		});
 	}
+	const pnpm = packageManagers.find((entry) => entry.id === "pnpm" && entry.supported);
+	const pnpmTool = tools.find((tool) => tool.id === "pnpm");
+	if (pnpm !== void 0 && pnpmTool !== void 0) readPnpmSources(repository, pnpm, pnpmTool, workspaces?.packages ?? []);
 	const bots = [];
 	for (const bot of facts.bots) {
 		const files = bot.configFiles.filter((file) => repository.isFile(file));
@@ -21804,7 +23922,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment,
 		...directories.slice(1),
 		...projects
 	])];
-	const botEcosystems = detectBotEcosystems(repository, botEcosystemFacts(environment$1), searched);
+	const botEcosystems = detectBotEcosystems(repository, botEcosystemFacts(environment$2), searched);
 	if (manifest === void 0 && packageManagers.length === 0 && botEcosystems.length === 0 && !repository.isFile("package.json") && !repository.isFile(facts.pythonProject)) repository.warn("nothing-detected", "no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found", []);
 	return {
 		packageManagers,
@@ -21927,7 +24045,7 @@ function withDescription(schema, description) {
 		...schema
 	};
 }
-function literal(value, options = {}) {
+function literal$1(value, options = {}) {
 	const label = JSON.stringify(value);
 	return {
 		label,
@@ -22142,7 +24260,7 @@ const COMPOSER_PREFIX = "composer:";
 * The prefix of each registry but npm, whose names have none. Ruby gems have no prefix (decision D-152): Bundler has no
 * per-gem setting a name in the policy could go to, so no name of the policy is a gem's.
 */
-const PREFIXES = {
+const PREFIXES$1 = {
 	pypi: PYPI_PREFIX,
 	packagist: COMPOSER_PREFIX
 };
@@ -22206,7 +24324,7 @@ function ecosystemOf(pattern) {
 }
 /** The prefix of an ecosystem's names in the policy: pypi:, composer:, or none for npm. */
 function prefixOf(ecosystem) {
-	return ecosystem === "npm" || ecosystem === "rubygems" ? "" : PREFIXES[ecosystem];
+	return ecosystem === "npm" || ecosystem === "rubygems" ? "" : PREFIXES$1[ecosystem];
 }
 /** The patterns of one ecosystem, without their prefix. */
 function patternsFor(patterns, ecosystem) {
@@ -22657,7 +24775,7 @@ function ignoreOutsideText(entry, where, line = false) {
 /** plugin-api-version of composer.lock: the plugin API of the Composer that wrote it. */
 function lockedPluginApi(repository, tool, lockfile) {
 	const fact = extraOf(tool, "pluginApiVersion", (value) => isRecord(value) && typeof value["key"] === "string");
-	const text = repository.readText(lockfile, 67108864);
+	const text = repository.readText(lockfile);
 	if (text === void 0) return void 0;
 	const found = jsonSetting(text, [fact.key]);
 	return typeof found?.value === "string" ? {
@@ -22695,6 +24813,381 @@ function describeRequirements(requirements) {
 	]);
 	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing$1(group.settings)} (added in ${since})`).join(", ");
 	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;
+}
+
+// src/doctor/yarn-classic-lockfile.ts
+/** A lockfile of a later format version, which Yarn Classic refuses: not checked, with the reason. */
+var UnsupportedClassicLockfile = class extends Error {};
+/** Levels deeper than any yarn.lock has (an entry and its dependencies are two): deeper input is not read. */
+const MAX_DEPTH = 64;
+/** The first character of a word (an unquoted string) in parse.js, and the rest of a word, digits and spaces. */
+const WORD_START = /[a-zA-Z/.-]/u;
+const WORD = /[^:\n\r ,]*/uy;
+const DIGITS = /[0-9]+/uy;
+const SPACES = / +/uy;
+/** What makes JSON.parse look at a quoted string more closely than taking its characters: an escape or a control character. */
+const NOT_PLAIN = /[\\\u0000-\u001f]/u;
+/**
+* The tokens of tokenise in src/lockfile/parse.js, one per call, in linear time. A newline is \n or \r and, as in Yarn,
+* the \n after it (so \n\n is one newline there, and the blank line does not end an entry); `line` counts the lines of
+* the file. A comment runs from # to the next \n and is checked for the format version; the spaces at the start of a
+* line are an indent of half their count (an odd count throws); a string in double quotes is JSON, and a quote after a
+* backslash that does not follow another backslash does not end it; then digits, true and false, colon and comma, and
+* a word from a letter, /, . or - to the next colon, space, line end or comma. Anything else is invalid, and nothing
+* follows it.
+*/
+function classicTokens(text, versionComment, lockfileVersion, lineOf) {
+	let line = 1;
+	let at = 0;
+	let afterNewline = false;
+	let ended = false;
+	const length = text.length;
+	const sticky = (pattern) => {
+		pattern.lastIndex = at;
+		return pattern.exec(text) === null ? at : pattern.lastIndex;
+	};
+	return () => {
+		for (;;) {
+			if (ended) throw new Error("it ends in the middle of an entry");
+			if (at >= length) {
+				ended = true;
+				return {
+					type: "eof",
+					line: lineOf(line)
+				};
+			}
+			const char = text[at];
+			const start = at;
+			const lineStart = afterNewline;
+			afterNewline = false;
+			if (char === "\n" || char === "\r") {
+				at += text[at + 1] === "\n" ? 2 : 1;
+				afterNewline = char === "\n" || text[start + 1] === "\n";
+				line += char === "\n" && text[start + 1] === "\n" ? 2 : 1;
+				return {
+					type: "newline",
+					line: lineOf(line)
+				};
+			}
+			if (char === "#") {
+				const end = text.indexOf("\n", at + 1);
+				const comment = text.slice(at + 1, end === -1 ? length : end).trim();
+				const version = versionComment.exec(comment)?.[1];
+				if (version !== void 0 && Number(version) > lockfileVersion) throw new UnsupportedClassicLockfile(`it is a yarn lockfile v${version}, and Yarn Classic reads only version ${lockfileVersion}`);
+				at = end === -1 ? length : end;
+				continue;
+			}
+			if (char === " ") {
+				if (!lineStart) {
+					at += 1;
+					continue;
+				}
+				const end = sticky(SPACES);
+				const size = end - at;
+				if (size % 2 !== 0) throw new Error(`line ${lineOf(line)} is indented by an odd number of spaces`);
+				at = end;
+				return {
+					type: "indent",
+					value: size / 2,
+					line: lineOf(line)
+				};
+			}
+			if (char === "\"") {
+				let end = text.indexOf("\"", at + 1);
+				while (end !== -1 && text[end - 1] === "\\" && (end - 2 <= at || text[end - 2] !== "\\")) end = text.indexOf("\"", end + 1);
+				end = end === -1 ? length : end + 1;
+				const quoted = text.slice(at, end);
+				at = end;
+				let value;
+				if (quoted.length >= 2 && quoted.endsWith("\"") && !NOT_PLAIN.test(quoted)) value = quoted.slice(1, -1);
+				else try {
+					value = JSON.parse(quoted);
+				} catch {
+					value = void 0;
+				}
+				if (typeof value === "string") return {
+					type: "string",
+					value,
+					line: lineOf(line)
+				};
+				return {
+					type: "invalid",
+					line: lineOf(line)
+				};
+			}
+			if (char >= "0" && char <= "9") {
+				const end = sticky(DIGITS);
+				const digits = text.slice(at, end);
+				at = end;
+				return {
+					type: "number",
+					value: Number(digits),
+					line: lineOf(line)
+				};
+			}
+			if (text.startsWith("true", at)) {
+				at += 4;
+				return {
+					type: "boolean",
+					value: true,
+					line: lineOf(line)
+				};
+			}
+			if (text.startsWith("false", at)) {
+				at += 5;
+				return {
+					type: "boolean",
+					value: false,
+					line: lineOf(line)
+				};
+			}
+			if (char === ":" || char === ",") {
+				at += 1;
+				return {
+					type: char === ":" ? "colon" : "comma",
+					line: lineOf(line)
+				};
+			}
+			if (WORD_START.test(char)) {
+				const end = sticky(WORD);
+				const word = text.slice(at, end);
+				at = end;
+				return {
+					type: "string",
+					value: word,
+					line: lineOf(line)
+				};
+			}
+			ended = true;
+			return {
+				type: "invalid",
+				line: lineOf(line)
+			};
+		}
+	};
+}
+/**
+* The Parser of src/lockfile/parse.js: the same loop, levels and errors, with a limit on nesting. Where Yarn's parser
+* stops before the end of the file (an indented line outside an entry), Yarn reads no more of it and resolves what
+* follows again, so that is an error here too: depcurfew would not see what Yarn installs. `lineOf` maps the lines of
+* one side of a conflict to the lines of the file.
+*/
+function parseClassic(text, format, lineOf = (line) => line) {
+	const read = classicTokens(text, new RegExp(String(format["versionComment"]), "u"), Number(format["lockfileVersion"]), lineOf);
+	const lines = /* @__PURE__ */ new Map();
+	let token = {
+		type: "eof",
+		line: 1
+	};
+	const next = () => {
+		token = read();
+		return token;
+	};
+	const unexpected = () => {
+		throw new Error(`Yarn Classic cannot read line ${token.line}`);
+	};
+	const key = () => {
+		if (token.type !== "string" || token.value === "") return unexpected();
+		return token.value;
+	};
+	const level = (indent) => {
+		if (indent > MAX_DEPTH) throw new Error(`it nests more than ${MAX_DEPTH} levels deep at line ${token.line}`);
+		const object = Object.create(null);
+		for (;;) {
+			const current = token;
+			if (current.type === "newline") {
+				const following = next();
+				if (indent === 0) continue;
+				if (following.type !== "indent" || following.value !== indent) break;
+				next();
+			} else if (current.type === "indent") {
+				if (current.value !== indent) break;
+				next();
+			} else if (current.type === "eof") break;
+			else if (current.type === "string") {
+				const keys = [key()];
+				next();
+				while (token.type === "comma") {
+					next();
+					keys.push(key());
+					next();
+				}
+				const colon = token.type === "colon";
+				if (colon) next();
+				if (token.type === "string" || token.type === "number" || token.type === "boolean") {
+					for (const name of keys) object[name] = token.value;
+					next();
+				} else if (colon) {
+					const value = level(indent + 1);
+					lines.set(value, current.line);
+					for (const name of keys) object[name] = value;
+					if (indent !== 0 && token.type !== "indent") break;
+				} else unexpected();
+			} else unexpected();
+		}
+		return object;
+	};
+	next();
+	const object = level(0);
+	for (let rest = token; rest.type !== "eof"; rest = next()) if (rest.type !== "newline" && rest.type !== "indent") throw new Error(`Yarn Classic stops reading it before line ${rest.line} and resolves the packages after that again`);
+	return {
+		object,
+		lines
+	};
+}
+const CONFLICT = {
+	start: "<<<<<<<",
+	separator: "=======",
+	ancestor: "|||||||",
+	end: ">>>>>>>"
+};
+/** The two sides of a git conflict, as extractConflictVariants reads them; undefined without conflict markers. */
+function conflictSides(text) {
+	if (!text.includes(CONFLICT.start) || !text.includes(CONFLICT.separator) || !text.includes(CONFLICT.end)) return void 0;
+	const sides = [{
+		text: [],
+		lines: []
+	}, {
+		text: [],
+		lines: []
+	}];
+	const push = (side, line, number) => {
+		sides[side].text.push(line);
+		sides[side].lines.push(number);
+	};
+	const lines = text.split(/\r?\n/u);
+	let index = 0;
+	while (index < lines.length) {
+		const line = lines[index++];
+		if (!line.startsWith(CONFLICT.start)) {
+			push(0, line, index);
+			push(1, line, index);
+			continue;
+		}
+		let skip = false;
+		while (index < lines.length) {
+			const inner = lines[index++];
+			if (inner === CONFLICT.separator) break;
+			if (skip || inner.startsWith(CONFLICT.ancestor)) skip = true;
+			else push(0, inner, index);
+		}
+		while (index < lines.length) {
+			const inner = lines[index++];
+			if (inner.startsWith(CONFLICT.end)) break;
+			push(1, inner, index);
+		}
+	}
+	return [{
+		text: sides[0].text.join("\n"),
+		lines: sides[0].lines
+	}, {
+		text: sides[1].text.join("\n"),
+		lines: sides[1].lines
+	}];
+}
+/** The parsed lockfile; of a conflicted one both sides, the second winning per key (parseWithConflict). */
+function readClassic(text, format) {
+	const body = text.startsWith("﻿") ? text.slice(1) : text;
+	const sides = conflictSides(body);
+	if (sides === void 0) return parseClassic(body, format);
+	const [ours, theirs] = sides.map((side) => parseClassic(side.text, format, (line) => side.lines[line - 1] ?? line));
+	return {
+		object: Object.assign(Object.create(null), ours.object, theirs.object),
+		lines: new Map([...ours.lines, ...theirs.lines])
+	};
+}
+function isEntries(value) {
+	return typeof value === "object" && value !== null;
+}
+/** Splits name@range as normalizePattern does: the scope's @ is not the separator. */
+function patternParts(pattern) {
+	const scoped = pattern.startsWith("@");
+	const parts = (scoped ? pattern.slice(1) : pattern).split("@");
+	return {
+		name: `${scoped ? "@" : ""}${parts[0] ?? ""}`,
+		range: parts.slice(1).join("@")
+	};
+}
+/**
+* The entries of a yarn.lock of Yarn Classic. An entry with resolved comes from that URL: a registry tarball URL gives
+* the package and version looked up (a mislabel when the name its pattern declares, after an npm: alias, or its version
+* field differ), a git URL is git, file: and relative paths a local tarball, any other URL a tarball URL. An entry
+* without resolved is local when its pattern is (file:, link:, ./, ../, /); otherwise Yarn resolves its range again, so
+* it is a registry package without an exact version. Throws UnsupportedClassicLockfile for a later format version, and
+* an Error where Yarn's parser fails or stops early.
+*/
+function classicYarnEntries(text, format, tarballs) {
+	const { object, lines } = readClassic(text, format);
+	const versionKey = String(format["version"]);
+	const resolvedKey = String(format["resolved"]);
+	const hash = String(format["hash"]);
+	const alias = String(format["alias"]);
+	const git = new RegExp(String(format["gitResolved"]), "u");
+	const local = Array.isArray(format["local"]) ? format["local"].filter((item) => typeof item === "string") : [];
+	const patterns = /* @__PURE__ */ new Map();
+	for (const [key, value] of Object.entries(object)) if (isEntries(value)) patterns.set(value, [...patterns.get(value) ?? [], key]);
+	const entries = [];
+	for (const [value, keys] of patterns) {
+		const key = keys[0];
+		const pattern = patternParts(key);
+		const target = pattern.range.startsWith(alias) ? patternParts(pattern.range.slice(alias.length)) : pattern;
+		const name = target.name;
+		const resolved = typeof value[resolvedKey] === "string" ? value[resolvedKey] : void 0;
+		const field = value[versionKey];
+		const version = typeof field === "string" ? field : typeof field === "number" ? String(field) : void 0;
+		const line = lines.get(value);
+		const base = {
+			name,
+			spec: resolved ?? pattern.range,
+			installScript: void 0,
+			anchor: key,
+			...line === void 0 ? {} : { line }
+		};
+		if (resolved === void 0) {
+			const source = local.some((prefix) => target.range.startsWith(prefix)) ? "directory" : /[:/]/u.test(target.range) ? "unknown" : "registry";
+			entries.push({
+				...base,
+				source
+			});
+			continue;
+		}
+		const url = resolved.split(hash)[0] ?? "";
+		if (git.test(url)) entries.push({
+			...base,
+			source: "git"
+		});
+		else if (!/^https?:\/\//u.test(url)) entries.push({
+			...base,
+			source: local.some((prefix) => url.startsWith(prefix)) ? "file" : "unknown"
+		});
+		else if (tarballs === void 0 || !tarballs.registry.test(url)) entries.push({
+			...base,
+			source: "remoteTarball"
+		});
+		else {
+			const identity = tarballs.identity(url);
+			if (identity === void 0) {
+				entries.push({
+					...base,
+					source: "registry"
+				});
+				continue;
+			}
+			const same = identity.name === name && version === identity.version;
+			entries.push({
+				...base,
+				source: "registry",
+				version: identity.version,
+				...identity.name === name ? {} : { registryName: identity.name },
+				...same ? {} : { mislabel: {
+					tool: "yarn-classic",
+					key,
+					label: version === void 0 ? name : `${name}@${version}`
+				} }
+			});
+		}
+	}
+	return entries;
 }
 
 // src/policy/ecosystem.ts
@@ -22906,7 +25399,10 @@ function pylockEntries(input, format, workspaces = []) {
 		return [entry(item["name"], text(item[key("index")]) ?? "an index", "registry", isRecord(sdist) && wheels.length === 0, line, item["version"])];
 	});
 }
-/** The logical lines of a requirements file: continuations joined, comments removed, with the line each starts on. */
+/**
+* The logical lines of a requirements file: continuations joined, comments removed, with the line each starts on and
+* the line it ends on.
+*/
 function requirementsLines(input, format) {
 	const comment = String(format["comment"]);
 	const continuation = String(format["continuation"]);
@@ -22936,7 +25432,8 @@ function requirementsLines(input, format) {
 		const text = parts.join("").trim();
 		if (text !== "") result.push({
 			text,
-			line: start + 1
+			line: start + 1,
+			end: index + 1
 		});
 	}
 	return result;
@@ -22973,6 +25470,20 @@ function requirementsIncludes(input, format) {
 			line
 		}];
 	});
+}
+const URL_LIKE = /^[a-z][a-z0-9+.-]+:/iu;
+/**
+* The file an include (-r, -c) names, relative to the directory of the file that includes it, as pip joins them
+* (_parse_and_recurse); `url` when pip downloads it, `outside` when it leaves the directory checked.
+*/
+function includedFile(includer, path) {
+	const target = posix.normalize(posix.join(posix.dirname(includer), path.replaceAll("\\", "/")));
+	const url = URL_LIKE.test(path);
+	return {
+		target,
+		url,
+		outside: !url && (isAbsoluteAnywhere(path) || target === ".." || target.startsWith("../"))
+	};
 }
 /**
 * Classifies one requirement (without options or environment markers): a VCS URL, a URL, a local archive or
@@ -23053,8 +25564,6 @@ function requirementsEntries(input, format) {
 }
 
 // src/doctor/lockfiles.ts
-/** Lockfiles are often larger than configuration files. */
-const MAX_LOCKFILE_SIZE = 67108864;
 /**
 * YAML lockfiles (pnpm-lock.yaml, Yarn Berry's yarn.lock) are parsed into a syntax tree that takes about 60 times the
 * size of the file in memory: a 16 MiB one about 1 GiB of the 2 GiB that Node.js gives itself on a CI runner with
@@ -23237,6 +25746,84 @@ function urlPath(url) {
 		return "";
 	}
 }
+/** Text as it stands in a regular expression. */
+function literal(text) {
+	return text.replace(/[.*+?^${}()|[\]\\/]/gu, "\\$&");
+}
+/**
+* The tarball layouts of registries whose URLs are not in npm's layout (decision D-168): GitHub Packages
+* (/download/@scope/name/<version>/<digest> on its host), and GitLab and Artifactory, which keep the scope in the file
+* name (.../@scope/name/-/@scope/name-<version>.tgz, below any path). A placeholder used twice stands for the same text.
+*/
+function registryLayouts() {
+	const facts = [
+		environment.npmRegistry.githubPackagesTarballs,
+		environment.npmRegistry.gitlabTarballs,
+		environment.npmRegistry.artifactoryTarballs
+	];
+	const known = /* @__PURE__ */ new Map();
+	for (const fact of facts) for (const layout of values$1(fact)) known.set(`${layout.host ?? ""} ${layout.path}`, layout);
+	return [...known.values()].map((layout) => {
+		const groups = {};
+		let count = 0;
+		const body = layout.path.replace(/\{(scope|name|version|digest)\}|[^{]+/gu, (part, placeholder) => {
+			if (placeholder === void 0) return literal(part);
+			const seen = groups[placeholder];
+			if (seen !== void 0) return `\\${seen}`;
+			count += 1;
+			groups[placeholder] = count;
+			return placeholder === "scope" ? "(@[^/@]+)" : placeholder === "name" ? "([^/@][^/]*)" : placeholder === "digest" ? "([0-9a-f]+)" : "([^/]+)";
+		});
+		const host = layout.host === void 0 ? "[^/]+" : literal(layout.host);
+		const path = layout.path.startsWith("/") ? body : `(?:/[^?#]*)?/${body}`;
+		return {
+			pattern: new RegExp(`^https?://${host}${path}$`, "iu"),
+			scope: groups["scope"] ?? 0,
+			name: groups["name"] ?? 0,
+			version: groups["version"] ?? 0
+		};
+	});
+}
+let layouts;
+/** The package and version of a tarball URL in a layout of registryLayouts; undefined for another URL. */
+function layoutIdentity(url) {
+	let decoded;
+	try {
+		const parsed = new URL(url);
+		if (parsed.search !== "" || parsed.hash !== "") return void 0;
+		decoded = `${parsed.protocol}//${parsed.host}${decodeURIComponent(parsed.pathname)}`;
+	} catch {
+		return;
+	}
+	layouts ??= registryLayouts();
+	for (const layout of layouts) {
+		const match = layout.pattern.exec(decoded);
+		const version = match === null ? void 0 : parseSemver$1(match[layout.version] ?? "");
+		if (match !== null && version !== void 0) return {
+			name: `${match[layout.scope] ?? ""}/${match[layout.name] ?? ""}`,
+			version: version.core
+		};
+	}
+}
+/**
+* Whether npm 12 installs a tarball URL of package-lock.json as a registry package (npm extra.registryHostTarballs,
+* decision D-168): it has the origin of the registry npm uses for the package (its scope's, else registry, from the
+* .npmrc next to the lockfile) and a path below that registry's path.
+*/
+function belowRegistry(url, name, registries) {
+	if (registries === void 0) return false;
+	const scope = name.startsWith("@") ? name.slice(0, name.indexOf("/")) : void 0;
+	const registry = (scope === void 0 ? void 0 : registries.scopes.get(scope)) ?? registries.registry;
+	if (registry === void 0) return false;
+	try {
+		const resolved = new URL(url);
+		const base = new URL(registry);
+		const path = base.pathname.replace(/\/?$/u, "/");
+		return resolved.origin === base.origin && (path === "/" || resolved.pathname.startsWith(path));
+	} catch {
+		return false;
+	}
+}
 /** Packages that overrides (npm, root package.json only) replace with a tarball URL, at any depth of nesting. */
 function urlOverrides(overrides, parent, selfKey, found = []) {
 	if (!isRecord(overrides)) return found;
@@ -23252,7 +25839,7 @@ function urlOverrides(overrides, parent, selfKey, found = []) {
 	}
 	return found;
 }
-function npmEntries(text, format, workspaces, manifest, overridesFormat, identityFormat) {
+function npmEntries(text, format, workspaces, manifest, overridesFormat, identityFormat, registries) {
 	const document = JSON.parse(text);
 	if (!isRecord(document) || !isRecord(document["packages"])) throw new UnsupportedLockfile("it has no \"packages\" section (lockfileVersion 1 is not read)");
 	const packages = document["packages"];
@@ -23273,6 +25860,7 @@ function npmEntries(text, format, workspaces, manifest, overridesFormat, identit
 	}
 	const overrides = overridesFormat !== void 0 && isRecord(manifest) ? urlOverrides(manifest[String(overridesFormat["field"])], void 0, String(overridesFormat["selfKey"])) : [];
 	const entries = [];
+	const notByUrl = [];
 	for (const [key, value] of Object.entries(packages)) {
 		if (!key.includes("node_modules/") || !isRecord(value)) continue;
 		const name = typeof value["name"] === "string" ? value["name"] : key.slice(key.lastIndexOf("node_modules/") + 13);
@@ -23280,12 +25868,15 @@ function npmEntries(text, format, workspaces, manifest, overridesFormat, identit
 		const version = typeof value["version"] === "string" ? value["version"] : "";
 		const spec = resolved !== "" || format["specWithoutResolved"] !== "version" ? resolved : version;
 		let source = "unknown";
+		let undeclared = false;
 		if (value[String(format["linkFlag"])] === true) source = workspaces.includes(resolved) ? "workspace" : "directory";
 		else if (strings(format["gitPrefixes"]).some((prefix) => spec.startsWith(prefix))) source = "git";
 		else if (spec.startsWith(String(format["filePrefix"]))) source = /\.(?:tgz|tar\.gz)$/u.test(spec) ? "file" : "directory";
 		else if (HTTP.test(spec)) {
 			const overridden = overrides.some((override) => override.name === name && urlPath(spec).endsWith(override.path));
-			source = registry.test(spec) && !fromUrl.has(key) && !overridden ? "registry" : "remoteTarball";
+			const declared = fromUrl.has(key) || overridden;
+			source = (registry.test(spec) || layoutIdentity(spec) !== void 0 || resolved !== "" && belowRegistry(spec, name, registries)) && !declared ? "registry" : "remoteTarball";
+			undeclared = source === "remoteTarball" && !declared;
 		} else if (resolved === "" && (spec === "" || EXACT_VERSION.test(spec))) source = "registry";
 		const entry = {
 			name,
@@ -23295,8 +25886,13 @@ function npmEntries(text, format, workspaces, manifest, overridesFormat, identit
 			anchor: `${JSON.stringify(key)}: {`,
 			...exactVersion(source, version)
 		};
+		if (undeclared) notByUrl.push({
+			key,
+			name,
+			entry
+		});
 		const fetched = source === "registry" && resolved !== "" && identityFormat !== void 0;
-		const identity = fetched ? tarballIdentity(resolved, identityFormat) : void 0;
+		const identity = fetched ? tarballIdentity(resolved, identityFormat) ?? layoutIdentity(resolved) : void 0;
 		if (fetched && identity === void 0) delete entry.version;
 		if (identity !== void 0) {
 			entry.version = identity.version;
@@ -23309,8 +25905,30 @@ function npmEntries(text, format, workspaces, manifest, overridesFormat, identit
 		}
 		entries.push(entry);
 	}
+	if (notByUrl.length > 0) {
+		const names = new Set(notByUrl.map((candidate) => candidate.name));
+		const declared = /* @__PURE__ */ new Set();
+		for (const [key, value] of Object.entries(packages)) {
+			if (!isRecord(value)) continue;
+			for (const field of fields) {
+				const dependencies = value[field];
+				if (!isRecord(dependencies)) continue;
+				for (const [name, spec] of Object.entries(dependencies)) {
+					if (!names.has(name) || typeof spec !== "string" || !REGISTRY_SPEC.test(spec)) continue;
+					const location = installedAt(packages, key, name);
+					if (location !== void 0) declared.add(location);
+				}
+			}
+		}
+		for (const candidate of notByUrl) if (declared.has(candidate.key)) candidate.entry.registrySpec = true;
+	}
 	return entries;
 }
+/**
+* A dependency spec that names a registry version: a version, a range or a dist-tag (nothing with : or / but an npm:
+* alias), as npm-package-arg reads one with registry set; a URL, a git or GitHub spec and a path are not.
+*/
+const REGISTRY_SPEC = /^(?:npm:|[^:/\\]*$)/u;
 /** The project lockfile of a pnpm-lock.yaml and where it starts: the last document when a boot document comes first. */
 function pnpmGraph(text, documents) {
 	const marker = documents?.["bootMarker"];
@@ -23552,7 +26170,6 @@ function extraFormat(tool, key) {
 	const value = fact === void 0 ? void 0 : values$1(fact)[0];
 	return isRecord(value) ? value : void 0;
 }
-const URL_LIKE = /^[a-z][a-z0-9+.-]+:/iu;
 /**
 * pip reads the files a requirements file includes with -r and -c too, relative to the including file, and their
 * global options apply to the whole install. For each requirements file of the trees under `roots`: every file of its
@@ -23571,9 +26188,9 @@ function requirementsTrees(repository, roots, format) {
 			if (text === void 0) continue;
 			const unreadable = [];
 			for (const { path, line } of requirementsIncludes(text, format)) {
-				const target = posix.normalize(posix.join(posix.dirname(file), path.replaceAll("\\", "/")));
-				const reason = URL_LIKE.test(path) ? "a URL" : isAbsoluteAnywhere(path) || target === ".." || target.startsWith("../") ? "outside the repository" : repository.isFile(target) ? void 0 : "missing";
-				if (reason === void 0) queue.push(target);
+				const included = includedFile(file, path);
+				const reason = included.url ? "a URL" : included.outside ? "outside the repository" : repository.isFile(included.target) ? void 0 : "missing";
+				if (reason === void 0) queue.push(included.target);
 				else unreadable.push(`${path} (line ${line}, ${reason})`);
 			}
 			if (unreadable.length > 0) repository.warn("unreadable-include", `cannot read the files that ${file} includes: ${listing$1(unreadable)}`, [file]);
@@ -23610,14 +26227,30 @@ function entryLines(text, start, entries) {
 		return lines.has(entry) ? lines.get(entry) : lineFinder(text, start)(entry.anchor);
 	};
 }
+/**
+* The registries of the .npmrc next to a package-lock.json, npm's project configuration there (decision D-168): its
+* top-level registry= and @scope:registry= as npm's ini reads them, the last of a key winning.
+*/
+function npmrcRegistries(repository, lockfile) {
+	const directory = posix.dirname(lockfile);
+	const text = repository.readText(directory === "." ? ".npmrc" : `${directory}/.npmrc`);
+	const scopes = /* @__PURE__ */ new Map();
+	let registry;
+	for (const { key, value } of text === void 0 ? [] : iniEntries(text)) if (key === "registry") registry = value;
+	else if (key.startsWith("@") && key.endsWith(":registry")) scopes.set(key.slice(0, -9), value);
+	return {
+		...registry === void 0 ? {} : { registry },
+		scopes
+	};
+}
 /** Lockfiles already read in a doctor run (one Repository): both lockfile rules read the same ones. */
-const READ = /* @__PURE__ */ new WeakMap();
+const READ$1 = /* @__PURE__ */ new WeakMap();
 /** The lockfiles a package manager uses, each read and parsed once per Repository. */
 function readLockfiles(repository, manager, tool, workspaces, tools = []) {
-	let read = READ.get(repository);
+	let read = READ$1.get(repository);
 	if (read === void 0) {
 		read = /* @__PURE__ */ new Map();
-		READ.set(repository, read);
+		READ$1.set(repository, read);
 	}
 	let results = read.get(manager);
 	if (results === void 0) {
@@ -23626,13 +26259,33 @@ function readLockfiles(repository, manager, tool, workspaces, tools = []) {
 	}
 	return results;
 }
-/** A pnpm-lock.yaml or a Yarn Berry yarn.lock, which are parsed as YAML. */
-function isYamlLockfile(tool, file) {
-	return (tool.id === "pnpm" || tool.id === "yarn") && /\.ya?ml$|(?:^|\/)yarn\.lock$/u.test(file);
+/** A pnpm-lock.yaml or a Yarn Berry yarn.lock, which are parsed as YAML; Yarn Classic's yarn.lock is not YAML. */
+function isYamlLockfile(tool, manager, file) {
+	return (tool.id === "pnpm" || tool.id === "yarn" && manager.variant !== "classic") && /\.ya?ml$|(?:^|\/)yarn\.lock$/u.test(file);
+}
+/**
+* How Yarn Classic's yarn.lock is read for the lookups (decision D-165): its format (yarn extra.classicLockfile) and the
+* layout of registry tarball URLs, as npm reads it (npm extra.tarballIdentity and lockfileFormat.registryTarball).
+*/
+function classicReading(tool, tools) {
+	const format = extraFormat(tool, "classicLockfile");
+	if (format === void 0) return void 0;
+	const npm = tools.find((entry) => entry.id === "npm");
+	const identity = npm === void 0 ? void 0 : extraFormat(npm, "tarballIdentity");
+	const registry = lockfileFormatOf(npm)?.["registryTarball"];
+	return {
+		format,
+		tarballs: identity === void 0 || typeof registry !== "string" ? void 0 : {
+			registry: new RegExp(registry, "u"),
+			identity: (url) => tarballIdentity(url, identity)
+		}
+	};
 }
 function parseLockfiles(repository, manager, tool, workspaces, tools) {
 	const format = lockfileFormatOf(tool);
 	if (format === void 0) return [];
+	const classic = tool.id === "yarn" && manager.variant === "classic" ? classicReading(tool, tools) : void 0;
+	if (tool.id === "yarn" && manager.variant === "classic" && classic === void 0) return [];
 	const pip = tool.id === "pip" ? tool : tools.find((entry) => entry.id === "pip");
 	const pylockFormat = lockfileFormatOf(pip);
 	const lockfiles = manager.evidence.filter((item) => item.kind === "lockfile").map((item) => item.file);
@@ -23654,7 +26307,7 @@ function parseLockfiles(repository, manager, tool, workspaces, tools) {
 				unreadable: true
 			};
 		}
-		if (isYamlLockfile(tool, file) && Buffer.byteLength(text) > 16777216) {
+		if (isYamlLockfile(tool, manager, file) && Buffer.byteLength(text) > 16777216) {
 			const limit = MAX_YAML_LOCKFILE_SIZE / 1048576;
 			repository.warn("lockfile-too-large", `${file} is larger than ${limit} MiB, the limit for YAML lockfiles (parsing a larger one needs more memory than a CI runner gives Node.js), and was not read`, [file]);
 			return {
@@ -23668,11 +26321,16 @@ function parseLockfiles(repository, manager, tool, workspaces, tools) {
 			let entries;
 			let recordsScripts = format["installScripts"] !== null;
 			let start = 0;
-			if (tool.id === "npm") entries = npmEntries(text, format, workspaces, readManifest(repository, file), overridesFormatOf(tool), extraFormat(tool, "tarballIdentity"));
-			else if (tool.id === "pnpm") {
+			if (tool.id === "npm") {
+				const registries = tool.extra?.["registryHostTarballs"] === void 0 ? void 0 : npmrcRegistries(repository, file);
+				entries = npmEntries(text, format, workspaces, readManifest(repository, file), overridesFormatOf(tool), extraFormat(tool, "tarballIdentity"), registries);
+			} else if (tool.id === "pnpm") {
 				const npmTool = tools.find((entry) => entry.id === "npm");
 				const identity = tool.extra?.["tarballResolution"] === void 0 || npmTool === void 0 ? void 0 : extraFormat(npmTool, "tarballIdentity");
 				({entries, start} = pnpmEntries(text, format, documentsOf(tool), identity));
+			} else if (classic !== void 0) {
+				entries = classicYarnEntries(text, classic.format, classic.tarballs);
+				recordsScripts = false;
 			} else if (tool.id === "yarn") entries = yarnEntries(text, format, extraFormat(tool, "registryFetch"));
 			else if (tool.id === "bun") entries = bunEntries(text, format);
 			else if (pylockFormat !== void 0 && lockfiles.includes(file) && isPylock(pip, file)) {
@@ -23699,7 +26357,7 @@ function parseLockfiles(repository, manager, tool, workspaces, tools) {
 				}
 			};
 		} catch (error) {
-			if (error instanceof UnsupportedLockfile) return {
+			if (error instanceof UnsupportedLockfile || error instanceof UnsupportedClassicLockfile) return {
 				ok: false,
 				file,
 				reason: error.message,
@@ -23726,13 +26384,27 @@ function policyName(entry) {
 function covers$1(entry, patterns) {
 	return entry.composerKey === true ? keyCoveredBy(entry.name, patterns) : patterns.some((pattern) => matchesPattern$1(entry.package, pattern));
 }
+function unreadAllowList(tool, version) {
+	const since = tool === void 0 ? void 0 : sinceOf(tool.installScripts.allowList.availableSince);
+	const required = since === void 0 ? void 0 : parseVersion(since);
+	if (tool === void 0 || since === void 0 || required === void 0 || version === void 0 || compareVersions$1(version, required) >= 0) return void 0;
+	return {
+		tool: tool.name,
+		version: formatVersion(version),
+		since
+	};
+}
+/** "Deno 2.5.6 does not read allowScripts (added in 2.6.0), so it runs no install scripts of sharp now, but …". */
+function unreadText(entry, unread) {
+	return `${unread.tool} ${unread.version} does not read ${entry.setting} (added in ${unread.since}), so it runs no install scripts of ${entry.name} now, but ${unread.tool} ${unread.since} and later would let it run them`;
+}
 /**
 * What is wrong with an entry that lets a package the policy does not list run its install scripts, and what to do:
 * for apply (allow-list-entry-outside-policy, `apply` true: with the line, and the entry removed by hand) and doctor
 * (config-drift). A Composer key that matches every plugin, or one the policy cannot name, is not offered for
 * installScripts.allow, since the policy rejects such a name.
 */
-function outsideConflictText(entry, apply = false) {
+function outsideConflictText(entry, apply = false, unread) {
 	const where = `${entry.setting} in ${entry.file}${apply && entry.line !== void 0 ? ` (line ${entry.line})` : ""}`;
 	if (entry.composerKey === true && (matchesEveryComposerName(entry.name) || entry.policyName === void 0)) {
 		const every = matchesEveryComposerName(entry.name);
@@ -23746,7 +26418,7 @@ function outsideConflictText(entry, apply = false) {
 		fix: `Remove ${JSON.stringify(entry.name)} from ${entry.setting} in ${entry.file}${apply ? " by hand" : ""}, or add ${policyName(entry)} to installScripts.allow in ${POLICY_FILE}`
 	};
 	return {
-		message: `${where} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it`,
+		message: unread === void 0 ? `${where} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it` : `${where} lists ${entry.name}, which ${POLICY_FILE} does not allow; ${unreadText(entry, unread)}`,
 		fix: apply ? `Remove ${entry.name} from ${entry.setting} by hand, or add ${policyName(entry)} to installScripts.allow in ${POLICY_FILE}` : `Remove ${entry.name} from ${entry.setting}, or add ${entry.policyName ?? (entry.name === entry.package ? "it" : entry.package)} to installScripts.allow in ${POLICY_FILE}`
 	};
 }
@@ -23823,21 +26495,26 @@ function listEntries(repository, manager, configFiles, options, allowed) {
 			entries.push(...fromManifestKeys("allowScripts", (entry) => entry === allowed));
 			break;
 		case "pnpm": {
-			const workspace = read(repository, "pnpm-workspace.yaml");
+			const includes = options.tool === void 0 ? void 0 : readPnpmIncludes(options.tool, options.version, (file) => read(repository, file));
+			const owner = pnpmOwner(includes, "allowBuilds");
+			const file = owner.kind === "file" ? owner.file : void 0;
+			const workspace = file === void 0 ? void 0 : read(repository, file);
 			const yaml = yamlOptionsFor("pnpm-workspace.yaml");
-			if (workspace !== void 0) {
+			if (workspace !== void 0 && file !== void 0) {
 				const permissions = buildPermissions(workspace, options.tool, options.version);
-				const allowBuilds = fromKeys(workspace, "pnpm-workspace.yaml", "allowBuilds", yamlSetting(workspace, ["allowBuilds"], yaml)?.value, (entry) => entry === allowed, (name) => yamlSetting(workspace, ["allowBuilds", name], yaml)?.line);
+				const allowBuilds = fromKeys(workspace, file, "allowBuilds", yamlSetting(workspace, ["allowBuilds"], yaml)?.value, (entry) => entry === allowed, (name) => yamlSetting(workspace, ["allowBuilds", name], yaml)?.line);
 				entries.push(...allowBuilds.filter((entry) => permissions?.has(entry.name) !== true));
 				for (const [name, decision] of permissions ?? []) if (decision.allowed === allowed) entries.push({
 					name,
 					package: splitSpec(name).name,
-					file: "pnpm-workspace.yaml",
+					file,
 					line: decision.line,
 					setting: "permissions"
 				});
-				if (allowed) entries.push(...fromList(workspace, "pnpm-workspace.yaml", "onlyBuiltDependencies", yamlSetting(workspace, ["onlyBuiltDependencies"], yaml)?.value));
 			}
+			const legacy = pnpmOwner(includes, "onlyBuiltDependencies");
+			const legacyText = legacy.kind === "file" ? read(repository, legacy.file) : void 0;
+			if (allowed && legacy.kind === "file" && legacyText !== void 0) entries.push(...fromList(legacyText, legacy.file, "onlyBuiltDependencies", yamlSetting(legacyText, ["onlyBuiltDependencies"], yaml)?.value));
 			if (allowed && manifest !== void 0) entries.push(...fromList(manifest, "package.json", "pnpm.onlyBuiltDependencies", json(["pnpm", "onlyBuiltDependencies"]), "", jsonLine(manifest, "package.json", ["pnpm", "onlyBuiltDependencies"])));
 			break;
 		}
@@ -23933,7 +26610,7 @@ function remainingConflicts(now, planned, manager, configFiles, options, scripts
 * What is wrong with an entry that contradicts installScripts.allow or installScripts.deny, and what to do: the same in
 * apply (deny-conflicts-with-file) and doctor (config-drift). `line` puts the line into the message, for apply's text.
 */
-function denyConflictText(conflict, line = false) {
+function denyConflictText(conflict, line = false, unread) {
 	const { entry } = conflict;
 	const where = `${entry.setting} in ${entry.file}${line && entry.line !== void 0 ? ` (line ${entry.line})` : ""}`;
 	if (entry.composerKey === true) {
@@ -23947,7 +26624,7 @@ function denyConflictText(conflict, line = false) {
 		};
 	}
 	if (conflict.kind === "denied") return {
-		message: `${where} lets ${entry.name} run its install scripts, although installScripts.deny in ${POLICY_FILE} says they must not run`,
+		message: unread === void 0 ? `${where} lets ${entry.name} run its install scripts, although installScripts.deny in ${POLICY_FILE} says they must not run` : `${where} lists ${entry.name}, which installScripts.deny in ${POLICY_FILE} denies; ${unreadText(entry, unread)}`,
 		fix: `Remove ${entry.name} from ${entry.setting} in ${entry.file}, or move ${policyName(entry)} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing its scripts`
 	};
 	return {
@@ -23961,6 +26638,14 @@ function matchesPattern$1(name, pattern) {
 }
 
 // src/doctor/unreadable-warnings.ts
+/**
+* What to do about Yarn Classic, which depcurfew does not configure: move to the first Yarn with the release-age delay
+* (cooldown.availableSince of Yarn). One text for explain, apply and doctor (decision D-170).
+*/
+function yarnClassicFix(berry = yarn$1) {
+	const since = sinceOf(berry.cooldown.availableSince);
+	return `Move to ${berry.name}${since === void 0 ? "" : ` ${since} or later`}, or to another package manager depcurfew configures`;
+}
 /** Repository warnings that mean a file was not checked. */
 const UNREADABLE_WARNINGS = {
 	"invalid-file": "Fix the syntax error, so that depcurfew can check the file",
@@ -23981,12 +26666,13 @@ const WARNING_FIXES = {
 	"nothing-detected": `Run depcurfew explain in the directory of the project, or list the directories of the projects under projects in ${POLICY_FILE}`,
 	"invalid-package-manager": "Write packageManager in package.json as name@version, with a package manager depcurfew knows",
 	"package-manager-assumed": "Commit the lockfile, or name the package manager and its version in packageManager in package.json",
-	"yarn-classic-unsupported": "Move to Yarn 2 or later, or to another package manager depcurfew configures",
+	"yarn-classic-unsupported": yarnClassicFix(),
 	"renovate-config-in-package-json": "Move the renovate key of package.json to renovate.json",
 	"multiple-lockfiles": "Remove the lockfiles of the package managers the project does not use",
 	"package-manager-mismatch": "Commit the lockfile of the package manager that packageManager in package.json names, or correct packageManager",
 	"python-tool-unknown": `Commit the lockfile of the tool that installs the project, or name the tool in targets in ${POLICY_FILE}`,
 	"script-not-followed": "Split the script into shorter run steps or RUN instructions, or check by hand where the installs after that point run and with which variables",
+	"pnpm-hook": "Read the pnpmfile and make sure its updateConfig hook leaves the security settings as they are; set pnpmfile: [] in pnpm-workspace.yaml when the project needs no pnpmfile, and remove config-dependency plugins it does not need (depcurfew doctor reports each one as pnpm-config-unverifiable)",
 	"workspace-search-limit": `Narrow the workspace patterns (for example packages/* instead of **), so that they match at most ${MAX_WORKSPACE_DIRECTORIES} directories and depcurfew finds every workspace package`
 };
 /**
@@ -24229,12 +26915,12 @@ const UNIT_MINUTES = {
 function word(unit) {
 	return MINUTES$2[unit.toLowerCase().replace(/s$/u, "")];
 }
-const SYNTAX = {
+const SYNTAX$1 = {
 	compact: (text) => {
 		const match = /^(\d+)(ms|s|m|h|d|w)$/u.exec(text);
 		return match === null ? void 0 : Number(match[1]) * (MINUTES$2[match[2] ?? ""] ?? NaN);
 	},
-	"compact-or-words": (text) => SYNTAX["compact"]?.(text) ?? SYNTAX["words"]?.(text),
+	"compact-or-words": (text) => SYNTAX$1["compact"]?.(text) ?? SYNTAX$1["words"]?.(text),
 	words: (text) => {
 		const parts = [...text.matchAll(/(\d+)\s*([a-z]+)/giu)];
 		if (parts.length === 0 || parts.map((part) => part[0]).join(" ").replaceAll(/\s+/gu, "") !== text.replaceAll(/\s+/gu, "")) return void 0;
@@ -24250,7 +26936,7 @@ const SYNTAX = {
 		const match = /^(\d+)\s*(second|minute|hour|day|week)s?$/u.exec(text);
 		return match === null ? void 0 : Number(match[1]) * (MINUTES$2[match[2] ?? ""] ?? NaN);
 	},
-	"words-or-iso8601": (text) => SYNTAX["iso8601"]?.(text) ?? SYNTAX["words"]?.(text),
+	"words-or-iso8601": (text) => SYNTAX$1["iso8601"]?.(text) ?? SYNTAX$1["words"]?.(text),
 	iso8601: (text) => {
 		const match = /^P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/u.exec(text);
 		if (match === null || text === "P" || text.endsWith("T")) return void 0;
@@ -24307,13 +26993,40 @@ function delayMinutes(tool, value, version) {
 		ok: false,
 		reason: `${tool.name} accepts duration strings only since ${format["since"]}`
 	};
-	const minutes = SYNTAX[format["syntax"]]?.(text);
+	const minutes = SYNTAX$1[format["syntax"]]?.(text);
 	return minutes === void 0 ? {
 		ok: false,
 		reason: `"${text}" is not a duration ${tool.name} understands`
 	} : {
 		ok: true,
 		minutes
+	};
+}
+const CUTOFF = /^(\d{4})-(\d{2})-(\d{2})(?:[Tt ](\d{2}):(\d{2})(?::(\d{2})(\.\d+)?)?([Zz]|[+-]\d{2}:?\d{2})?)?$/u;
+/**
+* A fixed date or time that the tool reads in place of a delay (extra.cutoffDates: uv's and PDM's exclude-newer, Deno's
+* minimumDependencyAge): it holds back every version uploaded after it, so it counts as the time since it, in whole
+* days rounded up (decision D-167). A date without a time counts from its start in UTC, the earliest moment any time
+* zone gives it; a time without an offset only where the tool reads it as UTC. undefined for any other value.
+*/
+function cutoffAge(tool, value, now) {
+	const fact = tool.extra?.["cutoffDates"];
+	const format = fact === void 0 ? void 0 : values$1(fact)[0];
+	if (!isRecord(format)) return void 0;
+	const text = typeof value === "string" ? value.trim() : value instanceof TomlDateTime ? value.text : void 0;
+	const match = text === void 0 ? null : CUTOFF.exec(text);
+	if (text === void 0 || match === null) return void 0;
+	const [, year, month, day, hour, minute, second, fraction, offset] = match;
+	if (hour !== void 0 && offset === void 0 && format["offsetRequired"] !== false) return void 0;
+	const date = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour ?? 0), Number(minute ?? 0), Number(second ?? 0), Math.round(Number(fraction ?? 0) * 1e3));
+	const check = new Date(date);
+	if (check.getUTCMonth() !== Number(month) - 1 || check.getUTCDate() !== Number(day)) return void 0;
+	const sign = offset === void 0 || /^[Zz]$/u.test(offset) ? 0 : offset.startsWith("-") ? -1 : 1;
+	const digits = offset?.replace(/[^0-9]/gu, "") ?? "";
+	const age = (now - (date - sign * (Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2) || 0)) * 6e4)) / 6e4;
+	return {
+		minutes: age <= 0 ? 0 : Math.ceil(age / 1440) * 1440,
+		text
 	};
 }
 function formatMinutes(minutes) {
@@ -24402,6 +27115,57 @@ function requirementsOptions(repository, file, format) {
 	});
 }
 
+// src/doctor/pnpm-config.ts
+const CACHE = /* @__PURE__ */ new WeakMap();
+/** The include index of the repository for a pnpm version (undefined: the latest known). */
+function repositoryIncludes(repository, tool, version) {
+	let known = CACHE.get(repository);
+	if (known === void 0) {
+		known = /* @__PURE__ */ new Map();
+		CACHE.set(repository, known);
+	}
+	const key = version === void 0 ? "" : formatVersion(version);
+	if (!known.has(key)) known.set(key, readPnpmIncludes(tool, version, (file) => repository.readText(file)));
+	return known.get(key);
+}
+/** pnpm as doctor checks it: the detected manager, its knowledge and the pinned version, else the latest known. */
+function pnpmOf(detection, tools) {
+	const manager = detection.packageManagers.find((entry) => entry.id === "pnpm" && entry.supported);
+	const tool = tools.find((entry) => entry.id === "pnpm");
+	return manager === void 0 || tool === void 0 ? void 0 : {
+		manager,
+		tool,
+		version: pinnedVersion(manager) ?? latestVersion$1(tool)
+	};
+}
+/** The root manifest of pnpm, whose settings include may give to other files. */
+function manifestOf(tool) {
+	return values$1(tool.cooldown.configFiles)[0]?.[0] ?? "pnpm-workspace.yaml";
+}
+/** Where pnpm takes `setting` from, for a file doctor would read it in; the file itself for every other tool and file. */
+function settingOwner(repository, tool, version, file, setting) {
+	if (tool.id !== "pnpm" || file !== manifestOf(tool)) return {
+		kind: "file",
+		file
+	};
+	return pnpmOwner(repositoryIncludes(repository, tool, version), setting, file);
+}
+/**
+* A setting of a tool's configuration file as the tool reads it: readSetting, except that pnpm 12.15+ takes a setting
+* of pnpm-workspace.yaml from the file include gives it to, read with merge keys as pnpm reads it; undefined when a
+* config dependency or a file outside the directory owns it. The version is the one doctor checks pnpm against.
+*/
+function readRuleSetting(context, tool, file, setting) {
+	const version = tool.id === "pnpm" ? pnpmOf(context.detection, context.tools)?.version : void 0;
+	return readToolSetting(context.repository, tool, version, file, setting);
+}
+/** readToolSetting with the version of the tool given. */
+function readToolSetting(repository, tool, version, file, setting) {
+	const owner = settingOwner(repository, tool, version, file, setting.split(".")[0] ?? setting);
+	if (owner.kind !== "file") return void 0;
+	return owner.file === file ? readSetting(repository, file, setting) : readSetting(repository, owner.file, setting, { merge: mergesYamlKeys(tool) });
+}
+
 // src/doctor/effective.ts
 /** The names of the Gemfile in the order Bundler looks for them (extra.gemfileNames). */
 function gemfileNamesOf(tool) {
@@ -24486,7 +27250,14 @@ function managerDelay$1(context, manager, tool) {
 		let found;
 		let key = setting;
 		if (ecosystemOfTool(tool) === "pypi") found = readPythonSetting(context.repository, tool, setting);
-		else for (const file of managerConfigFiles(tool, manager)) found ??= readSetting(context.repository, file, setting);
+		else for (const file of managerConfigFiles(tool, manager)) {
+			const owner = settingOwner(context.repository, tool, version, file, setting);
+			if (owner.kind !== "file") {
+				context.notice(`${tool.name}: ${setting} comes from ${ownerText(owner, file)}, whose value depcurfew cannot read`, file);
+				return;
+			}
+			found ??= readToolSetting(context.repository, tool, version, file, setting);
+		}
 		if (found === void 0) {
 			found = pnpmNpmrcSetting(context, tool, version, setting);
 			if (found !== void 0) key = npmrcKey(setting);
@@ -24900,6 +27671,7 @@ function namingOf(source) {
 }
 /** The names a declaration may use: a job container's image tag reads like a Dockerfile's (decision D-115). */
 function namingFor(declaration) {
+	if (declaration.reader === "mise") return "semver";
 	return declaration.container === void 0 ? namingOf(declaration.source) : "docker";
 }
 function segmentsOf(lines) {
@@ -25157,25 +27929,28 @@ function today() {
 
 // src/doctor/rules/bundled-versions.ts
 const SOURCE_LABEL = {
+	yarnPath: "yarnPath",
 	packageManager: "packageManager",
 	"tool-config": "the required version",
 	lockfile: "the lockfile",
 	devEngines: "devEngines",
 	volta: "Volta",
 	"tool-versions": ".tool-versions",
+	mise: "mise",
 	nvmrc: ".nvmrc",
 	"node-version": ".node-version",
 	engines: "engines",
 	"github-actions": "GitHub Actions",
 	dockerfile: "Dockerfile"
 };
-const RULE$4 = "manager-version-too-old";
+const RULE$5 = "manager-version-too-old";
 /** Where developers choose their Node.js; anyone can install another npm, so these give warnings. */
 const DEVELOPER_SOURCES = /* @__PURE__ */ new Set([
 	"nvmrc",
 	"node-version",
 	"volta",
 	"tool-versions",
+	"mise",
 	"devEngines",
 	"engines"
 ]);
@@ -25316,7 +28091,7 @@ function nodeSubject(declaration, label, jobs = []) {
 	return `Node.js ${declaration.version}${matrix}${container}${from} in ${label === where ? label : `${label} (${where})`}`;
 }
 /** nodeBundledNpm with the result kept per text, for a matrix that repeats one version in many steps. */
-function resolver(facts) {
+function resolver$1(facts) {
 	const known = /* @__PURE__ */ new Map();
 	return (text, naming) => {
 		const key = `${naming}\u0000${text}`;
@@ -25543,22 +28318,39 @@ function builtByProject(projects) {
 	};
 }
 const AT_ROOT = " at the repository root";
-/** The versions from which npm treats dependency scripts and the settings of the policy otherwise. */
-function npmMarks() {
-	return [
-		...(values$1(npm$1.installScripts.defaultPolicy)[0] ?? []).map((entry) => entry.since),
-		sinceOf(npm$1.installScripts.allowList.availableSince),
-		sinceOf(npm$1.cooldown.availableSince)
-	].flatMap((text) => {
-		const version = text === void 0 ? void 0 : parseVersion(text);
-		return version === void 0 ? [] : [version];
-	});
+/** The npm releases depcurfew knows: the newest of each minor line (extra.lineReleases), the latest one and those Node.js releases come with. */
+let knownNpm;
+function knownNpmReleases() {
+	if (knownNpm !== void 0) return knownNpm;
+	const lines = npm$1.extra?.["lineReleases"] === void 0 ? void 0 : values$1(npm$1.extra["lineReleases"])[0];
+	const latest = npm$1.extra?.["latestVersion"] === void 0 ? void 0 : values$1(npm$1.extra["latestVersion"])[0];
+	const sorted = [...[...Array.isArray(lines) ? lines : [], latest].filter((text) => typeof text === "string").map((text) => parseVersion(text)), ...sharedFacts().node.map((segment) => segment.bundled)].filter((version) => version !== void 0 && version.length === 3).sort(compareVersions$1).filter((version, index, list) => index === 0 || compareVersions$1(version, list[index - 1]) !== 0);
+	knownNpm = sorted;
+	return sorted;
 }
 /**
-* The npm of npm install -g npm@<spec> (decision D-115): an exact version; for a range (npm@11, npm@^11.10.0) its lowest
-* version and the versions it allows from which npm treats dependency scripts otherwise, as for a range in
-* packageManager; for a spec depcurfew cannot read (npm@latest, npm@${NPM_VERSION}) an npm it cannot tell, which
-* counts as one that runs every dependency install script (decision D-111).
+* The npm npm install -g npm@<range> installs (npm extra.rangeInstall, decision D-173): the newest release of the range
+* that runs on the Node.js of the place (one whose engines leave out every release the place allows does not), else the
+* newest release of the range; npm@latest and a bare npm are the range *. It is taken from the releases depcurfew knows
+* (knownNpmReleases): npm installs that one or a newer release. undefined for a dist-tag other than latest and for a
+* range no release depcurfew knows satisfies.
+*/
+function pickedNpm(spec, nodes) {
+	const range = spec === "latest" || spec === "" ? "*" : spec;
+	if (range !== "*" && lowestVersion(range).kind === "unknown") return void 0;
+	const candidates = knownNpmReleases().filter((version) => satisfies(formatVersion(version), range)).sort((a, b) => compareVersions$1(b, a));
+	const facts = sharedFacts();
+	const version = candidates.find((version) => enginesVerdict(version, nodes, facts)?.verdict !== "none") ?? candidates[0];
+	return version === void 0 ? void 0 : {
+		version,
+		newerElsewhere: version !== candidates[0]
+	};
+}
+/**
+* The npm of npm install -g npm@<spec> (decisions D-115 and D-173): an exact version; for a range (npm@11, npm@^11.10.0)
+* or npm@latest the release pickedNpm takes for it; for a spec depcurfew cannot read (npm@next, npm@${NPM_VERSION}, a
+* range with no release it knows) an npm it cannot tell, which counts as one that runs every dependency install script
+* (decision D-111).
 */
 function upgradeEntry(spec, where, location, nodes = []) {
 	const fields = {
@@ -25571,17 +28363,15 @@ function upgradeEntry(spec, where, location, nodes = []) {
 		versions: [exact],
 		...fields
 	};
-	const lowest = lowestVersion(spec);
-	if (lowest.kind === "unknown") return {
+	const picked = pickedNpm(spec, nodes);
+	if (picked === void 0) return {
 		versions: [],
-		unknown: `npm@${spec} names no version depcurfew can read`,
+		unknown: `npm@${spec} names no version depcurfew can read, or none of the npm releases it knows`,
 		spec,
 		...fields
 	};
-	const candidates = [lowest.version, ...npmMarks()].filter((version) => satisfies(formatVersion(version), spec)).sort(compareVersions$1);
-	const versions = candidates.filter((version, index) => index === 0 || compareVersions$1(version, candidates[index - 1]) !== 0);
 	return {
-		versions: versions.length === 0 ? [lowest.version] : versions,
+		versions: [picked.version],
 		range: spec,
 		...fields
 	};
@@ -25598,8 +28388,9 @@ function upgradeEntry(spec, where, location, nodes = []) {
 * strict-allow-scripts from this list, and doctor promises it from the same list.
 */
 function npmInUse(detection, manifest, label, options = {}) {
-	const resolve = resolver(sharedFacts());
+	const resolve = resolver$1(sharedFacts());
 	const found = [];
+	const locked = (installs) => installs?.lockfile === true && lockedVersionsInstalled() ? { lockfile: true } : {};
 	const keys = /* @__PURE__ */ new Set();
 	const push = (entry) => {
 		const key = `${entry.where}\u0000${entry.versions.map(formatVersion).join(" ")}\u0000${entry.unknown ?? ""}`;
@@ -25607,11 +28398,12 @@ function npmInUse(detection, manifest, label, options = {}) {
 		keys.add(key);
 		found.push(entry);
 	};
-	const add = (resolution, where, location, node) => {
+	const add = (resolution, where, location, node, installs) => {
 		const fields = {
 			where: `with ${where}`,
 			...location === void 0 ? {} : { location },
-			...node === void 0 ? {} : { nodes: [node] }
+			...node === void 0 ? {} : { nodes: [node] },
+			...locked(installs)
 		};
 		push(resolution.kind === "unknown" ? {
 			versions: [],
@@ -25622,16 +28414,19 @@ function npmInUse(detection, manifest, label, options = {}) {
 			...fields
 		});
 	};
-	const unknownNode = (reason, where, location) => add({
+	const unknownNode = (reason, where, location, installs) => add({
 		kind: "unknown",
 		reason
-	}, where, location);
+	}, where, location, void 0, installs);
 	const at = (file, line) => ({
 		file,
 		...line === void 0 ? {} : { line }
 	});
-	const upgrade = (command, where, location, nodes = []) => {
-		if (command.version !== void 0) push(upgradeEntry(command.version, where, location, nodes));
+	const upgrade = (command, where, location, nodes = [], installs) => {
+		if (command.version !== void 0) push({
+			...upgradeEntry(command.version, where, location, nodes),
+			...locked(installs)
+		});
 	};
 	const stageNodes = (place) => {
 		const version = place.stage.runtime?.tool === "node" ? place.stage.runtime.version : void 0;
@@ -25655,6 +28450,7 @@ function npmInUse(detection, manifest, label, options = {}) {
 				versions: [exact],
 				where: `${label(declaration)} in ${declaration.file}`,
 				location: at(declaration.file, declaration.line),
+				declared: label(declaration),
 				...isPin ? { pin: true } : {}
 			});
 			continue;
@@ -25664,7 +28460,8 @@ function npmInUse(detection, manifest, label, options = {}) {
 		if (version !== void 0) push({
 			versions: [version],
 			where: `the lowest version ${label(declaration)} in ${declaration.file} allows`,
-			location: at(declaration.file, declaration.line)
+			location: at(declaration.file, declaration.line),
+			declared: label(declaration)
 		});
 	}
 	const views = [detection];
@@ -25686,38 +28483,38 @@ function npmInUse(detection, manifest, label, options = {}) {
 	});
 	for (const { place, ownFile } of jobs) {
 		if (place.upgrade === void 0 || place.project !== "" || place.installs.scriptsOff) continue;
-		upgrade(place.upgrade, `installed in ${jobLabel(place.job.id, place.job.line)} of ${place.job.file}${ownFile ? "" : AT_ROOT}, line ${place.upgrade.line}`, ownFile ? at(place.job.file, place.upgrade.line) : void 0, place.nodes.flatMap(nodeOf));
+		upgrade(place.upgrade, `installed in ${jobLabel(place.job.id, place.job.line)} of ${place.job.file}${ownFile ? "" : AT_ROOT}, line ${place.upgrade.line}`, ownFile ? at(place.job.file, place.upgrade.line) : void 0, place.nodes.flatMap(nodeOf), place.installs);
 	}
-	for (const place of own) if (place.upgrade !== void 0 && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}, line ${place.upgrade.line}`, at(place.file.file, place.upgrade.line), stageNodes(place));
-	for (const place of fromRoot) if (place.upgrade !== void 0 && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}${AT_ROOT}, line ${place.upgrade.line}`, void 0, stageNodes(place));
+	for (const place of own) if (place.upgrade !== void 0 && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}, line ${place.upgrade.line}`, at(place.file.file, place.upgrade.line), stageNodes(place), place.installs);
+	for (const place of fromRoot) if (place.upgrade !== void 0 && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}${AT_ROOT}, line ${place.upgrade.line}`, void 0, stageNodes(place), place.installs);
 	for (const { place, ownFile } of jobs) {
 		const declaration = place.declaration;
 		if (declaration === void 0 || place.project !== "" || place.installs.scriptsOff) continue;
 		const location = ownFile ? at(declaration.file, declaration.line) : void 0;
 		const job = `${jobLabel(place.job.id, place.job.line)} of ${declaration.file}${ownFile ? "" : AT_ROOT}`;
 		if (!("version" in declaration)) {
-			unknownNode("depcurfew cannot read the version from that file", `Node.js from ${declaration.versionFile} in ${job}`, location);
+			unknownNode("depcurfew cannot read the version from that file", `Node.js from ${declaration.versionFile} in ${job}`, location, place.installs);
 			continue;
 		}
 		const matrix = declaration.matrix === void 0 ? "" : ` (matrix.${declaration.matrix})`;
 		const container = declaration.container === void 0 ? "" : ` of the job container ${declaration.container}`;
 		const from = declaration.versionFile === void 0 ? "" : ` from ${declaration.versionFile}`;
 		const where = `Node.js ${declaration.version}${matrix}${container}${from} in ${job}`;
-		if (declaration.unknown !== void 0) unknownNode(declaration.unknown, where, location);
+		if (declaration.unknown !== void 0) unknownNode(declaration.unknown, where, location, place.installs);
 		else add(resolve(declaration.version, namingFor(declaration)), where, location, {
 			version: declaration.version,
 			naming: namingFor(declaration)
-		});
+		}, place.installs);
 	}
 	const subject = (place) => `Node.js ${place.stage.runtime?.version === void 0 ? "" : `${place.stage.runtime.version} `}of ${place.root.image ?? "node"} in ${place.file.file}`;
 	const stage = (place, suffix, location) => {
 		if (place.upgrade !== void 0 || place.installs.scriptsOff) return;
 		const version = place.stage.runtime?.version;
-		if (version === void 0) unknownNode(place.stage.runtime?.unknown ?? "the tag names no version", `${subject(place)}${suffix}`, location);
+		if (version === void 0) unknownNode(place.stage.runtime?.unknown ?? "the tag names no version", `${subject(place)}${suffix}`, location, place.installs);
 		else add(resolve(version, "docker"), `${subject(place)}${suffix}`, location, {
 			version,
 			naming: "docker"
-		});
+		}, place.installs);
 	};
 	for (const place of own) stage(place, "", at(place.file.file, place.root.line));
 	for (const declaration of developerPlaces(detection, manager, manifest, (options.root?.versions.length ?? 0) > 0)) {
@@ -25887,7 +28684,7 @@ function report(context, helpers, check, place, resolution, facts) {
 	});
 }
 function unknown(context, subject, reason, file) {
-	context.notice(`${RULE$4} cannot tell which npm or pip comes with ${subject}: ${reason}`, file);
+	context.notice(`${RULE$5} cannot tell which npm or pip comes with ${subject}: ${reason}`, file);
 }
 /**
 * The npm an npm install -g npm@X puts in place, checked against the settings of the directory its installs run in, as
@@ -25899,25 +28696,30 @@ function checkUpgrade(context, helpers, check, place, facts) {
 	if (spec === void 0) return;
 	const name = check.tool.name;
 	const where = place.label === place.file ? place.label : `${place.label} (${place.file})`;
-	const lowest = lowestVersion(spec);
-	if (lowest.kind === "unknown") {
-		context.notice(`${RULE$4} cannot evaluate ${name} version "${spec}" in ${place.file}`, place.file);
+	const written = lowestVersion(spec);
+	const picked = written.kind === "exact" ? void 0 : pickedNpm(spec, place.nodes);
+	if (written.kind !== "exact" && picked === void 0) {
+		context.notice(`${RULE$5} cannot evaluate ${name} version "${spec}" in ${place.file}: it is no version, range or latest, or none of the ${name} releases depcurfew knows is in it`, place.file);
 		return;
 	}
+	const lowest = picked === void 0 ? written : {
+		kind: "exact",
+		version: picked.version
+	};
 	const missing = helpers.missing(placeFeatures(check.features, place.of), (since) => belowVersion(lowest, since));
 	if (missing.length === 0) return;
 	const needed = newest(missing.map((item) => parseVersion(item.since)));
 	const list = describeRequirements(missing);
-	const subject = lowest.kind === "exact" ? `${name} ${formatBound(lowest)} in ${where} does not support ${list}` : `${where} allows ${name} ${formatBound(lowest)} ("${spec}"), which does not support ${list}`;
+	const subject = picked === void 0 ? `${name} ${formatBound(lowest)} in ${where} does not support ${list}` : `${where} installs ${name} ${formatVersion(picked.version)} ("${spec}": the newest release of it depcurfew knows${picked.newerElsewhere ? " that runs on the Node.js there" : ""}), which does not support ${list}`;
 	const alternative = helpers.alternative(missing, name, check.advice);
 	const engines = (version) => {
 		const found = enginesVerdict(version, place.nodes, facts);
 		if (found === void 0) return "";
 		return found.verdict === "none" ? ` (npm ${formatVersion(version)} runs on Node.js ${found.range}, so move to such a Node.js release first)` : ` (npm ${formatVersion(version)} runs on Node.js ${found.range} only)`;
 	};
-	const fix = alternative !== void 0 && lowest.kind === "exact" && compareVersions$1(lowest.version, alternative.version) >= 0 ? `${alternative.set.charAt(0).toUpperCase()}${alternative.set.slice(1)}, or require ${name} ${formatVersion(needed)} or later in ${place.label}${engines(needed)}` : `Require ${name} ${formatVersion(needed)} or later in ${place.label}${engines(needed)}${alternative === void 0 ? "" : `, or ${alternative.text}`}`;
+	const fix = alternative !== void 0 && picked === void 0 && compareVersions$1(lowest.version, alternative.version) >= 0 ? `${alternative.set.charAt(0).toUpperCase()}${alternative.set.slice(1)}, or require ${name} ${formatVersion(needed)} or later in ${place.label}${engines(needed)}` : `Require ${name} ${formatVersion(needed)} or later in ${place.label}${engines(needed)}${alternative === void 0 ? "" : `, or ${alternative.text}`}`;
 	context.report({
-		level: lowest.kind === "exact" ? "error" : "warning",
+		level: picked === void 0 ? "error" : "warning",
 		location: {
 			file: place.file,
 			line: place.command.line
@@ -25933,7 +28735,7 @@ function checkUpgrade(context, helpers, check, place, facts) {
 */
 function checkJobs(context, helpers, checkFor, facts) {
 	const projects = (context.projects ?? []).map((view) => view.directory);
-	const resolve = resolver(facts);
+	const resolve = resolver$1(facts);
 	for (const place of jobPlaces(context.detection, projects)) {
 		const { job, project, installs } = place;
 		const check = checkFor(project);
@@ -26028,7 +28830,7 @@ function checkDockerfiles(context, helpers, checkFor, tool, facts) {
 					file: file.file,
 					line: root.line
 				},
-				message: `${RULE$4} cannot tell which ${tool} comes with ${subject}: ${runtime.unknown ?? "the tag names no version"}`,
+				message: `${RULE$5} cannot tell which ${tool} comes with ${subject}: ${runtime.unknown ?? "the tag names no version"}`,
 				fix: `Use a ${runtimeTool} image tag that names the ${runtimeName} version (such as ${runtimeTool}:${runtimeTool === "node" ? "24-alpine" : "3.13-slim"}, with the digest after it: ${runtimeTool}:<tag>@sha256:…), or check by hand that the ${tool} of that image supports ${list}`
 			});
 			continue;
@@ -26207,6 +29009,42 @@ function checkBundledVersions(context, helpers) {
 	}
 }
 
+// src/apply/yarn-path.ts
+/** The declaration the pinned version comes from: the first exact one, as pinnedVersion takes it. */
+function pinnedDeclaration(manager) {
+	return manager.versions.find((entry) => "version" in entry && parseVersion(entry.version) !== void 0);
+}
+/** The exact packageManager pins of another release than the one yarnPath names, which runs instead of them. */
+function overriddenPins(manager, yarnPath) {
+	const runs = parseVersion(yarnPath.version);
+	if (yarnPath.source !== "yarnPath" || runs === void 0) return [];
+	return manager.versions.filter((entry) => {
+		if (entry.source !== "packageManager" || !("version" in entry)) return false;
+		const pinned = parseVersion(entry.version);
+		return pinned !== void 0 && compareVersions$1(pinned, runs) !== 0;
+	});
+}
+/** ", which runs instead of yarn@4.12.0 in packageManager", or nothing when no pin differs. */
+function insteadText(manager, yarnPath) {
+	const others = overriddenPins(manager, yarnPath);
+	return others.length === 0 ? "" : `, which runs instead of ${listing$1(others.map((entry) => `${manager.id}@${entry.version} in ${entry.source}`))}`;
+}
+/** Where the pinned version comes from, for a message about it: "yarnPath in .yarnrc.yml, which runs instead of …". */
+function yarnPathNote(manager, declaration) {
+	if (declaration?.source !== "yarnPath") return void 0;
+	return `yarnPath in ${declaration.file}${insteadText(manager, declaration)}`;
+}
+const isSetVersion = (value) => isRecord(value) && typeof value["command"] === "string" && typeof value["releases"] === "string";
+/**
+* "Run yarn set version 4.14.0 (or a later release), which saves it in .yarn/releases, points yarnPath in .yarnrc.yml to
+* it and sets packageManager in package.json"; undefined without the fact.
+*/
+function setVersionText(tool, version, which, file) {
+	if (tool.extra?.["setVersion"] === void 0) return void 0;
+	const fact = extraOf(tool, "setVersion", isSetVersion);
+	return `Run ${fact.command} ${version} (${which}), which saves it in ${fact.releases}, points yarnPath in ${file} to it and sets packageManager in package.json`;
+}
+
 // src/knowledge/schema.ts
 const TOOL_IDS = [
 	"npm",
@@ -26325,11 +29163,11 @@ function configuredFeatures(context, tool) {
 		])
 	];
 	const files = tool.id === "deno" ? context.detection.packageManagers.find((entry) => entry.id === "deno")?.configFiles.filter((name) => /^deno\.jsonc?$/u.test(name)) ?? [] : [file];
-	const configured = (setting) => ecosystemOfTool(tool) === "pypi" ? readPythonSetting(context.repository, tool, setting) !== void 0 : files.some((name) => readSetting(context.repository, name, setting) !== void 0);
+	const configured = (setting) => ecosystemOfTool(tool) === "pypi" ? readPythonSetting(context.repository, tool, setting) !== void 0 : files.some((name) => readRuleSetting(context, tool, name, setting) !== void 0);
 	return candidates.filter(([setting]) => setting !== null && configured(setting)).map(([setting, since, kind]) => kind === void 0 ? feature(setting, since) : kinded(kind, feature(setting, since))).filter((item) => item !== void 0);
 }
 /** Where a version is declared, for messages; a tool's own required version is named by its key. */
-function sourceLabel(tool, declaration) {
+function sourceLabel$1(tool, declaration) {
 	if (declaration.source === "lockfile") return lockfileVersionOf(tool)?.section ?? SOURCE_LABEL[declaration.source];
 	if (declaration.source !== "tool-config") return SOURCE_LABEL[declaration.source];
 	const required = tool.extra?.["requiredVersion"] === void 0 ? void 0 : values$1(tool.extra["requiredVersion"])[0];
@@ -26421,8 +29259,9 @@ function checkManager(context, manager, tool, features) {
 		if (!("version" in declaration)) continue;
 		if (tool.id === "npm" && (declaration.source === "github-actions" || declaration.source === "dockerfile")) continue;
 		const lowest = lowestVersion(declaration.version);
-		const label = sourceLabel(tool, declaration);
-		const where = label === declaration.file ? label : `${label} (${declaration.file})`;
+		const label = sourceLabel$1(tool, declaration);
+		const instead = declaration.source === "yarnPath" ? insteadText(manager, declaration) : "";
+		const where = `${label === declaration.file ? label : `${label} (${declaration.file})`}${instead === "" ? "" : `${instead},`}`;
 		if (lowest.kind === "unknown") {
 			context.notice(`manager-version-too-old cannot evaluate ${tool.name} version "${declaration.version}" in ${declaration.file}`, declaration.file);
 			continue;
@@ -26436,6 +29275,7 @@ function checkManager(context, manager, tool, features) {
 		const alternative = alternativeOf(missing, tool.name, advice);
 		if (alternative !== void 0 && advice.now && advice.targeted && lowest.kind === "exact" && compareVersions$1(lowest.version, alternative.version) >= 0 && context.defaultPolicy === true) continue;
 		const locked = declaration.source === "lockfile" ? lockfileVersionOf(tool) : void 0;
+		const release = declaration.source === "yarnPath" ? yarnPathFix(context, tool, declaration.file, missing, formatVersion(needed)) : void 0;
 		context.report({
 			level: lowest.kind === "exact" ? "error" : "warning",
 			location: line === void 0 ? { file: declaration.file } : {
@@ -26443,9 +29283,21 @@ function checkManager(context, manager, tool, features) {
 				line
 			},
 			message: subject,
-			fix: locked !== void 0 ? `Run ${locked.update}, which locks the latest ${tool.name} release (${formatVersion(needed)} or later is needed), and commit ${declaration.file}` : alternative !== void 0 && lowest.kind === "exact" && compareVersions$1(lowest.version, alternative.version) >= 0 ? `${alternative.set.charAt(0).toUpperCase()}${alternative.set.slice(1)}, or require ${tool.name} ${formatVersion(needed)} or later in ${label}` : `Require ${tool.name} ${formatVersion(needed)} or later in ${label}${alternative === void 0 ? "" : `, or ${alternative.text}`}`
+			fix: release !== void 0 ? release : locked !== void 0 ? `Run ${locked.update}, which locks the latest ${tool.name} release (${formatVersion(needed)} or later is needed), and commit ${declaration.file}` : alternative !== void 0 && lowest.kind === "exact" && compareVersions$1(lowest.version, alternative.version) >= 0 ? `${alternative.set.charAt(0).toUpperCase()}${alternative.set.slice(1)}, or require ${tool.name} ${formatVersion(needed)} or later in ${label}` : `Require ${tool.name} ${formatVersion(needed)} or later in ${label}${alternative === void 0 ? "" : `, or ${alternative.text}`}`
 		});
 	}
+}
+/**
+* The fix for a release yarnPath names that lacks settings (decision D-165): yarn set version replaces it. Settings of
+* the file the release does not know are removed first: Yarn stops at a setting of the project .yarnrc.yml it does not
+* know (Configuration.use with enableStrictSettings, read at 3.6.4 and 4.18.1), and yarn set version runs in that Yarn.
+*/
+function yarnPathFix(context, tool, file, missing, needed) {
+	const command = setVersionText(tool, needed, "or a later release", file);
+	if (command === void 0) return void 0;
+	const written = missing.filter((item) => readSetting(context.repository, file, item.setting) !== void 0).map((item) => item.setting);
+	const then = "then run depcurfew apply again and commit the changes";
+	return written.length === 0 ? `${command}, ${then}` : `Remove ${listing$1(written)} from ${file}, ${command.charAt(0).toLowerCase()}${command.slice(1)}, ${then}`;
 }
 /**
 * Composer has no setting that pins its version in the project, so the repository says nothing about the Composer that
@@ -26491,7 +29343,7 @@ const managerVersionTooOld = {
 	id: "manager-version-too-old",
 	checks: "The declared package manager versions, and the npm and pip that come with the declared Node.js and Python versions, support the settings the repository relies on",
 	summary: "A declared package manager version, or the npm or pip that comes with a declared Node.js or Python version, is older than a setting the repository relies on.",
-	description: "Package managers ignore settings they do not know yet; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, a CI step or a Dockerfile pins an older version, the setting is silently not applied there. The same holds for the npm that comes with the Node.js a CI job, a Dockerfile stage or a version file (.nvmrc, .node-version) chooses, and for the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age. Composer cannot pin its own version: a composer.lock whose plugin-api-version shows that a Composer older than 2.11 wrote it gives a warning, and otherwise a note says that the cooldown needs Composer 2.11. Bundler switches to the version of BUNDLED WITH in Gemfile.lock, which counts as a pin (the cooldown: of a Gemfile source needs 4.0.14 once Gemfile.lock exists), as do the bundler input of ruby/setup-ruby and gem install bundler -v.",
+	description: "Package managers ignore settings they do not know; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, mise.toml, a CI step or a Dockerfile (pipx install poetry==X, the uv image) pins an older version, the setting is silently not applied there, and so for the npm of the Node.js a CI job, a Dockerfile stage or a version file chooses and the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age. npm install -g npm@<range> counts as the newest release of it depcurfew knows. Composer pins no version: a composer.lock whose plugin-api-version shows a Composer older than 2.11 gives a warning, otherwise a note says the cooldown needs 2.11. Bundler switches to the version of BUNDLED WITH in Gemfile.lock, which counts as a pin (cooldown: in a Gemfile needs 4.0.14 once Gemfile.lock exists), as do the bundler input of ruby/setup-ruby and gem install bundler -v. So is the release yarnPath in .yarnrc.yml names (yarn-<version>.cjs), which every Yarn from 1.18 runs.",
 	help: "Raise the declared version to at least the version that introduced the setting, everywhere it is declared, or install a newer npm or pip before installing packages.",
 	level: "error",
 	requiresPolicy: false,
@@ -26514,10 +29366,9 @@ const managerVersionTooOld = {
 		for (const manager of context.detection.packageManagers.filter((entry) => !entry.supported && entry.variant === "classic")) {
 			const berry = context.tools.find((entry) => entry.id === manager.id);
 			if (context.policy === void 0 || berry === void 0) continue;
-			const declaration = manager.versions.find((entry) => entry.source === "packageManager");
+			const declaration = manager.versions.find((entry) => entry.source === "yarnPath" || entry.source === "packageManager");
 			const file = declaration?.file ?? manager.evidence[0]?.file ?? "package.json";
 			const line = declaration === void 0 ? void 0 : declarationLine(context, declaration);
-			const since = sinceOf(berry.cooldown.availableSince);
 			context.report({
 				level: "error",
 				location: line === void 0 ? { file } : {
@@ -26525,7 +29376,7 @@ const managerVersionTooOld = {
 					line
 				},
 				message: `Yarn Classic (1.x) has none of the settings ${POLICY_FILE} needs (release-age delay, install-script allow-list, dependency sources), so the policy does not apply to it`,
-				fix: `Move to ${berry.name}${since === void 0 ? "" : ` ${since} or later`}, or to another package manager depcurfew configures`
+				fix: yarnClassicFix(berry)
 			});
 		}
 	}
@@ -26652,10 +29503,10 @@ function parseDuration(input) {
 
 // src/version.ts
 const PACKAGE_JSON = new URL("../package.json", import.meta.url);
-let cached;
+let cached$1;
 function getVersion() {
-	cached ??= JSON.parse(readFileSync(PACKAGE_JSON, "utf8")).version;
-	return cached;
+	cached$1 ??= JSON.parse(readFileSync(PACKAGE_JSON, "utf8")).version;
+	return cached$1;
 }
 
 // src/self-version.ts
@@ -26954,7 +29805,7 @@ const sourcesShape = object({
 	file: optional(access("Dependencies installed from local tarball files.")),
 	directory: optional(access("Dependencies installed from local directories."))
 }, { description: "Where dependencies may come from besides the registry. An absent field is not managed." });
-const targetsShape = anyOf([literal("auto", { description: "Configure the tools detected in the repository." }), list$1(oneOfStrings(TOOL_IDS, { description: "A tool depcurfew can configure." }), {
+const targetsShape = anyOf([literal$1("auto", { description: "Configure the tools detected in the repository." }), list$1(oneOfStrings(TOOL_IDS, { description: "A tool depcurfew can configure." }), {
 	label: "a list of tools",
 	unique: true,
 	nonEmpty: "use \"auto\" to detect tools",
@@ -26985,7 +29836,7 @@ const FAIL_ON_LEVELS = ["error", "warning"];
 const doctorShape = object({ failOn: optional(oneOfStrings(FAIL_ON_LEVELS, { description: "Which findings make depcurfew doctor exit with 1 and fail the GitHub Action: \"error\" (only errors, also when left out) or \"warning\" (warnings too). Notes never fail. doctor --fail-on and the input fail-on of the Action override it." })) }, { description: "How depcurfew doctor and the GitHub Action treat findings. Without this section only errors fail, as before; depcurfew init writes \"failOn\": \"warning\"." });
 const policyShape = object({
 	$schema: optional(anyString({ description: "JSON Schema of this file, for editor support." })),
-	version: required(literal(1, { description: "Version of the policy format." })),
+	version: required(literal$1(1, { description: "Version of the policy format." })),
 	cooldown: optional(cooldownShape),
 	installScripts: optional(installScriptsShape),
 	sources: optional(sourcesShape),
@@ -27181,344 +30032,6 @@ function formatIssue(issue) {
 	return `${issue.path}: ${issue.message}`;
 }
 
-// src/apply/generators/common.ts
-const MINUTES = {
-	seconds: 1 / 60,
-	minutes: 1,
-	hours: 60,
-	days: 1440,
-	weeks: 10080
-};
-const SOURCE_LABELS = {
-	npm: {
-		git: "git",
-		remoteTarball: "remote tarball",
-		file: "local tarball",
-		directory: "local directory"
-	},
-	pypi: {
-		git: "git",
-		remoteTarball: "URL",
-		file: "local archive",
-		directory: "local directory"
-	},
-	packagist: {
-		git: "VCS repository",
-		remoteTarball: "package repository",
-		file: "artifact repository",
-		directory: "path repository"
-	},
-	rubygems: {
-		git: "git",
-		remoteTarball: "archive URL",
-		file: "local archive",
-		directory: "path"
-	}
-};
-/** The cooldown in the tool's unit, or undefined (with a warning) when it cannot be written. */
-function cooldownValue(context, duration = context.policy.cooldown?.minimum) {
-	if (duration === void 0) return void 0;
-	const setting = settingOf(context.tool.cooldown.setting);
-	if (setting === null) return void 0;
-	const result = convertCooldown(context.tool, duration);
-	if (!result.ok) {
-		context.warn({
-			code: "cooldown-not-written",
-			message: `${context.name}: cooldown not written: ${result.reason}`,
-			fix: result.fix
-		});
-		return;
-	}
-	if (!context.supports(sinceOf(context.tool.cooldown.availableSince), setting)) return void 0;
-	if (typeof result.value === "string") {
-		const [count = "0", unit = ""] = result.value.split(" ");
-		return {
-			value: result.value,
-			minutes: Number(count) * (MINUTES[unit.endsWith("s") ? unit : `${unit}s`] ?? 0)
-		};
-	}
-	return {
-		value: result.value,
-		minutes: result.value * (MINUTES[result.unit] ?? 0)
-	};
-}
-/** The exclusions (the policy's by default) that the tool's exclusion setting accepts; undefined when the setting cannot be used. */
-function exclusions(context, patterns = context.policy.cooldown?.exclude ?? []) {
-	const setting = settingOf(context.tool.cooldown.exclude.setting);
-	if (setting === null) return void 0;
-	if (patterns.length > 0 && !context.supports(sinceOf(context.tool.cooldown.exclude.availableSince), setting)) return void 0;
-	const wildcards = extraOf(context.tool, "excludeWildcards", isWildcards);
-	const wildcardsWork = wildcards.since !== null && context.atLeast(wildcards.since);
-	return patterns.filter((pattern) => {
-		if (!pattern.includes("*")) return true;
-		const accepted = wildcardsWork && (!wildcards.trailingOnly || pattern.indexOf("*") === pattern.length - 1);
-		if (!accepted) context.warn({
-			code: "exclude-pattern-unsupported",
-			message: `${context.name}: ${setting} does not support the pattern "${pattern}"; not written`,
-			fix: "List the exact package names in cooldown.exclude"
-		});
-		return accepted;
-	});
-}
-function denyList(context) {
-	const fact = context.tool.extra?.["denyList"];
-	if (fact === void 0) return void 0;
-	const value = evidenceOf(fact)[0]?.value;
-	return isRecord(value) && typeof value["file"] === "string" && typeof value["setting"] === "string" && typeof value["since"] === "string" ? value : void 0;
-}
-/** The packages of installScripts.deny the tool can record: names only, patterns are dropped with a warning. */
-function deniedNames(context, setting) {
-	return (context.policy.installScripts?.deny ?? []).filter((pattern) => {
-		if (!pattern.includes("*")) return true;
-		context.warn({
-			code: "deny-pattern-unsupported",
-			message: `${context.name}: ${setting} takes package names only; "${pattern}" not written`,
-			fix: "List the package names in installScripts.deny"
-		});
-		return false;
-	});
-}
-/**
-* The files as this run has edited them so far, for reading the tools' own lists. A file the workspace cannot read
-* counts as missing: reading a list must not stop apply, and an edit of that file reports the problem itself.
-*/
-function workspaceText(workspace) {
-	return { readText(file) {
-		try {
-			return workspace.exists(file) ? workspace.read(file) : void 0;
-		} catch {
-			return;
-		}
-	} };
-}
-/**
-* The packages that an entry of the tool's own allow-list lets run their scripts, in any version. apply records no
-* denial for them, because that would change what the entry does, and apply never changes an entry it did not write
-* (decision D-088); the warning deny-conflicts-with-file names the entry instead.
-*/
-function allowedInFiles(context, configFiles = []) {
-	const id = context.tool.id;
-	const options = {
-		tool: context.tool,
-		...context.version === void 0 ? {} : { version: context.version }
-	};
-	return new Set(allowEntries(workspaceText(context.workspace), id, configFiles, options).map((entry) => entry.package));
-}
-/** The setting for messages: dependenciesMeta for the template dependenciesMeta.<package>.built. */
-function settingName(setting) {
-	const at = setting.indexOf(".<package>");
-	return at === -1 ? setting : setting.slice(0, at);
-}
-/**
-* Records installScripts.deny where the tool has an explicit denial (npm allowScripts, pnpm allowBuilds, Yarn
-* dependenciesMeta): the tool then keeps those scripts blocked without warning about them on every install.
-*/
-function writeDenyList(context) {
-	const deny = denyList(context);
-	if (deny === void 0 || (context.policy.installScripts?.deny.length ?? 0) === 0) return;
-	if (!context.supports(deny.since, deny.setting)) return;
-	const file = deny.file.endsWith(".yaml") ? context.yaml(deny.file) : context.json(deny.file);
-	const allowed = allowedInFiles(context);
-	const names = deniedNames(context, settingName(deny.setting)).filter((name) => !allowed.has(name));
-	if (names.length > 0) context.writes("installScripts", deny.setting, deny.file);
-	for (const name of names) {
-		const path = deny.setting.includes("<package>") ? deny.setting.split(".").map((segment) => segment === "<package>" ? name : segment) : [...deny.setting.split("."), name];
-		if (file.get(path) !== deny.value) file.set(path, deny.value);
-	}
-}
-/** Allow-lists take package names only; patterns are dropped with a warning. */
-function allowedNames(context, setting) {
-	return (context.policy.installScripts?.allow ?? []).filter((pattern) => {
-		if (!pattern.includes("*")) return true;
-		context.warn({
-			code: "allow-pattern-unsupported",
-			message: `${context.name}: ${setting} takes package names only; "${pattern}" not written`,
-			fix: "List the package names in installScripts.allow"
-		});
-		return false;
-	});
-}
-/**
-* What the pinned version does with dependency install scripts by default (installScripts.defaultPolicy), and the
-* first later version that does something else.
-*/
-function scriptsDefault(context) {
-	let value;
-	let changesIn;
-	for (const entry of values$1(context.tool.installScripts.defaultPolicy)[0] ?? []) if (context.atLeast(entry.since)) {
-		value = entry.value;
-		changesIn = void 0;
-	} else changesIn ??= entry.since;
-	return {
-		value,
-		changesIn
-	};
-}
-/** Where depcurfew doctor finds a tool's dependencies: the lockfile, or pip's requirements files. */
-function dependencyFiles(context) {
-	return context.tool.extra?.["requirementsFormat"] === void 0 ? "the lockfile" : "the requirements files";
-}
-/** Whether depcurfew doctor can tell dependency sources apart in the tool's lockfile. */
-function lockfileShowsSources(tool) {
-	const fact = tool.extra?.["lockfileFormat"];
-	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	return isRecord(format) && format["sources"] !== null;
-}
-/** Calls `apply` for every dependency source the policy manages and the tool has a setting for. */
-function eachSource(context, apply) {
-	const sources = context.policy.sources;
-	if (sources === void 0) return;
-	for (const kind of SOURCE_KINDS) {
-		const access = sources[kind];
-		if (access === void 0) continue;
-		const knowledge = context.tool.sources?.[kind];
-		const setting = settingOf(knowledge?.setting);
-		if (setting === null) {
-			if (access === "deny") context.warn({
-				code: "source-not-enforceable",
-				message: `${context.name} has no setting for ${SOURCE_LABELS[ecosystemOfTool(context.tool)][kind]} dependencies, so "deny" cannot be enforced`,
-				fix: lockfileShowsSources(context.tool) ? `Run depcurfew doctor, which reports such dependencies in ${dependencyFiles(context)}` : "Review new dependencies by hand; depcurfew doctor cannot see them in the lockfile either"
-			});
-			continue;
-		}
-		if (!context.supports(sinceOf(knowledge?.availableSince), setting)) continue;
-		apply(kind, setting, access);
-	}
-}
-/** `install.minimumReleaseAge` → table `install`, key `minimumReleaseAge`. */
-function splitDotted(setting) {
-	const dot = setting.indexOf(".");
-	return dot === -1 ? {
-		table: "",
-		key: setting
-	} : {
-		table: setting.slice(0, dot),
-		key: setting.slice(dot + 1)
-	};
-}
-function sameList(a, b) {
-	return JSON.stringify(a) === JSON.stringify(b);
-}
-
-// src/apply/generators/dependabot.ts
-const isKeys = (value) => isRecord(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string" && Array.isArray(value["semverDays"]) && value["semverDays"].every((key) => typeof key === "string");
-const isActionsEcosystem = (value) => isRecord(value) && typeof value["ecosystem"] === "string" && typeof value["semverDays"] === "boolean";
-/** The ecosystems updated by bots only, by their package-ecosystem; empty without the fact. */
-function botOnlyEntries(tool) {
-	if (tool.extra?.["botOnlyEcosystems"] === void 0) return /* @__PURE__ */ new Map();
-	const fact = extraOf(tool, "botOnlyEcosystems", (value) => isRecord(value) && Object.values(value).every(isActionsEcosystem));
-	return new Map(Object.entries(fact).map(([id, entry]) => [entry.ecosystem, {
-		id,
-		...entry
-	}]));
-}
-const dependabot = (context, duration, repository) => {
-	const { tool, policy } = context;
-	if (policy.cooldown === void 0 || duration === void 0) return;
-	const file = (values$1(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
-	if (file === void 0) {
-		context.warn({
-			code: "bot-config-missing",
-			message: `${context.name}: no configuration file found; depcurfew does not create one`,
-			fix: "Add .github/dependabot.yml if you use Dependabot, then run depcurfew apply again"
-		});
-		return;
-	}
-	if (policy.cooldown.securityUpdates === "delay") context.warn({
-		code: "security-delay-unsupported",
-		message: `${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied`,
-		fix: `Review ${context.name} security pull requests before merging them, or set cooldown.securityUpdates to "bypass" in ${POLICY_FILE}, which is what ${context.name} does`
-	});
-	const result = convertCooldown(tool, duration);
-	if (!result.ok) {
-		context.warn({
-			code: "cooldown-not-written",
-			message: `${context.name}: cooldown not written: ${result.reason}`,
-			fix: result.fix
-		});
-		return;
-	}
-	const alias = rejectsYamlAliases(tool) ? yamlAliasLine(context.read(file)) : void 0;
-	if (alias !== void 0) context.warn({
-		code: "bot-config-unreadable",
-		location: {
-			file,
-			line: alias
-		},
-		message: `${context.name}: ${file} uses a YAML alias (line ${alias}), which ${context.name} does not accept, so it reads no configuration from the file, the cooldown depcurfew apply writes included; depcurfew does not read the delays such a file sets either, so it cannot tell whether this change shortens one`,
-		fix: `Write the value out in place of the alias on line ${alias} of ${file}, then run depcurfew apply again`
-	});
-	const keys = extraOf(tool, "cooldownKeys", isKeys);
-	const managers = extraOf(tool, "ecosystems", isRecord);
-	const ecosystems = Object.keys(managers);
-	const actions = tool.extra?.["githubActions"] === void 0 || repository.workflows.length === 0 ? void 0 : extraOf(tool, "githubActions", isActionsEcosystem);
-	const botOnly = botOnlyEntries(tool);
-	const setting = settingOf(tool.cooldown.setting) ?? "cooldown";
-	const yaml = context.yaml(file);
-	const updates = yaml.get(["updates"]);
-	const patternsOf = (ecosystem) => {
-		const covered = Array.isArray(managers[ecosystem]) ? managers[ecosystem] : [];
-		const tool = context.tools.find((entry) => covered.includes(entry.id));
-		const registry = tool === void 0 ? "npm" : ecosystemOfTool(tool);
-		if (registry === "rubygems") return void 0;
-		return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], registry)) ?? [];
-	};
-	let configured = 0;
-	const others = /* @__PURE__ */ new Set();
-	const edits = [];
-	(Array.isArray(updates) ? updates : []).forEach((entry, index) => {
-		if (!isRecord(entry)) return;
-		const ecosystem = String(entry["package-ecosystem"]);
-		const other = actions !== void 0 && ecosystem === actions.ecosystem ? actions : botOnly.get(ecosystem);
-		if (other === void 0 && !ecosystems.includes(ecosystem)) return;
-		if (other !== void 0) others.add(other.ecosystem);
-		else configured += 1;
-		const patterns = other !== void 0 ? void 0 : patternsOf(ecosystem);
-		const semverDays = other !== void 0 && !other.semverDays ? [] : keys.semverDays;
-		const current = entry[setting];
-		if (!isRecord(current)) {
-			edits.push([[
-				"updates",
-				index,
-				setting
-			], {
-				[keys.days]: result.value,
-				...patterns !== void 0 && patterns.length > 0 ? { [keys.exclude]: patterns } : {}
-			}]);
-			return;
-		}
-		edits.push([[
-			"updates",
-			index,
-			setting,
-			keys.days
-		], result.value]);
-		for (const key of semverDays) {
-			const days = current[key];
-			if (typeof days === "number" && typeof result.value === "number" && days < result.value) edits.push([[
-				"updates",
-				index,
-				setting,
-				key
-			], result.value]);
-		}
-		if (patterns !== void 0 && (patterns.length > 0 || keys.exclude in current) && !sameList(current[keys.exclude], patterns)) edits.push([[
-			"updates",
-			index,
-			setting,
-			keys.exclude
-		], patterns]);
-	});
-	if (edits.length > 0) yaml.setMany(edits);
-	const managersInUse = context.tools.some((entry) => entry.kind === "package-manager" && context.targets.has(entry.id));
-	if (configured === 0 && (others.size === 0 || managersInUse)) context.warn({
-		code: "bot-entries-missing",
-		location: { file },
-		message: others.size === 0 ? `${context.name}: no ${ecosystems.join(", ")} entries in ${file}; nothing to configure` : `${context.name}: no ${ecosystems.join(", ")} entries in ${file}; only the ${listing$1([...others])} entries get the cooldown`,
-		fix: `Add an updates entry for each package manager Dependabot should update to ${file}, then run depcurfew apply again`
-	});
-};
-
 // src/apply/yaml-edit.ts
 const YAML_MARKER = "# managed by depcurfew";
 const PLAIN$1 = {
@@ -27628,17 +30141,28 @@ function indentUnit(text) {
 }
 /** The style of the last text rendered for: edits of one file in a batch all render for the same text. */
 let lastStyle;
-function render(value, text) {
+/**
+* A value as YAML in the style of `text`. For a file Psych reads (Mode.psych), a string Psych would read as something
+* else when written plain (yes, Off, nUll, 1_0, 2024-01-01: YAML 1.1 booleans, nulls, numbers and dates) is written in
+* double quotes, so that Dependabot reads the name (decision D-171).
+*/
+function render(value, text, psych = false) {
 	if (lastStyle?.text !== text) lastStyle = {
 		text,
 		indent: indentUnit(text),
 		indentSeq: indentsSequences(text)
 	};
-	return (0, import_dist.stringify)(value, {
+	const options = {
 		indent: lastStyle.indent,
 		indentSeq: lastStyle.indentSeq,
 		lineWidth: 0
-	});
+	};
+	if (!psych) return (0, import_dist.stringify)(value, options);
+	const document = new import_dist.Document(value);
+	(0, import_dist.visit)(document, { Scalar(_key, node) {
+		if (typeof node.value === "string" && !psychReadsAsString(node.value)) node.type = "QUOTE_DOUBLE";
+	} });
+	return document.toString(options);
 }
 function indentLines(block, indent) {
 	return block.split("\n").map((line) => line === "" ? line : `${indent}${line}`).join("\n");
@@ -27667,12 +30191,12 @@ function mark(text, keyStart, original = text) {
 * ends with its last line of content: comments after it and the next line stay as they are, and so do a comment on
 * the key's line and comments before the first item of a block collection.
 */
-function replaceValue(text, keyRange, valueNode, value, keyIndent) {
+function replaceValue(text, keyRange, valueNode, value, keyIndent, psych = false) {
 	const colon = text.indexOf(":", keyRange[1]);
 	const keyLineEnd = lineEnd(text, colon);
 	const block = value !== null && typeof value === "object" && Object.keys(value).length > 0;
 	const blockIndent = " ".repeat(Array.isArray(value) && !indentsSequences(text) ? keyIndent : keyIndent + indentUnit(text));
-	const rendered = block ? indentLines(render(value, text), blockIndent).replace(/\n$/u, "") : render(value, text).trimEnd();
+	const rendered = block ? indentLines(render(value, text, psych), blockIndent).replace(/\n$/u, "") : render(value, text, psych).trimEnd();
 	const valueStart = valueNode === null ? colon + 1 : valueNode.range[0];
 	if (valueNode === null || valueStart <= keyLineEnd) {
 		let end = valueNode === null ? colon + 1 : contentEnd(valueNode);
@@ -27867,7 +30391,7 @@ function yamlSetMany(text, edits, options = {}) {
 function setValue(text, path, value, mode = PLAIN$1) {
 	const { document, lineCounter } = parse(text, mode);
 	const column = (offset) => lineCounter.linePos(offset).col - 1;
-	if (document.contents === null || (0, import_dist.isScalar)(document.contents) && document.contents.value === null) return `${text.trim() === "" ? "" : text.endsWith("\n") ? text : `${text}\n`}${YAML_MARKER}\n${render(nest(path, value), text)}`;
+	if (document.contents === null || (0, import_dist.isScalar)(document.contents) && document.contents.value === null) return `${text.trim() === "" ? "" : text.endsWith("\n") ? text : `${text}\n`}${YAML_MARKER}\n${render(nest(path, value), text, mode.psych)}`;
 	let node = document.contents;
 	if (!(0, import_dist.isMap)(node)) throw new Error("the YAML document is not a map");
 	let insideMarked = false;
@@ -27893,7 +30417,7 @@ function setValue(text, path, value, mode = PLAIN$1) {
 			const first = node.items[0];
 			const keyColumn = first === void 0 || first.key.range === null || first.key.range === void 0 ? 0 : column(first.key.range[0]);
 			const at = nestedCommentsEnd(text, contentLineEnd(text, node), keyColumn);
-			const addition = indentLines(`${insideMarked ? "" : `${YAML_MARKER}\n`}${render({ [segment]: nest(path.slice(index + 1), value) }, text)}`, " ".repeat(keyColumn));
+			const addition = indentLines(`${insideMarked ? "" : `${YAML_MARKER}\n`}${render({ [segment]: nest(path.slice(index + 1), value) }, text, mode.psych)}`, " ".repeat(keyColumn));
 			return at >= text.length ? `${text}\n${addition}` : `${text.slice(0, at + 1)}${addition}${text.slice(at + 1)}`;
 		}
 		if (index === path.length - 1) {
@@ -27905,10 +30429,10 @@ function setValue(text, path, value, mode = PLAIN$1) {
 				const [start, end] = valueNode.range;
 				const before = start > 0 && !/\s/u.test(text[start - 1]) ? " " : "";
 				const after = text[end] === "#" ? " " : "";
-				replaced = `${text.slice(0, start)}${before}${render(value, text).trimEnd()}${after}${text.slice(end)}`;
+				replaced = `${text.slice(0, start)}${before}${render(value, text, mode.psych).trimEnd()}${after}${text.slice(end)}`;
 			} else {
 				if (isFlow(node)) refuseFlow(path, index, value);
-				replaced = replaceValue(text, keyRange, valueNode, value, column(keyRange[0]));
+				replaced = replaceValue(text, keyRange, valueNode, value, column(keyRange[0]), mode.psych);
 			}
 			return insideMarked ? replaced : mark(replaced, keyRange[0], text);
 		}
@@ -27922,10 +30446,968 @@ function setValue(text, path, value, mode = PLAIN$1) {
 	return text;
 }
 
+// src/apply/generators/common.ts
+const MINUTES = {
+	seconds: 1 / 60,
+	minutes: 1,
+	hours: 60,
+	days: 1440,
+	weeks: 10080
+};
+const SOURCE_LABELS$1 = {
+	npm: {
+		git: "git",
+		remoteTarball: "remote tarball",
+		file: "local tarball",
+		directory: "local directory"
+	},
+	pypi: {
+		git: "git",
+		remoteTarball: "URL",
+		file: "local archive",
+		directory: "local directory"
+	},
+	packagist: {
+		git: "VCS repository",
+		remoteTarball: "package repository",
+		file: "artifact repository",
+		directory: "path repository"
+	},
+	rubygems: {
+		git: "git",
+		remoteTarball: "archive URL",
+		file: "local archive",
+		directory: "path"
+	}
+};
+/** The cooldown in the tool's unit, or undefined (with a warning) when it cannot be written. */
+function cooldownValue(context, duration = context.policy.cooldown?.minimum) {
+	if (duration === void 0) return void 0;
+	const setting = settingOf(context.tool.cooldown.setting);
+	if (setting === null) return void 0;
+	const result = convertCooldown(context.tool, duration);
+	if (!result.ok) {
+		context.warn({
+			code: "cooldown-not-written",
+			message: `${context.name}: cooldown not written: ${result.reason}`,
+			fix: result.fix
+		});
+		return;
+	}
+	if (!context.supports(sinceOf(context.tool.cooldown.availableSince), setting)) return void 0;
+	if (typeof result.value === "string") {
+		const [count = "0", unit = ""] = result.value.split(" ");
+		return {
+			value: result.value,
+			minutes: Number(count) * (MINUTES[unit.endsWith("s") ? unit : `${unit}s`] ?? 0)
+		};
+	}
+	return {
+		value: result.value,
+		minutes: result.value * (MINUTES[result.unit] ?? 0)
+	};
+}
+/**
+* Whether a release-age value in the tool's file is one depcurfew cannot read: neither a delay it understands nor a
+* fixed date the tool reads (decision D-167). apply leaves such a value as it is, with cooldown-not-written, instead of
+* replacing what may be a longer delay than the policy's; a value depcurfew wrote is always one it reads.
+*/
+function unreadableDelay(context, file, setting, value, line, written) {
+	if (value === void 0) return false;
+	const delay = delayMinutes(context.tool, value, context.version);
+	if (delay.ok || cutoffAge(context.tool, value, Date.now()) !== void 0) return false;
+	const shown = value instanceof TomlDateTime ? value.text : JSON.stringify(value);
+	const where = line === void 0 ? "" : ` (line ${line})`;
+	context.warn({
+		code: "cooldown-not-written",
+		location: line === void 0 ? { file } : {
+			file,
+			line
+		},
+		message: `${context.name}: cooldown not written: ${setting} in ${file}${where} is ${shown}, which depcurfew cannot read (${delay.reason}), so depcurfew apply leaves it as it is instead of replacing a delay that may be longer than cooldown.minimum`,
+		fix: `Write the delay in a form ${context.name} documents, such as ${JSON.stringify(written.value)}, or remove ${setting} so that depcurfew apply writes ${JSON.stringify(written.value)}, then run depcurfew apply again`
+	});
+	return true;
+}
+/** The exclusions (the policy's by default) that the tool's exclusion setting accepts; undefined when the setting cannot be used. */
+function exclusions(context, patterns = context.policy.cooldown?.exclude ?? []) {
+	const setting = settingOf(context.tool.cooldown.exclude.setting);
+	if (setting === null) return void 0;
+	if (patterns.length > 0 && !context.supports(sinceOf(context.tool.cooldown.exclude.availableSince), setting)) return void 0;
+	const wildcards = extraOf(context.tool, "excludeWildcards", isWildcards);
+	const wildcardsWork = wildcards.since !== null && context.atLeast(wildcards.since);
+	return patterns.filter((pattern) => {
+		if (!pattern.includes("*")) return true;
+		const accepted = wildcardsWork && (!wildcards.trailingOnly || pattern.indexOf("*") === pattern.length - 1);
+		if (!accepted) context.warn({
+			code: "exclude-pattern-unsupported",
+			message: `${context.name}: ${setting} does not support the pattern "${pattern}"; not written`,
+			fix: "List the exact package names in cooldown.exclude"
+		});
+		return accepted;
+	});
+}
+function denyList(context) {
+	const fact = context.tool.extra?.["denyList"];
+	if (fact === void 0) return void 0;
+	const value = evidenceOf(fact)[0]?.value;
+	return isRecord(value) && typeof value["file"] === "string" && typeof value["setting"] === "string" && typeof value["since"] === "string" ? value : void 0;
+}
+/** The packages of installScripts.deny the tool can record: names only, patterns are dropped with a warning. */
+function deniedNames(context, setting) {
+	return (context.policy.installScripts?.deny ?? []).filter((pattern) => {
+		if (!pattern.includes("*")) return true;
+		context.warn({
+			code: "deny-pattern-unsupported",
+			message: `${context.name}: ${setting} takes package names only; "${pattern}" not written`,
+			fix: "List the package names in installScripts.deny"
+		});
+		return false;
+	});
+}
+/**
+* The files as this run has edited them so far, for reading the tools' own lists. A file the workspace cannot read
+* counts as missing: reading a list must not stop apply, and an edit of that file reports the problem itself.
+*/
+function workspaceText(workspace) {
+	return { readText(file) {
+		try {
+			return workspace.exists(file) ? workspace.read(file) : void 0;
+		} catch {
+			return;
+		}
+	} };
+}
+/**
+* The packages that an entry of the tool's own allow-list lets run their scripts, in any version. apply records no
+* denial for them, because that would change what the entry does, and apply never changes an entry it did not write
+* (decision D-088); the warning deny-conflicts-with-file names the entry instead.
+*/
+function allowedInFiles(context, configFiles = []) {
+	const id = context.tool.id;
+	const options = {
+		tool: context.tool,
+		...context.version === void 0 ? {} : { version: context.version }
+	};
+	return new Set(allowEntries(workspaceText(context.workspace), id, configFiles, options).map((entry) => entry.package));
+}
+/** The setting for messages: dependenciesMeta for the template dependenciesMeta.<package>.built. */
+function settingName(setting) {
+	const at = setting.indexOf(".<package>");
+	return at === -1 ? setting : setting.slice(0, at);
+}
+/**
+* Records installScripts.deny where the tool has an explicit denial (npm allowScripts, pnpm allowBuilds, Yarn
+* dependenciesMeta): the tool then keeps those scripts blocked without warning about them on every install. `fileFor`
+* gives the file that holds the setting when it is not always the same (pnpm include, decision D-164), undefined when
+* apply cannot write it.
+*/
+function writeDenyList(context, fileFor) {
+	const deny = denyList(context);
+	if (deny === void 0 || (context.policy.installScripts?.deny.length ?? 0) === 0) return;
+	if (!context.supports(deny.since, deny.setting)) return;
+	const allowed = allowedInFiles(context);
+	const names = deniedNames(context, settingName(deny.setting)).filter((name) => !allowed.has(name));
+	if (names.length === 0) return;
+	const target = fileFor === void 0 ? deny.file : fileFor(settingName(deny.setting));
+	if (target === void 0) return;
+	const file = target.endsWith(".yaml") || target.endsWith(".yml") ? context.yaml(target) : context.json(target);
+	const list = settingName(deny.setting).split(".");
+	if (wrongListType(context, target, list, file.get(list), "object", names, `{${JSON.stringify(names[0])}: ${JSON.stringify(deny.setting.includes("<package>") ? { [deny.setting.split(".").at(-1) ?? ""]: deny.value } : deny.value)}}`)) return;
+	context.writes("installScripts", deny.setting, target);
+	for (const name of names) {
+		const path = deny.setting.includes("<package>") ? deny.setting.split(".").map((segment) => segment === "<package>" ? name : segment) : [...deny.setting.split("."), name];
+		if (deny.setting.includes("<package>") && wrongListType(context, target, path.slice(0, -1), file.get(path.slice(0, -1)), "object", [name], `{${JSON.stringify(path.at(-1))}: ${JSON.stringify(deny.value)}}`)) continue;
+		if (file.get(path) !== deny.value) file.set(path, deny.value);
+	}
+}
+/** A value for a message about its type: "a list", "an object", "the string \"x\"", "true". */
+function typeText(value) {
+	if (Array.isArray(value)) return "a list";
+	if (isRecord(value)) return "an object";
+	return typeof value === "string" ? `the string ${JSON.stringify(value)}` : String(JSON.stringify(value));
+}
+/**
+* Whether the allow-list or deny-list at `path` of a JSON or YAML file has a value of another type than the tool reads
+* there (npm's allowScripts as a list, Bun's trustedDependencies as an object, Yarn's dependenciesMeta as a list):
+* unexpected-value, and nothing is written into it, since replacing it would drop the packages it names (decision
+* D-167). A value that is not there is of no wrong type.
+*/
+function wrongListType(context, file, path, current, expected, names, example) {
+	if (current === void 0 || (expected === "list" ? Array.isArray(current) : isRecord(current))) return false;
+	const text = context.exists(file) ? context.read(file) : "";
+	const found = /\.ya?ml$/u.test(file) ? yamlSetting(text, path) : jsonSetting(text, path);
+	const setting = path.join(".");
+	const kind = expected === "object" ? "an object" : "a list";
+	context.warn({
+		code: "unexpected-value",
+		location: found === void 0 ? { file } : {
+			file,
+			line: found.line
+		},
+		message: `${context.name}: ${setting} in ${file}${found === void 0 ? "" : ` (line ${found.line})`} is ${typeText(current)}, not ${kind}, so depcurfew apply does not write ${names.length > 0 ? listing$1([...names]) : `the allow-list of ${POLICY_FILE}`} into it`,
+		fix: `Write ${setting} in ${file} as ${kind} such as ${example}, keeping the packages it names, then run depcurfew apply again`
+	});
+	return true;
+}
+/** Allow-lists take package names only; patterns are dropped with a warning. */
+function allowedNames(context, setting) {
+	return (context.policy.installScripts?.allow ?? []).filter((pattern) => {
+		if (!pattern.includes("*")) return true;
+		context.warn({
+			code: "allow-pattern-unsupported",
+			message: `${context.name}: ${setting} takes package names only; "${pattern}" not written`,
+			fix: "List the package names in installScripts.allow"
+		});
+		return false;
+	});
+}
+/**
+* What the pinned version does with dependency install scripts by default (installScripts.defaultPolicy), and the
+* first later version that does something else.
+*/
+function scriptsDefault(context) {
+	let value;
+	let changesIn;
+	for (const entry of values$1(context.tool.installScripts.defaultPolicy)[0] ?? []) if (context.atLeast(entry.since)) {
+		value = entry.value;
+		changesIn = void 0;
+	} else changesIn ??= entry.since;
+	return {
+		value,
+		changesIn
+	};
+}
+/** Where depcurfew doctor finds a tool's dependencies: the lockfile, or pip's requirements files. */
+function dependencyFiles(context) {
+	return context.tool.extra?.["requirementsFormat"] === void 0 ? "the lockfile" : "the requirements files";
+}
+/** Whether depcurfew doctor can tell dependency sources apart in the tool's lockfile. */
+function lockfileShowsSources(tool) {
+	const fact = tool.extra?.["lockfileFormat"];
+	const format = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord(format) && format["sources"] !== null;
+}
+/** Calls `apply` for every dependency source the policy manages and the tool has a setting for. */
+function eachSource(context, apply) {
+	const sources = context.policy.sources;
+	if (sources === void 0) return;
+	for (const kind of SOURCE_KINDS) {
+		const access = sources[kind];
+		if (access === void 0) continue;
+		const knowledge = context.tool.sources?.[kind];
+		const setting = settingOf(knowledge?.setting);
+		if (setting === null) {
+			if (access === "deny") context.warn({
+				code: "source-not-enforceable",
+				message: `${context.name} has no setting for ${SOURCE_LABELS$1[ecosystemOfTool(context.tool)][kind]} dependencies, so "deny" cannot be enforced`,
+				fix: lockfileShowsSources(context.tool) ? `Run depcurfew doctor, which reports such dependencies in ${dependencyFiles(context)}` : "Review new dependencies by hand; depcurfew doctor cannot see them in the lockfile either"
+			});
+			continue;
+		}
+		if (!context.supports(sinceOf(knowledge?.availableSince), setting)) continue;
+		apply(kind, setting, access);
+	}
+}
+/**
+* A YAML list apply is about to replace with `wanted`, when depcurfew did not write it (no marker above it) and the
+* replacement drops entries from it: the entries it drops; undefined otherwise (decision D-167).
+*/
+function droppedYamlList(context, file, path, wanted) {
+	if (!context.exists(file)) return void 0;
+	const text = context.read(file);
+	const found = yamlSetting(text, path);
+	if (found === void 0 || !Array.isArray(found.value) || text.split("\n")[found.line - 2]?.trim() === "# managed by depcurfew") return void 0;
+	const dropped = found.value.filter((item) => !wanted.includes(item));
+	return dropped.length > 0 ? dropped : void 0;
+}
+/**
+* Keeps the entries apply dropped from a YAML list as a comment above it, with the marker of the lines apply comments
+* out, so that they are not lost: `# depcurfew: superseded by the managed block: exclude: ["foo"]` (decision D-167).
+*/
+function commentReplacedList(context, file, path, old) {
+	context.text(file, (body) => {
+		const found = yamlSetting(body, path);
+		if (found === void 0) return body;
+		const lines = body.split("\n");
+		let at = found.line - 1;
+		if (lines[at - 1]?.trim() === "# managed by depcurfew") at -= 1;
+		const indent = /^\s*/u.exec(lines[at] ?? "")?.[0] ?? "";
+		lines.splice(at, 0, `${indent}${SUPERSEDED}${path.at(-1) ?? ""}: ${JSON.stringify(old)}`);
+		return lines.join("\n");
+	});
+}
+/** A dependency source in words for the tool's registry: "local tarball", "git". */
+function sourceLabel(context, kind) {
+	return SOURCE_LABELS$1[ecosystemOfTool(context.tool)][kind];
+}
+/**
+* source-loosened (decision D-167): a source setting depcurfew did not write is stricter than what the policy's "allow"
+* makes apply write in its place. `current` is the setting as written, `does` what it does now, `change` what apply
+* does to it.
+*/
+function sourceLoosened(context, kinds, location, current, does, change, fix) {
+	const fields = kinds.map((kind) => `sources.${kind}`);
+	const where = location.line === void 0 ? "" : ` (line ${location.line})`;
+	context.warn({
+		code: "source-loosened",
+		location,
+		message: `${context.name}: ${current} in ${location.file}${where} ${does}; because ${listing$1(fields)} ${kinds.length === 1 ? "is" : "are"} "allow" in ${POLICY_FILE}, depcurfew apply ${change}`,
+		fix: fix ?? `To keep it, set ${listing$1(fields)} to "deny" in ${"depcurfew.json"} and run depcurfew apply again`
+	});
+}
+/** `install.minimumReleaseAge` → table `install`, key `minimumReleaseAge`. */
+function splitDotted(setting) {
+	const dot = setting.indexOf(".");
+	return dot === -1 ? {
+		table: "",
+		key: setting
+	} : {
+		table: setting.slice(0, dot),
+		key: setting.slice(dot + 1)
+	};
+}
+function sameList(a, b) {
+	return JSON.stringify(a) === JSON.stringify(b);
+}
+
+// src/doctor/renovate.ts
+const isStrings$4 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isNames = (value) => isRecord(value) && Object.values(value).every((item) => typeof item === "string");
+const isLists = (value) => isRecord(value) && Object.values(value).every(isStrings$4);
+const isManagerMatching$1 = (value) => isRecord(value) && typeof value["managerMatcher"] === "string" && typeof value["categoryMatcher"] === "string" && typeof value["stringIsList"] === "boolean";
+const isActions = (value) => isRecord(value) && typeof value["manager"] === "string" && typeof value["datasource"] === "string";
+const isActionsMatching$1 = (value) => isRecord(value) && typeof value["fileMatcher"] === "string" && typeof value["depTypeMatcher"] === "string" && typeof value["depType"] === "string";
+const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$4(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
+const isPresetFact = (value) => isRecord(value) && isStrings$4(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
+/** The built-in presets that set minimumReleaseAge, each in a packageRules entry with matchDatasources for its datasource. */
+function presetDelays(bot) {
+	return [
+		"minimumReleaseAgePresets",
+		"pypiPresets",
+		"cratePresets"
+	].flatMap((key) => bot.extra?.[key] === void 0 ? [] : [extraOf(bot, key, isPresetFact)]);
+}
+/** The preset of `extends` that `fact` is about, as written there (with its arguments), if the list has one. */
+function presetIn(presets, fact) {
+	return presets.find((item) => fact.presets.includes(presetName(item)));
+}
+const isInternal = (value) => isRecord(value) && isStrings$4(value["prefixes"]) && isStrings$4(value["settingDelay"]);
+function readRenovateConfig(text, file, base) {
+	const top = jsonSetting(text, [...base, "minimumReleaseAge"]);
+	const extendsList = jsonSetting(text, [...base, "extends"]);
+	const list = jsonSetting(text, [...base, "packageRules"]);
+	const lines = Array.isArray(list?.value) ? jsonElementLines(text, [...base, "packageRules"]) : void 0;
+	const rules = Array.isArray(list?.value) ? list.value.flatMap((rule, index) => isRecord(rule) ? [{
+		index,
+		rule,
+		line: lines?.[index] ?? list.line
+	}] : []) : [];
+	return {
+		file,
+		base,
+		top,
+		extends: {
+			presets: isStrings$4(extendsList?.value) ? extendsList.value : [],
+			line: extendsList?.line ?? 1
+		},
+		rules
+	};
+}
+/**
+* Whether one Renovate pattern matches `input`, as matchRegexOrGlob does: "*", a /regex/ (with ! for "not"), or a
+* case-insensitive glob. undefined for glob syntax beyond * (braces, classes...), which depcurfew does not evaluate.
+*/
+function matchesPattern(input, pattern, negation) {
+	const negative = pattern.startsWith(negation);
+	const body = negative ? pattern.slice(negation.length) : pattern;
+	if (!negative && body === "*") return true;
+	const regex = /^\/(.+)\/(i?)$/u.exec(body);
+	if (regex !== null) {
+		let result;
+		try {
+			result = new RegExp(regex[1] ?? "", regex[2] === "i" ? "iu" : "u").test(input);
+		} catch {
+			return;
+		}
+		return negative ? !result : result;
+	}
+	if (/[?[\]{}()!+@]/u.test(body.replace(/^@/u, ""))) return void 0;
+	const result = wildcardMatch(input.toLowerCase(), body.toLowerCase().replaceAll("**", "*"));
+	return negative ? !result : result;
+}
+/**
+* Whether a path matches a glob as minimatch reads it with { dot: true, nocase: true } (decision D-135): * within one
+* directory, ** for any number of them, letters in any case. undefined for anything else minimatch reads (?, classes,
+* braces, extglobs, escapes) and for empty, . and .. parts, which depcurfew does not evaluate.
+*/
+function matchesPath(path, glob) {
+	const parts = glob.toLowerCase().split("/");
+	if (parts.some((part) => part === "" || part === "." || part === ".." || /[?[\]{}()!+@\\]/u.test(part))) return void 0;
+	const pattern = parts.filter((part, index) => part !== "**" || parts[index - 1] !== "**");
+	const segments = path.toLowerCase().split("/");
+	let row = new Uint8Array(pattern.length + 1);
+	let below = new Uint8Array(pattern.length + 1);
+	for (let at = segments.length; at >= 0; at--) {
+		row.fill(0);
+		row[pattern.length] = at === segments.length ? 1 : 0;
+		const inside = at < segments.length;
+		for (let index = pattern.length - 1; index >= 0; index--) {
+			const part = pattern[index] ?? "";
+			if (part === "**") row[index] = row[index + 1] === 1 || inside && below[index] === 1 ? 1 : 0;
+			else row[index] = inside && below[index + 1] === 1 && matchSegment$1(segments[at] ?? "", part.replaceAll(/\*+/gu, "*")) ? 1 : 0;
+		}
+		[row, below] = [below, row];
+	}
+	return below[0] === 1;
+}
+/** One pattern of matchFileNames: "*", a /regex/ (with ! for "not") or a glob of paths (matchesPath). */
+function matchesFilePattern(input, pattern, negation) {
+	const negative = pattern.startsWith(negation);
+	const body = negative ? pattern.slice(negation.length) : pattern;
+	if (!negative && body === "*") return true;
+	if (/^\/(.+)\/(i?)$/u.test(body)) return matchesPattern(input, pattern, negation);
+	const result = matchesPath(input, body);
+	return result === void 0 ? void 0 : negative ? !result : result;
+}
+/** matchRegexOrGlobList: some positive pattern matches (when there are any) and every negative pattern does too. */
+function matchesList(input, patterns, negation, matches = matchesPattern) {
+	if (patterns.length === 0) return false;
+	const positive = patterns.filter((pattern) => !pattern.startsWith(negation));
+	const negative = patterns.filter((pattern) => pattern.startsWith(negation));
+	const results = positive.map((pattern) => matches(input, pattern, negation));
+	if (positive.length > 0 && !results.includes(true)) return results.includes(void 0) ? void 0 : false;
+	const excluded = negative.map((pattern) => matches(input, pattern, negation));
+	if (excluded.includes(false)) return false;
+	return excluded.includes(void 0) ? void 0 : true;
+}
+/** Patterns that match every package name: *, **, @*\/*, npm:*, and regexes like /.*\/. */
+function matchesEveryName(pattern) {
+	const name = pattern.replace(/^(npm|jsr):/u, "");
+	return /^(@\*+\/)?\*+$/u.test(name) || /^\/\^?\.[*+]\$?\/[a-z]*$/u.test(name);
+}
+function categoriesOf(bot, manager) {
+	if (manager === void 0 || bot.extra?.["managerCategories"] === void 0) return [];
+	return extraOf(bot, "managerCategories", isLists)[manager] ?? [];
+}
+/** The packages a package manager installs: its datasource, Renovate manager and categories (extra.managers). */
+function managerTarget(bot, tool, ecosystem) {
+	const datasource = extraOf(bot, "datasources", isRecord)[ecosystem];
+	const manager = bot.extra?.["managers"] === void 0 ? void 0 : extraOf(bot, "managers", isNames)[tool];
+	return {
+		...typeof datasource === "string" ? { datasource } : {},
+		...manager === void 0 ? {} : { manager },
+		categories: categoriesOf(bot, manager)
+	};
+}
+/**
+* The actions the workflows run (extra.githubActions), when the knowledge base has them; `files` are the workflow
+* files of the repository, which a matchFileNames rule must match all of to cover the actions (decision D-135).
+*/
+function actionsTarget(bot, files = []) {
+	if (bot.extra?.["githubActions"] === void 0) return void 0;
+	const fact = extraOf(bot, "githubActions", isActions);
+	const matching = bot.extra["actionsMatching"] === void 0 ? void 0 : extraOf(bot, "actionsMatching", isActionsMatching$1);
+	return {
+		datasource: fact.datasource,
+		manager: fact.manager,
+		categories: categoriesOf(bot, fact.manager),
+		actions: true,
+		files,
+		...matching === void 0 ? {} : { depTypes: [matching.depType] }
+	};
+}
+const isBotOnly = (value) => isRecord(value) && Object.values(value).every((entry) => isRecord(entry) && typeof entry["manager"] === "string" && typeof entry["datasource"] === "string" && isStrings$4(entry["categories"]));
+/**
+* The dependencies of the ecosystems updated by bots only among `ids` (extra.botOnlyEcosystems, decision D-151), one
+* target each, with the manager, datasource and categories Renovate gives them; none without the fact.
+*/
+function botEcosystemTargets(bot, ids) {
+	if (bot.extra?.["botOnlyEcosystems"] === void 0) return [];
+	const fact = extraOf(bot, "botOnlyEcosystems", isBotOnly);
+	return [...new Set(ids)].flatMap((id) => {
+		const entry = fact[id];
+		return entry === void 0 ? [] : [{
+			datasource: entry.datasource,
+			manager: entry.manager,
+			categories: [...entry.categories],
+			ecosystem: id
+		}];
+	});
+}
+/** The targets of the package managers among `tools`, one for each datasource and manager, with the tools of each. */
+function managerTargets(bot, tools) {
+	const groups = /* @__PURE__ */ new Map();
+	for (const tool of tools) {
+		if (tool.kind !== "package-manager") continue;
+		const target = managerTarget(bot, tool.id, ecosystemOfTool(tool));
+		const key = `${target.datasource ?? ""}\u0000${target.manager ?? `\u0000${tool.id}`}`;
+		const group = groups.get(key);
+		if (group === void 0) groups.set(key, {
+			target,
+			tools: [tool]
+		});
+		else group.tools.push(tool);
+	}
+	return [...groups.values()];
+}
+function targetOf(bot, on) {
+	if (typeof on !== "string") return on;
+	const datasource = extraOf(bot, "datasources", isRecord)[on];
+	return {
+		...typeof datasource === "string" ? { datasource } : {},
+		categories: []
+	};
+}
+/** The patterns of a matcher: a list, or one string when Renovate reads a string as a list of one (extra.managerMatching). */
+function patternsOf(value, stringIsList) {
+	if (isStrings$4(value)) return value;
+	return stringIsList && typeof value === "string" ? [value] : void 0;
+}
+/** anyMatchRegexOrGlobList: some input matches the list. */
+function matchesAny(inputs, patterns, negation) {
+	const results = inputs.map((input) => matchesList(input, patterns, negation));
+	if (results.includes(true)) return true;
+	return results.includes(void 0) ? void 0 : false;
+}
+/**
+* How a rule covers the packages of `on` (a target, or the packages of a registry without a known manager): all of
+* them for some update types, some of them only, or depcurfew cannot tell.
+*/
+function ruleCoverage(bot, rule, on) {
+	const target = targetOf(bot, on);
+	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
+	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
+	const stringIsList = managerMatching?.stringIsList === true;
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$4);
+	const actionsMatching = target.actions === true && bot.extra?.["actionsMatching"] !== void 0 ? extraOf(bot, "actionsMatching", isActionsMatching$1) : void 0;
+	const matchers = Object.keys(rule).filter((key) => /^(match|exclude)[A-Z]/u.test(key));
+	const known = /* @__PURE__ */ new Set([
+		...matching.packageMatchers,
+		matching.datasourceMatcher,
+		matching.updateTypeMatcher,
+		...managerMatching === void 0 ? [] : [managerMatching.managerMatcher, managerMatching.categoryMatcher],
+		...actionsMatching === void 0 ? [] : [actionsMatching.fileMatcher, actionsMatching.depTypeMatcher]
+	]);
+	const unmodelled = matchers.find((key) => !known.has(key));
+	let unknown = unmodelled;
+	const result = (key, matches) => {
+		if (matches === void 0) unknown ??= key;
+		return matches !== false;
+	};
+	let names = { kind: "all" };
+	for (const key of matching.packageMatchers) {
+		if (!(key in rule)) continue;
+		const patterns = patternsOf(rule[key], stringIsList);
+		if (patterns === void 0) {
+			result(key, void 0);
+			continue;
+		}
+		const positive = patterns.filter((pattern) => !pattern.startsWith(matching.negation));
+		const broad = positive.find(matchesEveryName);
+		if (patterns.length === 0 || positive.length > 0 && broad === void 0) return { kind: "narrow" };
+		if (broad !== void 0 && names.kind === "all") names = {
+			kind: "pattern",
+			pattern: broad
+		};
+		else if (positive.length === 0) names = {
+			kind: "except",
+			patterns: [...names.kind === "except" ? names.patterns : [], ...patterns]
+		};
+	}
+	const lists = [[
+		matching.datasourceMatcher,
+		target.datasource === void 0 ? void 0 : [target.datasource],
+		"one"
+	]];
+	if (managerMatching !== void 0) {
+		lists.push([
+			managerMatching.managerMatcher,
+			target.manager === void 0 ? void 0 : [target.manager],
+			"one"
+		]);
+		lists.push([
+			managerMatching.categoryMatcher,
+			target.categories.length === 0 ? void 0 : target.categories,
+			"any"
+		]);
+	}
+	for (const [key, inputs] of lists) {
+		if (!(key in rule)) continue;
+		const patterns = patternsOf(rule[key], stringIsList);
+		if (!result(key, patterns === void 0 || inputs === void 0 ? void 0 : matchesAny(inputs, patterns, matching.negation))) return { kind: "narrow" };
+	}
+	if (actionsMatching !== void 0) {
+		if (actionsMatching.fileMatcher in rule) {
+			const patterns = patternsOf(rule[actionsMatching.fileMatcher], actionsMatching.fileStringIsList);
+			const files = target.files ?? [];
+			const each = patterns === void 0 ? [void 0] : files.map((file) => matchesList(file, patterns, matching.negation, matchesFilePattern));
+			const matches = files.length === 0 || each.includes(false) ? false : each.includes(void 0) ? void 0 : true;
+			if (!result(actionsMatching.fileMatcher, matches)) return { kind: "narrow" };
+		}
+		if (actionsMatching.depTypeMatcher in rule) {
+			const patterns = patternsOf(rule[actionsMatching.depTypeMatcher], actionsMatching.depTypeStringIsList);
+			const matches = patterns === void 0 || target.depTypes === void 0 ? void 0 : matchesAny(target.depTypes, patterns, matching.negation);
+			if (!result(actionsMatching.depTypeMatcher, matches)) return { kind: "narrow" };
+		}
+	}
+	let types = updateTypes;
+	if (matching.updateTypeMatcher in rule) {
+		const patterns = patternsOf(rule[matching.updateTypeMatcher], stringIsList);
+		const matched = patterns === void 0 ? [] : updateTypes.map((type) => matchesList(type, patterns, matching.negation));
+		types = updateTypes.filter((_, index) => matched[index] === true);
+		if (types.length === 0 && !result(matching.updateTypeMatcher, patterns === void 0 || matched.includes(void 0) ? void 0 : false)) return { kind: "narrow" };
+	}
+	if (unknown !== void 0) return {
+		kind: "unknown",
+		matcher: unknown,
+		...unknown === unmodelled ? { unmodelled: true } : {}
+	};
+	if (types.length === 0) return { kind: "narrow" };
+	const categoryPatterns = managerMatching === void 0 ? void 0 : patternsOf(rule[managerMatching.categoryMatcher], stringIsList);
+	const categories = categoryPatterns === void 0 ? void 0 : target.categories.filter((category) => matchesList(category, categoryPatterns, matching.negation) === true);
+	return {
+		kind: "covers",
+		scope: {
+			updateTypes: types,
+			names,
+			matchers,
+			...categories === void 0 ? {} : { categories }
+		}
+	};
+}
+/**
+* Whether a rule can apply to packages of the target at all, by its datasource, manager and category matchers only:
+* true when each of them matches (or the rule has none), false when one does not, undefined when depcurfew cannot read
+* one. Matchers of names, update types and the rest only narrow the packages further (decision D-171).
+*/
+function ruleReaches(bot, rule, on) {
+	const target = targetOf(bot, on);
+	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
+	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
+	const stringIsList = managerMatching?.stringIsList === true;
+	const lists = [[matching.datasourceMatcher, target.datasource === void 0 ? void 0 : [target.datasource]]];
+	if (managerMatching !== void 0) {
+		lists.push([managerMatching.managerMatcher, target.manager === void 0 ? void 0 : [target.manager]]);
+		lists.push([managerMatching.categoryMatcher, target.categories.length === 0 ? void 0 : target.categories]);
+	}
+	let reaches = true;
+	for (const [key, inputs] of lists) {
+		if (!(key in rule)) continue;
+		const patterns = patternsOf(rule[key], stringIsList);
+		const matches = patterns === void 0 || inputs === void 0 ? void 0 : matchesAny(inputs, patterns, matching.negation);
+		if (matches === false) return false;
+		if (matches === void 0) reaches = void 0;
+	}
+	return reaches;
+}
+/** Whether a package name matches a Renovate pattern of matchPackageNames ("*", /regex/ or a glob; undefined when depcurfew cannot tell). */
+function matchesName(bot, name, pattern) {
+	return matchesPattern(name, pattern, extraOf(bot, "packageRuleMatching", isMatching$1).negation);
+}
+/** The delayed update types a rule applies to (all without matchUpdateTypes); undefined when depcurfew cannot read its patterns. */
+function ruleUpdateTypes(bot, rule) {
+	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$4);
+	if (!(matching.updateTypeMatcher in rule)) return updateTypes;
+	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
+	const patterns = patternsOf(rule[matching.updateTypeMatcher], managerMatching?.stringIsList === true);
+	if (patterns === void 0) return void 0;
+	const matched = updateTypes.map((type) => matchesList(type, patterns, matching.negation));
+	return matched.includes(void 0) ? void 0 : updateTypes.filter((_, index) => matched[index] === true);
+}
+/** The patterns of the name matchers of a rule (matchPackageNames, matchDepNames); undefined when one cannot be read. */
+function namePatterns(bot, rule) {
+	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
+	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
+	const patterns = [];
+	for (const key of matching.packageMatchers) {
+		if (!(key in rule)) continue;
+		const list = patternsOf(rule[key], managerMatching?.stringIsList === true);
+		if (list === void 0) return void 0;
+		patterns.push(...list);
+	}
+	return patterns;
+}
+/**
+* The update types for which a rule applies to every package of the target (or of a registry), or undefined when it
+* narrows the packages or depcurfew cannot tell.
+*/
+function ruleScope(bot, rule, on) {
+	const coverage = ruleCoverage(bot, rule, on);
+	return coverage.kind === "covers" ? coverage.scope : void 0;
+}
+function presetName(preset) {
+	return preset.replace(/\(.*\)$/u, "");
+}
+/**
+* The delay Renovate applies to every package of the target (or of a registry), for each delayed update type. Without
+* a top-level value or a rule, an update type has no entry: Renovate does not wait.
+*/
+function renovateDelay$1(bot, config, on) {
+	const target = targetOf(bot, on);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$4);
+	const internal = extraOf(bot, "internalPresets", isInternal);
+	const byType = /* @__PURE__ */ new Map();
+	const unreadable = [];
+	const set = (types, source) => {
+		for (const type of types) byType.set(type, source);
+	};
+	const path = [...config.base, "minimumReleaseAge"].join(".");
+	if (config.top !== void 0) set(updateTypes, {
+		value: config.top.value,
+		origin: `${path}: ${JSON.stringify(config.top.value)} in ${config.file}`,
+		line: config.top.line
+	});
+	for (const fact of presetDelays(bot)) {
+		const preset = presetIn(config.extends.presets, fact);
+		if (preset === void 0 || target.datasource !== fact.datasource) continue;
+		set(updateTypes, {
+			value: fact.value,
+			origin: `the preset ${preset} in ${config.file} (${fact.value})`,
+			line: config.extends.line,
+			preset: {
+				name: preset,
+				datasource: fact.datasource
+			}
+		});
+	}
+	let repositorySets = config.top !== void 0;
+	for (const { index, line, rule } of config.rules) {
+		if (!("minimumReleaseAge" in rule)) continue;
+		const coverage = ruleCoverage(bot, rule, target);
+		if (coverage.kind === "unknown") unreadable.push({
+			index,
+			line,
+			matcher: coverage.matcher,
+			patterns: rule[coverage.matcher],
+			value: rule["minimumReleaseAge"],
+			...coverage.unmodelled === true ? { unmodelled: true } : {}
+		});
+		if (coverage.kind !== "covers") continue;
+		repositorySets = true;
+		set(coverage.scope.updateTypes, {
+			value: rule["minimumReleaseAge"],
+			origin: `minimumReleaseAge: ${JSON.stringify(rule["minimumReleaseAge"])} in packageRules[${index}] of ${config.file}`,
+			line,
+			rule: index
+		});
+	}
+	const unreadablePreset = config.extends.presets.find((preset) => !internal.prefixes.some((prefix) => preset.startsWith(prefix)));
+	const fromKnownPreset = config.extends.presets.some((preset) => internal.settingDelay.includes(presetName(preset)));
+	if (unreadablePreset !== void 0 && !repositorySets && !(fromKnownPreset && byType.size > 0)) return {
+		known: false,
+		preset: unreadablePreset,
+		line: config.extends.line
+	};
+	return {
+		known: true,
+		byType,
+		unreadable
+	};
+}
+
+// src/apply/generators/dependabot.ts
+const isKeys = (value) => isRecord(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string" && Array.isArray(value["semverDays"]) && value["semverDays"].every((key) => typeof key === "string");
+const isActionsEcosystem = (value) => isRecord(value) && typeof value["ecosystem"] === "string" && typeof value["semverDays"] === "boolean";
+/** The ecosystems updated by bots only, by their package-ecosystem; empty without the fact. */
+function botOnlyEntries(tool) {
+	if (tool.extra?.["botOnlyEcosystems"] === void 0) return /* @__PURE__ */ new Map();
+	const fact = extraOf(tool, "botOnlyEcosystems", (value) => isRecord(value) && Object.values(value).every(isActionsEcosystem));
+	return new Map(Object.entries(fact).map(([id, entry]) => [entry.ecosystem, {
+		id,
+		...entry
+	}]));
+}
+/**
+* bot-rule-shortens-delay for the updates entries that keep a list of their own that limits the cooldown apply writes
+* (decision D-171): an include list, which gives a cooldown only to the dependencies it names (extra.cooldownInclude),
+* and an exclude list that matches every dependency, which apply keeps where the policy names none of the entry's
+* dependencies (the actions, the ecosystems updated by bots only and Ruby gems, decision D-152). doctor reports both
+* as well (bot-cooldown-mismatch, broad-exclusion). The lines are those of the file as apply leaves it.
+*/
+function limitedCooldowns(context, file, setting, excludeKey, entries) {
+	if (entries.length === 0) return;
+	const { tool } = context;
+	const include = extraOf(tool, "cooldownInclude", (value) => isRecord(value) && typeof value["key"] === "string");
+	const text = context.read(file);
+	const yaml = yamlOptionsFor(file, [tool]);
+	const strings = (value) => Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+	for (const { index, ecosystem, cooldown, kept, other } of entries) {
+		const where = (key) => {
+			const line = yamlSetting(text, [
+				"updates",
+				String(index),
+				setting,
+				key
+			], yaml)?.line;
+			return {
+				location: line === void 0 ? { file } : {
+					file,
+					line
+				},
+				at: `cooldown.${key} in updates[${index}] (${ecosystem}) of ${file}${line === void 0 ? "" : ` (line ${line})`}`
+			};
+		};
+		const included = strings(cooldown[include.key]);
+		if (included.length > 0 && !included.some((pattern) => /^\*+$/u.test(pattern))) {
+			const { location, at } = where(include.key);
+			context.warn({
+				code: "bot-rule-shortens-delay",
+				location,
+				message: `${context.name}: ${at} names only ${listing$1(included)}, so the cooldown depcurfew apply writes there covers only these dependencies, and ${context.name} proposes updates of every other dependency of the entry without waiting`,
+				fix: `Remove ${include.key} from the cooldown of updates[${index}] in ${file}, so that the cooldown covers every dependency, and list the dependencies that need no delay ${kept ? `under cooldown.${excludeKey} there` : `in cooldown.exclude in ${POLICY_FILE}`}`
+			});
+		}
+		const broad = kept ? strings(cooldown[excludeKey]).find(matchesEveryName) : void 0;
+		if (broad !== void 0) {
+			const { location, at } = where(excludeKey);
+			const names = other === void 0 ? "Ruby gems" : "id" in other ? `${botEcosystemFact(other.id)?.client ?? other.ecosystem} dependencies` : "actions";
+			context.warn({
+				code: "bot-rule-shortens-delay",
+				location,
+				message: `${context.name}: ${at} contains ${JSON.stringify(broad)}, so ${context.name} applies no cooldown to these updates, the one depcurfew apply writes included; depcurfew apply keeps this list, because cooldown.exclude in ${POLICY_FILE} names no ${names}`,
+				fix: `Remove ${JSON.stringify(broad)} from cooldown.${excludeKey} in updates[${index}] of ${file} and list only the dependencies that need the exception`
+			});
+		}
+	}
+}
+const dependabot = (context, duration, repository) => {
+	const { tool, policy } = context;
+	if (policy.cooldown === void 0 || duration === void 0) return;
+	const file = (values$1(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
+	if (file === void 0) {
+		context.warn({
+			code: "bot-config-missing",
+			message: `${context.name}: no configuration file found; depcurfew does not create one`,
+			fix: "Add .github/dependabot.yml if you use Dependabot, then run depcurfew apply again"
+		});
+		return;
+	}
+	if (policy.cooldown.securityUpdates === "delay") context.warn({
+		code: "security-delay-unsupported",
+		message: `${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied`,
+		fix: `Review ${context.name} security pull requests before merging them, or set cooldown.securityUpdates to "bypass" in ${POLICY_FILE}, which is what ${context.name} does`
+	});
+	const result = convertCooldown(tool, duration);
+	if (!result.ok) {
+		context.warn({
+			code: "cooldown-not-written",
+			message: `${context.name}: cooldown not written: ${result.reason}`,
+			fix: result.fix
+		});
+		return;
+	}
+	const alias = rejectsYamlAliases(tool) ? yamlAliasLine(context.read(file)) : void 0;
+	if (alias !== void 0) context.warn({
+		code: "bot-config-unreadable",
+		location: {
+			file,
+			line: alias
+		},
+		message: `${context.name}: ${file} uses a YAML alias (line ${alias}), which ${context.name} does not accept, so it reads no configuration from the file, the cooldown depcurfew apply writes included; depcurfew does not read the delays such a file sets either, so it cannot tell whether this change shortens one`,
+		fix: `Write the value out in place of the alias on line ${alias} of ${file}, then run depcurfew apply again`
+	});
+	const keys = extraOf(tool, "cooldownKeys", isKeys);
+	const managers = extraOf(tool, "ecosystems", isRecord);
+	const ecosystems = Object.keys(managers);
+	const actions = tool.extra?.["githubActions"] === void 0 || repository.workflows.length === 0 ? void 0 : extraOf(tool, "githubActions", isActionsEcosystem);
+	const botOnly = botOnlyEntries(tool);
+	const setting = settingOf(tool.cooldown.setting) ?? "cooldown";
+	const yaml = context.yaml(file);
+	const updates = yaml.get(["updates"]);
+	const patternsOf = (ecosystem) => {
+		const covered = Array.isArray(managers[ecosystem]) ? managers[ecosystem] : [];
+		const tool = context.tools.find((entry) => covered.includes(entry.id));
+		const registry = tool === void 0 ? "npm" : ecosystemOfTool(tool);
+		if (registry === "rubygems") return void 0;
+		return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], registry)) ?? [];
+	};
+	let configured = 0;
+	const others = /* @__PURE__ */ new Set();
+	const edits = [];
+	const dropped = [];
+	const limited = [];
+	(Array.isArray(updates) ? updates : []).forEach((entry, index) => {
+		if (!isRecord(entry)) return;
+		const ecosystem = String(entry["package-ecosystem"]);
+		const other = actions !== void 0 && ecosystem === actions.ecosystem ? actions : botOnly.get(ecosystem);
+		if (other === void 0 && !ecosystems.includes(ecosystem)) return;
+		if (other !== void 0) others.add(other.ecosystem);
+		else configured += 1;
+		const patterns = other !== void 0 ? void 0 : patternsOf(ecosystem);
+		const semverDays = other !== void 0 && !other.semverDays ? [] : keys.semverDays;
+		const current = entry[setting];
+		if (isRecord(current)) limited.push({
+			index,
+			ecosystem,
+			cooldown: current,
+			kept: patterns === void 0,
+			...other === void 0 ? {} : { other }
+		});
+		if (!isRecord(current)) {
+			edits.push([[
+				"updates",
+				index,
+				setting
+			], {
+				[keys.days]: result.value,
+				...patterns !== void 0 && patterns.length > 0 ? { [keys.exclude]: patterns } : {}
+			}]);
+			return;
+		}
+		edits.push([[
+			"updates",
+			index,
+			setting,
+			keys.days
+		], result.value]);
+		for (const key of semverDays) {
+			const days = current[key];
+			if (typeof days === "number" && typeof result.value === "number" && days < result.value) edits.push([[
+				"updates",
+				index,
+				setting,
+				key
+			], result.value]);
+		}
+		if (patterns !== void 0 && (patterns.length > 0 || keys.exclude in current) && !sameList(current[keys.exclude], patterns)) {
+			edits.push([[
+				"updates",
+				index,
+				setting,
+				keys.exclude
+			], patterns]);
+			const path = [
+				"updates",
+				String(index),
+				setting,
+				keys.exclude
+			];
+			const old = droppedYamlList(context, file, path, patterns);
+			if (old !== void 0) dropped.push({
+				path,
+				old
+			});
+		}
+	});
+	if (edits.length > 0) yaml.setMany(edits);
+	for (const { path, old } of dropped) commentReplacedList(context, file, path, old);
+	limitedCooldowns(context, file, setting, keys.exclude, limited);
+	const managersInUse = context.tools.some((entry) => entry.kind === "package-manager" && context.targets.has(entry.id));
+	if (configured === 0 && (others.size === 0 || managersInUse)) context.warn({
+		code: "bot-entries-missing",
+		location: { file },
+		message: others.size === 0 ? `${context.name}: no ${ecosystems.join(", ")} entries in ${file}; nothing to configure` : `${context.name}: no ${ecosystems.join(", ")} entries in ${file}; only the ${listing$1([...others])} entries get the cooldown`,
+		fix: `Add an updates entry for each package manager Dependabot should update to ${file}, then run depcurfew apply again`
+	});
+};
+
 // src/apply/delays.ts
 const isString$3 = (value) => typeof value === "string";
 const isNpmrcKey = (value) => isRecord(value) && isString$3(value["key"]) && isString$3(value["until"]);
-const isCooldownKeys$1 = (value) => isRecord(value) && isString$3(value["days"]);
+const isCooldownKeys$1 = (value) => isRecord(value) && isString$3(value["days"]) && isString$3(value["exclude"]);
+const isInclude = (value) => isRecord(value) && isString$3(value["key"]);
 const isPackageJsonConfig$2 = (value) => isRecord(value) && isString$3(value["file"]) && isString$3(value["key"]);
 function lines$1(text) {
 	return text.split(/\r?\n/u);
@@ -27950,7 +31432,8 @@ function markedInYaml(text, path, all = lines$1(text)) {
 	}
 	return false;
 }
-function managed(text, file, path, line) {
+/** Whether depcurfew wrote the value at `path` of `file`: inside its managed block, or under its YAML marker. */
+function managedValue(text, file, path, line) {
 	if (text === void 0) return false;
 	const name = file.split("/").at(-1) ?? file;
 	if (/\.ya?ml$/u.test(name)) return markedInYaml(text, path);
@@ -27994,7 +31477,7 @@ function managerDelay(repository, manager, tool) {
 			setting
 		};
 	} else for (const source of managerSources(repository, manager, tool, version)) {
-		const setting = readSetting(repository, source.file, source.setting);
+		const setting = readToolSetting(repository, tool, version, source.file, source.setting);
 		if (setting !== void 0) {
 			found = {
 				...setting,
@@ -28008,19 +31491,22 @@ function managerDelay(repository, manager, tool) {
 	const value = isRecord(found.value) && ageKey !== void 0 ? found.value[ageKey] : found.value;
 	if (typeof value === "bigint") return void 0;
 	const delay = delayMinutes(tool, value, version);
-	if (!delay.ok || delay.minutes <= 0) return void 0;
+	const cutoff = delay.ok ? void 0 : cutoffAge(tool, value, Date.now());
+	const minutes = cutoff?.minutes ?? (delay.ok ? delay.minutes : 0);
+	if (minutes <= 0) return void 0;
 	const path = found.setting.split(".");
 	return {
 		tool: tool.id,
 		scope: "",
 		setting: found.setting,
-		value,
-		minutes: delay.minutes,
+		value: cutoff?.text ?? value,
+		minutes,
 		location: {
 			file: found.file,
 			line: found.line
 		},
-		managed: managed(repository.readText(found.file), found.file, path, found.line)
+		managed: managedValue(repository.readText(found.file), found.file, path, found.line),
+		...cutoff === void 0 ? {} : { cutoff: true }
 	};
 }
 function dependabotDelays$1(repository, bot, file, workflows) {
@@ -28030,6 +31516,7 @@ function dependabotDelays$1(repository, bot, file, workflows) {
 	const updates = yamlSetting(text, ["updates"], yaml);
 	if (updates === void 0 || !Array.isArray(updates.value)) return [];
 	const keys = extraOf(bot, "cooldownKeys", isCooldownKeys$1);
+	const include = extraOf(bot, "cooldownInclude", isInclude);
 	const ecosystems = Object.keys(extraOf(bot, "ecosystems", isRecord));
 	const actions = bot.extra?.["githubActions"] === void 0 || workflows.length === 0 ? void 0 : extraOf(bot, "githubActions", isActionsEcosystem).ecosystem;
 	if (actions !== void 0) ecosystems.push(actions);
@@ -28041,6 +31528,10 @@ function dependabotDelays$1(repository, bot, file, workflows) {
 		const cooldown = entry[setting];
 		const days = isRecord(cooldown) ? cooldown[keys.days] : void 0;
 		if (typeof days !== "number" || days <= 0) return [];
+		const strings = (key) => isRecord(cooldown) && Array.isArray(cooldown[key]) ? cooldown[key].filter(isString$3) : [];
+		if (strings(keys.exclude).some(matchesEveryName)) return [];
+		const included = strings(include.key);
+		const only = included.length > 0 && !included.some((pattern) => /^\*+$/u.test(pattern)) ? ` of ${listing$1(included)}` : "";
 		const path = [
 			"updates",
 			String(index),
@@ -28052,7 +31543,7 @@ function dependabotDelays$1(repository, bot, file, workflows) {
 		return [{
 			tool: bot.id,
 			scope: `updates[${index}]`,
-			label: `${String(entry["package-ecosystem"])} updates`,
+			label: `${String(entry["package-ecosystem"])} updates${only}`,
 			setting: keys.days,
 			value: days,
 			...found?.written === void 0 ? {} : { written: found.written },
@@ -28065,7 +31556,7 @@ function dependabotDelays$1(repository, bot, file, workflows) {
 		}];
 	});
 }
-function renovateDelay$1(repository, bot, file) {
+function renovateDelay(repository, bot, file) {
 	if (!/\.jsonc?$/u.test(file) && !file.endsWith(".renovaterc")) return void 0;
 	const packageJson = extraOf(bot, "packageJsonConfig", isPackageJsonConfig$2);
 	const setting = settingOf(bot.cooldown.setting) ?? "minimumReleaseAge";
@@ -28111,7 +31602,7 @@ function configuredDelays(repository, detection, tools, only) {
 		if (bot === void 0 || file === void 0 || only !== void 0 && !only.has(bot.id)) continue;
 		if (bot.id === "dependabot") delays.push(...readable(() => dependabotDelays$1(repository, bot, file, detection.workflows), []));
 		else {
-			const delay = readable(() => renovateDelay$1(repository, bot, file), void 0);
+			const delay = readable(() => renovateDelay(repository, bot, file), void 0);
 			if (delay !== void 0) delays.push(delay);
 		}
 	}
@@ -28131,6 +31622,7 @@ function policyDuration(minutes) {
 */
 function describeDelay(delay) {
 	const where = `in ${delay.location.file} (line ${delay.location.line})`;
+	if (delay.cutoff === true) return `${settingText(delay.location.file, delay.setting, delay.value)} ${where}, a fixed date ${formatMinutes(delay.minutes)} ago`;
 	if (delay.written === void 0) return `${settingText(delay.location.file, delay.setting, delay.value)} ${where}`;
 	const name = knowledgeBase.find((tool) => tool.id === delay.tool)?.name ?? delay.tool;
 	return `${delay.setting}: ${delay.written} ${where}, which ${name} reads as ${String(delay.value)}`;
@@ -28186,12 +31678,165 @@ function shortenedDelays(root, changes, detection, tools, targets, policyMinimum
 		const name = tools.find((tool) => tool.id === old.tool)?.name ?? old.tool;
 		const scope = old.label === void 0 ? "" : ` for ${old.label}`;
 		const action = !(now.location.file === old.location.file && now.setting === old.setting) ? `writes ${settingText(now.location.file, now.setting, now.value)} to ${now.location.file}, which ${name} reads first` : lineBased(old.location.file) ? `comments it out and writes ${settingText(now.location.file, now.setting, now.value)} in its managed block` : `replaces it with ${JSON.stringify(now.value)}`;
+		const waits = old.cutoff === true ? `, holds back every version uploaded since${scope}` : `${old.written === void 0 ? "" : ","} waits ${formatMinutes(old.minutes)}${scope}`;
+		const json = old.location.file.endsWith(".json") || old.location.file.endsWith(".jsonc");
 		return [{
 			code: "cooldown-shortened",
 			tool: old.tool,
 			location: { ...old.location },
-			message: `${name}: ${describeDelay(old)}${old.written === void 0 ? "" : ","} waits ${formatMinutes(old.minutes)}${scope}, longer than cooldown.minimum "${policyMinimum}" in ${POLICY_FILE}; depcurfew apply ${action}, so ${name} waits only ${formatMinutes(now.minutes)}`,
-			fix: `To keep the longer delay, set cooldown.minimum to "${policyDuration(old.minutes)}" in ${POLICY_FILE} and run depcurfew apply again${old.location.file.endsWith(".json") || old.location.file.endsWith(".jsonc") ? `; if an earlier depcurfew apply wrote this value to ${old.location.file} and you lowered cooldown.minimum on purpose, nothing to do` : ""}`
+			message: `${name}: ${describeDelay(old)}${waits}, longer than cooldown.minimum "${policyMinimum}" in ${POLICY_FILE}; depcurfew apply ${action}, so ${name} waits only ${formatMinutes(now.minutes)}`,
+			fix: old.cutoff === true ? `To keep a delay at least that long, set cooldown.minimum to "${policyDuration(old.minutes)}" in ${POLICY_FILE} and run depcurfew apply again; ${POLICY_FILE} sets a delay that moves with time, not a fixed date` : `To keep the longer delay, set cooldown.minimum to "${policyDuration(old.minutes)}" in ${POLICY_FILE} and run depcurfew apply again${json ? `; if an earlier depcurfew apply wrote this value to ${old.location.file} and you lowered cooldown.minimum on purpose, nothing to do` : ""}`
+		}];
+	});
+}
+
+// src/apply/exclusions.ts
+const PREFIXES = {
+	pypi: PYPI_PREFIX,
+	packagist: COMPOSER_PREFIX
+};
+/** The pattern depcurfew.json writes for a package of the registry, or undefined when it cannot hold it. */
+function policyPattern(name, ecosystem) {
+	if (ecosystem === "rubygems") return void 0;
+	const pattern = `${PREFIXES[ecosystem] ?? ""}${name}`;
+	return validatePackagePattern(pattern) === void 0 ? pattern : void 0;
+}
+/** The names a list or table of exceptions holds: strings of a list, keys set to the tool's exempt value of a table. */
+function namesOf$1(tool, value) {
+	if (Array.isArray(value)) return value.filter((item) => typeof item === "string");
+	if (!isRecord(value)) return void 0;
+	const exempt = tool.extra?.["excludeValue"] === void 0 ? void 0 : values$1(tool.extra["excludeValue"])[0];
+	return exempt === void 0 ? void 0 : Object.keys(value).filter((key) => value[key] === exempt);
+}
+function managerExclusion(repository, tool, configFiles) {
+	const setting = settingOf(tool.cooldown.exclude.setting);
+	const ecosystem = ecosystemOfTool(tool);
+	if (setting === null || ecosystem === "packagist" || ecosystem === "rubygems") return void 0;
+	const key = setting.split(".").at(-1) ?? setting;
+	const mentions = (file) => repository.readText(file)?.includes(key) === true;
+	let found;
+	if (ecosystem === "pypi") found = pythonSettingPaths(repository, tool, setting).some(({ file }) => mentions(file)) ? readPythonSetting(repository, tool, setting) : void 0;
+	else {
+		const manifests = tool.id === "deno" && tool.project !== void 0 ? values$1(tool.project.manifests)[0] ?? [] : [];
+		const file = tool.id === "deno" ? manifests.find((name) => repository.isFile(name)) ?? configFiles.find((name) => /^deno\.jsonc?$/u.test(name)) : values$1(tool.cooldown.configFiles)[0]?.[0];
+		found = file === void 0 || !mentions(file) ? void 0 : readSetting(repository, file, setting);
+	}
+	if (found === void 0) return void 0;
+	const names = namesOf$1(tool, found.value);
+	if (names === void 0 || names.length === 0) return void 0;
+	const prefix = tool.extra?.["npmSpecifierPrefix"] === void 0 ? void 0 : extraOf(tool, "npmSpecifierPrefix", (value) => typeof value === "string");
+	const entries = names.map((written) => {
+		const name = prefix === void 0 ? written : written.startsWith(prefix) ? written.slice(prefix.length) : void 0;
+		return {
+			written,
+			policy: name === void 0 ? void 0 : policyPattern(name, ecosystem)
+		};
+	});
+	return {
+		tool: tool.id,
+		scope: "",
+		setting,
+		location: {
+			file: found.file,
+			line: found.line
+		},
+		entries,
+		managed: managedValue(repository.readText(found.file), found.file, setting.split("."), found.line)
+	};
+}
+function dependabotExclusions(repository, bot, file, tools) {
+	const text = repository.readText(file);
+	if (text === void 0 || !text.includes("exclude") || rejectsYamlAliases(bot) && yamlAliasLine(text) !== void 0) return [];
+	const yaml = yamlOptionsFor(file, [bot]);
+	const updates = yamlSetting(text, ["updates"], yaml);
+	if (updates === void 0 || !Array.isArray(updates.value)) return [];
+	const ecosystems = extraOf(bot, "ecosystems", isRecord);
+	const actions = bot.extra?.["githubActions"] === void 0 ? void 0 : extraOf(bot, "githubActions", isActionsEcosystem).ecosystem;
+	const botOnly = botOnlyEntries(bot);
+	return updates.value.flatMap((entry, index) => {
+		if (!isRecord(entry) || !isRecord(entry["cooldown"])) return [];
+		const name = String(entry["package-ecosystem"]);
+		const managers = ecosystems[name];
+		if (name === actions || botOnly.has(name) || !Array.isArray(managers)) return [];
+		const tool = tools.find((item) => managers.includes(item.id));
+		const ecosystem = tool === void 0 ? "npm" : ecosystemOfTool(tool);
+		const list = entry["cooldown"]["exclude"];
+		if (ecosystem === "rubygems" || !Array.isArray(list) || list.length === 0) return [];
+		const path = [
+			"updates",
+			String(index),
+			"cooldown",
+			"exclude"
+		];
+		const found = yamlSetting(text, path, yaml);
+		return [{
+			tool: bot.id,
+			scope: `updates[${index}]`,
+			label: `${name} updates`,
+			setting: "cooldown.exclude",
+			location: {
+				file,
+				line: found?.line ?? updates.line
+			},
+			entries: list.filter((item) => typeof item === "string").map((written) => ({
+				written,
+				policy: policyPattern(written, ecosystem)
+			})),
+			managed: managedValue(text, file, path, found?.line ?? updates.line)
+		}];
+	});
+}
+/** The exception lists the repository sets for the detected tools (only those in `only`, when given). */
+function configuredExclusions(repository, detection, tools, only) {
+	const found = [];
+	const read = (action, none) => {
+		try {
+			return action();
+		} catch {
+			return none;
+		}
+	};
+	for (const manager of detection.packageManagers) {
+		const tool = tools.find((entry) => entry.id === manager.id);
+		if (!manager.supported || tool === void 0 || only !== void 0 && !only.has(tool.id)) continue;
+		const exclusion = read(() => managerExclusion(repository, tool, manager.configFiles), void 0);
+		if (exclusion !== void 0) found.push(exclusion);
+	}
+	for (const detected of detection.bots) {
+		const bot = tools.find((entry) => entry.id === detected.id);
+		const file = detected.configFiles[0];
+		if (bot?.id !== "dependabot" || file === void 0 || only !== void 0 && !only.has(bot.id)) continue;
+		found.push(...read(() => dependabotExclusions(repository, bot, file, tools), []));
+	}
+	return found;
+}
+/**
+* exclusion-dropped (decision D-167): an exception set outside depcurfew's markers that the planned change removes,
+* because cooldown.exclude does not name it. The fix names the patterns that keep it.
+*/
+function droppedExclusions(root, changes, detection, tools, targets) {
+	if (changes.length === 0) return [];
+	const before = configuredExclusions(new Repository(root), detection, tools, targets).filter((exclusion) => !exclusion.managed);
+	if (before.length === 0) return [];
+	const after = configuredExclusions(new PlannedRepository(root, changes), detection, tools, targets);
+	return before.flatMap((old) => {
+		const now = after.find((exclusion) => exclusion.tool === old.tool && exclusion.scope === old.scope);
+		const kept = new Set(now?.entries.map((entry) => entry.written) ?? []);
+		const dropped = old.entries.filter((entry) => !kept.has(entry.written));
+		if (dropped.length === 0) return [];
+		const name = tools.find((tool) => tool.id === old.tool)?.name ?? old.tool;
+		const one = dropped.length === 1;
+		const json = /\.jsonc?$/u.test(old.location.file);
+		const action = json ? `removes ${one ? "it" : "them"}` : `comments ${one ? "it" : "them"} out`;
+		const patterns = dropped.map((entry) => entry.policy).filter((pattern) => pattern !== void 0);
+		const unnamed = dropped.filter((entry) => entry.policy === void 0).map((entry) => entry.written);
+		const keep = patterns.length > 0 ? `To keep the ${patterns.length === 1 ? "exception" : "exceptions"}, add ${listing$1(patterns.map((pattern) => JSON.stringify(pattern)))} to cooldown.exclude in ${POLICY_FILE} and run depcurfew apply again` : `${POLICY_FILE} cannot name ${listing$1(unnamed)}, so depcurfew apply cannot keep ${unnamed.length === 1 ? "it" : "them"}; remove "${old.tool}" from targets in ${POLICY_FILE} if ${name} must keep the list as it is`;
+		return [{
+			code: "exclusion-dropped",
+			tool: old.tool,
+			location: { ...old.location },
+			message: `${name}: ${old.setting} in ${old.location.file} (line ${old.location.line})${old.label === void 0 ? "" : ` for ${old.label}`} exempts ${listing$1(dropped.map((entry) => entry.written))} from the release-age delay, but cooldown.exclude in ${POLICY_FILE} does not; depcurfew apply ${action}, so ${name} delays ${one ? "it" : "them"} like every other package`,
+			fix: `${keep}${json ? `; if an earlier depcurfew apply wrote ${one ? "it" : "them"} to ${old.location.file} and you removed ${one ? "it" : "them"} from cooldown.exclude on purpose, nothing to do` : ""}`
 		}];
 	});
 }
@@ -28313,7 +31958,7 @@ function parseIgnoreFile(text, file, base, ignoreCase = false) {
 function foldCase(text) {
 	return text.replaceAll(/[A-Z]/gu, (letter) => letter.toLowerCase());
 }
-function matches(rule, path, directory) {
+function matches$1(rule, path, directory) {
 	if (rule.base !== "" && !path.startsWith(`${rule.base}/`)) return false;
 	if (rule.directoryOnly && !directory) return false;
 	if (rule.glob === void 0) return void 0;
@@ -28324,7 +31969,7 @@ function matches(rule, path, directory) {
 function decide(rules, path, directory) {
 	let decided;
 	for (const rule of rules) {
-		const result = matches(rule, path, directory);
+		const result = matches$1(rule, path, directory);
 		if (result === void 0) {
 			if (rule.negate) return "unknown";
 			continue;
@@ -28546,14 +32191,16 @@ const bun = (context) => {
 				const names = policy.installScripts.allow.length > 0 ? allowedNames(context, setting) : [];
 				context.writes("installScripts", setting, listFile);
 				const current = context.json(listFile).get([setting]);
-				if (current === void 0 && context.exists(listFile)) context.warn({
-					code: "built-in-list-replaced",
-					message: `${context.name}: ${setting} replaces Bun's built-in list of trusted packages, so packages on that list no longer run install scripts unless listed`,
-					fix: "Add the ones that need their scripts to installScripts.allow"
-				});
-				const list = Array.isArray(current) ? [...current] : [];
-				const merged = [...list, ...names.filter((name) => !list.includes(name))];
-				if (current === void 0 || !sameList(current, merged)) context.json(listFile).set([setting], merged);
+				if (!wrongListType(context, listFile, [setting], current, "list", names, JSON.stringify(names.length > 0 ? names : ["esbuild"]))) {
+					if (current === void 0 && context.exists(listFile)) context.warn({
+						code: "built-in-list-replaced",
+						message: `${context.name}: ${setting} replaces Bun's built-in list of trusted packages, so packages on that list no longer run install scripts unless listed`,
+						fix: "Add the ones that need their scripts to installScripts.allow"
+					});
+					const list = Array.isArray(current) ? [...current] : [];
+					const merged = [...list, ...names.filter((name) => !list.includes(name))];
+					if (current === void 0 || !sameList(current, merged)) context.json(listFile).set([setting], merged);
+				}
 			}
 		}
 	}
@@ -28563,7 +32210,7 @@ const bun = (context) => {
 };
 
 // src/apply/generators/bundler.ts
-const isStrings$4 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isStrings$3 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 const isGap = (value) => isRecord(value) && typeof value["since"] === "string" && typeof value["scope"] === "string";
 const isServer = (value) => isRecord(value) && typeof value["url"] === "string";
 /**
@@ -28571,7 +32218,7 @@ const isServer = (value) => isRecord(value) && typeof value["url"] === "string";
 * names are only looked at (File.file?, extra.gemfileNames), so a directory named gems.rb stops nothing.
 */
 function plannedGemfile(context) {
-	const names = context.tool.extra?.["gemfileNames"] === void 0 ? ["gems.rb", "Gemfile"] : extraOf(context.tool, "gemfileNames", isStrings$4);
+	const names = context.tool.extra?.["gemfileNames"] === void 0 ? ["gems.rb", "Gemfile"] : extraOf(context.tool, "gemfileNames", isStrings$3);
 	return gemfileIn((file) => context.isFile(file), names);
 }
 /** Why apply does not edit a source call, for messages. */
@@ -28717,7 +32364,7 @@ const bundler = (context) => {
 		message: `${context.name} builds the native extensions of gems when it installs them, which runs code of the gem (extconf.rb, a Rakefile), and has no setting that blocks this or allows it for some gems only, so installScripts "deny" cannot be enforced`,
 		fix: `Review gems with native extensions (extensions in the gemspec, an ext directory) before you add or update them; there is nothing to set for ${context.name}`
 	});
-	const kinds = tool.extra?.["dependencySources"] === void 0 ? void 0 : extraOf(tool, "dependencySources", isStrings$4);
+	const kinds = tool.extra?.["dependencySources"] === void 0 ? void 0 : extraOf(tool, "dependencySources", isStrings$3);
 	const sources = policy.sources === void 0 || kinds === void 0 ? policy.sources : Object.fromEntries(Object.entries(policy.sources).filter(([kind]) => kinds.includes(kind)));
 	eachSource({
 		...context,
@@ -28782,10 +32429,11 @@ function writeCooldown(context, json, manifest) {
 		return;
 	}
 	const current = json.get(path);
+	const kept = unreadableDelay(context, manifest.file, setting, current, locationOf(manifest, path).line, cooldown);
 	const written = current === void 0 ? void 0 : delayMinutes(tool, current, void 0);
-	if (written === void 0 || !written.ok || written.minutes !== cooldown.minutes) json.set(path, cooldown.value);
+	if (!kept && (written === void 0 || !written.ok || written.minutes !== cooldown.minutes)) json.set(path, cooldown.value);
 	writeExclusions(context, json, manifest);
-	return cooldown.minutes;
+	return kept ? void 0 : cooldown.minutes;
 }
 /**
 * The composer: names of cooldown.exclude in config.policy.cooldown.ignore: a new list, added to a list, or added to an
@@ -28933,7 +32581,7 @@ function denyListSince(context) {
 /** composer.lock hashes config.policy (2.11.0+): after a change there composer install warns and composer validate fails until it is locked again. */
 function relockWarning$1(context, file, before, after) {
 	const hash = extraOf(context.tool, "contentHash", isContentHash$1);
-	if (JSON.stringify(before) === JSON.stringify(after) || !context.exists(hash.file) || !context.atLeast(hash.since)) return;
+	if (JSON.stringify(before) === JSON.stringify(after) || !context.isFile(hash.file) || !context.atLeast(hash.since)) return;
 	context.warn({
 		code: "lockfile-out-of-date",
 		location: { file: hash.file },
@@ -28973,7 +32621,7 @@ const composer = (context) => {
 * The setting a line sets, read as npm reads it, with the reader doctor uses (extra.npmrcFormat): quotes removed,
 * a key without = included, a trailing comment cut off; `key[]` as `key`.
 */
-function keyOf$2(line) {
+function keyOf$1(line) {
 	const parsed = iniLine(line);
 	return parsed === void 0 || "section" in parsed ? void 0 : parsed.key.replace(/\[\]$/u, "");
 }
@@ -28998,8 +32646,8 @@ function writeIniBlock(body, entries, managedKeys, marker = BLOCK_START) {
 	const lines = removed.lines.map((line) => parts(line).map((part) => {
 		if (isSection(part)) inSection = true;
 		const original = commentedOut(part);
-		if (original !== void 0) return !inSection && managed.has(keyOf$2(original) ?? "") ? part : original;
-		const key = inSection ? void 0 : keyOf$2(part);
+		if (original !== void 0) return !inSection && managed.has(keyOf$1(original) ?? "") ? part : original;
+		const key = inSection ? void 0 : keyOf$1(part);
 		return key !== void 0 && managed.has(key) ? `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${part.trim()}` : part;
 	}).join("\r"));
 	if (entries.length === 0) return joinLines(lines);
@@ -29033,239 +32681,6 @@ function writeRequirementsBlock(body, entries, managedOptions, longOptions = [])
 	});
 	if (entries.length === 0) return joinLines(lines);
 	return joinLines(insertBlock(lines, removed.at ?? at, entries, removed.at === void 0 ? void 0 : removed.separated));
-}
-
-// src/apply/toml.ts
-const HEADER = /^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(?:#.*)?$/u;
-function keyOf$1(line) {
-	const trimmed = line.trim();
-	if (trimmed === "" || trimmed.startsWith("#") || trimmed.startsWith("[")) return void 0;
-	const equals = trimmed.indexOf("=");
-	if (equals === -1) return void 0;
-	return trimmed.slice(0, equals).trim().replace(/^["']|["']$/gu, "");
-}
-/** Follows a value through one line: strings (with escapes), multi-line strings, arrays, inline tables, comments. */
-function scanLine(line, state) {
-	let { depth, string } = state;
-	for (let index = 0; index < line.length; index++) {
-		const char = line[index];
-		if (string === "\"\"\"" || string === "'''") {
-			if (string === "\"\"\"" && char === "\\") index += 1;
-			else if (line.startsWith(string, index)) {
-				string = "";
-				index += 2;
-			}
-			continue;
-		}
-		if (string === "\"") {
-			if (char === "\\") index += 1;
-			else if (char === "\"") string = "";
-			continue;
-		}
-		if (string === "'") {
-			if (char === "'") string = "";
-			continue;
-		}
-		if (char === "#") break;
-		if (line.startsWith("\"\"\"", index) || line.startsWith("'''", index)) {
-			string = line.startsWith("\"\"\"", index) ? "\"\"\"" : "'''";
-			index += 2;
-		} else if (char === "\"" || char === "'") string = char;
-		else if (char === "[" || char === "{") depth += 1;
-		else if (char === "]" || char === "}") depth -= 1;
-	}
-	return {
-		depth,
-		string: string === "\"" || string === "'" ? "" : string
-	};
-}
-/** The index of the last line of the value that starts after the `=` on line `index`. */
-function valueEnd(lines, index) {
-	const line = lines[index] ?? "";
-	let state = scanLine(line.slice(line.indexOf("=") + 1), {
-		depth: 0,
-		string: ""
-	});
-	let end = index;
-	while ((state.depth > 0 || state.string !== "") && end + 1 < lines.length) {
-		end += 1;
-		state = scanLine(lines[end] ?? "", state);
-	}
-	return end;
-}
-/** The table each line is in (undefined before the first table), following values over several lines. */
-function tablesOf(lines) {
-	const tables = [];
-	let current;
-	for (let index = 0; index < lines.length; index++) {
-		const line = lines[index] ?? "";
-		const header = HEADER.exec(line);
-		if (header !== null) current = header[1];
-		tables[index] = current;
-		if (header === null && keyOf$1(line) !== void 0) {
-			const end = valueEnd(lines, index);
-			for (let next = index + 1; next <= end; next++) tables[next] = current;
-			index = end;
-		}
-	}
-	return tables;
-}
-/**
-* Removes the block with this marker. A labeled block that is not there yet may have been written by an earlier
-* version without the label: an unlabeled block inside the same table is then taken for it.
-*/
-function removeOwnBlock(lines, table, label) {
-	const removed = removeBlock(lines, blockStart(label));
-	if (removed.at !== void 0 || label === void 0) return removed;
-	const tables = tablesOf(lines);
-	const legacy = lines.findIndex((line, index) => blockLabel(line) === "" && (tables[index] ?? "") === table);
-	return legacy === -1 ? removed : removeBlockAt(lines, legacy);
-}
-/**
-* Lines apply commented out in this table (and the dotted keys and subtables of it) come back as they were, every
-* line of the value, when the policy no longer manages their key. Lines commented out in other tables stay.
-*/
-function restoreLines(lines, table, isManaged) {
-	const topLevel = table === "";
-	const prefix = topLevel ? "" : `${table}.`;
-	let current;
-	let section = "table";
-	for (let index = 0; index < lines.length; index++) {
-		const line = lines[index] ?? "";
-		const header = HEADER.exec(line);
-		if (header !== null) {
-			current = header[1];
-			section = "table";
-			continue;
-		}
-		const original = commentedOut(line);
-		if (original === void 0) {
-			if (keyOf$1(line) !== void 0) index = valueEnd(lines, index);
-			continue;
-		}
-		const noted = HEADER.exec(original);
-		if (noted !== null) {
-			const name = noted[1] ?? "";
-			section = name.startsWith(prefix) && !isManaged(name.slice(prefix.length)) ? "restored" : "kept";
-			if (section === "restored") lines[index] = original;
-			continue;
-		}
-		const key = keyOf$1(original);
-		if (key === void 0 || section === "kept") continue;
-		const dotted = !topLevel && current === void 0 && key.startsWith(prefix);
-		if (section === "table" && !((topLevel ? current === void 0 : current === table) && !isManaged(key) || dotted && !isManaged(key.slice(prefix.length)))) continue;
-		lines[index] = original;
-		let state = scanLine(original.slice(original.indexOf("=") + 1), {
-			depth: 0,
-			string: ""
-		});
-		while ((state.depth > 0 || state.string !== "") && lines[index + 1]?.startsWith("# ") === true) {
-			index += 1;
-			lines[index] = (lines[index] ?? "").slice(2);
-			state = scanLine(lines[index] ?? "", state);
-		}
-	}
-}
-function writeTomlBlock(body, table, entries, managedKeys, label, scope = "project") {
-	const managed = new Set(managedKeys);
-	const marker = blockStart(label, scope);
-	const removed = removeOwnBlock(splitLines(body), table, label);
-	const lines = [...removed.lines];
-	const topLevel = table === "";
-	if (topLevel && entries.length === 0 && removed.at === 0 && lines[0]?.trim() === "") lines.shift();
-	const headers = /* @__PURE__ */ new Map();
-	const boundaries = [];
-	let current;
-	let definedAtTop = false;
-	const isManaged = (key) => managed.has(key) || [...managed].some((name) => key.startsWith(`${name}.`));
-	restoreLines(lines, table, isManaged);
-	const prefix = topLevel ? "" : `${table}.`;
-	const note = entries.length === 0 ? TURNED_OFF : SUPERSEDED;
-	let inManagedTable = false;
-	for (let index = 0; index < lines.length; index++) {
-		const line = lines[index] ?? "";
-		const header = HEADER.exec(line);
-		if (header !== null) {
-			const name = header[1] ?? "";
-			inManagedTable = name.startsWith(prefix) && isManaged(name.slice(prefix.length));
-			if (inManagedTable) {
-				lines[index] = `${note}${line.trim()}`;
-				continue;
-			}
-			current = name;
-			boundaries.push(index);
-			if (!line.trim().startsWith("[[")) headers.set(index, current);
-			continue;
-		}
-		const key = keyOf$1(line);
-		if (key === void 0) continue;
-		const end = valueEnd(lines, index);
-		const inTable = (topLevel ? current === void 0 : current === table) && isManaged(key);
-		const dotted = !topLevel && current === void 0 && key.startsWith(`${table}.`) && isManaged(key.slice(table.length + 1));
-		if (inManagedTable || inTable || dotted) {
-			lines[index] = `${note}${line.trim()}`;
-			for (let next = index + 1; next <= end; next++) lines[next] = `# ${lines[next] ?? ""}`;
-		} else if (!topLevel && current === void 0 && (key === table || key.startsWith(`${table}.`) || table.startsWith(`${key}.`))) definedAtTop = true;
-		index = end;
-	}
-	if (entries.length === 0) return joinLines(withoutCreatedTable(lines, table, removed));
-	if (topLevel) {
-		const firstTable = boundaries[0] ?? lines.length;
-		if (removed.at !== void 0 && removed.at <= firstTable) return joinLines(topBlock(lines, removed.at, entries, removed.separated, marker));
-		let end = firstTable;
-		while (end > 0 && lines[end - 1]?.trim() === "") end -= 1;
-		return joinLines(topBlock(lines, end, entries, void 0, marker));
-	}
-	const headerIndex = [...headers].find(([, name]) => name === table)?.[0] ?? -1;
-	const nextHeaderAfter = (from) => boundaries.find((index) => index > from) ?? -1;
-	if (headerIndex === -1) {
-		if (definedAtTop) throw new Error(`${table} is defined with dotted keys or an inline table, so a [${table}] table cannot be added; move its settings under a [${table}] header`);
-		const prefix = lines.length > 0 && lines.at(-1)?.trim() !== "" ? [...lines, ""] : lines;
-		return joinLines([
-			...prefix,
-			`[${table}]`,
-			...insertBlock([], 0, entries, void 0, marker)
-		]);
-	}
-	if (removed.at !== void 0 && removed.at > headerIndex) {
-		const nextHeader = nextHeaderAfter(headerIndex);
-		if (nextHeader === -1 || removed.at <= nextHeader) return joinLines(insertBlock(lines, removed.at, entries, removed.separated, marker));
-	}
-	let end = nextHeaderAfter(headerIndex);
-	if (end === -1) end = lines.length;
-	while (end > headerIndex + 1 && lines[end - 1]?.trim() === "") end -= 1;
-	return joinLines(insertBlock(lines, end, entries, void 0, marker));
-}
-/**
-* The table apply created for its block goes away with the block when nothing else is in it (decision D-116). apply
-* writes such a table as its header with the block right below it, and the blank line before the header; a block it
-* added to a table that was there follows a blank line after the header, which removeBlockAt reports as `separated`.
-* So a table with anything else in it, with a comment on its header line, or with the block apart from the header, is
-* the user's and stays, also when it is empty.
-*/
-function withoutCreatedTable(lines, table, removed) {
-	const at = removed.at;
-	if (table === "" || at === void 0 || removed.separated || at === 0) return lines;
-	const header = at - 1;
-	if (lines[header]?.trim() !== `[${table}]`) return lines;
-	let end = at;
-	while (end < lines.length && !HEADER.test(lines[end] ?? "")) {
-		if ((lines[end] ?? "").trim() !== "") return lines;
-		end += 1;
-	}
-	const rest = [...lines.slice(0, header), ...lines.slice(at)];
-	if (header > 0 && rest[header - 1]?.trim() === "" && (header === rest.length || rest[header]?.trim() === "")) rest.splice(header - 1, 1);
-	return rest;
-}
-/**
-* A top-level block, with a blank line before a table header that follows it right away. A key that follows it stays
-* where it is, so that a second run changes nothing.
-*/
-function topBlock(lines, at, entries, separate, marker) {
-	const result = insertBlock(lines, at, entries, separate, marker);
-	const after = at + (result.length - lines.length);
-	if (HEADER.test(result[after] ?? "")) result.splice(after, 0, "");
-	return result;
 }
 
 // src/apply/generators/context.ts
@@ -29326,11 +32741,12 @@ function createContext(options) {
 		} catch (error) {
 			if (error instanceof EditFailed) throw error;
 			const message = (error instanceof Error ? error.message : String(error)).split("\n", 1)[0]?.replace(/:$/u, "") ?? "";
+			const fix = error instanceof RefusedEdit ? error.fix : error?.fix;
 			failures.push({
 				tool: tool.id,
 				file,
 				message,
-				...error instanceof RefusedEdit ? { fix: error.fix } : {}
+				...typeof fix === "string" ? { fix } : {}
 			});
 			throw new EditFailed(message);
 		}
@@ -29398,11 +32814,12 @@ function createContext(options) {
 				0,
 				0
 			]) >= 0 ? a : b);
+			const pinFix = options.pin?.fix?.(needed);
 			warn({
 				code: "version-too-old",
-				...options.versionAt === void 0 ? {} : { location: options.versionAt },
-				message: `${tool.name} ${versionLabel} does not support ${describeRequirements(unsupported)}; not written`,
-				fix: user ? `Update ${tool.name} to ${needed} or later, then run depcurfew apply --user again` : locked === void 0 ? `Require ${tool.name} ${needed} or later where the version is pinned` : `Require ${tool.name} ${needed} or later where the version is pinned (${locked.section} of the lockfile changes with ${locked.update}), then run depcurfew apply again`
+				...options.pin === void 0 ? {} : { location: options.pin.at },
+				message: `${tool.name} ${versionLabel}${options.pin?.note === void 0 ? "" : ` (${options.pin.note})`} does not support ${describeRequirements(unsupported)}; not written`,
+				fix: user ? `Update ${tool.name} to ${needed} or later, then run depcurfew apply --user again` : pinFix !== void 0 ? pinFix : locked === void 0 ? `Require ${tool.name} ${needed} or later where the version is pinned` : `Require ${tool.name} ${needed} or later where the version is pinned (${locked.section} of the lockfile changes with ${locked.update}), then run depcurfew apply again`
 			});
 		},
 		atLeast,
@@ -29420,6 +32837,7 @@ function createContext(options) {
 				}),
 				set: (path, value) => edit((body) => jsonSet(body === "" ? "{}\n" : body, path, value)),
 				append: (path, value) => edit((body) => jsonArrayAppend(body, path, value)),
+				insert: (path, index, value) => edit((body) => jsonArrayInsert(body, path, index, value)),
 				replace: (path, index, value) => edit((body) => jsonArrayReplace(body, path, index, value)),
 				remove: (path, index) => edit((body) => jsonArrayRemove(body, path, index)),
 				removeKey: (path, key) => edit((body) => jsonObjectRemove(body, path, key))
@@ -29458,12 +32876,18 @@ const deno = (context) => {
 	if (policy.cooldown !== void 0) {
 		const setting = settingOf(tool.cooldown.setting) ?? "minimumDependencyAge";
 		const cooldown = cooldownValue(context);
-		if (cooldown !== void 0) {
+		const current = json.get([setting]);
+		const ageKey = extraOf(tool, "ageObjectKey", isString$2);
+		const agePath = isRecord(current) ? [setting, ageKey] : [setting];
+		const file = configFile(context);
+		const age = isRecord(current) ? current[ageKey] : current;
+		const line = age === void 0 || !context.exists(file) ? void 0 : jsonSetting(context.read(file), agePath)?.line;
+		if (cooldown !== void 0 && !unreadableDelay(context, file, agePath.join("."), age, line, cooldown)) {
 			minutes = cooldown.minutes;
 			const patterns = exclusions(context) ?? [];
 			const excludeKey = (settingOf(tool.cooldown.exclude.setting) ?? "minimumDependencyAge.exclude").split(".").at(-1) ?? "exclude";
 			const value = patterns.length > 0 ? {
-				[extraOf(tool, "ageObjectKey", isString$2)]: cooldown.value,
+				[ageKey]: cooldown.value,
 				[excludeKey]: patterns.map((pattern) => `${prefix}${pattern}`)
 			} : cooldown.value;
 			json.set([setting], value);
@@ -29625,6 +33049,62 @@ function scriptsForVersionsInUse(context, file, entries, managed) {
 		});
 	}
 }
+/**
+* version-in-use-too-old (decision D-173): the npm versions the directory runs besides the pinned one (npmInUse, the list
+* doctor's manager-version-too-old checks too) that lack a setting apply writes for the release-age delay or a dependency
+* source, such as the npm 11.3 to 11.9 of Node.js 24.0 to 24.14 without min-release-age. A place that only runs npm ci
+* needs no delay; the install-script settings have warnings of their own (strict-allow-scripts-for-npm-in-use,
+* scripts-not-enforceable).
+*/
+function versionsInUseTooOld(context, written) {
+	const lacking = context.inUse.flatMap((entry) => {
+		if (entry.pin === true || entry.unknown !== void 0 || entry.versions.length === 0) return [];
+		const missing = written.filter((item) => {
+			if (entry.lockfile === true && item.kind === "cooldown") return false;
+			const since = parseVersion(item.since);
+			return since !== void 0 && entry.versions.some((version) => compareVersions$1(version, since) < 0);
+		});
+		if (missing.length === 0) return [];
+		const newest = entry.versions.reduce((a, b) => compareVersions$1(a, b) >= 0 ? a : b);
+		const none = missing.filter((item) => compareVersions$1(newest, parseVersion(item.since)) < 0);
+		return [{
+			entry,
+			missing,
+			none,
+			key: `${missing.map((item) => item.setting).join(",")}\u0000${none.map((item) => item.setting).join(",")}`
+		}];
+	});
+	const groups = /* @__PURE__ */ new Map();
+	for (const item of lacking) groups.set(item.key, [...groups.get(item.key) ?? [], item]);
+	for (const group of groups.values()) {
+		const first = group[0];
+		if (first === void 0) continue;
+		const texts = group.map((item) => npmInUseText(item.entry));
+		const shown = texts.length <= MAX_PLACES ? listing$1(texts) : `${texts.slice(0, 5).join(", ")} and ${texts.length - MAX_PLACES + 1} more places`;
+		const several = group.length > 1 || npmInUseSeveral(first.entry);
+		const all = first.none.length === first.missing.length;
+		const list = describeRequirements(first.missing.map(({ setting, since }) => ({
+			setting,
+			since
+		})));
+		const disputed = first.missing.some((item) => item.disputed === true) ? "; where official sources disagree on the version, depcurfew assumes the later one" : "";
+		const subject = all ? `${shown} ${several ? "do" : "does"} not support ${list}` : `${shown} ${group.length > 1 ? "include" : "includes"} npm releases that do not support ${list}`;
+		const needed = first.missing.map((item) => item.since).reduce((a, b) => compareVersions$1(parseVersion(a), parseVersion(b)) >= 0 ? a : b);
+		const engines = npmEnginesOn(parseVersion(needed), group.flatMap((item) => item.entry.nodes ?? []));
+		const only = engines?.verdict === "some" ? `; npm ${needed} runs on Node.js ${engines.range} only` : "";
+		const declared = [...new Set(group.flatMap((item) => item.entry.declared === void 0 ? [] : [item.entry.declared]))];
+		const raise = declared.length === 0 ? "" : `require npm ${needed} or later in ${listing$1(declared)}`;
+		const others = group.some((item) => item.entry.declared === void 0);
+		const install = [...raise === "" ? [] : [raise], ...others ? [`install npm ${needed} or later before packages are installed there (npm install -g npm@${needed}${only}), or move to a Node.js release that comes with it`] : []].join(", and ");
+		const location = group.find((item) => item.entry.location !== void 0)?.entry.location;
+		context.warn({
+			code: "version-in-use-too-old",
+			...location === void 0 ? {} : { location },
+			message: `${subject}, which depcurfew apply writes for ${context.project ?? "the repository"}, so ${first.missing.length === 1 ? "it has" : "they have"} no effect there${disputed}`,
+			fix: `${engines?.verdict === "none" ? `Move to a Node.js release that npm ${needed} runs on (${engines.range}), then ${install}` : `${install.charAt(0).toUpperCase()}${install.slice(1)}`}; depcurfew doctor reports each place (manager-version-too-old)`
+		});
+	}
+}
 /** Whether some npm in use (or the pinned one) has a setting available since `since`. */
 function someSupports(context, since, setting) {
 	if (context.inUse.length === 0) return context.supports(since, setting);
@@ -29639,6 +33119,16 @@ const npm = (context) => {
 	const entries = [];
 	const managed = [];
 	let minutes;
+	const written = [];
+	const requirement = (setting, fact, kind) => {
+		const since = sinceOf(fact);
+		if (since !== void 0) written.push({
+			setting,
+			since,
+			kind,
+			...fact?.status === "disputed" ? { disputed: true } : {}
+		});
+	};
 	if (policy.cooldown !== void 0) {
 		const setting = settingOf(tool.cooldown.setting) ?? "min-release-age";
 		const cooldown = cooldownValue(context);
@@ -29646,6 +33136,7 @@ const npm = (context) => {
 			minutes = cooldown.minutes;
 			entries.push(`${setting}=${cooldown.value}`);
 			managed.push(setting);
+			requirement(setting, tool.cooldown.availableSince, "cooldown");
 			const fact = extraOf(tool, "beforeInteraction", isBefore$1);
 			const date = iniEntries(context.read(file)).filter((entry) => entry.key === fact.setting).at(-1);
 			if (date !== void 0 && context.atLeast(fact.exclusive.since)) {
@@ -29670,6 +33161,7 @@ const npm = (context) => {
 				const suffix = extraOf(tool, "npmrcListSyntax", isString$1);
 				for (const pattern of patterns) entries.push(`${excludeSetting}${suffix}=${pattern}`);
 				managed.push(excludeSetting);
+				if (patterns.length > 0) requirement(excludeSetting, tool.cooldown.exclude.availableSince, "cooldown");
 			}
 		}
 	}
@@ -29708,21 +33200,468 @@ const npm = (context) => {
 				if (policy.installScripts.allow.length > 0 && someSupports(context, sinceOf(tool.installScripts.allowList.availableSince), setting)) {
 					const json = context.json(listFile);
 					const names = allowedNames(context, setting);
-					if (names.length > 0) context.writes("installScripts", setting, listFile);
-					for (const name of names) if (json.get([setting, name]) !== true) json.set([setting, name], true);
+					if (names.length > 0 && !wrongListType(context, listFile, [setting], json.get([setting]), "object", names, `{${JSON.stringify(names[0])}: true}`)) {
+						context.writes("installScripts", setting, listFile);
+						for (const name of names) if (json.get([setting, name]) !== true) json.set([setting, name], true);
+					}
 				}
 			}
 			writeDenyList(context);
 		}
 	}
-	eachSource(context, (_kind, setting, access) => {
+	eachSource(context, (kind, setting, access) => {
+		const last = iniEntries(context.read(file)).filter((entry) => entry.key === setting).at(-1);
+		if (access === "allow" && last !== void 0 && !last.managed && (last.value === "none" || last.value === "root")) {
+			const label = sourceLabel(context, kind);
+			sourceLoosened(context, [kind], {
+				file,
+				line: last.line
+			}, `${setting}=${last.value}`, last.value === "none" ? `blocks ${label} dependencies` : `allows ${label} dependencies only where the root package.json names them`, `comments it out and writes ${setting}=all, so ${context.name} installs them ${last.value === "none" ? "again" : "for every package"}`, last.value === "root" ? `${POLICY_FILE} has no value for root: to keep such dependencies out, set sources.${kind} to "deny" (${setting}=none) in ${POLICY_FILE} and run depcurfew apply again; keep "allow" if the project needs them` : void 0);
+		}
 		entries.push(`${setting}=${access === "deny" ? "none" : "all"}`);
 		managed.push(setting);
 		context.writes("sources", setting, file);
+		requirement(setting, tool.sources?.[kind].availableSince, "sources");
 	});
+	versionsInUseTooOld(context, written);
 	if (entries.length > 0 || hasManagedLines(context.read(file)) || managed.length > 0 && context.exists(file)) context.ini(file, entries, managed);
 	return minutes;
 };
+
+// src/printable.ts
+/** C0 controls but tab, DEL and C1 controls; with `lines`, line feeds stay too. */
+const CONTROLS = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f]/gu;
+const CONTROLS_BUT_LINE_FEEDS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/gu;
+/**
+* Characters that change how text is shown or read without being seen: the format characters (\p{Cf}: the
+* bidirectional controls ALM, LRM, RLM, LRE to RLO and LRI to PDI, zero-width space, joiners, word joiner, invisible
+* operators, the byte order mark, the soft hyphen, the tag characters U+E0001 and U+E0020 to U+E007F), the rest of the
+* tag block (U+E0000 to U+E007F), whose characters spell hidden ASCII that a model may read, the variation selectors
+* (U+FE00 to U+FE0F, U+E0100 to U+E01EF), and letters that show as blank space: the Hangul fillers U+115F, U+1160,
+* U+3164 and U+FFA0 and the blank braille pattern U+2800, which can hide a word or pass for a space.
+*/
+const INVISIBLE = /[\p{Cf}\u{e0000}-\u{e007f}\ufe00-\ufe0f\u{e0100}-\u{e01ef}\u115f\u1160\u3164\uffa0\u2800]/gu;
+/** The line and paragraph separators, which some viewers and parsers take as a line break. */
+const LINE_SEPARATORS = /[\u2028\u2029]/gu;
+/** A character of INVISIBLE as \uHHHH, or \u{HHHHH} beyond the BMP. */
+function visible(character) {
+	const code = character.codePointAt(0) ?? 0;
+	return code > 65535 ? `\\u{${code.toString(16)}}` : `\\u${code.toString(16).padStart(4, "0")}`;
+}
+/** A letter, digit, +, - or . (RFC 3986: what a scheme is made of after its first letter). */
+function schemeCharacter(code) {
+	return code >= 97 && code <= 122 || code >= 65 && code <= 90 || code >= 48 && code <= 57 || code === 43 || code === 45 || code === 46;
+}
+function letter(code) {
+	return code >= 97 && code <= 122 || code >= 65 && code <= 90;
+}
+/** What ends the authority of a URL (WHATWG URL: /, ?, #, and \ for http and https), and whitespace, which ends a URL in text. */
+function endsAuthority(code) {
+	return code === 47 || code === 63 || code === 35 || code === 92 || code === 32 || code >= 9 && code <= 13 || code === 133 || code === 160 || code === 8232 || code === 8233 || code === 12288 || code === 65279 || code >= 8192 && code <= 8202;
+}
+/**
+* The user parts of the URLs in a text (decision D-168): after scheme://, everything up to the last @ before the
+* authority ends, as WHATWG URL (npm) and pip read a URL, so that a password with an unencoded @ is a user part to its
+* end, and a token alone (https://TOKEN@host) is one too; a URL written after another (a://b://TOKEN@host) counts
+* as one of its own. Linear in the length of the text: a scan forward stops at the / of the next ://, and a scan back
+* for its scheme at the start of the URL before it.
+*/
+function userParts(text) {
+	const parts = [];
+	for (let from = 0;;) {
+		const separator = text.indexOf("://", from);
+		if (separator === -1) return parts;
+		let begin = separator;
+		while (begin > from && schemeCharacter(text.charCodeAt(begin - 1))) begin--;
+		while (begin < separator && !letter(text.charCodeAt(begin))) begin++;
+		const start = separator + 3;
+		let at = -1;
+		for (let end = start; end < text.length && !endsAuthority(text.charCodeAt(end)); end++) if (text.charCodeAt(end) === 64) at = end;
+		if (begin < separator && at !== -1) parts.push({
+			start,
+			at,
+			scheme: text.slice(begin, separator).toLowerCase()
+		});
+		from = start;
+	}
+}
+/** The text with each user part replaced by what `replace` makes of it (with the @ when it returns one). */
+function replaceUserParts(text, replace) {
+	const parts = userParts(text);
+	if (parts.length === 0) return text;
+	let result = "";
+	let last = 0;
+	for (const part of parts) {
+		result += text.slice(last, part.start) + replace(part, text.slice(part.start, part.at));
+		last = part.at + 1;
+	}
+	return result + text.slice(last);
+}
+/** The text that stands for credentials in messages and diffs. */
+const REDACTED = "<redacted>";
+/**
+* The text with the user name and password of every URL in it shown as <redacted> (https://user:token@host/ becomes
+* https://<redacted>@host/), as the diff of apply shows them: for messages, where people should see that a URL
+* carries credentials without seeing them. A token alone counts as credentials too; only the login name of an ssh URL
+* without a password (git+ssh://git@github.com) stays, since it is no secret and says which account the key is for.
+* Use withoutCredentials for a URL that depcurfew sends anywhere. printable and safeJson apply it to every text
+* depcurfew writes (decision D-168).
+*/
+function redactCredentials(text) {
+	return replaceUserParts(text, (part, userinfo) => {
+		if (userinfo === "" || userinfo === REDACTED) return `${userinfo}@`;
+		if (part.scheme.split("+").includes("ssh") && !userinfo.includes(":")) return `${userinfo}@`;
+		return `${REDACTED}@`;
+	});
+}
+/**
+* The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`, and every invisible
+* character (INVISIBLE) and the line and paragraph separators as `\uHHHH` or `\u{HHHHH}`. Line breaks are control
+* characters too, so a value from a file cannot start a line of its own; `lines: true` keeps line feeds, for text
+* depcurfew lays out in lines itself, such as a snippet to add by hand. The user name and password of a URL show as
+* <redacted> (redactCredentials, decision D-168). Apply it before adding colors.
+*/
+function printable(text, options = {}) {
+	return redactCredentials(text).replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`).replace(INVISIBLE, visible).replace(LINE_SEPARATORS, visible);
+}
+
+// src/apply/diff.ts
+/** Marks a last line without a line break, so it differs from the same line with one, as in `diff -u`. */
+const NO_EOL = "\0";
+function lines(text) {
+	if (text === "") return [];
+	const result = text.split("\n");
+	if (result.at(-1) === "") result.pop();
+	else result[result.length - 1] += NO_EOL;
+	return result;
+}
+/**
+* Above this many changed lines, or when the search would take too long, the diff is made by a quicker method that
+* keeps changes local but may not be the shortest (approximateEdit): the search keeps memory for every step, which
+* for thousands of changes in a large file would take gigabytes.
+*/
+const MAX_EDITS = 2e3;
+const MAX_STEPS = 5e7;
+/** An edit script from `a` to `b`: the shortest one (Myers), or a close one for very different texts. */
+function myers(a, b) {
+	let prefix = 0;
+	while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix += 1;
+	let suffix = 0;
+	while (suffix < a.length - prefix && suffix < b.length - prefix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix += 1;
+	const left = a.slice(prefix, a.length - suffix);
+	const right = b.slice(prefix, b.length - suffix);
+	const middle = shortestEdit(left, right, Math.min(MAX_EDITS, Math.max(100, Math.floor(MAX_STEPS / (left.length + right.length + 1))))) ?? approximateEdit(left, right);
+	const same = (line) => ({
+		kind: "same",
+		line
+	});
+	return [
+		...a.slice(0, prefix).map(same),
+		...middle,
+		...a.slice(a.length - suffix).map(same)
+	];
+}
+/** Myers' algorithm; undefined when the texts differ in more than `maxEdits` lines. */
+function shortestEdit(a, b, maxEdits) {
+	const max = Math.min(a.length + b.length, maxEdits);
+	const offset = max + 1;
+	const frontier = new Int32Array(2 * max + 3);
+	const trace = [];
+	let done = false;
+	outer: for (let d = 0; d <= max; d++) {
+		trace.push(frontier.slice(offset - d - 1, offset + d + 2));
+		for (let k = -d; k <= d; k += 2) {
+			let x = k === -d || k !== d && (frontier[offset + k - 1] ?? 0) < (frontier[offset + k + 1] ?? 0) ? frontier[offset + k + 1] ?? 0 : (frontier[offset + k - 1] ?? 0) + 1;
+			let y = x - k;
+			while (x < a.length && y < b.length && a[x] === b[y]) {
+				x += 1;
+				y += 1;
+			}
+			frontier[offset + k] = x;
+			if (x >= a.length && y >= b.length) {
+				done = true;
+				break outer;
+			}
+		}
+	}
+	if (!done) return void 0;
+	const operations = [];
+	let x = a.length;
+	let y = b.length;
+	for (let d = trace.length - 1; d >= 0; d--) {
+		const v = trace[d];
+		const at = (k) => v[k + d + 1] ?? 0;
+		const k = x - y;
+		const previousK = k === -d || k !== d && at(k - 1) < at(k + 1) ? k + 1 : k - 1;
+		const previousX = at(previousK);
+		const previousY = previousX - previousK;
+		while (x > previousX && y > previousY) {
+			operations.push({
+				kind: "same",
+				line: a[x - 1]
+			});
+			x -= 1;
+			y -= 1;
+		}
+		if (d > 0) {
+			if (x === previousX) operations.push({
+				kind: "insert",
+				line: b[y - 1]
+			});
+			else operations.push({
+				kind: "delete",
+				line: a[x - 1]
+			});
+		}
+		x = previousX;
+		y = previousY;
+	}
+	return operations.reverse();
+}
+/**
+* A close edit script in linear time: equal lines are kept, and after a difference the nearest place where the texts
+* agree again, within a few lines, is where they continue. Changes stay where they are, as apply makes them.
+*/
+function approximateEdit(a, b, window = 32) {
+	const operations = [];
+	let i = 0;
+	let j = 0;
+	while (i < a.length || j < b.length) {
+		if (i < a.length && j < b.length && a[i] === b[j]) {
+			operations.push({
+				kind: "same",
+				line: a[i]
+			});
+			i += 1;
+			j += 1;
+			continue;
+		}
+		let skip;
+		search: for (let distance = 1; distance <= window; distance++) for (let fromA = 0; fromA <= distance; fromA++) {
+			const fromB = distance - fromA;
+			if (i + fromA < a.length && j + fromB < b.length && a[i + fromA] === b[j + fromB]) {
+				skip = [fromA, fromB];
+				break search;
+			}
+		}
+		const [deletes, inserts] = skip ?? [i < a.length ? 1 : 0, j < b.length ? 1 : 0];
+		for (let count = 0; count < deletes; count++) operations.push({
+			kind: "delete",
+			line: a[i++]
+		});
+		for (let count = 0; count < inserts; count++) operations.push({
+			kind: "insert",
+			line: b[j++]
+		});
+	}
+	return operations;
+}
+
+// src/apply/pip-includes.ts
+const isFacts = (value) => isRecord(value) && [
+	"noBinary",
+	"onlyBinary",
+	"all",
+	"none",
+	"separator"
+].every((key) => typeof value[key] === "string");
+/** pip's FormatControl facts; undefined for a tool without them. */
+function formatControlFacts(tool) {
+	return tool.extra?.["formatControl"] === void 0 ? void 0 : extraOf(tool, "formatControl", isFacts);
+}
+/** Words as Python's shlex.split reads them (POSIX mode, no comments): quotes and backslashes group characters. */
+function shellWords(text) {
+	const words = [];
+	let word;
+	let quote = "";
+	for (let index = 0; index < text.length; index++) {
+		const char = text[index] ?? "";
+		if (quote === "'") {
+			if (char === "'") quote = "";
+			else word += char;
+			continue;
+		}
+		if (quote === "\"") {
+			if (char === "\"") quote = "";
+			else if (char === "\\" && (text[index + 1] === "\"" || text[index + 1] === "\\")) word += text[++index] ?? "";
+			else word += char;
+			continue;
+		}
+		if (/\s/u.test(char)) {
+			if (word !== void 0) words.push(word);
+			word = void 0;
+			continue;
+		}
+		word ??= "";
+		if (char === "'" || char === "\"") quote = char;
+		else if (char === "\\") word += text[++index] ?? "";
+		else word += char;
+	}
+	if (word !== void 0) words.push(word);
+	return words;
+}
+/**
+* The --no-binary and --only-binary options of a logical line as pip parses it: break_args_options leaves the words up
+* to the first that starts with - to the requirement and gives the rest to optparse, which takes an unambiguous prefix
+* of a long option (`longOptions`) and its value after = or as the next word.
+*/
+function binaryOptions(line, facts, longOptions) {
+	const tokens = line.split(" ");
+	const first = tokens.findIndex((token) => token.startsWith("-"));
+	const requirement = (first === -1 ? tokens : tokens.slice(0, first)).join(" ").trim() !== "";
+	const words = first === -1 ? [] : shellWords(tokens.slice(first).join(" "));
+	const options = [];
+	let others = false;
+	for (let index = 0; index < words.length; index++) {
+		const word = words[index] ?? "";
+		if (!word.startsWith("-")) continue;
+		const equals = word.indexOf("=");
+		const name = word.startsWith("--") ? expandRequirementsOption(equals === -1 ? word : word.slice(0, equals), longOptions) : word;
+		if (name !== facts.noBinary && name !== facts.onlyBinary) {
+			others = true;
+			continue;
+		}
+		const value = equals === -1 ? words[++index] ?? "" : word.slice(equals + 1);
+		options.push({
+			option: name,
+			value
+		});
+	}
+	return {
+		options,
+		requirement,
+		others
+	};
+}
+/**
+* Whether an option, read after --only-binary=:all: and the --no-binary of the packages `allowed` (normalized names),
+* lets pip build another package from source (handle_mutual_excludes): --no-binary with :all: or with a name not
+* allowed, --only-binary with :none: after its last :all:.
+*/
+function weakens$1(option, allowed, facts) {
+	const parts = option.value.split(facts.separator);
+	if (option.option === facts.noBinary) return parts.includes(facts.all) || parts.some((part) => part !== facts.none && part !== "" && !allowed.has(normalizePythonName(part)));
+	return parts.slice(parts.lastIndexOf(facts.all) + 1).includes(facts.none);
+}
+/** The options as messages show them: `--no-binary psycopg2` and `--only-binary :none:`. */
+function optionsText(options) {
+	const texts = options.map((option) => `${option.option} ${option.value}`);
+	return texts.length <= 1 ? texts[0] ?? "" : `${texts.slice(0, -1).join(", ")} and ${texts.at(-1) ?? ""}`;
+}
+/** What the options make pip do, for messages: build every package from source, or some named ones. */
+function weakeningEffect(options, facts) {
+	const parts = (option) => option.value.split(facts.separator);
+	if (options.some((option) => option.option === facts.noBinary && parts(option).includes(facts.all))) return "makes pip build every package from source";
+	if (options.some((option) => option.option === facts.onlyBinary)) return "lets pip build any package from source again";
+	const names = [...new Set(options.flatMap((option) => parts(option).filter((part) => part !== facts.none && part !== "")))];
+	return `makes pip build ${names.length <= 1 ? names[0] ?? "" : `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`} from source`;
+}
+/** The lines of a requirements file whose options undo the block (decision D-167); `allowed` holds normalized names. */
+function weakeningLines(text, reading, allowed) {
+	return requirementsLines(text, reading.format).flatMap(({ text: body, line, end }) => {
+		const parsed = binaryOptions(body, reading.facts, reading.longOptions);
+		const options = parsed.options.filter((option) => weakens$1(option, allowed, reading.facts));
+		return options.length === 0 ? [] : [{
+			line,
+			end,
+			parsed,
+			options
+		}];
+	});
+}
+/** Why apply leaves a weakening line as it is, or undefined when it comments the line out. */
+function keptReason(parsed, line, end) {
+	if (parsed.requirement) return "requirement";
+	if (parsed.others) return "options";
+	return end > line ? "continued" : void 0;
+}
+/** The lines of a requirements file (requirements.txt itself) whose options undo the block and stay. */
+function keptLines(text, reading, allowed) {
+	return weakeningLines(text, reading, allowed).map(({ line, end, parsed, options }) => ({
+		line,
+		options,
+		reason: keptReason(parsed, line, end) ?? "options"
+	}));
+}
+/**
+* An included file after apply: the option lines that undo the block commented out with the marker of requirements.txt
+* (`allowed` given: the block is written), and lines commented out so before brought back when they no longer undo it
+* (`allowed` undefined: no block). Lines it cannot comment out are returned.
+*/
+function editIncluded(body, reading, allowed) {
+	const lines = splitLines(body);
+	for (const [index, line] of lines.entries()) {
+		const trimmed = line.trimStart();
+		if (!trimmed.startsWith("# depcurfew: superseded by the managed block: ")) continue;
+		const original = trimmed.slice(SUPERSEDED.length);
+		if (allowed === void 0 || weakeningLines(original, reading, allowed).length === 0) lines[index] = original;
+	}
+	if (allowed === void 0) return {
+		text: joinLines(lines),
+		kept: []
+	};
+	const kept = [];
+	for (const { line, end, parsed, options } of weakeningLines(joinLines(lines), reading, allowed)) {
+		const reason = keptReason(parsed, line, end);
+		if (reason === void 0) lines[line - 1] = `${SUPERSEDED}${(lines[line - 1] ?? "").trim()}`;
+		else kept.push({
+			line,
+			options,
+			reason
+		});
+	}
+	return {
+		text: joinLines(lines),
+		kept
+	};
+}
+/** The final FormatControl of an install from `root` (decision D-167): whether --only-binary=:all: holds, and from which file. */
+function formatControlAfter(read, root, reading) {
+	const { facts } = reading;
+	const only = /* @__PURE__ */ new Set();
+	const no = /* @__PURE__ */ new Set();
+	let from;
+	const apply = (target, other, value, file) => {
+		let parts = value.split(facts.separator);
+		while (parts.includes(facts.all)) {
+			other.clear();
+			target.clear();
+			target.add(facts.all);
+			if (target === only) from = file;
+			parts = parts.slice(parts.indexOf(facts.all) + 1);
+			if (!parts.includes(facts.none)) return;
+		}
+		for (const part of parts) {
+			if (part === facts.none) {
+				target.clear();
+				continue;
+			}
+			const name = normalizePythonName(part);
+			other.delete(name);
+			target.add(name);
+		}
+	};
+	const visit = (file, stack) => {
+		const text = read(file);
+		if (text === void 0) return;
+		const includes = new Map(requirementsIncludes(text, reading.format).map((include) => [include.line, include.path]));
+		for (const { text: body, line } of requirementsLines(text, reading.format)) {
+			const path = includes.get(line);
+			if (path !== void 0) {
+				const included = includedFile(file, path);
+				if (!included.url && !included.outside && !stack.has(included.target)) visit(included.target, /* @__PURE__ */ new Set([...stack, included.target]));
+				continue;
+			}
+			for (const option of binaryOptions(body, facts, reading.longOptions).options) if (option.option === facts.noBinary) apply(no, only, option.value, file);
+			else apply(only, no, option.value, file);
+		}
+	};
+	visit(root, /* @__PURE__ */ new Set([root]));
+	return {
+		onlyAll: only.has(facts.all),
+		from: only.has(facts.all) ? from : void 0
+	};
+}
 
 // src/apply/generators/python.ts
 /** The policy's Python allow-list as normalized names; patterns with * are dropped with a warning. */
@@ -29750,6 +33689,22 @@ function buildSwitchScopeWarning(context, setting, covers) {
 		message: `${context.name}: ${setting} forbids building only packages from an index; ${context.name} still builds git, local directory and source archive dependencies`,
 		fix: `Run depcurfew doctor to find them in ${dependencyFiles(context)}`
 	});
+}
+/** A key of a TOML table ('' for the top level) of a file as it is now, with its line; undefined when unset or unreadable. */
+function tomlCurrent(context, file, table, key) {
+	if (!context.exists(file)) return void 0;
+	let document;
+	try {
+		document = parseToml(context.read(file));
+	} catch {
+		return;
+	}
+	const path = [...table === "" ? [] : table.split("."), key];
+	const value = tomlValueAt(document, path);
+	return value === void 0 ? void 0 : {
+		value,
+		line: document.lineOf(path)
+	};
 }
 /** A TOML string or array value. */
 function tomlValue(value) {
@@ -29784,7 +33739,7 @@ function relockWarning(context, file, table, edit) {
 	const { tool } = context;
 	if (tool.extra?.["lockedSettings"] === void 0) return;
 	const locked = extraOf(tool, "lockedSettings", isLockedSettings$1);
-	const lockfile = (tool.project === void 0 ? [] : values$1(tool.project.lockfiles)).flatMap((versions) => versions.flatMap((entry) => entry.value)).find((name) => context.exists(name));
+	const lockfile = (tool.project === void 0 ? [] : values$1(tool.project.lockfiles)).flatMap((versions) => versions.flatMap((entry) => entry.value)).find((name) => context.isFile(name));
 	if (lockfile === void 0) return;
 	const body = context.exists(file) ? context.read(file) : "";
 	let before;
@@ -29811,6 +33766,96 @@ function relockWarning(context, file, table, edit) {
 }
 
 // src/apply/generators/pip.ts
+/** The line of `before` that a line of `after` (1-based) was, for a line the edit kept. */
+function lineInOriginal(before, after) {
+	const map = /* @__PURE__ */ new Map();
+	let old = 0;
+	let now = 0;
+	for (const operation of myers(lines(before), lines(after))) {
+		if (operation.kind !== "insert") old += 1;
+		if (operation.kind !== "delete") now += 1;
+		if (operation.kind === "same") map.set(now, old);
+	}
+	return (line) => map.get(line) ?? line;
+}
+const WHY = {
+	requirement: "pip applies the options after a requirement to the whole install, and depcurfew apply does not comment the line out, which would remove the requirement",
+	options: "the line sets other options too, so depcurfew apply does not comment it out",
+	continued: "the line continues on the next one, so depcurfew apply does not comment it out"
+};
+/**
+* The files `root` includes (-r, -c), in the order pip reads them, as far as they are in the directory configured:
+* option lines that undo the block (`block` and the normalized names of its --no-binary entries, when it is written)
+* are commented out, lines commented out so come back once nothing is blocked, and what apply cannot comment out or
+* read is a warning (decision D-167).
+*/
+function checkIncludes(context, root, block, original) {
+	const facts = formatControlFacts(context.tool);
+	if (facts === void 0) return;
+	const format = requirementsFormatOf(context.tool);
+	const reading = {
+		facts,
+		format,
+		longOptions: requirementsLongOptions(format)
+	};
+	const { workspace } = context;
+	const where = context.project ?? "the repository";
+	const undoing = `${facts.noBinary} or ${facts.onlyBinary}=${facts.none}`;
+	const visited = /* @__PURE__ */ new Set([root]);
+	const queue = [root];
+	for (let file = queue.shift(); file !== void 0; file = queue.shift()) {
+		const includer = file;
+		const text = workspace.read(includer);
+		const lineOf = includer === root ? lineInOriginal(original, text) : (line) => line;
+		for (const kept of block === void 0 ? [] : keptLines(text, reading, block.allowed)) {
+			const options = optionsText(kept.options);
+			const line = lineOf(kept.line);
+			context.warn({
+				code: "build-switch-undone",
+				location: {
+					file: includer,
+					line
+				},
+				message: `${context.name}: ${options} in ${includer} (line ${line}) ${weakeningEffect(kept.options, facts)}, after the ${block?.text ?? ""} of the managed block in ${root}; ${WHY[kept.reason]}`,
+				fix: `Remove ${options} from ${includer}, or add the packages that must be built from source to installScripts.allow in ${POLICY_FILE} as pypi:<name>, then run depcurfew apply again`
+			});
+		}
+		for (const include of requirementsIncludes(text, format)) {
+			const { path } = include;
+			const line = lineOf(include.line);
+			const included = includedFile(includer, path);
+			const unread = (reason, fix) => {
+				if (block === void 0) return;
+				context.warn({
+					code: "requirements-include-unread",
+					location: {
+						file: includer,
+						line
+					},
+					message: `${context.name}: ${includer} includes ${path} (line ${line}), ${reason}, so depcurfew apply cannot check that it has no ${undoing} line, which would undo the ${block.text} of the managed block in ${root}`,
+					fix
+				});
+			};
+			const keep = `Keep the included file in ${where} as a regular file and include it by a relative path, then run depcurfew apply again; until then check by hand that it has no ${undoing} line`;
+			if (included.url) unread("which pip downloads", keep);
+			else if (included.outside) unread(`which is outside ${where}`, keep);
+			else if (!visited.has(included.target)) {
+				visited.add(included.target);
+				if (!workspace.isFile(included.target)) {
+					unread("which does not exist", `Create ${included.target} or remove the line that includes it (pip stops when it cannot open an included file), then run depcurfew apply again`);
+					continue;
+				}
+				try {
+					workspace.edit(included.target, (body) => editIncluded(body, reading, block?.allowed).text);
+				} catch (error) {
+					unread(`which depcurfew cannot read (${error instanceof Error ? error.message : String(error)})`, keep);
+					continue;
+				}
+				queue.push(included.target);
+			}
+		}
+	}
+}
 const pip = (context) => {
 	const { tool, policy } = context;
 	const file = (tool.project === void 0 ? void 0 : firstFile(tool.project.manifests)) ?? "requirements.txt";
@@ -29830,6 +33875,7 @@ const pip = (context) => {
 	const entries = [];
 	const managed = [];
 	const settings = [];
+	let block;
 	if (policy.installScripts?.default === "deny") {
 		const build = extraOf(tool, "buildSwitch", isSwitch);
 		const setting = settingOf(tool.installScripts.allowList.setting);
@@ -29844,7 +33890,14 @@ const pip = (context) => {
 				for (const name of names) entries.push(`${setting}=${name}`);
 				if (names.length > 0) settings.push(setting);
 				forcedBuildWarning(context, setting, names);
-			}
+				block = {
+					text: `${build.setting}=${String(build.value)}`,
+					allowed: new Set(names)
+				};
+			} else block = {
+				text: `${build.setting}=${String(build.value)}`,
+				allowed: /* @__PURE__ */ new Set()
+			};
 		}
 	}
 	eachSource(context, () => void 0);
@@ -29857,7 +33910,9 @@ const pip = (context) => {
 		return;
 	}
 	for (const setting of settings) context.writes("installScripts", setting, file);
-	if (entries.length > 0 || hasManagedLines(context.read(file))) context.requirements(file, entries, managed);
+	const original = context.read(file);
+	if (entries.length > 0 || hasManagedLines(original)) context.requirements(file, entries, managed);
+	checkIncludes(context, file, block, original);
 };
 
 // src/apply/renovate-exclusions.ts
@@ -29956,8 +34011,9 @@ function mergeList(context, workspaceFileSince, setting, names) {
 	const file = inWorkspaceFile ? firstFile(context.tool.cooldown.configFiles) ?? "pnpm-workspace.yaml" : "package.json";
 	const target = inWorkspaceFile ? context.yaml(file) : context.json(file);
 	const path = inWorkspaceFile ? [setting] : ["pnpm", setting];
-	context.writes("installScripts", path.join("."), file);
 	const current = target.get(path);
+	if (wrongListType(context, file, path, current, "list", names, JSON.stringify(names.length > 0 ? names : ["esbuild"]))) return;
+	context.writes("installScripts", path.join("."), file);
 	const list = Array.isArray(current) ? [...current] : [];
 	const merged = [...list, ...names.filter((name) => !list.includes(name))];
 	if (!sameList(current, merged)) target.set(path, merged);
@@ -29984,17 +34040,46 @@ function renovateEntries(context, file, setting) {
 }
 const pnpm = (context) => {
 	const { tool, policy } = context;
-	const file = firstFile(tool.cooldown.configFiles) ?? "pnpm-workspace.yaml";
-	const yaml = context.yaml(file);
+	const root = firstFile(tool.cooldown.configFiles) ?? "pnpm-workspace.yaml";
+	const includes = readPnpmIncludes(tool, context.version, (name) => workspaceText(context.workspace).readText(name), root);
+	const owned = (setting) => pnpmOwner(includes, setting, root);
+	/** The file apply writes `setting` into; undefined, with a warning, when a config dependency or a file outside owns it. */
+	const fileFor = (setting, value) => {
+		const owner = owned(setting);
+		if (owner.kind === "file") return owner.file;
+		const reason = `${setting} belongs to ${ownerText(owner, root)}, ${owner.kind === "dependency" ? "whose settings depcurfew cannot change" : "which depcurfew does not edit"}; written into ${root}, it would make pnpm stop with ERR_PNPM_DUPLICATE_SETTING`;
+		const wanted = value === void 0 ? `as ${POLICY_FILE} requires` : `to ${JSON.stringify(value)}`;
+		const fix = owner.kind === "dependency" ? `Take ${setting} out of the list of ${owner.name} in include in ${root}, then run depcurfew apply again, which writes it into ${root}; or set ${setting} ${wanted} in the settings of ${owner.name}` : `Take ${setting} out of the list of ${owner.spec} in include in ${root}, or move that file into the directory, then run depcurfew apply again`;
+		const location = {
+			file: root,
+			line: owner.line
+		};
+		if (setting === settingOf(tool.cooldown.setting)) context.warn({
+			code: "cooldown-not-written",
+			location,
+			message: `${context.name}: cooldown not written: ${reason}`,
+			fix
+		});
+		else context.warn({
+			code: "setting-owned-elsewhere",
+			location,
+			message: `${context.name}: ${setting} not written: ${reason}`,
+			fix
+		});
+	};
 	let minutes;
 	if (policy.cooldown !== void 0) {
 		const setting = settingOf(tool.cooldown.setting) ?? "minimumReleaseAge";
 		const cooldown = cooldownValue(context);
 		if (cooldown !== void 0) {
-			minutes = cooldown.minutes;
-			yaml.set([setting], cooldown.value);
+			const file = fileFor(setting, cooldown.value);
+			if (file !== void 0) {
+				minutes = cooldown.minutes;
+				context.yaml(file).set([setting], cooldown.value);
+			}
 			const strict = extraOf(tool, "minimumReleaseAgeStrict", isSwitch);
-			if (context.atLeast(strict.since) && yaml.get([strict.setting]) !== strict.value) yaml.set([strict.setting], strict.value);
+			const strictFile = context.atLeast(strict.since) ? fileFor(strict.setting, strict.value) : void 0;
+			if (strictFile !== void 0 && context.yaml(strictFile).get([strict.setting]) !== strict.value) context.yaml(strictFile).set([strict.setting], strict.value);
 			const exact = extraOf(tool, "cooldownExactVersions", (value) => typeof value === "string");
 			if (!context.atLeast(exact)) context.warn({
 				code: "exact-version-gap",
@@ -30008,22 +34093,28 @@ const pnpm = (context) => {
 		}
 		const excludeSetting = settingOf(tool.cooldown.exclude.setting);
 		const patterns = cooldown === void 0 ? void 0 : exclusions(context);
-		if (excludeSetting !== null && patterns !== void 0 && (patterns.length > 0 || yaml.get([excludeSetting]) !== void 0)) {
+		const excludeOwner = excludeSetting === null ? void 0 : owned(excludeSetting);
+		const file = excludeSetting === null || excludeOwner === void 0 || patterns === void 0 ? void 0 : excludeOwner.kind === "file" ? excludeOwner.file : patterns.length > 0 ? fileFor(excludeSetting, patterns) : void 0;
+		const yaml = file === void 0 ? void 0 : context.yaml(file);
+		if (excludeSetting !== null && file !== void 0 && yaml !== void 0 && patterns !== void 0 && (patterns.length > 0 || yaml.get([excludeSetting]) !== void 0)) {
 			const kept = renovateEntries(context, file, excludeSetting);
 			const wanted = [...patterns, ...kept.map((entry) => entry.value).filter((value) => !patterns.includes(value))];
 			const current = yaml.get([excludeSetting]);
 			if (kept.length === 0 ? !sameList(current, wanted) : !sameMembers(current, wanted)) {
+				const dropped = droppedYamlList(context, file, [excludeSetting], wanted);
 				if (kept.length > 0) context.workspace.edit(file, (body) => withoutComments(body, excludeSetting, kept));
 				yaml.set([excludeSetting], wanted);
 				if (kept.length > 0) context.workspace.edit(file, (body) => restoreEntries(body, excludeSetting, kept));
+				if (dropped !== void 0) commentReplacedList(context, file, [excludeSetting], dropped);
 			}
 		}
 	}
 	if (policy.installScripts !== void 0) {
 		const allowAll = extraOf(tool, "allowAllBuilds", isSwitch);
 		if (policy.installScripts.default === "allow") {
-			if (context.supports(allowAll.since, allowAll.setting)) {
-				yaml.set([allowAll.setting], allowAll.value);
+			const file = context.supports(allowAll.since, allowAll.setting) ? fileFor(allowAll.setting, allowAll.value) : void 0;
+			if (file !== void 0) {
+				context.yaml(file).set([allowAll.setting], allowAll.value);
 				context.writes("installScripts", allowAll.setting, file);
 			}
 		} else {
@@ -30039,8 +34130,9 @@ const pnpm = (context) => {
 				])} runs every dependency install script and has no allow-list, so "deny" cannot be enforced`,
 				fix: `Require pnpm ${legacy.since} or later, which reads pnpm.onlyBuiltDependencies in package.json, or ${defaults.changesIn ?? "a newer version"}, which blocks dependency install scripts by default`
 			});
-			const current = yaml.get([allowAll.setting]);
-			if (context.atLeast(allowAll.since) && !switchIsOff(allowAll, current)) {
+			const file = context.atLeast(allowAll.since) ? fileFor(allowAll.setting, false) : void 0;
+			const current = file === void 0 ? void 0 : context.yaml(file).get([allowAll.setting]);
+			if (file !== void 0 && !switchIsOff(allowAll, current)) {
 				const found = context.exists(file) ? yamlSetting(context.read(file), [allowAll.setting], { merge: mergesYamlKeys(tool) }) : void 0;
 				const written = `${allowAll.setting}: ${JSON.stringify(current)}`;
 				const where = found === void 0 ? "" : ` (line ${found.line}${found.mergedAt === void 0 ? "" : `, through the merge key << at line ${found.mergedAt}`})`;
@@ -30055,7 +34147,7 @@ const pnpm = (context) => {
 					message: `${context.name}: ${written} in ${file}${where} allowed every build script${reading}; set to false because the policy denies install scripts`,
 					fix: `Add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`
 				});
-				yaml.set([allowAll.setting], false);
+				context.yaml(file).set([allowAll.setting], false);
 				context.writes("installScripts", allowAll.setting, file);
 			}
 			const setting = settingOf(tool.installScripts.allowList.setting) ?? "allowBuilds";
@@ -30063,9 +34155,15 @@ const pnpm = (context) => {
 			const wanted = policy.installScripts.allow.length > 0;
 			if (context.atLeast(since)) {
 				const names = wanted ? allowedNames(context, setting) : [];
-				if (names.length > 0) context.writes("installScripts", setting, file);
-				for (const name of names) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
-				writeDenyList(context);
+				const listFile = names.length > 0 ? fileFor(setting) : void 0;
+				if (listFile !== void 0) {
+					const yaml = context.yaml(listFile);
+					if (!wrongListType(context, listFile, [setting], yaml.get([setting]), "object", names, `{${JSON.stringify(names[0])}: true}`)) {
+						context.writes("installScripts", setting, listFile);
+						for (const name of names) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
+					}
+				}
+				writeDenyList(context, fileFor);
 			} else {
 				if ((wanted || mustList) && (mustList ? context.atLeast(legacy.since) : context.supports(legacy.since, "onlyBuiltDependencies"))) mergeList(context, legacy.workspaceFileSince, "onlyBuiltDependencies", allowedNames(context, "onlyBuiltDependencies"));
 				const ignored = extraOf(tool, "ignoredBuiltDependencies", isIgnoredList);
@@ -30083,11 +34181,11 @@ const pnpm = (context) => {
 						file: ".npmrc",
 						line: fromNpmrc.line
 					},
-					message: `${context.name}: ${fromNpmrc.key}=${fromNpmrc.value} in .npmrc (line ${fromNpmrc.line}) allowed every build script, because ${file} has no build settings that override it; set ${allowAll.setting}: false in ${file}, which wins, because the policy denies install scripts`,
+					message: `${context.name}: ${fromNpmrc.key}=${fromNpmrc.value} in .npmrc (line ${fromNpmrc.line}) allowed every build script, because ${root} has no build settings that override it; set ${allowAll.setting}: false in ${root}, which wins, because the policy denies install scripts`,
 					fix: `Remove the ${fromNpmrc.key} line from .npmrc; add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`
 				});
-				yaml.set([allowAll.setting], false);
-				context.writes("installScripts", allowAll.setting, file);
+				context.yaml(root).set([allowAll.setting], false);
+				context.writes("installScripts", allowAll.setting, root);
 			}
 		}
 	}
@@ -30111,8 +34209,16 @@ const pnpm = (context) => {
 				fix: `pnpm cannot deny one and allow the other: give sources.git and sources.remoteTarball the same value in ${POLICY_FILE}, so that the policy says what pnpm does`
 			});
 		}
-		yaml.set([exoticSetting], denied.length > 0);
-		context.writes("sources", exoticSetting, file);
+		const file = fileFor(exoticSetting, denied.length > 0);
+		if (file !== void 0) {
+			const found = denied.length === 0 && context.exists(file) ? yamlSetting(context.read(file), [exoticSetting], { merge: mergesYamlKeys(tool) }) : void 0;
+			if (found?.value === true && context.read(file).split("\n")[found.line - 2]?.trim() !== "# managed by depcurfew") sourceLoosened(context, [...exotic.keys()], {
+				file,
+				line: found.line
+			}, `${exoticSetting}: true`, "blocks git and tarball sources of indirect dependencies", `sets it to false, so ${context.name} installs them again`);
+			context.yaml(file).set([exoticSetting], denied.length > 0);
+			context.writes("sources", exoticSetting, file);
+		}
 	}
 	return minutes;
 };
@@ -30130,9 +34236,16 @@ const pdm = (context) => {
 		const setting = settingOf(tool.cooldown.setting) ?? "exclude-newer";
 		const cooldown = cooldownValue(context);
 		if (cooldown !== void 0) {
-			minutes = cooldown.minutes;
-			entries.push(`${setting} = ${tomlValue(compactDuration(String(cooldown.value)))}`);
-			managed.push(setting);
+			const current = tomlCurrent(context, file, table, setting);
+			const written = {
+				...cooldown,
+				value: compactDuration(String(cooldown.value))
+			};
+			if (!unreadableDelay(context, file, setting, current?.value, current?.line, written)) {
+				minutes = cooldown.minutes;
+				entries.push(`${setting} = ${tomlValue(written.value)}`);
+				managed.push(setting);
+			}
 			const excludeSetting = settingOf(tool.cooldown.exclude.setting);
 			const patterns = exclusions(context);
 			if (excludeSetting !== null && patterns !== void 0) {
@@ -30272,385 +34385,25 @@ const poetry = (context) => {
 	return minutes;
 };
 
-// src/doctor/renovate.ts
-const isStrings$3 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-const isNames = (value) => isRecord(value) && Object.values(value).every((item) => typeof item === "string");
-const isLists = (value) => isRecord(value) && Object.values(value).every(isStrings$3);
-const isManagerMatching$1 = (value) => isRecord(value) && typeof value["managerMatcher"] === "string" && typeof value["categoryMatcher"] === "string" && typeof value["stringIsList"] === "boolean";
-const isActions = (value) => isRecord(value) && typeof value["manager"] === "string" && typeof value["datasource"] === "string";
-const isActionsMatching$1 = (value) => isRecord(value) && typeof value["fileMatcher"] === "string" && typeof value["depTypeMatcher"] === "string" && typeof value["depType"] === "string";
-const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$3(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
-const isPresetFact = (value) => isRecord(value) && isStrings$3(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
-const isInternal = (value) => isRecord(value) && isStrings$3(value["prefixes"]) && isStrings$3(value["settingDelay"]);
-function readRenovateConfig(text, file, base) {
-	const top = jsonSetting(text, [...base, "minimumReleaseAge"]);
-	const extendsList = jsonSetting(text, [...base, "extends"]);
-	const list = jsonSetting(text, [...base, "packageRules"]);
-	const lines = Array.isArray(list?.value) ? jsonElementLines(text, [...base, "packageRules"]) : void 0;
-	const rules = Array.isArray(list?.value) ? list.value.flatMap((rule, index) => isRecord(rule) ? [{
-		index,
-		rule,
-		line: lines?.[index] ?? list.line
-	}] : []) : [];
-	return {
-		file,
-		base,
-		top,
-		extends: {
-			presets: isStrings$3(extendsList?.value) ? extendsList.value : [],
-			line: extendsList?.line ?? 1
-		},
-		rules
-	};
-}
-/**
-* Whether one Renovate pattern matches `input`, as matchRegexOrGlob does: "*", a /regex/ (with ! for "not"), or a
-* case-insensitive glob. undefined for glob syntax beyond * (braces, classes...), which depcurfew does not evaluate.
-*/
-function matchesPattern(input, pattern, negation) {
-	const negative = pattern.startsWith(negation);
-	const body = negative ? pattern.slice(negation.length) : pattern;
-	if (!negative && body === "*") return true;
-	const regex = /^\/(.+)\/(i?)$/u.exec(body);
-	if (regex !== null) {
-		let result;
-		try {
-			result = new RegExp(regex[1] ?? "", regex[2] === "i" ? "iu" : "u").test(input);
-		} catch {
-			return;
-		}
-		return negative ? !result : result;
-	}
-	if (/[?[\]{}()!+@]/u.test(body.replace(/^@/u, ""))) return void 0;
-	const result = wildcardMatch(input.toLowerCase(), body.toLowerCase().replaceAll("**", "*"));
-	return negative ? !result : result;
-}
-/**
-* Whether a path matches a glob as minimatch reads it with { dot: true, nocase: true } (decision D-135): * within one
-* directory, ** for any number of them, letters in any case. undefined for anything else minimatch reads (?, classes,
-* braces, extglobs, escapes) and for empty, . and .. parts, which depcurfew does not evaluate.
-*/
-function matchesPath(path, glob) {
-	const parts = glob.toLowerCase().split("/");
-	if (parts.some((part) => part === "" || part === "." || part === ".." || /[?[\]{}()!+@\\]/u.test(part))) return void 0;
-	const pattern = parts.filter((part, index) => part !== "**" || parts[index - 1] !== "**");
-	const segments = path.toLowerCase().split("/");
-	let row = new Uint8Array(pattern.length + 1);
-	let below = new Uint8Array(pattern.length + 1);
-	for (let at = segments.length; at >= 0; at--) {
-		row.fill(0);
-		row[pattern.length] = at === segments.length ? 1 : 0;
-		const inside = at < segments.length;
-		for (let index = pattern.length - 1; index >= 0; index--) {
-			const part = pattern[index] ?? "";
-			if (part === "**") row[index] = row[index + 1] === 1 || inside && below[index] === 1 ? 1 : 0;
-			else row[index] = inside && below[index + 1] === 1 && matchSegment$1(segments[at] ?? "", part.replaceAll(/\*+/gu, "*")) ? 1 : 0;
-		}
-		[row, below] = [below, row];
-	}
-	return below[0] === 1;
-}
-/** One pattern of matchFileNames: "*", a /regex/ (with ! for "not") or a glob of paths (matchesPath). */
-function matchesFilePattern(input, pattern, negation) {
-	const negative = pattern.startsWith(negation);
-	const body = negative ? pattern.slice(negation.length) : pattern;
-	if (!negative && body === "*") return true;
-	if (/^\/(.+)\/(i?)$/u.test(body)) return matchesPattern(input, pattern, negation);
-	const result = matchesPath(input, body);
-	return result === void 0 ? void 0 : negative ? !result : result;
-}
-/** matchRegexOrGlobList: some positive pattern matches (when there are any) and every negative pattern does too. */
-function matchesList(input, patterns, negation, matches = matchesPattern) {
-	if (patterns.length === 0) return false;
-	const positive = patterns.filter((pattern) => !pattern.startsWith(negation));
-	const negative = patterns.filter((pattern) => pattern.startsWith(negation));
-	const results = positive.map((pattern) => matches(input, pattern, negation));
-	if (positive.length > 0 && !results.includes(true)) return results.includes(void 0) ? void 0 : false;
-	const excluded = negative.map((pattern) => matches(input, pattern, negation));
-	if (excluded.includes(false)) return false;
-	return excluded.includes(void 0) ? void 0 : true;
-}
-/** Patterns that match every package name: *, **, @*\/*, npm:*, and regexes like /.*\/. */
-function matchesEveryName(pattern) {
-	const name = pattern.replace(/^(npm|jsr):/u, "");
-	return /^(@\*+\/)?\*+$/u.test(name) || /^\/\^?\.[*+]\$?\/[a-z]*$/u.test(name);
-}
-function categoriesOf(bot, manager) {
-	if (manager === void 0 || bot.extra?.["managerCategories"] === void 0) return [];
-	return extraOf(bot, "managerCategories", isLists)[manager] ?? [];
-}
-/** The packages a package manager installs: its datasource, Renovate manager and categories (extra.managers). */
-function managerTarget(bot, tool, ecosystem) {
-	const datasource = extraOf(bot, "datasources", isRecord)[ecosystem];
-	const manager = bot.extra?.["managers"] === void 0 ? void 0 : extraOf(bot, "managers", isNames)[tool];
-	return {
-		...typeof datasource === "string" ? { datasource } : {},
-		...manager === void 0 ? {} : { manager },
-		categories: categoriesOf(bot, manager)
-	};
-}
-/**
-* The actions the workflows run (extra.githubActions), when the knowledge base has them; `files` are the workflow
-* files of the repository, which a matchFileNames rule must match all of to cover the actions (decision D-135).
-*/
-function actionsTarget(bot, files = []) {
-	if (bot.extra?.["githubActions"] === void 0) return void 0;
-	const fact = extraOf(bot, "githubActions", isActions);
-	const matching = bot.extra["actionsMatching"] === void 0 ? void 0 : extraOf(bot, "actionsMatching", isActionsMatching$1);
-	return {
-		datasource: fact.datasource,
-		manager: fact.manager,
-		categories: categoriesOf(bot, fact.manager),
-		actions: true,
-		files,
-		...matching === void 0 ? {} : { depTypes: [matching.depType] }
-	};
-}
-const isBotOnly = (value) => isRecord(value) && Object.values(value).every((entry) => isRecord(entry) && typeof entry["manager"] === "string" && typeof entry["datasource"] === "string" && isStrings$3(entry["categories"]));
-/**
-* The dependencies of the ecosystems updated by bots only among `ids` (extra.botOnlyEcosystems, decision D-151), one
-* target each, with the manager, datasource and categories Renovate gives them; none without the fact.
-*/
-function botEcosystemTargets(bot, ids) {
-	if (bot.extra?.["botOnlyEcosystems"] === void 0) return [];
-	const fact = extraOf(bot, "botOnlyEcosystems", isBotOnly);
-	return [...new Set(ids)].flatMap((id) => {
-		const entry = fact[id];
-		return entry === void 0 ? [] : [{
-			datasource: entry.datasource,
-			manager: entry.manager,
-			categories: [...entry.categories],
-			ecosystem: id
-		}];
-	});
-}
-/** The targets of the package managers among `tools`, one for each datasource and manager, with the tools of each. */
-function managerTargets(bot, tools) {
-	const groups = /* @__PURE__ */ new Map();
-	for (const tool of tools) {
-		if (tool.kind !== "package-manager") continue;
-		const target = managerTarget(bot, tool.id, ecosystemOfTool(tool));
-		const key = `${target.datasource ?? ""}\u0000${target.manager ?? `\u0000${tool.id}`}`;
-		const group = groups.get(key);
-		if (group === void 0) groups.set(key, {
-			target,
-			tools: [tool]
-		});
-		else group.tools.push(tool);
-	}
-	return [...groups.values()];
-}
-function targetOf(bot, on) {
-	if (typeof on !== "string") return on;
-	const datasource = extraOf(bot, "datasources", isRecord)[on];
-	return {
-		...typeof datasource === "string" ? { datasource } : {},
-		categories: []
-	};
-}
-/** The patterns of a matcher: a list, or one string when Renovate reads a string as a list of one (extra.managerMatching). */
-function patternsOf(value, stringIsList) {
-	if (isStrings$3(value)) return value;
-	return stringIsList && typeof value === "string" ? [value] : void 0;
-}
-/** anyMatchRegexOrGlobList: some input matches the list. */
-function matchesAny(inputs, patterns, negation) {
-	const results = inputs.map((input) => matchesList(input, patterns, negation));
-	if (results.includes(true)) return true;
-	return results.includes(void 0) ? void 0 : false;
-}
-/**
-* How a rule covers the packages of `on` (a target, or the packages of a registry without a known manager): all of
-* them for some update types, some of them only, or depcurfew cannot tell.
-*/
-function ruleCoverage(bot, rule, on) {
-	const target = targetOf(bot, on);
-	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
-	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
-	const stringIsList = managerMatching?.stringIsList === true;
-	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$3);
-	const actionsMatching = target.actions === true && bot.extra?.["actionsMatching"] !== void 0 ? extraOf(bot, "actionsMatching", isActionsMatching$1) : void 0;
-	const matchers = Object.keys(rule).filter((key) => /^(match|exclude)[A-Z]/u.test(key));
-	const known = /* @__PURE__ */ new Set([
-		...matching.packageMatchers,
-		matching.datasourceMatcher,
-		matching.updateTypeMatcher,
-		...managerMatching === void 0 ? [] : [managerMatching.managerMatcher, managerMatching.categoryMatcher],
-		...actionsMatching === void 0 ? [] : [actionsMatching.fileMatcher, actionsMatching.depTypeMatcher]
-	]);
-	const unmodelled = matchers.find((key) => !known.has(key));
-	let unknown = unmodelled;
-	const result = (key, matches) => {
-		if (matches === void 0) unknown ??= key;
-		return matches !== false;
-	};
-	let names = { kind: "all" };
-	for (const key of matching.packageMatchers) {
-		if (!(key in rule)) continue;
-		const patterns = patternsOf(rule[key], stringIsList);
-		if (patterns === void 0) {
-			result(key, void 0);
-			continue;
-		}
-		const positive = patterns.filter((pattern) => !pattern.startsWith(matching.negation));
-		const broad = positive.find(matchesEveryName);
-		if (patterns.length === 0 || positive.length > 0 && broad === void 0) return { kind: "narrow" };
-		if (broad !== void 0 && names.kind === "all") names = {
-			kind: "pattern",
-			pattern: broad
-		};
-		else if (positive.length === 0) names = {
-			kind: "except",
-			patterns: [...names.kind === "except" ? names.patterns : [], ...patterns]
-		};
-	}
-	const lists = [[
-		matching.datasourceMatcher,
-		target.datasource === void 0 ? void 0 : [target.datasource],
-		"one"
-	]];
-	if (managerMatching !== void 0) {
-		lists.push([
-			managerMatching.managerMatcher,
-			target.manager === void 0 ? void 0 : [target.manager],
-			"one"
-		]);
-		lists.push([
-			managerMatching.categoryMatcher,
-			target.categories.length === 0 ? void 0 : target.categories,
-			"any"
-		]);
-	}
-	for (const [key, inputs] of lists) {
-		if (!(key in rule)) continue;
-		const patterns = patternsOf(rule[key], stringIsList);
-		if (!result(key, patterns === void 0 || inputs === void 0 ? void 0 : matchesAny(inputs, patterns, matching.negation))) return { kind: "narrow" };
-	}
-	if (actionsMatching !== void 0) {
-		if (actionsMatching.fileMatcher in rule) {
-			const patterns = patternsOf(rule[actionsMatching.fileMatcher], actionsMatching.fileStringIsList);
-			const files = target.files ?? [];
-			const each = patterns === void 0 ? [void 0] : files.map((file) => matchesList(file, patterns, matching.negation, matchesFilePattern));
-			const matches = files.length === 0 || each.includes(false) ? false : each.includes(void 0) ? void 0 : true;
-			if (!result(actionsMatching.fileMatcher, matches)) return { kind: "narrow" };
-		}
-		if (actionsMatching.depTypeMatcher in rule) {
-			const patterns = patternsOf(rule[actionsMatching.depTypeMatcher], actionsMatching.depTypeStringIsList);
-			const matches = patterns === void 0 || target.depTypes === void 0 ? void 0 : matchesAny(target.depTypes, patterns, matching.negation);
-			if (!result(actionsMatching.depTypeMatcher, matches)) return { kind: "narrow" };
-		}
-	}
-	let types = updateTypes;
-	if (matching.updateTypeMatcher in rule) {
-		const patterns = patternsOf(rule[matching.updateTypeMatcher], stringIsList);
-		const matched = patterns === void 0 ? [] : updateTypes.map((type) => matchesList(type, patterns, matching.negation));
-		types = updateTypes.filter((_, index) => matched[index] === true);
-		if (types.length === 0 && !result(matching.updateTypeMatcher, patterns === void 0 || matched.includes(void 0) ? void 0 : false)) return { kind: "narrow" };
-	}
-	if (unknown !== void 0) return {
-		kind: "unknown",
-		matcher: unknown,
-		...unknown === unmodelled ? { unmodelled: true } : {}
-	};
-	if (types.length === 0) return { kind: "narrow" };
-	const categoryPatterns = managerMatching === void 0 ? void 0 : patternsOf(rule[managerMatching.categoryMatcher], stringIsList);
-	const categories = categoryPatterns === void 0 ? void 0 : target.categories.filter((category) => matchesList(category, categoryPatterns, matching.negation) === true);
-	return {
-		kind: "covers",
-		scope: {
-			updateTypes: types,
-			names,
-			matchers,
-			...categories === void 0 ? {} : { categories }
-		}
-	};
-}
-/**
-* The update types for which a rule applies to every package of the target (or of a registry), or undefined when it
-* narrows the packages or depcurfew cannot tell.
-*/
-function ruleScope(bot, rule, on) {
-	const coverage = ruleCoverage(bot, rule, on);
-	return coverage.kind === "covers" ? coverage.scope : void 0;
-}
-function presetName(preset) {
-	return preset.replace(/\(.*\)$/u, "");
-}
-/**
-* The delay Renovate applies to every package of the target (or of a registry), for each delayed update type. Without
-* a top-level value or a rule, an update type has no entry: Renovate does not wait.
-*/
-function renovateDelay(bot, config, on) {
-	const target = targetOf(bot, on);
-	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$3);
-	const internal = extraOf(bot, "internalPresets", isInternal);
-	const byType = /* @__PURE__ */ new Map();
-	const unreadable = [];
-	const set = (types, source) => {
-		for (const type of types) byType.set(type, source);
-	};
-	const path = [...config.base, "minimumReleaseAge"].join(".");
-	if (config.top !== void 0) set(updateTypes, {
-		value: config.top.value,
-		origin: `${path}: ${JSON.stringify(config.top.value)} in ${config.file}`,
-		line: config.top.line
-	});
-	for (const key of [
-		"minimumReleaseAgePresets",
-		"pypiPresets",
-		"cratePresets"
-	]) {
-		const fact = bot.extra?.[key] === void 0 ? void 0 : extraOf(bot, key, isPresetFact);
-		const preset = fact === void 0 ? void 0 : config.extends.presets.find((item) => fact.presets.includes(presetName(item)));
-		if (fact === void 0 || preset === void 0 || target.datasource !== fact.datasource) continue;
-		set(updateTypes, {
-			value: fact.value,
-			origin: `the preset ${preset} in ${config.file} (${fact.value})`,
-			line: config.extends.line
-		});
-	}
-	let repositorySets = config.top !== void 0;
-	for (const { index, line, rule } of config.rules) {
-		if (!("minimumReleaseAge" in rule)) continue;
-		const coverage = ruleCoverage(bot, rule, target);
-		if (coverage.kind === "unknown") unreadable.push({
-			index,
-			line,
-			matcher: coverage.matcher,
-			patterns: rule[coverage.matcher],
-			value: rule["minimumReleaseAge"],
-			...coverage.unmodelled === true ? { unmodelled: true } : {}
-		});
-		if (coverage.kind !== "covers") continue;
-		repositorySets = true;
-		set(coverage.scope.updateTypes, {
-			value: rule["minimumReleaseAge"],
-			origin: `minimumReleaseAge: ${JSON.stringify(rule["minimumReleaseAge"])} in packageRules[${index}] of ${config.file}`,
-			line,
-			rule: index
-		});
-	}
-	const unreadablePreset = config.extends.presets.find((preset) => !internal.prefixes.some((prefix) => preset.startsWith(prefix)));
-	const fromKnownPreset = config.extends.presets.some((preset) => internal.settingDelay.includes(presetName(preset)));
-	if (unreadablePreset !== void 0 && !repositorySets && !(fromKnownPreset && byType.size > 0)) return {
-		known: false,
-		preset: unreadablePreset,
-		line: config.extends.line
-	};
-	return {
-		known: true,
-		byType,
-		unreadable
-	};
-}
-
 // src/apply/generators/renovate.ts
 const RULE_DESCRIPTION = "depcurfew: packages excluded from minimumReleaseAge";
 const PYTHON_RULE_DESCRIPTION = "depcurfew: Python packages excluded from minimumReleaseAge";
 const COMPOSER_RULE_DESCRIPTION = "depcurfew: Composer packages excluded from minimumReleaseAge";
+/** The description of the rule that gives a datasource the policy's delay over a preset's shorter one (decision D-171). */
+const presetRuleDescription = (datasource) => `depcurfew: minimumReleaseAge for the ${datasource} datasource over a preset's shorter delay`;
+const PRESET_RULE = /^depcurfew: minimumReleaseAge for the \S+ datasource over a preset's shorter delay$/u;
+/** Whether a packageRules description is one of the rules depcurfew apply writes. */
+function isOwnRule(description) {
+	return typeof description === "string" && ([
+		"depcurfew: packages excluded from minimumReleaseAge",
+		"depcurfew: Python packages excluded from minimumReleaseAge",
+		"depcurfew: Composer packages excluded from minimumReleaseAge"
+	].includes(description) || PRESET_RULE.test(description));
+}
 const isString = (value) => typeof value === "string";
 const isRule = (value) => isRecord(value) && typeof value["list"] === "string" && typeof value["match"] === "string";
 const isPath$2 = (value) => Array.isArray(value) && value.every(isString);
+const isMatchers = (value) => isRecord(value) && typeof value["datasourceMatcher"] === "string" && typeof value["updateTypeMatcher"] === "string";
 const renovate = (context, duration, repository) => {
 	const { tool, policy } = context;
 	if (policy.cooldown === void 0 || duration === void 0) return;
@@ -30672,28 +34425,22 @@ const renovate = (context, duration, repository) => {
 	const patterns = exclusions(context, patternsFor(excluded, "npm")) ?? [];
 	const pythonPatterns = exclusions(context, patternsFor(excluded, "pypi")) ?? [];
 	const composerPatterns = exclusions(context, patternsFor(excluded, "packagist")) ?? [];
-	const negative = extraOf(tool, "negativeMatch", isString);
-	const uses = (ecosystem) => context.tools.some((entry) => entry.kind === "package-manager" && ecosystemOfTool(entry) === ecosystem && context.targets.has(entry.id));
-	const others = [
-		"pypi",
-		"packagist",
-		"rubygems"
-	].filter(uses).map((ecosystem) => `${negative}${String(datasources[ecosystem])}`);
+	const matchers = extraOf(tool, "packageRuleMatching", isMatchers);
 	const exclusionRule = {
 		[descriptionKey]: RULE_DESCRIPTION,
-		...others.length > 0 ? { matchDatasources: others } : {},
+		[matchers.datasourceMatcher]: [datasources["npm"]],
 		[rule.match]: patterns,
 		[setting]: rule.value
 	};
 	const pythonRule = {
 		[descriptionKey]: PYTHON_RULE_DESCRIPTION,
-		matchDatasources: [datasources["pypi"]],
+		[matchers.datasourceMatcher]: [datasources["pypi"]],
 		[rule.match]: pythonPatterns,
 		[setting]: rule.value
 	};
 	const composerRule = {
 		[descriptionKey]: COMPOSER_RULE_DESCRIPTION,
-		matchDatasources: [datasources["packagist"]],
+		[matchers.datasourceMatcher]: [datasources["packagist"]],
 		[rule.match]: composerPatterns,
 		[setting]: rule.value
 	};
@@ -30715,12 +34462,32 @@ const renovate = (context, duration, repository) => {
 		}
 	];
 	const security = policy.cooldown.securityUpdates === "delay" ? result.value : null;
+	const targets = delayTargets(context, repository);
+	const presetRules = (config) => {
+		const wanted = delayMinutes(tool, result.value, latestVersion$1(tool));
+		if (config === void 0 || !wanted.ok) return [];
+		const updateTypes = extraOf(tool, "delayedUpdateTypes", (value) => Array.isArray(value) && value.every(isString));
+		return presetDelays(tool).flatMap((fact) => {
+			const preset = delayMinutes(tool, fact.value, latestVersion$1(tool));
+			if (presetIn(config.extends.presets, fact) === void 0 || !targets.some(({ target }) => target.datasource === fact.datasource)) return [];
+			if (!preset.ok || preset.minutes >= wanted.minutes) return [];
+			return [{
+				[descriptionKey]: presetRuleDescription(fact.datasource),
+				[matchers.datasourceMatcher]: [fact.datasource],
+				[matchers.updateTypeMatcher]: updateTypes,
+				[setting]: result.value
+			}];
+		});
+	};
 	const file = (values$1(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
-	const snippet = () => JSON.stringify({
-		[setting]: result.value,
-		...managedRules.some((entry) => entry.wanted) ? { [rule.list]: managedRules.filter((entry) => entry.wanted).map((entry) => entry.rule) } : {},
-		...securityPath.reduceRight((inner, key) => ({ [key]: inner }), security)
-	}, null, 2);
+	const snippet = (config) => {
+		const rules = [...presetRules(config), ...managedRules.filter((entry) => entry.wanted).map((entry) => entry.rule)];
+		return JSON.stringify({
+			[setting]: result.value,
+			...rules.length > 0 ? { [rule.list]: rules } : {},
+			...securityPath.reduceRight((inner, key) => ({ [key]: inner }), security)
+		}, null, 2);
+	};
 	if (file === void 0 || !/\.jsonc?$/u.test(file)) {
 		const packageJson = extraOf(tool, "packageJsonConfig", isRecord);
 		const where = file ?? (context.exists("package.json") && context.json("package.json").get([String(packageJson["key"])]) !== void 0 ? "package.json" : void 0);
@@ -30743,12 +34510,15 @@ const renovate = (context, duration, repository) => {
 			message: `${context.name}: ${where} is not plain JSON or JSONC, so depcurfew does not edit it`,
 			fix: "Add the snippet by hand"
 		});
-		context.snippet(where, snippet());
+		const base = where === "package.json" ? [String(packageJson["key"])] : [];
+		const readable = where === "package.json" || where.endsWith(".renovaterc");
+		context.snippet(where, snippet(readable ? readRenovateConfig(context.read(where), where, base) : void 0));
 		return;
 	}
-	shorterRules(context, file, result.value, rule.list, descriptionKey, repository);
 	const json = context.json(file);
+	const presets = presetRules(readRenovateConfig(context.read(file), file, []));
 	json.set([setting], result.value);
+	placePresetRules(json, rule.list, descriptionKey, presets);
 	for (const managed of managedRules) {
 		const rules = json.get([rule.list]);
 		const index = Array.isArray(rules) ? rules.findIndex((entry) => isRecord(entry) && entry[descriptionKey] === managed.description) : -1;
@@ -30759,8 +34529,61 @@ const renovate = (context, duration, repository) => {
 			else json.set([rule.list], [managed.rule]);
 		} else if (index >= 0) json.remove([rule.list], index);
 	}
+	shorterRules(context, file, result.value, rule.list, descriptionKey, targets);
+	const current = json.get(securityPath);
+	const delay = current === void 0 || security !== null ? void 0 : delayMinutes(tool, current, void 0);
+	if (delay?.ok === true && delay.minutes > 0) {
+		const line = jsonSetting(context.read(file), securityPath)?.line;
+		context.warn({
+			code: "security-delay-removed",
+			location: line === void 0 ? { file } : {
+				file,
+				line
+			},
+			message: `${context.name}: ${securityPath.join(".")} ${JSON.stringify(current)} in ${file}${line === void 0 ? "" : ` (line ${line})`} delays security updates by ${formatMinutes(delay.minutes)}; because cooldown.securityUpdates is "bypass" in ${POLICY_FILE}, depcurfew apply sets it to null, so ${context.name} proposes security updates at once`,
+			fix: `To keep a delay, set cooldown.securityUpdates to "delay" in ${POLICY_FILE} (security updates then wait as long as cooldown.minimum) and run depcurfew apply again; if an earlier depcurfew apply wrote this value and you changed cooldown.securityUpdates on purpose, nothing to do`
+		});
+	}
 	json.set(securityPath, security);
 };
+/**
+* Puts the rules that give datasources the policy's delay over a preset first in packageRules, in their order, and
+* removes the ones no longer wanted (the preset left extends, or no longer waits less than the policy). Renovate
+* applies the rules of the presets before the repository's own and a later rule wins (extra.packageRulesOrder), so
+* at the front such a rule wins over the preset, and every rule of the repository after it, the exclusion rules
+* included, still wins over it; a rule moved further down would undo the exceptions before it, so it is moved back.
+*/
+function placePresetRules(json, list, key, wanted) {
+	const current = () => {
+		const rules = json.get([list]);
+		return Array.isArray(rules) ? rules : void 0;
+	};
+	const description = (entry) => isRecord(entry) ? entry[key] : void 0;
+	const descriptions = new Set(wanted.map(description));
+	for (;;) {
+		const rules = current() ?? [];
+		const index = rules.findIndex((entry, position) => {
+			const text = description(entry);
+			return typeof text === "string" && PRESET_RULE.test(text) && (!descriptions.has(text) || rules.findIndex((other) => description(other) === text) !== position);
+		});
+		if (index < 0) break;
+		json.remove([list], index);
+	}
+	wanted.forEach((entry, position) => {
+		const rules = current();
+		if (rules === void 0) {
+			json.set([list], [entry]);
+			return;
+		}
+		const index = rules.findIndex((item) => description(item) === description(entry));
+		if (index === position) {
+			if (JSON.stringify(rules[index]) !== JSON.stringify(entry)) json.replace([list], index, entry);
+			return;
+		}
+		if (index >= 0) json.remove([list], index);
+		json.insert([list], position, entry);
+	});
+}
 const ECOSYSTEM_LABELS = {
 	npm: "npm",
 	pypi: "Python",
@@ -30768,37 +34591,18 @@ const ECOSYSTEM_LABELS = {
 	rubygems: "Ruby"
 };
 /**
-* packageRules entries that apply does not manage and that give every package of a package manager in use (by
-* registry, Renovate manager or category, decision D-131), the actions of the workflows (decision D-130) or the
-* dependencies of an ecosystem updated by bots only that the repository has (decision D-151), or some
-* update types of them, a shorter delay than the one apply writes: Renovate uses them, and apply never changes entries
-* it did not write, so it warns (decision D-116). They are found as doctor's bot-cooldown-mismatch finds them
-* (renovateDelay), on the file as it is, with the top-level delay apply writes and without depcurfew's own exclusion
-* rules.
+* What the delay apply writes covers, as doctor's bot-cooldown-mismatch compares it: the packages of each package
+* manager in use (by registry, Renovate manager or category, decision D-131), the dependencies of each ecosystem
+* updated by bots only that the repository has (decision D-151) and the actions of the workflows (decision D-130),
+* each with the label messages name it by.
 */
-function shorterRules(context, file, written, list, descriptionKey, repository) {
+function delayTargets(context, repository) {
 	const { tool } = context;
-	const config = readRenovateConfig(context.read(file), file, []);
-	const own = /* @__PURE__ */ new Set([
-		RULE_DESCRIPTION,
-		PYTHON_RULE_DESCRIPTION,
-		COMPOSER_RULE_DESCRIPTION
-	]);
-	const planned = {
-		...config,
-		top: {
-			value: written,
-			line: config.top?.line ?? 1
-		},
-		rules: config.rules.filter((entry) => !own.has(entry.rule[descriptionKey]))
-	};
-	const wanted = delayMinutes(tool, written, latestVersion$1(tool));
-	if (!wanted.ok) return;
 	const inUse = context.tools.filter((entry) => entry.kind === "package-manager" && context.targets.has(entry.id));
 	const actions = repository.workflows.length > 0 ? actionsTarget(tool, repository.workflows) : void 0;
 	const botOnly = botEcosystemTargets(tool, (repository.botEcosystems ?? []).map((entry) => entry.id));
 	const botLabels = new Map(botEcosystemFacts().map((entry) => [entry.id, entry.client]));
-	const targets = [
+	return [
 		...managerTargets(tool, inUse).map(({ target, tools }) => ({
 			target,
 			label: ECOSYSTEM_LABELS[ecosystemOfTool(tools[0] ?? tool)]
@@ -30812,9 +34616,33 @@ function shorterRules(context, file, written, list, descriptionKey, repository) 
 			label: ACTIONS_LABEL
 		}]
 	];
+}
+/**
+* packageRules entries that apply does not manage and that give every package of a package manager in use (by
+* registry, Renovate manager or category, decision D-131), the actions of the workflows (decision D-130) or the
+* dependencies of an ecosystem updated by bots only that the repository has (decision D-151), or some
+* update types of them, a shorter delay than the one apply writes: Renovate uses them, and apply never changes entries
+* it did not write, so it warns (decision D-116). They are found as doctor's bot-cooldown-mismatch finds them
+* (renovateDelay), on the file as apply leaves it and without depcurfew's own rules; the shorter delay of a built-in
+* preset is not one of them, since the rule apply writes after it gives the policy's delay again (decision D-171).
+*/
+function shorterRules(context, file, written, list, descriptionKey, targets) {
+	const { tool } = context;
+	const config = readRenovateConfig(context.read(file), file, []);
+	const planned = {
+		...config,
+		top: {
+			value: written,
+			line: config.top?.line ?? 1
+		},
+		rules: config.rules.filter((entry) => !isOwnRule(entry.rule[descriptionKey]))
+	};
+	const wanted = delayMinutes(tool, written, latestVersion$1(tool));
+	if (!wanted.ok) return;
+	const botLabels = new Map(botEcosystemFacts().map((entry) => [entry.id, entry.client]));
 	const found = /* @__PURE__ */ new Map();
 	for (const { target, label } of targets) {
-		const delay = renovateDelay(tool, planned, target);
+		const delay = renovateDelay$1(tool, planned, target);
 		if (!delay.known) continue;
 		for (const [type, source] of delay.byType) {
 			if (source.rule === void 0) continue;
@@ -30871,9 +34699,12 @@ const uv = (context) => {
 		const setting = settingOf(tool.cooldown.setting) ?? "exclude-newer";
 		const cooldown = cooldownValue(context);
 		if (cooldown !== void 0) {
-			minutes = cooldown.minutes;
-			entries.push(`${setting} = ${tomlValue(cooldown.value)}`);
-			managed.push(setting);
+			const current = tomlCurrent(context, file, table, setting);
+			if (!unreadableDelay(context, file, setting, current?.value, current?.line, cooldown)) {
+				minutes = cooldown.minutes;
+				entries.push(`${setting} = ${tomlValue(cooldown.value)}`);
+				managed.push(setting);
+			}
 			const excludeSetting = settingOf(tool.cooldown.exclude.setting);
 			const patterns = exclusions(context);
 			if (excludeSetting !== null && patterns !== void 0) {
@@ -30928,22 +34759,28 @@ const yarn = (context) => {
 		const excludeSetting = settingOf(tool.cooldown.exclude.setting);
 		const patterns = cooldown === void 0 ? void 0 : exclusions(context);
 		if (excludeSetting !== null && patterns !== void 0 && (patterns.length > 0 || yaml.get([excludeSetting]) !== void 0)) {
-			if (!sameList(yaml.get([excludeSetting]), patterns)) yaml.set([excludeSetting], patterns);
+			if (!sameList(yaml.get([excludeSetting]), patterns)) {
+				const dropped = droppedYamlList(context, file, [excludeSetting], patterns);
+				yaml.set([excludeSetting], patterns);
+				if (dropped !== void 0) commentReplacedList(context, file, [excludeSetting], dropped);
+			}
 		}
 	}
 	if (policy.installScripts !== void 0) {
 		const scripts = extraOf(tool, "scriptsSwitch", isScriptsSwitch);
 		const deny = policy.installScripts.default === "deny";
 		const current = yaml.get([scripts.setting]);
-		if (deny && current === scripts.allow) {
+		const off = scripts.off ?? [scripts.deny];
+		if (deny && current !== void 0 && !off.includes(current)) {
 			const found = context.exists(file) ? yamlSetting(context.read(file), [scripts.setting]) : void 0;
+			const reading = current === scripts.allow ? "" : ` (${context.name} reads every value but ${listing$1(off.map((value) => JSON.stringify(value)))} as true, or stops on it)`;
 			context.warn({
 				code: "allow-all-replaced",
 				...found === void 0 ? {} : { location: {
 					file,
 					line: found.line
 				} },
-				message: `${context.name}: ${scripts.setting}: ${JSON.stringify(current)} in ${file}${found === void 0 ? "" : ` (line ${found.line})`} allowed every install script; set to ${JSON.stringify(scripts.deny)} because the policy denies install scripts`,
+				message: `${context.name}: ${scripts.setting}: ${JSON.stringify(current)} in ${file}${found === void 0 ? "" : ` (line ${found.line})`} allowed every install script${reading}; set to ${JSON.stringify(scripts.deny)} because the policy denies install scripts`,
 				fix: `Add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`
 			});
 		}
@@ -30954,19 +34791,29 @@ const yarn = (context) => {
 			if (context.supports(sinceOf(tool.installScripts.allowList.availableSince), template)) {
 				const listFile = settingOf(tool.installScripts.allowList.file) ?? "package.json";
 				const json = context.json(listFile);
-				const names = allowedNames(context, template.split(".")[0] ?? template);
-				if (names.length > 0) context.writes("installScripts", template, listFile);
-				for (const name of names) {
-					const path = template.split(".").map((segment) => segment === "<package>" ? name : segment);
-					if (json.get(path) !== true) json.set(path, true);
+				const list = template.split(".")[0] ?? template;
+				const names = allowedNames(context, list);
+				if (names.length > 0 && !wrongListType(context, listFile, [list], json.get([list]), "object", names, `{${JSON.stringify(names[0])}: {"built": true}}`)) {
+					context.writes("installScripts", template, listFile);
+					for (const name of names) {
+						const path = template.split(".").map((segment) => segment === "<package>" ? name : segment);
+						if (wrongListType(context, listFile, path.slice(0, -1), json.get(path.slice(0, -1)), "object", [name], `{${JSON.stringify(path.at(-1))}: true}`)) continue;
+						if (json.get(path) !== true) json.set(path, true);
+					}
 				}
 			}
 		}
 		if (deny) writeDenyList(context);
 	}
-	eachSource(context, (_kind, setting, access) => {
+	eachSource(context, (kind, setting, access) => {
 		context.writes("sources", setting, file);
 		const value = access === "deny" ? [] : ["**"];
+		const current = yaml.get([setting]);
+		const found = access === "allow" && Array.isArray(current) && !current.includes("**") && context.exists(file) ? yamlSetting(context.read(file), [setting]) : void 0;
+		if (found !== void 0 && context.read(file).split("\n")[found.line - 2]?.trim() !== "# managed by depcurfew") sourceLoosened(context, [kind], {
+			file,
+			line: found.line
+		}, `${setting}: ${JSON.stringify(current)}`, current.length === 0 ? "approves no git repository" : "approves only the git repositories it lists", `sets it to ${JSON.stringify(value)}, so ${context.name} installs from any git repository`);
 		if (!sameList(yaml.get([setting]), value)) yaml.set([setting], value);
 	});
 	return minutes;
@@ -31111,168 +34958,6 @@ function readLimited$1(path, limit, options = {}) {
 	}
 }
 
-// src/printable.ts
-/** C0 controls but tab, DEL and C1 controls; with `lines`, line feeds stay too. */
-const CONTROLS = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f]/gu;
-const CONTROLS_BUT_LINE_FEEDS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/gu;
-/**
-* Characters that change how text is shown or read without being seen: the format characters (\p{Cf}: the
-* bidirectional controls ALM, LRM, RLM, LRE to RLO and LRI to PDI, zero-width space, joiners, word joiner, invisible
-* operators, the byte order mark, the soft hyphen, the tag characters U+E0001 and U+E0020 to U+E007F), the rest of the
-* tag block (U+E0000 to U+E007F), whose characters spell hidden ASCII that a model may read, the variation selectors
-* (U+FE00 to U+FE0F, U+E0100 to U+E01EF), and letters that show as blank space: the Hangul fillers U+115F, U+1160,
-* U+3164 and U+FFA0 and the blank braille pattern U+2800, which can hide a word or pass for a space.
-*/
-const INVISIBLE = /[\p{Cf}\u{e0000}-\u{e007f}\ufe00-\ufe0f\u{e0100}-\u{e01ef}\u115f\u1160\u3164\uffa0\u2800]/gu;
-/** The line and paragraph separators, which some viewers and parsers take as a line break. */
-const LINE_SEPARATORS = /[\u2028\u2029]/gu;
-/** A character of INVISIBLE as \uHHHH, or \u{HHHHH} beyond the BMP. */
-function visible(character) {
-	const code = character.codePointAt(0) ?? 0;
-	return code > 65535 ? `\\u{${code.toString(16)}}` : `\\u${code.toString(16).padStart(4, "0")}`;
-}
-/**
-* The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`, and every invisible
-* character (INVISIBLE) and the line and paragraph separators as `\uHHHH` or `\u{HHHHH}`. Line breaks are control
-* characters too, so a value from a file cannot start a line of its own; `lines: true` keeps line feeds, for text
-* depcurfew lays out in lines itself, such as a snippet to add by hand. Apply it before adding colors.
-*/
-function printable(text, options = {}) {
-	return text.replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`).replace(INVISIBLE, visible).replace(LINE_SEPARATORS, visible);
-}
-
-// src/apply/diff.ts
-/** Marks a last line without a line break, so it differs from the same line with one, as in `diff -u`. */
-const NO_EOL = "\0";
-function lines(text) {
-	if (text === "") return [];
-	const result = text.split("\n");
-	if (result.at(-1) === "") result.pop();
-	else result[result.length - 1] += NO_EOL;
-	return result;
-}
-/**
-* Above this many changed lines, or when the search would take too long, the diff is made by a quicker method that
-* keeps changes local but may not be the shortest (approximateEdit): the search keeps memory for every step, which
-* for thousands of changes in a large file would take gigabytes.
-*/
-const MAX_EDITS = 2e3;
-const MAX_STEPS = 5e7;
-/** An edit script from `a` to `b`: the shortest one (Myers), or a close one for very different texts. */
-function myers(a, b) {
-	let prefix = 0;
-	while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix += 1;
-	let suffix = 0;
-	while (suffix < a.length - prefix && suffix < b.length - prefix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix += 1;
-	const left = a.slice(prefix, a.length - suffix);
-	const right = b.slice(prefix, b.length - suffix);
-	const middle = shortestEdit(left, right, Math.min(MAX_EDITS, Math.max(100, Math.floor(MAX_STEPS / (left.length + right.length + 1))))) ?? approximateEdit(left, right);
-	const same = (line) => ({
-		kind: "same",
-		line
-	});
-	return [
-		...a.slice(0, prefix).map(same),
-		...middle,
-		...a.slice(a.length - suffix).map(same)
-	];
-}
-/** Myers' algorithm; undefined when the texts differ in more than `maxEdits` lines. */
-function shortestEdit(a, b, maxEdits) {
-	const max = Math.min(a.length + b.length, maxEdits);
-	const offset = max + 1;
-	const frontier = new Int32Array(2 * max + 3);
-	const trace = [];
-	let done = false;
-	outer: for (let d = 0; d <= max; d++) {
-		trace.push(frontier.slice(offset - d - 1, offset + d + 2));
-		for (let k = -d; k <= d; k += 2) {
-			let x = k === -d || k !== d && (frontier[offset + k - 1] ?? 0) < (frontier[offset + k + 1] ?? 0) ? frontier[offset + k + 1] ?? 0 : (frontier[offset + k - 1] ?? 0) + 1;
-			let y = x - k;
-			while (x < a.length && y < b.length && a[x] === b[y]) {
-				x += 1;
-				y += 1;
-			}
-			frontier[offset + k] = x;
-			if (x >= a.length && y >= b.length) {
-				done = true;
-				break outer;
-			}
-		}
-	}
-	if (!done) return void 0;
-	const operations = [];
-	let x = a.length;
-	let y = b.length;
-	for (let d = trace.length - 1; d >= 0; d--) {
-		const v = trace[d];
-		const at = (k) => v[k + d + 1] ?? 0;
-		const k = x - y;
-		const previousK = k === -d || k !== d && at(k - 1) < at(k + 1) ? k + 1 : k - 1;
-		const previousX = at(previousK);
-		const previousY = previousX - previousK;
-		while (x > previousX && y > previousY) {
-			operations.push({
-				kind: "same",
-				line: a[x - 1]
-			});
-			x -= 1;
-			y -= 1;
-		}
-		if (d > 0) {
-			if (x === previousX) operations.push({
-				kind: "insert",
-				line: b[y - 1]
-			});
-			else operations.push({
-				kind: "delete",
-				line: a[x - 1]
-			});
-		}
-		x = previousX;
-		y = previousY;
-	}
-	return operations.reverse();
-}
-/**
-* A close edit script in linear time: equal lines are kept, and after a difference the nearest place where the texts
-* agree again, within a few lines, is where they continue. Changes stay where they are, as apply makes them.
-*/
-function approximateEdit(a, b, window = 32) {
-	const operations = [];
-	let i = 0;
-	let j = 0;
-	while (i < a.length || j < b.length) {
-		if (i < a.length && j < b.length && a[i] === b[j]) {
-			operations.push({
-				kind: "same",
-				line: a[i]
-			});
-			i += 1;
-			j += 1;
-			continue;
-		}
-		let skip;
-		search: for (let distance = 1; distance <= window; distance++) for (let fromA = 0; fromA <= distance; fromA++) {
-			const fromB = distance - fromA;
-			if (i + fromA < a.length && j + fromB < b.length && a[i + fromA] === b[j + fromB]) {
-				skip = [fromA, fromB];
-				break search;
-			}
-		}
-		const [deletes, inserts] = skip ?? [i < a.length ? 1 : 0, j < b.length ? 1 : 0];
-		for (let count = 0; count < deletes; count++) operations.push({
-			kind: "delete",
-			line: a[i++]
-		});
-		for (let count = 0; count < inserts; count++) operations.push({
-			kind: "insert",
-			line: b[j++]
-		});
-	}
-	return operations;
-}
-
 // src/apply/text.ts
 function detectStyle(text) {
 	const body = text.startsWith("﻿") ? text.slice(1) : text;
@@ -31365,6 +35050,10 @@ function fileSystemReason(error) {
 	if (code !== void 0 && reasons[code] !== void 0) return reasons[code];
 	return code ?? (error instanceof Error ? error.message : String(error));
 }
+/** A limit in MiB, as messages give it: 1 MiB, 64 MiB. */
+function mebibytes(bytes) {
+	return `${bytes / 1048576} MiB`;
+}
 /** Decodes UTF-8 strictly: a byte sequence that is not UTF-8 would otherwise become U+FFFD and be written back so. */
 const UTF8 = new TextDecoder("utf-8", {
 	fatal: true,
@@ -31441,10 +35130,11 @@ var Workspace = class {
 			const blocked = this.#notADirectory(file);
 			if (blocked !== void 0) throw blocked;
 		} else {
-			const read = readLimited$1(path, MAX_FILE_SIZE, { noFollow: true });
+			const limit = readLimitFor(file);
+			const read = readLimited$1(path, limit, { noFollow: true });
 			if (read.ok) bytes = read.bytes;
 			else if (read.problem === "symlink") throw symlink();
-			else if (read.problem === "too-large") throw this.#fail(file, { kind: "too-large" }, `${name} is larger than 1 MiB, so depcurfew does not edit it`);
+			else if (read.problem === "too-large") throw this.#fail(file, { kind: "too-large" }, `${name} is larger than ${mebibytes(limit)}, so depcurfew does not edit it`);
 			else if (read.problem === "not-a-file") {
 				const directory = stats.isDirectory();
 				throw this.#fail(file, { kind: directory ? "directory" : "not-a-file" }, `${name} cannot be read: ${directory ? "it is a directory" : "it is not a regular file"}`);
@@ -31498,10 +35188,25 @@ var Workspace = class {
 	read(file) {
 		return this.#load(file).body;
 	}
-	/** Applies an edit to the file's text (LF line endings); a missing file starts empty. */
+	/**
+	* Applies an edit to the file's text (LF line endings); a missing file starts empty. An edit after which the file would
+	* be larger than the limit of reading it is refused (decision D-166): neither the next apply nor doctor could read the
+	* file it wrote, so apply would not be idempotent and doctor would report the file as unreadable.
+	*/
 	edit(file, change) {
 		const entry = this.#load(file);
-		entry.body = change(entry.body);
+		const body = change(entry.body);
+		const limit = readLimitFor(file);
+		const over = () => {
+			const bytes = Buffer.byteLength(body);
+			if (entry.style.eol === "\n" && bytes + 3 <= limit) return false;
+			return Buffer.byteLength(restoreStyle(body, entry.style, entry.original ?? void 0)) > limit;
+		};
+		if (body.length > limit / 4 && over()) {
+			const name = this.#name(file);
+			throw Object.assign(this.#fail(file, { kind: "result-too-large" }, `${name} would be larger than ${mebibytes(limit)} after this change, more than depcurfew reads, so depcurfew does not edit it`), { fix: `Make ${name} smaller (for example by removing entries or comments it no longer needs), so that it stays under ${mebibytes(limit)} with the settings depcurfew adds, then run depcurfew apply again` });
+		}
+		entry.body = body;
 	}
 	changes() {
 		const changes = [];
@@ -31695,11 +35400,15 @@ function unchanged(realRoot, entry) {
 * creates to the owner `ownerOfNew` names for its real path, so that a directory a symlink led elsewhere (out of the
 * home directory) is not given away. Each is checked with lstat after mkdir: a directory that root just made, not a
 * symlink that the owner of the parent put there meanwhile; lchown does not follow a symlink either, so a swap between
-* the check and lchown gives away the link at most, never what it points to. Without an owner it is mkdir -p.
+* the check and lchown gives away the link at most, never what it points to. Without an owner it is mkdir -p. `mode`
+* is the mode of each directory it creates, which the umask narrows (osv update, decision D-168).
 */
-function makeDirectories(directory, ownerOfNew) {
+function makeDirectories(directory, ownerOfNew, mode) {
 	if (ownerOfNew === void 0) {
-		mkdirSync(directory, { recursive: true });
+		mkdirSync(directory, {
+			recursive: true,
+			...mode === void 0 ? {} : { mode }
+		});
 		return;
 	}
 	const missing = [];
@@ -31710,7 +35419,7 @@ function makeDirectories(directory, ownerOfNew) {
 	const changed = (level) => Object.assign(/* @__PURE__ */ new Error(`${level} changed while it was created`), { code: "EEXIST" });
 	for (const level of missing) {
 		try {
-			mkdirSync(level);
+			mkdirSync(level, mode === void 0 ? void 0 : { mode });
 		} catch (error) {
 			if (codeOf(error) === "EEXIST" && lstatSync(level).isDirectory()) continue;
 			throw error;
@@ -32133,6 +35842,20 @@ function omittedOptionalText(known, place) {
 }
 
 // src/apply/index.ts
+/**
+* The versions root CI jobs declare for the package managers of a project (decision D-173): the declarations of setup
+* steps (source github-actions) of a job of the root whose run steps all work in the project's directory, from the
+* root's package managers and those its CI sets up for the projects (ciForProjects).
+*/
+function rootCiVersions(rootDetection, project) {
+	const found = {};
+	const inProject = (job) => job?.directories !== void 0 && job.directories.length > 0 && job.directories.every((directory) => directory !== "" && projectOf({ directory }, [project]) === project);
+	for (const manager of [...rootDetection.packageManagers, ...rootDetection.ciForProjects ?? []]) {
+		const declarations = manager.versions.filter((declaration) => declaration.source === "github-actions" && inProject(rootDetection.jobs.find((job) => job.file === declaration.file && job.id === declaration.job)));
+		if (declarations.length > 0) found[manager.id] = [...found[manager.id] ?? [], ...declarations];
+	}
+	return found;
+}
 const DETAILS = /* @__PURE__ */ new WeakMap();
 /** What planApply configured for this report; undefined for a report it did not make. */
 function planDetails(report) {
@@ -32162,15 +35885,27 @@ function latestVersion(tool) {
 	return typeof value === "string" ? value : void 0;
 }
 /**
-* Where the pinned version is written when a lockfile records it (BUNDLED WITH of Gemfile.lock), so that
-* version-too-old points there (decision D-159); the pinned version is the first exact one, as pinnedVersion takes it.
+* Where the pinned version is written when a lockfile records it (BUNDLED WITH of Gemfile.lock, decision D-159) or the
+* release yarnPath names gives it (decision D-165), so that version-too-old points there and says how to change it; the
+* pinned version is the first exact one, as pinnedVersion takes it.
 */
-function lockfileVersionAt(manager) {
-	const declaration = manager.versions.find((entry) => "version" in entry && parseVersion(entry.version) !== void 0);
-	if (declaration?.source !== "lockfile") return void 0;
-	return declaration.line === void 0 ? { file: declaration.file } : {
+function pinOf(manager, tool) {
+	const declaration = pinnedDeclaration(manager);
+	if (declaration?.source !== "lockfile" && declaration?.source !== "yarnPath") return void 0;
+	const at = declaration.line === void 0 ? { file: declaration.file } : {
 		file: declaration.file,
 		line: declaration.line
+	};
+	if (declaration.source === "lockfile") return { at };
+	const note = yarnPathNote(manager, declaration);
+	const fix = (needed) => {
+		const command = setVersionText(tool, needed, "or a later release", declaration.file);
+		return command === void 0 ? void 0 : `${command}, then run depcurfew apply again`;
+	};
+	return {
+		at,
+		...note === void 0 ? {} : { note },
+		fix
 	};
 }
 /** Detection warnings about a file it could not read or parse (the codes of unreadable-config for single files). */
@@ -32230,6 +35965,7 @@ function allowListWarnings(root, workspace, policy, detection, targets, tools) {
 			...tool === void 0 ? {} : { tool },
 			...version === void 0 ? {} : { version }
 		};
+		const unread = unreadAllowList(tool, version);
 		return remainingConflicts(repository, planned, manager.id, manager.configFiles, options, scripts).map((conflict) => {
 			const { entry } = conflict;
 			const location = {
@@ -32238,7 +35974,7 @@ function allowListWarnings(root, workspace, policy, detection, targets, tools) {
 			};
 			const name = `${tool?.name ?? manager.id}: `;
 			if (conflict.kind === "outside") {
-				const text = outsideConflictText(entry, true);
+				const text = outsideConflictText(entry, true, unread);
 				return {
 					code: "allow-list-entry-outside-policy",
 					tool: manager.id,
@@ -32250,7 +35986,7 @@ function allowListWarnings(root, workspace, policy, detection, targets, tools) {
 			const text = denyConflictText({
 				kind: conflict.kind,
 				entry
-			}, true);
+			}, true, unread);
 			return {
 				code: "deny-conflicts-with-file",
 				tool: manager.id,
@@ -32360,8 +36096,7 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 	}
 	for (const manager of detection.packageManagers) if (!manager.supported && (policy.targets === "auto" || targets.has(manager.id))) {
 		const berry = tools.find((tool) => tool.id === manager.id);
-		const since = berry === void 0 ? void 0 : sinceOf(berry.cooldown.availableSince);
-		const advice = manager.variant === "classic" && berry !== void 0 ? `Move to ${berry.name}${since === void 0 ? "" : ` ${since} or later`}, or to another package manager depcurfew configures` : `Configure ${manager.id} by hand, or move to a package manager depcurfew configures`;
+		const advice = manager.variant === "classic" && berry !== void 0 ? yarnClassicFix(berry) : `Configure ${manager.id} by hand, or move to a package manager depcurfew configures`;
 		warnings.push({
 			code: "tool-not-supported",
 			tool: manager.id,
@@ -32399,7 +36134,7 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 		fix: "Run depcurfew explain to see what depcurfew detects"
 	});
 	const botTargets = /* @__PURE__ */ new Set([...targets, ...options.projects?.targets ?? []]);
-	const run = (tool, version, action, inUse, versionAt) => {
+	const run = (tool, version, action, inUse, pin) => {
 		const view = tool.kind === "package-manager" ? policyFor(policy, ecosystemOfTool(tool)) : policy;
 		const context = createContext({
 			tool,
@@ -32414,7 +36149,7 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 			failures,
 			...inUse === void 0 ? {} : { inUse },
 			...options.project === void 0 ? {} : { project: options.project },
-			...versionAt === void 0 ? {} : { versionAt }
+			...pin === void 0 ? {} : { pin }
 		});
 		workspace.startTool(tool.id);
 		try {
@@ -32438,7 +36173,12 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 	for (const tool of tools) {
 		const generator = MANAGERS[tool.id];
 		if (generator === void 0 || !targets.has(tool.id)) continue;
-		const manager = detection.packageManagers.find((entry) => entry.id === tool.id);
+		const own = detection.packageManagers.find((entry) => entry.id === tool.id);
+		const inherited = options.pins?.[tool.id] ?? [];
+		const manager = own === void 0 || inherited.length === 0 ? own : {
+			...own,
+			versions: [...own.versions, ...inherited]
+		};
 		const version = manager === void 0 ? void 0 : pinnedVersion(manager);
 		if (version === void 0) {
 			const latest = latestVersion(tool);
@@ -32452,7 +36192,7 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 		run(tool, version, (context) => {
 			const minutes = generator(context);
 			if (minutes !== void 0) managerMinutes.push(minutes);
-		}, tool.id === "npm" && manager !== void 0 ? npmVersionsInUse(root, detection, policy, options) : void 0, manager === void 0 ? void 0 : lockfileVersionAt(manager));
+		}, tool.id === "npm" && manager !== void 0 ? npmVersionsInUse(root, detection, policy, options) : void 0, manager === void 0 ? void 0 : pinOf(manager, tool));
 	}
 	const duration = policy.cooldown === void 0 ? void 0 : botDuration(policy.cooldown.minimum, [...managerMinutes, ...options.projects?.managerMinutes ?? []]);
 	for (const tool of tools) {
@@ -32467,6 +36207,7 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 	warnings.push(...optionalDependencyWarnings(root, policy, detection, targets, tools));
 	const changes = workspace.changes();
 	if (policy.cooldown !== void 0) warnings.push(...shortenedDelays(root, changes, detection, tools, targets, policy.cooldown.minimum.text));
+	if (policy.cooldown !== void 0) warnings.push(...droppedExclusions(root, changes, detection, tools, targets));
 	if (options.project === void 0) warnings.push(...ignoredFileWarnings(root, changes));
 	const errors = failures.map((failure) => `${tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool}: cannot edit ${failure.file}: ${failure.message}`);
 	const report = {
@@ -32504,10 +36245,12 @@ function npmVersionsInUse(root, detection, policy, options) {
 function projectPlanOptions(rootDetection, project, detection) {
 	const ci = jobsInProject(rootDetection, project);
 	const root = rootPlaces(rootDetection, project, detection);
+	const pins = rootCiVersions(rootDetection, project);
 	return {
 		project,
 		...ci.jobs.length === 0 ? {} : { ci },
-		...root.versions.length === 0 && root.dockerfiles.length === 0 ? {} : { root }
+		...root.versions.length === 0 && root.dockerfiles.length === 0 ? {} : { root },
+		...Object.keys(pins).length === 0 ? {} : { pins }
 	};
 }
 /** The files a message about a project may name, relative to the project: what detection found and what the plan touched. */
@@ -33030,10 +36773,16 @@ function checkRunExternalId(annotations) {
 function checkRunName(directory) {
 	return directory === "" ? CHECK_RUN_NAME : `${CHECK_RUN_NAME} (${directory})`;
 }
-/** The commit the check belongs to: the head of a pull request (GITHUB_SHA is the merge commit there), else GITHUB_SHA. */
+/**
+* The commit the check belongs to: the head of the pull request for the events whose GITHUB_SHA is its merge commit
+* (pull_request and its reviews), else GITHUB_SHA. Under pull_request_target GITHUB_SHA is the base branch, which is what
+* the workflow checks out by default: the check stays there, so it never marks the head of a pull request it did not
+* check as passed (decision D-169).
+*/
 function checkRunSha(env, facts) {
 	const eventPath = env[facts.variables.eventPath];
-	if (eventPath !== void 0 && eventPath !== "") try {
+	const event = env[facts.variables.eventName];
+	if (event !== void 0 && facts.mergeCommitEvents.includes(event) && eventPath !== void 0 && eventPath !== "") try {
 		let value = JSON.parse(readFileSync(eventPath, "utf8"));
 		for (const key of facts.pullRequestHeadSha) value = typeof value === "object" && value !== null ? value[key] : void 0;
 		if (typeof value === "string" && /^[0-9a-f]{40,64}$/u.test(value)) return value;
@@ -33388,12 +37137,16 @@ function usesBot(scope, ids) {
 function readsLockfile(tools, id) {
 	return tools.find((tool) => tool.id === id)?.extra?.["lockfileFormat"] !== void 0;
 }
+/** Yarn Classic: not configured, but known-malicious reads its yarn.lock (decision D-165). */
+function isYarnClassic(manager) {
+	return manager.id === "yarn" && manager.variant === "classic";
+}
 /**
 * A package manager has a lockfile depcurfew reads, or for pip requirements files, which say where packages come from
-* too.
+* too; with yarnClassic, also the yarn.lock of Yarn Classic.
 */
-function hasLockfile(scope) {
-	return scope.detection.packageManagers.some((manager) => manager.supported && readsLockfile(scope.tools, manager.id) && (manager.evidence.some((evidence) => evidence.kind === "lockfile") || manager.id === "pip" && manager.configFiles.length > 0));
+function hasLockfile(scope, options = {}) {
+	return scope.detection.packageManagers.some((manager) => (manager.supported || options.yarnClassic === true && isYarnClassic(manager)) && readsLockfile(scope.tools, manager.id) && (manager.evidence.some((evidence) => evidence.kind === "lockfile") || manager.id === "pip" && manager.configFiles.length > 0));
 }
 
 // src/doctor/rules/unreadable-config.ts
@@ -33627,7 +37380,7 @@ function renovateDelays(context, bot, file) {
 	const config = readRenovateConfig(text, file, base);
 	const updateTypes = extraOf(bot, "delayedUpdateTypes", (value) => Array.isArray(value) && value.every((item) => typeof item === "string"));
 	return targets.flatMap(({ target, managers }) => {
-		const delay = renovateDelay(bot, config, target);
+		const delay = renovateDelay$1(bot, config, target);
 		if (!delay.known) return [{
 			bot,
 			managers,
@@ -33674,6 +37427,11 @@ function renovateDelays(context, bot, file) {
 				scope: types.length === updateTypes.length ? scopeOf(target, "updates") : `${listing$1(types)} ${scopeOf(target, "updates")}`,
 				applies,
 				...source?.rule === void 0 ? {} : { rule: source.rule },
+				...source?.rule !== void 0 && isOwnRule(config.rules.find((entry) => entry.index === source.rule)?.rule["description"]) ? { ownRule: true } : {},
+				...source?.preset === void 0 ? {} : { preset: {
+					...source.preset,
+					value: source.value
+				} },
 				...index === 0 && delay.unreadable.length > 0 ? { unreadableRules: delay.unreadable } : {},
 				...index === 0 ? {} : { secondary: true }
 			};
@@ -33958,9 +37716,24 @@ function compare(context, delay, reference) {
 	context.report({
 		location: delay.location,
 		message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? "without waiting" : `after ${describe$1(delay.minutes)}`} (${delay.origin}), but ${reference.waits}`,
-		fix: delay.fix ?? (delay.rule !== void 0 ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe$1(reference.minutes)}, or limit the rule to the ${reference.things} that need a shorter delay` : delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(reference.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(reference.minutes)}, or run depcurfew apply`)
+		fix: delay.fix ?? (delay.preset !== void 0 ? presetFix(context, delay, delay.preset, reference) : delay.rule !== void 0 && delay.ownRule !== true ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe$1(reference.minutes)}, or limit the rule to the ${reference.things} that need a shorter delay` : delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(reference.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(reference.minutes)}, or run depcurfew apply`)
 	});
 	return true;
+}
+/**
+* The fix when a built-in preset of extends sets the shorter delay (decision D-171): its rule wins over the top-level
+* value, so only a packageRules entry for its datasource helps, which Renovate applies after the rules of the preset
+* (extra.packageRulesOrder). depcurfew apply writes one when cooldown.minimum is longer than the preset's delay; it
+* does not edit the deprecated package.json key or a file it cannot read.
+*/
+function presetFix(context, delay, preset, reference) {
+	const file = delay.location?.file ?? "";
+	const entry = `a packageRules entry with matchDatasources ${JSON.stringify([preset.datasource])} and a minimumReleaseAge of at least ${describe$1(reference.minutes)}`;
+	if (delay.applies === false) return `Add ${entry} to ${file} (depcurfew apply does not edit it); ${delay.bot.name} applies it after the rules of the preset ${preset.name}`;
+	const minimum = context.policy?.cooldown?.minimum.minutes;
+	const presetDelay = delayMinutes(delay.bot, preset.value, latestVersion$1(delay.bot));
+	const writes = minimum !== void 0 && presetDelay.ok && minimum > presetDelay.minutes;
+	return `Add ${entry} to ${file}, which ${delay.bot.name} applies after the rules of the preset ${preset.name}, or run depcurfew apply${writes ? ", which adds one" : ""}`;
 }
 /**
 * Whether the scope has something a bot's delay is compared with: a package manager, the actions of workflows, or the
@@ -34102,14 +37875,15 @@ function checkManagers(context) {
 		const setting = settingOf(knowledge.cooldown.exclude.setting);
 		if (setting === null) continue;
 		const files = manager.id === "deno" ? manager.configFiles.filter((file) => /^deno\.jsonc?$/u.test(file)) : (values$1(knowledge.cooldown.configFiles)[0] ?? []).slice(0, 1);
+		const version = pinnedVersion(manager) ?? latestVersion$1(knowledge);
 		for (const file of files) {
-			const found = readSetting(context.repository, file, setting);
+			const found = readToolSetting(context.repository, knowledge, version, file, setting);
 			const items = Array.isArray(found?.value) ? found.value : isRecord(found?.value) ? Object.keys(found.value) : void 0;
 			if (found === void 0 || items === void 0) continue;
 			const broad = (item) => isBroad(item) || ecosystemOfTool(knowledge) === "packagist" && matchesEveryComposerName(item);
 			for (const pattern of items.filter((item) => typeof item === "string" && broad(item))) context.report({
 				location: {
-					file,
+					file: found.file,
 					line: found.line
 				},
 				message: `${setting} contains "${pattern}", so ${knowledge.name} applies no release-age delay to any package`,
@@ -34270,6 +38044,7 @@ function checkRenovate(context, file) {
 		matching.fileMatcher,
 		matching.depTypeMatcher
 	];
+	const reported = /* @__PURE__ */ new Set();
 	for (const { index, line, rule } of config.rules) {
 		if (!("minimumReleaseAge" in rule)) continue;
 		const delay = delayMinutes(bot, rule["minimumReleaseAge"], latestVersion$1(bot));
@@ -34284,6 +38059,7 @@ function checkRenovate(context, file) {
 		const first = covered[0];
 		if (first === void 0) continue;
 		const { scope } = first;
+		reported.add(index);
 		context.report({
 			location: {
 				file,
@@ -34293,12 +38069,145 @@ function checkRenovate(context, file) {
 			fix: "Match only the packages that need the exception, e.g. with matchPackageNames: [\"@your-scope/*\"]"
 		});
 	}
+	const registries = managerTargets(bot, detected.length > 0 ? detected : context.tools).flatMap(({ target, tools }) => {
+		const ecosystem = tools[0] === void 0 ? void 0 : ecosystemOfTool(tools[0]);
+		return ecosystem === void 0 ? [] : [{
+			target,
+			ecosystem
+		}];
+	});
+	const edits = /\.jsonc?$/u.test(file) && file !== packageJson.file;
+	ownRuleDatasources(context, bot, file, config, matching, registries, [...botOnly, ...actions === void 0 ? [] : [actions]], reported, edits);
+	exemptions(context, bot, file, config, matching, registries, reported, edits);
+}
+const REGISTRY_LABELS = {
+	npm: "npm",
+	pypi: "Python",
+	packagist: "Composer",
+	rubygems: "Ruby"
+};
+const POLICY_PREFIXES = {
+	npm: "",
+	pypi: PYPI_PREFIX,
+	packagist: COMPOSER_PREFIX
+};
+/** The datasource each rule depcurfew apply writes for the names of one registry is limited to (decision D-171). */
+const OWN_RULES = [
+	{
+		description: RULE_DESCRIPTION,
+		ecosystem: "npm"
+	},
+	{
+		description: PYTHON_RULE_DESCRIPTION,
+		ecosystem: "pypi"
+	},
+	{
+		description: COMPOSER_RULE_DESCRIPTION,
+		ecosystem: "packagist"
+	}
+];
+/** A target as messages name it: "npm packages", "Cargo dependencies", "GitHub Actions". */
+function targetLabel(target, registries) {
+	if (target.actions === true) return "GitHub Actions";
+	if (target.ecosystem !== void 0) return `${botEcosystemFact(target.ecosystem)?.client ?? target.ecosystem} dependencies`;
+	const ecosystem = registries.find((entry) => entry.target === target)?.ecosystem;
+	return `${ecosystem === void 0 ? target.datasource ?? "other" : REGISTRY_LABELS[ecosystem]} packages`;
+}
+/**
+* A rule depcurfew apply writes for the names of one registry (recognized by its description) that is not limited to
+* that registry's datasource, as earlier versions of depcurfew wrote the rule for npm names (with no matchDatasources, or with only
+* negative ones): it exempts packages of the same names from every other datasource too, the crates, Go modules and
+* actions of the repository among them, which cooldown.exclude never names (decisions D-065 and D-171).
+*/
+function ownRuleDatasources(context, bot, file, config, matching, registries, others, reported, edits) {
+	const datasources = extraOf(bot, "datasources", isRecord);
+	const negation = matching.negation;
+	for (const { index, line, rule } of config.rules) {
+		const own = OWN_RULES.find((entry) => entry.description === rule["description"]);
+		const datasource = own === void 0 ? void 0 : datasources[own.ecosystem];
+		if (own === void 0 || typeof datasource !== "string" || reported.has(index) || !("minimumReleaseAge" in rule)) continue;
+		const written = rule[matching.datasourceMatcher];
+		if (Array.isArray(written) && written.length > 0 && written.every((item) => typeof item === "string" && !item.startsWith(negation) && item.toLowerCase() === datasource)) continue;
+		const targets = [...registries.map((entry) => entry.target), ...others];
+		const reached = [...new Set(targets.filter((target) => target.datasource !== datasource && ruleReaches(bot, rule, target) === true).map((target) => targetLabel(target, registries)))];
+		const wanted = JSON.stringify([datasource]);
+		reported.add(index);
+		context.report({
+			location: {
+				file,
+				line
+			},
+			message: `packageRules[${index}] in ${file}, the rule depcurfew apply writes for the ${REGISTRY_LABELS[own.ecosystem]} names of cooldown.exclude in ${POLICY_FILE}, is not limited to ${matching.datasourceMatcher} ${wanted}, so it also turns off minimumReleaseAge for packages of the same names from other datasources${reached.length === 0 ? "" : `, ${listing$1(reached)} among them`}`,
+			fix: edits ? `Run depcurfew apply, which limits the rule to ${matching.datasourceMatcher} ${wanted}` : `Add ${matching.datasourceMatcher}: ${wanted} to packageRules[${index}] of ${file}, as the snippet of depcurfew apply shows it (depcurfew apply does not edit ${file})`
+		});
+	}
+}
+/**
+* Whether a positive pattern of a rule names only packages that one of the policy's patterns exempts: the same pattern,
+* or one the policy's pattern matches as text (its * stands for any text, so it covers whatever the * of the rule's
+* pattern stands for: "@acme/*" covers "@acme/ui" and "@acme/ui-*"). A /regex/ is compared as written only.
+*/
+function exempted(bot, pattern, policy) {
+	const normal = (text) => text.toLowerCase().replaceAll("**", "*");
+	if (policy.some((item) => normal(item) === normal(pattern))) return true;
+	if (/^\/.*\/i?$/u.test(pattern)) return false;
+	return policy.some((item) => matchesName(bot, normal(pattern), item) === true);
+}
+/**
+* packageRules entries that give npm, Python or Composer packages of some names a shorter delay than cooldown.minimum,
+* or none, while cooldown.exclude does not exempt them (decision D-171): an exception the policy does not make, like a
+* Yarn npmScopes entry. Only the registries the policy names packages of count: the exceptions of actions, Ruby gems
+* and the ecosystems updated by bots only stay the repository's own, as in Dependabot (decision D-152). A rule that
+* covers every package is the business of the checks above and of bot-cooldown-mismatch.
+*/
+function exemptions(context, bot, file, config, matching, registries, reported, edits) {
+	const cooldown = context.policy?.cooldown;
+	if (cooldown === void 0) return;
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", (value) => Array.isArray(value) && value.every((item) => typeof item === "string"));
+	for (const { index, line, rule } of config.rules) {
+		if (reported.has(index) || !("minimumReleaseAge" in rule)) continue;
+		const delay = delayMinutes(bot, rule["minimumReleaseAge"], latestVersion$1(bot));
+		if (!delay.ok || delay.minutes >= cooldown.minimum.minutes) continue;
+		const positive = (namePatterns(bot, rule) ?? []).filter((pattern) => !pattern.startsWith(matching.negation));
+		if (positive.length === 0 || positive.some(matchesEveryName)) continue;
+		const types = ruleUpdateTypes(bot, rule);
+		if (types === void 0 || types.length === 0) continue;
+		const found = registries.flatMap(({ target, ecosystem }) => {
+			const prefix = POLICY_PREFIXES[ecosystem];
+			if (prefix === void 0 || ruleReaches(bot, rule, target) !== true) return [];
+			const policy = patternsFor(cooldown.exclude, ecosystem);
+			const names = positive.filter((pattern) => !exempted(bot, pattern, policy));
+			return names.length === 0 ? [] : [{
+				label: REGISTRY_LABELS[ecosystem],
+				names,
+				prefix
+			}];
+		});
+		if (found.length === 0) continue;
+		const names = [...new Set(found.flatMap((entry) => entry.names))];
+		const quoted = listing$1(names.map((name) => JSON.stringify(name)));
+		const labels = [...new Set(found.map((entry) => entry.label))];
+		const where = `${listing$1(labels)} packages`;
+		const scope = types.length === updateTypes.length ? quoted : `${listing$1(types)} updates of ${quoted}`;
+		const own = OWN_RULES.some((entry) => entry.description === rule["description"]);
+		const additions = [...new Set(found.flatMap((entry) => entry.names.map((name) => JSON.stringify(`${entry.prefix}${name}`))))];
+		const add = names.every((name) => !/^\/.*\/i?$/u.test(name)) ? `Add ${listing$1(additions)} to cooldown.exclude in ${POLICY_FILE}` : `List the packages in cooldown.exclude in ${POLICY_FILE}`;
+		const then = (rules) => `depcurfew apply then ${edits ? "writes" : "shows in a snippet"} the ${rules} for them`;
+		context.report({
+			location: {
+				file,
+				line
+			},
+			message: delay.minutes === 0 ? `packageRules[${index}] in ${file} turns off minimumReleaseAge for ${scope} (${where}), which cooldown.exclude in ${POLICY_FILE} does not exempt` : `packageRules[${index}] in ${file} sets minimumReleaseAge: ${JSON.stringify(rule["minimumReleaseAge"])} for ${scope} (${where}), shorter than cooldown.minimum "${cooldown.minimum.text}" in ${POLICY_FILE}, which cooldown.exclude does not exempt them from`,
+			fix: own ? edits ? `Run depcurfew apply, which writes the rule from cooldown.exclude in ${POLICY_FILE}` : `Write packageRules[${index}] of ${file} as the snippet of depcurfew apply shows it, from cooldown.exclude in ${POLICY_FILE} (depcurfew apply does not edit ${file})` : labels.length === 1 ? `${add} if these packages need no delay (${then("rule")}), or remove the exception from packageRules[${index}] of ${file}` : `${add} if these packages need no delay (${then("rules")}), limit packageRules[${index}] of ${file} with ${matching.datasourceMatcher} to the registry it is meant for, or remove the exception from it`
+		});
+	}
 }
 const broadExclusion = {
 	id: "broad-exclusion",
-	checks: "No exception list or per-scope setting turns the release-age delay off",
-	summary: "An exception list matches every package, or a per-scope setting shortens the delay, which turns the protection off.",
-	description: "A release-age exception such as \"*\" (or a policy allow-list entry such as \"@*/*\") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, Renovate manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name, and, when depcurfew.json sets a cooldown for Renovate and the repository has workflows, for the github-actions manager, every workflow file (matchFileNames) or the depType action (matchDepTypes), or, when it has the files of Cargo, Go modules, Maven, Gradle or NuGet, for their Renovate manager (cargo, gomod, maven, gradle, nuget), category or datasource. In Yarn 4.17 and later, npmScopes.<scope>.npmMinimalAgeGate replaces the delay for one scope, so a shorter value there exempts that scope.",
+	checks: "No exception list, per-scope setting or Renovate rule turns the release-age delay off beyond cooldown.exclude",
+	summary: "An exception list matches every package, or a per-scope setting or a Renovate rule exempts packages cooldown.exclude does not, which turns the protection off.",
+	description: "A release-age exception such as \"*\" (or a policy allow-list entry such as \"@*/*\") looks narrow but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns; with a cooldown for Renovate, also for the actions of the workflows (the github-actions manager, every workflow file, the depType action) and for Cargo, Go modules, Maven, Gradle or NuGet in the repository. A Renovate rule that gives npm, Python or Composer packages of some names a shorter delay than cooldown.minimum is an exception cooldown.exclude must make too, and a rule depcurfew apply wrote for the names of one registry must be limited to its datasource. In Yarn 4.17 and later, a shorter npmScopes.<scope>.npmMinimalAgeGate exempts that scope.",
 	help: "Replace the pattern with the packages or scopes that really need the exception.",
 	level: "error",
 	requiresPolicy: false,
@@ -34453,8 +38362,307 @@ function bundleConfigValue(text, key) {
 	};
 }
 
+// src/doctor/ci-settings.ts
+const ENV_KEY = evidenceOf(environment.githubActions.environmentKeys)[0]?.value.key ?? "env";
+const CONTAINER = evidenceOf(environment.githubActions.jobContainer)[0]?.value ?? {
+	key: "container",
+	imageKey: "image",
+	envKey: "env"
+};
+const ENVIRONMENT_FILE = evidenceOf(environment.githubActions.environmentFile)[0]?.value.variable ?? "GITHUB_ENV";
+const EXPANDS_ALIASES = evidenceOf(environment.githubActions.yamlAliases)[0]?.value.accepted === true;
+const SYNTAX = evidenceOf(environment.docker.syntax)[0]?.value;
+const DOCKER_ENV = evidenceOf(environment.docker.environment)[0]?.value;
+const BUILD_ARGUMENTS = evidenceOf(environment.docker.buildArguments)[0]?.value;
+const READ = /* @__PURE__ */ new WeakMap();
+/** An extra fact of a tool as its value, or undefined. */
+function extraValue(key) {
+	return knowledgeBase.flatMap((tool) => tool.extra?.[key] === void 0 ? [] : evidenceOf(tool.extra[key]).map((entry) => entry.value));
+}
+const isObject$2 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+const listOf = (value) => Array.isArray(value) ? value : [];
+/**
+* The variables the rules look at, in lower case (a superset of each tool's spellings): those of installOverrides,
+* Composer's environmentOverrides, Bundler's cooldownSetting and npm's settingOverrides. Others are not kept, so that a
+* workflow or a Dockerfile with thousands of other variables costs little (decision D-121).
+*/
+const WATCHED_VARIABLES = new Set([...extraValue("installOverrides").flatMap((value) => isObject$2(value) ? listOf(value["variables"]) : []), ...extraValue("environmentOverrides").flatMap(listOf)].flatMap((entry) => isObject$2(entry) && typeof entry["name"] === "string" ? [entry["name"]] : []).concat(extraValue("cooldownSetting").flatMap((value) => isObject$2(value) && typeof value["variable"] === "string" ? [value["variable"]] : [])).concat(extraValue("settingOverrides").flatMap((value) => isObject$2(value) && typeof value["variablePrefix"] === "string" ? listOf(value["settings"]).flatMap((entry) => isObject$2(entry) && typeof entry["setting"] === "string" ? [`${String(value["variablePrefix"])}${entry["setting"].replaceAll("-", "_")}`] : []) : [])).map((name) => name.toLowerCase()));
+/** The programs the rules look at: those of each tool's commandLine, Bundler's executables and composer. */
+const WATCHED_PROGRAMS = /* @__PURE__ */ new Set([...extraValue("commandLine").flatMap((value) => isObject$2(value) ? [...listOf(value["add"]), ...listOf(value["run"]).map((entry) => isObject$2(entry) ? entry["command"] : void 0)].flatMap((command) => Array.isArray(command) && typeof command[0] === "string" ? [command[0]] : []) : []), ...extraValue("resolveCommands").flatMap((value) => isObject$2(value) ? listOf(value["executables"]).filter((item) => typeof item === "string") : [])]);
+const watchedVariable = (name) => WATCHED_VARIABLES.has(name.toLowerCase());
+const watchedProgram = (word) => word !== void 0 && WATCHED_PROGRAMS.has(programName(word));
+/** The settings of the workflows and Dockerfiles detection found, read once per repository. */
+function ciSettings(repository, detection) {
+	let found = READ.get(repository);
+	if (found === void 0) {
+		found = {
+			variables: [],
+			commands: []
+		};
+		for (const file of detection.workflows) readWorkflow(repository, file, found);
+		for (const dockerfile of detection.dockerfiles) readDockerfileSettings(repository, dockerfile.file, found);
+		READ.set(repository, found);
+	}
+	return found;
+}
+function scalarText(node) {
+	if (!(0, import_dist.isScalar)(node) || node.value === null || node.value === void 0) return void 0;
+	return String(node.value);
+}
+/** Reads an alias as the node of its anchor, as GitHub does (decision D-141), at most MAX_YAML_ALIASES of them in a file. */
+function resolver(document) {
+	let left = 100;
+	return (node) => {
+		if (!(0, import_dist.isAlias)(node)) return node;
+		if (!EXPANDS_ALIASES || left <= 0) return void 0;
+		left -= 1;
+		return node.resolve(document);
+	};
+}
+function readWorkflow(repository, file, found) {
+	const text = repository.readText(file);
+	if (text === void 0) return;
+	const { document, lineCounter } = readYamlDocument(text);
+	if (document.errors.length > 0) return;
+	const resolve = resolver(document);
+	const lineOf = (node) => node === null || node === void 0 || node.range === void 0 || node.range === null ? void 0 : lineCounter.linePos(node.range[0]).line;
+	const envMap = (node, where) => {
+		const map = resolve(node);
+		if (!(0, import_dist.isMap)(map)) return;
+		for (const pair of map.items) {
+			const name = scalarText(pair.key);
+			const value = scalarText(resolve(pair.value));
+			if (name === void 0 || value === void 0 || !watchedVariable(name)) continue;
+			const line = lineOf(pair.key);
+			found.variables.push({
+				name,
+				value,
+				kind: "env",
+				file,
+				...line === void 0 ? {} : { line },
+				where
+			});
+		}
+	};
+	const root = document.contents;
+	if (!(0, import_dist.isMap)(root)) return;
+	envMap(root.get(ENV_KEY, true), "the workflow");
+	const jobs = resolve(root.get("jobs", true));
+	if (!(0, import_dist.isMap)(jobs)) return;
+	for (const pair of jobs.items) {
+		const id = scalarText(pair.key);
+		const job = resolve(pair.value);
+		if (id === void 0 || !(0, import_dist.isMap)(job)) continue;
+		const label = jobLabel(id, lineOf(pair.key));
+		envMap(job.get(ENV_KEY, true), label);
+		const container = resolve(job.get(CONTAINER.key, true));
+		if ((0, import_dist.isMap)(container)) envMap(container.get(CONTAINER.envKey, true), `the container of ${label}`);
+		const steps = resolve(job.get("steps", true));
+		if (!(0, import_dist.isSeq)(steps)) continue;
+		steps.items.forEach((item, index) => {
+			const step = resolve(item);
+			if (!(0, import_dist.isMap)(step)) return;
+			envMap(step.get(ENV_KEY, true), `step ${index + 1} of ${label}`);
+			const run = resolve(step.get("run", true));
+			if (!(0, import_dist.isScalar)(run) || typeof run.value !== "string" || run.range === void 0 || run.range === null) return;
+			const start = run.range[0];
+			const script = readScript(text.slice(start, run.range[1]), ENVIRONMENT_FILE);
+			const at = (offset) => lineCounter.linePos(start + offset).line;
+			for (const variable of script.variables) {
+				if (!watchedVariable(variable.name)) continue;
+				const kind = variable.how === "environment-file" ? "environment-file" : variable.how === "export" ? "export" : "command";
+				const program = kind === "command" ? variable.program : void 0;
+				found.variables.push({
+					name: variable.name,
+					value: variable.value,
+					kind,
+					file,
+					line: at(variable.offset),
+					where: label,
+					...program === void 0 ? {} : { program }
+				});
+			}
+			for (const command of script.commands) if (watchedProgram(command.words[0]?.text)) found.commands.push({
+				words: command.words.map((word) => word.text),
+				file,
+				line: at(command.offset),
+				where: label,
+				dockerfile: false
+			});
+		});
+	}
+}
+/** A stage as messages name it, as bundler-config-weakens does: "stage build", or "the stage at line 1". */
+function stageName(name, line) {
+	return name === void 0 ? `the stage at line ${line}` : `stage ${name}`;
+}
+function readDockerfileSettings(repository, file, found) {
+	if (SYNTAX === void 0 || DOCKER_ENV === void 0) return;
+	const text = repository.readText(file);
+	if (text === void 0) return;
+	const global = /* @__PURE__ */ new Map();
+	let stage;
+	const fromScript = (script, line, where) => {
+		const reading = readScript(script);
+		for (const variable of reading.variables) {
+			if (!watchedVariable(variable.name)) continue;
+			const kind = variable.how === "export" ? "run-export" : "run-command";
+			const program = kind === "run-command" ? variable.program : void 0;
+			found.variables.push({
+				name: variable.name,
+				value: variable.value,
+				kind,
+				file,
+				line: line(variable.offset),
+				where,
+				...program === void 0 ? {} : { program }
+			});
+		}
+		for (const command of reading.commands) if (watchedProgram(command.words[0]?.text)) found.commands.push({
+			words: command.words.map((word) => word.text),
+			file,
+			line: line(command.offset),
+			where,
+			dockerfile: true
+		});
+	};
+	for (const instruction of readDockerfileOnce(text, SYNTAX)) {
+		if (instruction.keyword === "FROM") {
+			const words = instruction.text.split(/\s+/u).filter(Boolean);
+			const position = words.findIndex((word) => !word.startsWith("--"));
+			stage = stageName(words[position + 1]?.toLowerCase() === "as" ? words[position + 2]?.toLowerCase() : void 0, instruction.line);
+			continue;
+		}
+		if (instruction.keyword === SYNTAX.globalArgInstruction && stage === void 0) {
+			for (const [name, value] of argDeclarations(instruction.text)) global.set(name, value);
+			continue;
+		}
+		if (stage === void 0) continue;
+		if (instruction.keyword === DOCKER_ENV.instruction) {
+			for (const [name, value] of envDeclarations(instruction.text, DOCKER_ENV.spaceForm)) if (watchedVariable(name)) found.variables.push({
+				name,
+				value,
+				kind: "dockerfile-env",
+				file,
+				line: instruction.line,
+				where: stage
+			});
+			continue;
+		}
+		if (BUILD_ARGUMENTS !== void 0 && BUILD_ARGUMENTS.runEnvironment && instruction.keyword === BUILD_ARGUMENTS.instruction) {
+			for (const [name, value] of argDeclarations(instruction.text)) {
+				const given = value ?? (BUILD_ARGUMENTS.globalNeedsDeclaration ? global.get(name) : void 0);
+				if (given !== void 0 && watchedVariable(name)) found.variables.push({
+					name,
+					value: given,
+					kind: "dockerfile-arg",
+					file,
+					line: instruction.line,
+					where: stage
+				});
+			}
+			continue;
+		}
+		if (instruction.keyword !== "RUN") continue;
+		const where = stage;
+		const { text: body, offset } = withoutOptions(instruction.text);
+		const exec = execWords(body);
+		if (exec !== void 0) {
+			const { command, assignments } = commandParts(exec.map((word) => ({
+				text: word,
+				offset: 0
+			})));
+			for (const [name, value] of assignments) if (watchedVariable(name)) found.variables.push({
+				name,
+				value,
+				kind: "run-command",
+				file,
+				line: instruction.line,
+				where,
+				...command[0] === void 0 ? {} : { program: command[0].text }
+			});
+			if (watchedProgram(command[0]?.text)) found.commands.push({
+				words: command.map((word) => word.text),
+				file,
+				line: instruction.line,
+				where,
+				dockerfile: true
+			});
+			continue;
+		}
+		fromScript(body, (at) => lineAt$2(instruction, offset + at), where);
+		for (const heredoc of instruction.heredocs) {
+			if (!isScript(heredoc.command)) continue;
+			const starts = [0];
+			for (let index = heredoc.body.indexOf("\n"); index >= 0; index = heredoc.body.indexOf("\n", index + 1)) starts.push(index + 1);
+			fromScript(heredoc.body, (at) => heredoc.line + lastAtOrBefore(starts, at), where);
+		}
+	}
+}
+/** The index of the last start at or before an offset, by binary search. */
+function lastAtOrBefore(starts, offset) {
+	let low = 0;
+	let high = starts.length - 1;
+	while (low < high) {
+		const middle = Math.ceil((low + high) / 2);
+		if ((starts[middle] ?? 0) <= offset) low = middle;
+		else high = middle - 1;
+	}
+	return low;
+}
+/**
+* Where a variable is set and what it reaches, for the message of a rule ("X=0 is set in the env of job build in
+* ci.yml, reaches every npm command there, and ..."), and how to remove it, by the kind of place.
+*/
+function variablePlace(variable, tool) {
+	const { file, where, name } = variable;
+	const name_ = tool;
+	switch (variable.kind) {
+		case "env": return {
+			place: `is set in the env of ${where} in ${file}`,
+			reach: `reaches every ${name_} command there`,
+			remove: `Remove ${name} from that env in ${file}`
+		};
+		case "export": return {
+			place: `is exported in a run step of ${where} in ${file}`,
+			reach: `reaches the ${name_} commands after it in that step`,
+			remove: `Remove that export of ${name} from ${file}`
+		};
+		case "command": return {
+			place: `is set for ${variable.program ?? "a command"} in a run step of ${where} in ${file}`,
+			reach: `reaches the ${name_} commands it runs`,
+			remove: `Remove ${name} from that command in ${file}`
+		};
+		case "environment-file": return {
+			place: `is written to $GITHUB_ENV in a run step of ${where} in ${file}`,
+			reach: `reaches every ${name_} command of the later steps of the job`,
+			remove: `Remove the line that writes ${name} to $GITHUB_ENV in ${file}`
+		};
+		case "dockerfile-env": return {
+			place: `is set with ENV in ${where} of ${file}`,
+			reach: `reaches every ${name_} command of the later RUN instructions there and of the stages built from it`,
+			remove: `Remove ${name} from that ENV instruction in ${file}`
+		};
+		case "dockerfile-arg": return {
+			place: `is the default of an ARG instruction in ${where} of ${file}`,
+			reach: `reaches every ${name_} command of the later RUN instructions there, which get build arguments as variables`,
+			remove: `Remove the default of ${name} from that ARG instruction in ${file} (or the ARG)`
+		};
+		case "run-export": return {
+			place: `is exported in a RUN instruction of ${where} in ${file}`,
+			reach: `reaches the ${name_} commands after it in that instruction`,
+			remove: `Remove that export of ${name} from ${file}`
+		};
+		case "run-command": return {
+			place: `is set for ${variable.program ?? "a command"} in a RUN instruction of ${where} in ${file}`,
+			reach: `reaches the ${name_} commands it runs`,
+			remove: `Remove ${name} from that command in ${file}`
+		};
+	}
+}
+
 // src/doctor/rules/bundler-config.ts
-const RULE$3 = "bundler-config-weakens";
+const RULE$4 = "bundler-config-weakens";
 /** Workflows as GitHub reads them: with their aliases expanded (environment.githubActions.yamlAliases, decision D-141). */
 const WORKFLOW_YAML$1 = evidenceOf(environment.githubActions.yamlAliases)[0]?.value.accepted === true ? { aliases: true } : {};
 const isSettingFacts = (value) => isRecord(value) && typeof value["key"] === "string" && typeof value["variable"] === "string" && typeof value["localFile"] === "string";
@@ -34574,7 +38782,7 @@ function checkWorkflowEnv(context, facts, wanted) {
 		if (text === void 0) continue;
 		const aliases = WORKFLOW_YAML$1.aliases === true ? yamlAliasProblem(text) : void 0;
 		if (aliases !== void 0) {
-			context.notice(`${RULE$3} could not read the env of ${file}: its YAML aliases cannot be expanded (${aliases})`, file, `Write the values out in place of the aliases in ${file}, then run depcurfew doctor again`);
+			context.notice(`${RULE$4} could not read the env of ${file}: its YAML aliases cannot be expanded (${aliases})`, file, `Write the values out in place of the aliases in ${file}, then run depcurfew doctor again`);
 			continue;
 		}
 		const label = (id) => jobLabel(id, yamlSetting(text, ["jobs", id], WORKFLOW_YAML$1)?.line);
@@ -34632,11 +38840,65 @@ function reportCommand(context, facts, wanted, command, file, where) {
 	});
 }
 const isBundle = (command) => command.tool === "bundler" && command.kind === "install";
+const isConfigCommandFacts = (value) => isRecord(value) && Array.isArray(value["command"]) && typeof value["set"] === "string" && Array.isArray(value["scopes"]) && typeof value["legacyArguments"] === "number";
+/**
+* The setting and value of a bundle config command that sets one (bundle config set [--local|--global] NAME VALUE, and
+* the older bundle config NAME VALUE; extra.configCommand), with the scope option given; undefined for another command.
+*/
+function configSetting(words, facts, executables) {
+	const [program, subcommand, ...rest] = words;
+	if (program === void 0 || !executables.includes(programName(program)) || subcommand !== facts.command[1]) return void 0;
+	const scope = rest.find((word) => facts.scopes.includes(word));
+	const args = rest.filter((word) => !word.startsWith("-"));
+	if (rest.includes("--delete")) return void 0;
+	const [first, ...more] = args;
+	if (first === facts.set) {
+		const [name, ...value] = more;
+		return name === void 0 || value.length === 0 ? void 0 : {
+			name,
+			value: value.join(" "),
+			...scope === void 0 ? {} : { scope }
+		};
+	}
+	if (first === void 0 || [
+		"get",
+		"unset",
+		"list"
+	].includes(first) || args.length !== facts.legacyArguments && scope === void 0 || more.length === 0) return void 0;
+	return {
+		name: first,
+		value: more.join(" "),
+		...scope === void 0 ? {} : { scope }
+	};
+}
+/** bundle config set cooldown N in run steps and RUN instructions: it writes the setting for the later bundle commands (decision D-166). */
+function checkConfigCommands$1(context, tool, facts, wanted) {
+	if (tool.extra?.["configCommand"] === void 0) return;
+	const config = extraOf(tool, "configCommand", isConfigCommandFacts);
+	const resolve = tool.extra["resolveCommands"] === void 0 ? void 0 : extraOf(tool, "resolveCommands", isRecord);
+	const executables = Array.isArray(resolve?.["executables"]) ? resolve["executables"].filter((item) => typeof item === "string") : ["bundle"];
+	for (const command of ciSettings(context.repository, context.detection).commands) {
+		const setting = configSetting(command.words, config, executables);
+		if (setting === void 0 || setting.name.toLowerCase() !== facts.key) continue;
+		const days = settingDays(setting.value);
+		const what = effect(context, days, wanted, "for the later bundle commands");
+		if (what === void 0 || days === "unset") continue;
+		const target = setting.scope === "--global" ? "~/.bundle/config" : setting.scope === "--local" ? facts.localFile : `${facts.localFile} (or ~/.bundle/config outside a project)`;
+		context.report({
+			location: {
+				file: command.file,
+				line: command.line
+			},
+			message: `${command.where} in ${command.file} (line ${command.line}) runs ${command.words.join(" ")}, which writes ${facts.key} ${setting.value} into ${target}${readAs(setting.value, days)} and ${what}`,
+			fix: `Remove that bundle config command from ${command.file}, so that the cooldown: of the Gemfile applies; for a gem that cannot wait, run bundle update GEM --cooldown 0 by hand after reviewing it`
+		});
+	}
+}
 const bundlerConfigWeakens = {
-	id: RULE$3,
-	checks: ".bundle/config, the env of CI workflows and the bundle commands of CI jobs and Dockerfiles keep the cooldown of Bundler",
+	id: RULE$4,
+	checks: ".bundle/config, the env of CI workflows and the bundle commands and bundle config of CI jobs and Dockerfiles keep the cooldown of Bundler",
 	summary: ".bundle/config, the env of a CI workflow or a bundle command in a CI job or a Dockerfile turns the cooldown of Bundler off or makes it shorter than the policy.",
-	description: "Bundler 4.0.13 and later hold back gem versions younger than the cooldown: of the Gemfile source, but the cooldown setting and the --cooldown option take its place for every source. BUNDLE_COOLDOWN in .bundle/config (which Bundler reads first, line by line and not as YAML: quotes stay unless they enclose the whole value, and # starts a comment), in the env of a CI workflow, before a bundle command or in a Dockerfile ENV, and --cooldown on bundle install, update, lock, add or cache (also bundle i, bundle package and bundle _VERSION_ install), with fewer days than depcurfew.json or 0, turn the delay off or shorten it while the Gemfile still looks configured. Bundler reads the value with to_i: one that does not start with a digit counts as 0, and 1e3 as 1. A value with a ${{ }} expression gives a warning.",
+	description: "Bundler 4.0.13 and later hold back gem versions younger than the cooldown: of the Gemfile source, but the cooldown setting and the --cooldown option take its place for every source. BUNDLE_COOLDOWN with fewer days than depcurfew.json, or 0, in .bundle/config (read line by line as Bundler reads it, not as YAML: quotes stay unless they enclose the whole value, and # starts a comment), in a CI workflow (env, $GITHUB_ENV, before a bundle command) or a Dockerfile (ENV, ARG), bundle config set cooldown N in a run step or a RUN instruction, and a shorter --cooldown on bundle install, update, lock, add or cache (also bundle i, bundle package and bundle _VERSION_ install) turn the delay off or shorten it while the Gemfile still looks configured. Bundler reads the value with to_i: one that does not start with a digit counts as 0, and 1e3 as 1. A value with a ${{ }} expression gives a warning.",
 	help: "Remove the setting, the variable or the option, or give it at least the days of the policy; take a newer version of one gem by hand with bundle update GEM --cooldown 0 after reviewing it.",
 	level: "error",
 	requiresPolicy: true,
@@ -34653,6 +38915,7 @@ const bundlerConfigWeakens = {
 		const commands = context.detection.jobs.some((job) => job.commands.some(isBundle)) || context.detection.dockerfiles.some((file) => file.stages.some((stage) => stage.commands.some(isBundle)));
 		if (!used && !commands) return;
 		if (used) checkLocalConfig(context, facts, wanted);
+		checkConfigCommands$1(context, tool, facts, wanted);
 		const reported = checkWorkflowEnv(context, facts, wanted);
 		for (const job of context.detection.jobs) {
 			const fromEnv = reported.get(`${job.file}\u0000${job.id}`) ?? /* @__PURE__ */ new Set();
@@ -34666,6 +38929,306 @@ const bundlerConfigWeakens = {
 			const name = stage.name === void 0 ? `the stage at line ${stage.line}` : `stage ${stage.name}`;
 			for (const command of stage.commands.filter(isBundle)) reportCommand(context, facts, wanted, command, dockerfile.file, `${name} in ${dockerfile.file} (line ${command.line})`);
 		}
+	}
+};
+
+// src/doctor/rules/ci-weakens-policy.ts
+const RULE$3 = "ci-weakens-policy";
+/** The tools this rule covers; pip, Composer and Bundler have rules of their own. */
+const TOOLS$1 = [
+	"npm",
+	"pnpm",
+	"yarn",
+	"bun",
+	"deno",
+	"uv",
+	"poetry",
+	"pdm"
+];
+const SOURCE_LABELS = {
+	git: "git",
+	remoteTarball: "remote tarball",
+	file: "local tarball",
+	directory: "local directory"
+};
+const isList$1 = (value) => Array.isArray(value);
+/** A tool's extra fact, or undefined when it has none. */
+function extra(tool, key) {
+	const fact = tool.extra?.[key];
+	return fact === void 0 ? void 0 : values$1(fact)[0];
+}
+/** The switch turns the tool's own switch that turns every install script off back on; apply never writes that one. */
+function reEnablesAll(tool, entry) {
+	const disable = evidenceOf(tool.installScripts.disableAll)[0]?.value;
+	if (typeof disable !== "string" || entry.weakens !== "scripts" || typeof entry.values !== "object" || !("except" in entry.values) || !entry.values.except.includes("true")) return false;
+	const bare = (name) => name.replace(/^--/u, "").replace(/^(?:npm|pnpm)_config_/iu, "").replace(/[-_]/gu, "").toLowerCase();
+	return bare(entry.name) === bare(disable.split(/[:=]/u)[0] ?? "");
+}
+/** The options and variables of one tool that weaken the policy, from the knowledge base. */
+function switchesOf(tool) {
+	const overrides = extra(tool, "installOverrides");
+	const options = /* @__PURE__ */ new Map();
+	const variables = [];
+	for (const entry of overrides?.options ?? []) {
+		if (entry.weakens === "protection") continue;
+		const item = {
+			name: entry.name,
+			weakens: entry.weakens,
+			values: entry.values
+		};
+		if (!reEnablesAll(tool, item)) options.set(entry.name, item);
+	}
+	for (const entry of overrides?.variables ?? []) {
+		if (entry.weakens === "protection") continue;
+		const item = {
+			name: entry.name,
+			weakens: entry.weakens,
+			values: entry.values
+		};
+		if (!reEnablesAll(tool, item)) variables.push(item);
+	}
+	const flag = tool.cooldown.cliFlag === void 0 ? void 0 : evidenceOf(tool.cooldown.cliFlag)[0]?.value;
+	if (typeof flag === "string" && flag.startsWith("--") && !options.has(flag)) options.set(flag, {
+		name: flag,
+		weakens: "delay",
+		values: "delay"
+	});
+	const settings = extra(tool, "settingOverrides");
+	if (isRecord(settings) && isList$1(settings["settings"]) && typeof settings["optionPrefix"] === "string" && typeof settings["variablePrefix"] === "string") for (const entry of settings["settings"]) {
+		if (!isRecord(entry) || typeof entry["setting"] !== "string") continue;
+		const base = {
+			weakens: entry["weakens"] === "sources" ? "sources" : "scripts",
+			values: entry["values"],
+			...typeof entry["source"] === "string" ? { source: entry["source"] } : {},
+			...entry["when"] === "written" ? { setting: entry["setting"] } : {}
+		};
+		options.set(`${settings["optionPrefix"]}${entry["setting"]}`, {
+			name: `${settings["optionPrefix"]}${entry["setting"]}`,
+			...base
+		});
+		variables.push({
+			name: `${settings["variablePrefix"]}${entry["setting"].replaceAll("-", "_")}`,
+			...base
+		});
+	}
+	const line = extra(tool, "commandLine");
+	const commands = isRecord(line) ? [...isList$1(line["add"]) ? line["add"] : [], ...isList$1(line["run"]) ? line["run"].map((entry) => isRecord(entry) ? entry["command"] : void 0) : []] : [];
+	const executables = new Set(commands.flatMap((command) => isList$1(command) && typeof command[0] === "string" ? [command[0]] : []));
+	const parsing = extra(tool, "parsing");
+	const negationFact = isRecord(settings) && typeof settings["negation"] === "string" ? settings["negation"] : isRecord(parsing) && typeof parsing["negation"] === "string" ? parsing["negation"] : void 0;
+	return {
+		tool,
+		executables,
+		options,
+		variables,
+		byName: namesOf(variables, extra(tool, "environmentNames") ?? []),
+		...isRecord(parsing) && typeof parsing["settingPrefix"] === "string" ? { settingPrefix: parsing["settingPrefix"] } : {},
+		...negationFact === void 0 ? {} : { negation: negationFact }
+	};
+}
+/** The variables by their names in lower case, each with the rule of the longest prefix it starts with (decision D-143). */
+function namesOf(variables, rules) {
+	const names = /* @__PURE__ */ new Map();
+	for (const entry of variables) {
+		const lower = entry.name.toLowerCase();
+		const rule = rules.filter((item) => lower.startsWith(item.prefix.toLowerCase())).sort((a, b) => b.prefix.length - a.prefix.length)[0];
+		names.set(lower, [...names.get(lower) ?? [], {
+			entry,
+			match: rule?.match ?? "exact",
+			prefix: rule?.prefix.length ?? 0
+		}]);
+	}
+	return names;
+}
+/** The switch a variable set under the name `written` is, as the tool tells names apart (extra.environmentNames). */
+function variableSwitch(tools, written) {
+	const lower = written.toLowerCase();
+	return tools.byName.get(lower)?.find(({ entry, match, prefix }) => {
+		if (match === "exact") return written === entry.name;
+		if (match === "lower-or-upper") return written === lower || written === entry.name.toUpperCase();
+		if (match === "prefix-then-any-case") return written.startsWith(entry.name.slice(0, prefix));
+		return true;
+	})?.entry;
+}
+/** Whether a value is one of those that weaken: any, the listed ones (without regard to case), or all but those. */
+function matches(values, value) {
+	if (values === "any" || values === "delay") return true;
+	if ("except" in values) return !values.except.includes(value.trim());
+	return values.some((wanted) => wanted.toLowerCase() === value.trim().toLowerCase());
+}
+/** What a value of a switch does against the policy, or undefined when it does not weaken it. */
+function effectOf(context, tools, entry, value, written) {
+	const { policy } = context;
+	const { tool } = tools;
+	if (policy === void 0) return void 0;
+	if (entry.weakens === "delay" && policy.cooldown === void 0) return void 0;
+	if (entry.weakens === "scripts" && policy.installScripts?.default !== "deny") return void 0;
+	if (entry.weakens === "sources" && (entry.source === void 0 || policy.sources?.[entry.source] !== "deny")) return void 0;
+	if (entry.setting !== void 0 && !written(entry.setting)) return void 0;
+	const minimum = policy.cooldown?.minimum;
+	const what = entry.weakens === "delay" ? `the release-age delay of ${tool.name} (${minimum?.text ?? ""} in ${POLICY_FILE})` : entry.weakens === "scripts" ? `the rule of ${POLICY_FILE} on dependency install scripts for ${tool.name}` : `the ban of ${POLICY_FILE} on ${SOURCE_LABELS[entry.source ?? "git"]} dependencies for ${tool.name}`;
+	const base = {
+		weakens: entry.weakens,
+		...entry.source === void 0 ? {} : { source: entry.source }
+	};
+	if (value !== void 0 && value.includes("$")) return {
+		...base,
+		level: "warning",
+		text: `may weaken ${what}: depcurfew does not expand the value`
+	};
+	if (entry.values === "delay") {
+		if (value === void 0 || value.trim() === "") return void 0;
+		const delay = delayMinutes(tool, value.trim(), void 0);
+		if (!delay.ok) return {
+			...base,
+			level: "warning",
+			text: `sets the release-age delay of ${tool.name} to a value depcurfew cannot compare with the ${minimum?.text ?? ""} of ${POLICY_FILE} (a date, false or another form), and may weaken it`
+		};
+		if (minimum === void 0 || delay.minutes >= minimum.minutes) return void 0;
+		return {
+			...base,
+			level: "error",
+			text: delay.minutes === 0 ? `turns off the release-age delay of ${tool.name} (${minimum.text} in ${POLICY_FILE})` : `sets the release-age delay of ${tool.name} to ${formatMinutes(delay.minutes)}, shorter than the ${minimum.text} of ${POLICY_FILE}`
+		};
+	}
+	if (!matches(entry.values, value ?? "true")) return void 0;
+	if (entry.weakens === "delay") return {
+		...base,
+		level: "error",
+		text: `weakens ${what}`
+	};
+	if (entry.weakens === "scripts") return {
+		...base,
+		level: "error",
+		text: `lets dependency install scripts run that ${POLICY_FILE} denies for ${tool.name}`
+	};
+	return {
+		...base,
+		level: "error",
+		text: `allows ${SOURCE_LABELS[entry.source ?? "git"]} dependencies, although ${POLICY_FILE} denies them for ${tool.name}`
+	};
+}
+/** What to do instead, after the removal: the part of the policy that lets one package through. */
+function instead(effect) {
+	if (effect.level === "warning") return `, or make sure its value never weakens what ${POLICY_FILE} requires`;
+	if (effect.weakens === "delay") return `; for a package that cannot wait, add it to cooldown.exclude in ${POLICY_FILE} and run depcurfew apply`;
+	if (effect.weakens === "scripts") return `; to let a package run its install scripts, add it to installScripts.allow in ${POLICY_FILE} and run depcurfew apply`;
+	return `; if such dependencies are wanted, set sources.${effect.source ?? "git"} to "allow" in ${POLICY_FILE} and run depcurfew apply`;
+}
+/** The value of a setting in the .npmrc of the project after apply: the planned .npmrc, else the one there. */
+function npmrcSetting(context, setting) {
+	const text = plannedApply(context)?.changes.find((change) => change.file === ".npmrc")?.after ?? context.repository.readText(".npmrc");
+	return text === void 0 ? void 0 : iniEntries(text).filter((entry) => entry.key === setting).at(-1)?.value;
+}
+/** The value of an option on a command line, and how it is written: --name=value, --name value, --no-name, a flag. */
+function optionValue(entry, words, index, attached, negated) {
+	const word = words[index] ?? "";
+	if (negated) return {
+		value: "false",
+		written: word
+	};
+	if (attached !== void 0) return {
+		value: attached,
+		written: word
+	};
+	const next = words[index + 1];
+	if (next !== void 0 && !next.startsWith("-") && (entry.values === "delay" || next === "true" || next === "false")) return {
+		value: next,
+		written: `${word} ${next}`
+	};
+	return {
+		value: entry.values === "any" ? void 0 : "true",
+		written: word
+	};
+}
+function checkTool(context, tools) {
+	const { tool } = tools;
+	const settings = ciSettings(context.repository, context.detection);
+	const known = /* @__PURE__ */ new Map();
+	const strict = (setting) => {
+		let value = known.get(setting);
+		if (value === void 0) {
+			value = npmrcSetting(context, setting) === "true";
+			known.set(setting, value);
+		}
+		return value;
+	};
+	for (const variable of settings.variables) {
+		const entry = variableSwitch(tools, variable.name);
+		if (entry === void 0) continue;
+		const effect = effectOf(context, tools, entry, variable.value, strict);
+		if (effect === void 0) continue;
+		const text = variablePlace(variable, tool.name);
+		context.report({
+			level: effect.level,
+			location: variable.line === void 0 ? { file: variable.file } : {
+				file: variable.file,
+				line: variable.line
+			},
+			message: `${variable.name}=${variable.value} ${text.place}, ${text.reach}, and ${effect.text}`,
+			fix: `${text.remove}${instead(effect)}`
+		});
+	}
+	for (const command of settings.commands) {
+		if (!tools.executables.has(programName(command.words[0] ?? ""))) continue;
+		for (let index = 1; index < command.words.length; index++) {
+			const word = command.words[index] ?? "";
+			if (word === "--") break;
+			if (!word.startsWith("--")) continue;
+			const equals = word.indexOf("=");
+			let name = equals < 0 ? word : word.slice(0, equals);
+			const attached = equals < 0 ? void 0 : word.slice(equals + 1);
+			if (tools.settingPrefix !== void 0 && name.startsWith(tools.settingPrefix) && name.length > tools.settingPrefix.length) name = `--${name.slice(tools.settingPrefix.length)}`;
+			let entry = tools.options.get(name);
+			let negated = false;
+			if (entry === void 0 && tools.negation !== void 0 && name.startsWith(tools.negation)) {
+				entry = tools.options.get(`--${name.slice(tools.negation.length)}`);
+				negated = entry !== void 0 && entry.values !== "delay" && entry.values !== "any";
+				if (!negated) entry = void 0;
+			}
+			if (entry === void 0) continue;
+			const { value, written } = optionValue(entry, command.words, index, attached, negated);
+			const effect = effectOf(context, tools, entry, value, strict);
+			if (effect === void 0) continue;
+			context.report({
+				level: effect.level,
+				location: {
+					file: command.file,
+					line: command.line
+				},
+				message: `${command.where} in ${command.file} (line ${command.line}) runs ${tool.name} with ${written}, which ${effect.text}`,
+				fix: `Remove ${written} from that command in ${command.file}${instead(effect)}`
+			});
+		}
+	}
+}
+let cached;
+let cachedFor;
+function allSwitches(tools) {
+	if (cached === void 0 || cachedFor !== tools) {
+		cached = tools.filter((tool) => TOOLS$1.includes(tool.id)).map(switchesOf);
+		cachedFor = tools;
+	}
+	return cached;
+}
+/** The tools of this rule the repository (or a project listed in projects) uses and the policy configures. */
+function usedTools(context) {
+	const policy = context.policy;
+	const detections = [context.detection, ...(context.projects ?? []).map((project) => project.detection)];
+	return allSwitches(context.tools).filter(({ tool }) => detections.some((detection) => detection.packageManagers.some((manager) => manager.supported && manager.id === tool.id)) && (policy?.targets === "auto" || policy?.targets.includes(tool.id) === true));
+}
+const ciWeakensPolicy = {
+	id: RULE$3,
+	checks: "CI workflows and Dockerfiles keep the release-age delay, the rule on install scripts and the source bans of npm, pnpm, Yarn, Bun, Deno, uv, Poetry and PDM",
+	summary: "A CI workflow or a Dockerfile turns off or weakens, for the commands it runs, a protection depcurfew apply wrote for npm, pnpm, Yarn, Bun, Deno, uv, Poetry or PDM.",
+	description: "Package managers take settings from the command line and the environment over their configuration files, so a workflow or a Dockerfile can undo what depcurfew apply wrote for every install it runs: NPM_CONFIG_MIN_RELEASE_AGE=0, npm_config_strict_allow_scripts=false, npm_config_allow_git=all, pnpm_config_minimum_release_age=0, YARN_ENABLE_SCRIPTS=true or UV_EXCLUDE_NEWER in the env of the workflow, a job, its container or a step, exported or set before a command in a run step, written to $GITHUB_ENV, or set with ENV or ARG in a Dockerfile; and npm --min-release-age=0 or --allow-git=all, pnpm --config.dangerously-allow-all-builds=true, uv lock --exclude-newer or pdm lock --exclude-newer on a command there. A shorter delay and install scripts or sources the policy denies are errors; a value with $ or ${{ }}, or a delay depcurfew cannot compare (a date), gives a warning. pip has python-config-ignored, Composer composer-config-weakens and Bundler bundler-config-weakens.",
+	help: "Remove the variable or the option, or give it a value that keeps what depcurfew.json requires; let a single package through with cooldown.exclude, installScripts.allow or sources in depcurfew.json and depcurfew apply instead.",
+	level: "error",
+	requiresPolicy: true,
+	applies: (scope) => usesManager(scope, TOOLS$1) && (scope.detection.workflows.length > 0 || scope.detection.dockerfiles.length > 0),
+	check(context) {
+		if (context.detection.workflows.length === 0 && context.detection.dockerfiles.length === 0) return;
+		for (const tools of usedTools(context)) checkTool(context, tools);
 	}
 };
 
@@ -34867,11 +39430,135 @@ function checkWorkflows(context, tool) {
 		}
 	}
 }
+const isConfigValues = (value) => isRecord(value) && Array.isArray(value["command"]) && typeof value["section"] === "string" && Array.isArray(value["accepted"]) && Array.isArray(value["falseValues"]) && typeof value["period"] === "string" && Array.isArray(value["otherFile"]);
+/** The variables of environmentOverrides set outside the env maps of workflows: run steps, $GITHUB_ENV and Dockerfiles (decision D-166). */
+function checkCiVariables(context, tool) {
+	const variables = extraOf(tool, "environmentOverrides", isList((item) => isRecord(item) && typeof item["name"] === "string"));
+	for (const place of ciSettings(context.repository, context.detection).variables) {
+		if (place.kind === "env") continue;
+		const variable = variables.find((entry) => entry.name === place.name);
+		if (variable === void 0 || variable.name.includes("COOLDOWN") && !cooldownInPolicy(context)) continue;
+		const effect = variableEffect(context, tool, variable, place.value.includes("$") ? "${{" : place.value);
+		if (effect === void 0) continue;
+		const verb = effect.detail === "may" ? `may ${variable.effect.replace(/^(\w+)s\b/u, "$1")}` : effect.detail === void 0 ? variable.effect : `${variable.effect} with ${effect.detail}, shorter than the ${context.policy?.cooldown?.minimum.text ?? ""} of ${POLICY_FILE}`;
+		const text = variablePlace(place, "Composer");
+		context.report({
+			level: effect.level,
+			location: place.line === void 0 ? { file: place.file } : {
+				file: place.file,
+				line: place.line
+			},
+			message: `${place.name}=${place.value} ${text.place}, ${text.reach}, and ${verb}`,
+			fix: `${text.remove}, or set it only for a run that needs it after reviewing the packages`
+		});
+	}
+}
+/**
+* What composer config KEY VALUE writes (extra.configCommandValues): the path under config and the value as Composer
+* stores it; undefined for a command that writes another file, removes a setting or does not set one.
+*/
+function configWrite(words, facts) {
+	const [program, subcommand, ...rest] = words;
+	if (program === void 0 || programName(program) !== facts.command[0] || subcommand !== facts.command[1]) return void 0;
+	const otherFile = (word) => facts.otherFile.includes(word) || facts.otherFile.some((option) => option.startsWith("--") && word.startsWith(`${option}=`));
+	if (rest.some((word) => otherFile(word) || word === "--unset" || word === "--editor" || word === "-e")) return void 0;
+	const [key, written] = rest.filter((word) => !word.startsWith("-"));
+	if (key === void 0 || written === void 0) return void 0;
+	const path = [facts.section, ...key.startsWith("policy.") ? key.split(".") : [key]];
+	if (key === facts.period) return {
+		key,
+		path,
+		written,
+		value: written === "" || written === "null" ? null : /^\d+$/u.test(written) ? Number(written) : written
+	};
+	if (!facts.accepted.includes(written)) return {
+		key,
+		path,
+		written,
+		value: written
+	};
+	return {
+		key,
+		path,
+		written,
+		value: !facts.falseValues.includes(written)
+	};
+}
+/** composer config commands in run steps and RUN instructions that write a setting turning a protection off (decision D-166). */
+function checkConfigCommands(context, tool) {
+	if (tool.extra?.["configCommandValues"] === void 0) return;
+	const facts = extraOf(tool, "configCommandValues", isConfigValues);
+	const settings = extraOf(tool, "weakeningSettings", isList((item) => isRecord(item) && isPath$1(item["path"]) && typeof item["when"] === "string"));
+	const transport = extraOf(tool, "transportSettings", isList((item) => isRecord(item) && isPath$1(item["path"]) && typeof item["weakensWhen"] === "boolean"));
+	const all = extraOf(tool, "allowAllPlugins", (value) => isRecord(value) && typeof value["setting"] === "string");
+	const same = (a, b) => a.length === b.length && a.every((part, index) => part === b[index]);
+	for (const command of ciSettings(context.repository, context.detection).commands) {
+		const write = configWrite(command.words, facts);
+		if (write === void 0) continue;
+		let found;
+		const weakening = settings.find((entry) => same(entry.path, write.path));
+		if (weakening !== void 0 && weakens(weakening.when, write.value) && (!write.path.includes("cooldown") || cooldownInPolicy(context))) found = {
+			level: write.path.includes("malware") ? "warning" : "error",
+			effect: weakening.effect
+		};
+		const unsafe = transport.find((entry) => same(entry.path, write.path));
+		if (unsafe !== void 0 && typeof write.value === "boolean" && write.value === unsafe.weakensWhen) found = {
+			level: "error",
+			effect: `${unsafe.effect}: a package or its metadata can be changed on the way`
+		};
+		if (same(all.setting.split("."), write.path) && write.value === true && context.policy?.installScripts?.default === "deny") found = {
+			level: "error",
+			effect: `lets every Composer plugin run its code, but installScripts in ${POLICY_FILE} denies dependency code by default`
+		};
+		if (write.key === facts.period && cooldownInPolicy(context)) {
+			const minutes = delayMinutes(tool, write.value, latestVersion$1(tool));
+			const wanted = context.policy?.cooldown?.minimum.minutes ?? 0;
+			if (minutes.ok && minutes.minutes < wanted) found = {
+				level: "error",
+				effect: minutes.minutes === 0 ? "turns off the cooldown" : `shortens the cooldown to ${formatMinutes(minutes.minutes)}, shorter than the ${context.policy?.cooldown?.minimum.text ?? ""} of ${POLICY_FILE}`
+			};
+		}
+		if (found === void 0) continue;
+		context.report({
+			level: found.level,
+			location: {
+				file: command.file,
+				line: command.line
+			},
+			message: `${command.where} in ${command.file} (line ${command.line}) runs composer config ${write.key} ${write.written}, which writes ${write.path.join(".")}: ${JSON.stringify(write.value)} into ${COMPOSER_MANIFEST} for the later Composer commands and ${found.effect}`,
+			fix: `Remove that composer config command from ${command.file}, so that the settings depcurfew apply wrote into ${COMPOSER_MANIFEST} apply`
+		});
+	}
+}
+/** Options of composer commands in run steps and RUN instructions that turn a protection off (installOverrides, decision D-166). */
+function checkCommandOptions(context, tool) {
+	if (tool.extra?.["installOverrides"] === void 0 || tool.extra["configCommandValues"] === void 0) return;
+	const fact = extraOf(tool, "installOverrides", isRecord);
+	const options = Array.isArray(fact["options"]) ? fact["options"] : [];
+	const executable = extraOf(tool, "configCommandValues", isConfigValues).command[0];
+	for (const command of ciSettings(context.repository, context.detection).commands) {
+		if (programName(command.words[0] ?? "") !== executable) continue;
+		for (const word of command.words.slice(1)) {
+			if (word === "--") break;
+			const option = options.find((entry) => entry.name === word);
+			if (option === void 0 || option.weakens === "delay" && !cooldownInPolicy(context)) continue;
+			const effect = option.weakens === "delay" ? "turns off the cooldown for that command" : option.effect ?? "turns a protection of Composer off";
+			context.report({
+				location: {
+					file: command.file,
+					line: command.line
+				},
+				message: `${command.where} in ${command.file} (line ${command.line}) runs composer with ${word}, which ${effect}`,
+				fix: `Remove ${word} from that command in ${command.file}; for a package that cannot wait, run the command with it by hand after reviewing the package`
+			});
+		}
+	}
+}
 const composerConfigWeakens = {
 	id: RULE$2,
-	checks: "composer.json and the env of CI workflows keep Composer protections on",
-	summary: "composer.json or the env of a CI workflow turns a Composer protection off: the cooldown, malware blocking, allow-plugins, secure-http or TLS.",
-	description: "Composer 2.11 withholds new versions with config.policy.cooldown and runs only the plugins config.allow-plugins allows. \"policy\": false, \"cooldown\": false or \"block\": false under it, a repository with \"require-published-time\": false (the cooldown then counts from the time the package author wrote) or \"filter\": false (no malware list), \"allow-plugins\": true (or a \"*\" or \"*/*\" key) and \"secure-http\": false or \"disable-tls\": true turn such a protection off while the configuration still looks right; so do COMPOSER_POLICY=0, COMPOSER_NO_BLOCKING or COMPOSER_NO_SECURITY_BLOCKING set to 1, true, on, false or off, COMPOSER_POLICY_COOLDOWN_PERIOD with a shorter period and COMPOSER_POLICY_COOLDOWN_BLOCK=0 in the env of a CI workflow. Settings of the cooldown are reported when depcurfew.json sets one, allow-plugins when it denies dependency code; malware blocking and filter give warnings, because depcurfew.json does not manage them. COMPOSER_HOME/config.json on a machine is not read.",
+	checks: "composer.json, CI workflows and Dockerfiles keep Composer protections on",
+	summary: "composer.json, a CI workflow or a Dockerfile turns a Composer protection off: the cooldown, malware blocking, allow-plugins, secure-http or TLS.",
+	description: "Composer 2.11 withholds new versions with config.policy.cooldown and runs only the plugins config.allow-plugins allows. \"policy\", \"cooldown\" or \"block\" under it set to false, a repository with \"require-published-time\": false or \"filter\": false, \"allow-plugins\": true (or a \"*\" or \"*/*\" key), \"secure-http\": false and \"disable-tls\": true turn such a protection off while the configuration looks right; so do COMPOSER_POLICY=0, COMPOSER_NO_BLOCKING or COMPOSER_NO_SECURITY_BLOCKING set to 1, true, on, false or off, a shorter COMPOSER_POLICY_COOLDOWN_PERIOD and COMPOSER_POLICY_COOLDOWN_BLOCK=0 in a CI workflow (env, run step, $GITHUB_ENV) or a Dockerfile (ENV, ARG, RUN), composer config policy.cooldown false and the like run there, and --no-cooldown or --no-blocking on a composer command there. Cooldown settings count when depcurfew.json sets a cooldown, allow-plugins when it denies dependency code; malware blocking and filter give warnings. COMPOSER_HOME/config.json is not read.",
 	help: "Remove the setting or the variable, or limit it to the repository or the run that needs it.",
 	level: "error",
 	requiresPolicy: false,
@@ -34885,6 +39572,9 @@ const composerConfigWeakens = {
 			checkRepositories(context, tool);
 		}
 		checkWorkflows(context, tool);
+		checkCiVariables(context, tool);
+		checkConfigCommands(context, tool);
+		checkCommandOptions(context, tool);
 	}
 };
 
@@ -35159,7 +39849,12 @@ function keyOf(line) {
 	return /^\s*(?:-\s+)?["']?([^=:"'\s]+)["']?\s*[=:]/u.exec(line)?.[1];
 }
 /** What is wrong, in words: a value to change, a line to add or remove, or a hand-written line to comment out. */
-function describe(file, difference, before, after) {
+function describe(file, original, before, after) {
+	const kept = /\.ya?ml$/u.test(file) ? original.added.filter((text) => !isCommentedOut(text)) : original.added;
+	const difference = kept.length > 0 ? {
+		...original,
+		added: kept
+	} : original;
 	const commented = difference.added.filter(isCommentedOut);
 	if (commented.length > 0) {
 		const all = [...commented, ...difference.commentedLater.filter((text) => !commented.includes(text))];
@@ -35223,6 +39918,7 @@ function checkAllowLists(context, plan) {
 			...knowledge === void 0 ? {} : { tool: knowledge },
 			...version === void 0 ? {} : { version }
 		};
+		const unread = unreadAllowList(knowledge, version);
 		for (const conflict of remainingConflicts(context.repository, planned, manager.id, manager.configFiles, options, scripts)) {
 			const { entry } = conflict;
 			const location = entry.line === void 0 ? { file: entry.file } : {
@@ -35231,19 +39927,19 @@ function checkAllowLists(context, plan) {
 			};
 			if (conflict.kind !== "outside") {
 				context.report({
-					level: conflict.kind === "denied" ? "error" : "warning",
+					level: conflict.kind === "denied" && unread === void 0 ? "error" : "warning",
 					location,
 					...denyConflictText({
 						kind: conflict.kind,
 						entry
-					})
+					}, false, unread)
 				});
 				continue;
 			}
 			context.report({
 				level: "warning",
 				location,
-				...outsideConflictText(entry)
+				...outsideConflictText(entry, false, unread)
 			});
 		}
 	}
@@ -35300,6 +39996,22 @@ function checkBundlerCooldown(context, plan) {
 		const mayHold = days !== void 0 && text !== void 0 && cooldownMayHold(text, warning.location.line, days);
 		context.report({
 			...mayHold ? { level: "warning" } : {},
+			location: warning.location,
+			message: warning.message,
+			...warning.fix === void 0 ? {} : { fix: warning.fix }
+		});
+	}
+}
+/**
+* pip: a --no-binary or --only-binary=:none: in requirements.txt or a file it includes that apply cannot comment out
+* (after a requirement, next to other options, on a continued line) undoes --only-binary=:all: after apply too; each
+* build-switch-undone of the plan is reported where it points, with apply's text (decision D-167). Lines apply comments
+* out are differences of the plan, reported above.
+*/
+function checkPipOptions(context, plan) {
+	for (const warning of plan.warningDetails) {
+		if (warning.code !== "build-switch-undone" || warning.location === void 0) continue;
+		context.report({
 			location: warning.location,
 			message: warning.message,
 			...warning.fix === void 0 ? {} : { fix: warning.fix }
@@ -35365,7 +40077,7 @@ const configDrift = {
 	id: "config-drift",
 	checks: "Configuration files match what depcurfew apply writes for depcurfew.json",
 	summary: "A configuration file does not match what depcurfew apply writes for depcurfew.json.",
-	description: "A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool's own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning. So is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, which apply keeps unless it wrote the entry itself. A Gemfile apply cannot write the cooldown of Bundler into (a source with a block or a modifier or inside other code, a cooldown: given twice, a URL from ENV, no rubygems.org source, a Gemfile depcurfew cannot read as Ruby does) is an error where apply says so, or a warning when that call already waits as long as the policy.",
+	description: "A generated setting was edited by hand, or depcurfew.json changed without depcurfew apply, so the tools enforce something other than the policy. Entries in a tool's own install-script lists that apply does not change are reported too: one that lets a package of installScripts.deny run its scripts is an error; one that lets a package the policy does not name run them, blocks a package the policy allows, or is not read by the version in use yet (Deno before 2.6.0) is a warning, as is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, unless apply wrote it. What apply cannot write is an error where it says: the cooldown of Bundler in a Gemfile (a source with a block, a modifier or in other code, cooldown: twice, a URL from ENV, no rubygems.org source, a Gemfile depcurfew cannot read as Ruby does; a warning if that call waits as long as the policy), and a --no-binary or --only-binary=:none: of pip it cannot comment out.",
 	help: "Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.",
 	level: "error",
 	requiresPolicy: true,
@@ -35375,6 +40087,7 @@ const configDrift = {
 		if (context.defaultPolicy === true) {
 			reportAgainstDefault(context, plan);
 			checkBundlerCooldown(context, plan);
+			checkPipOptions(context, plan);
 			checkAllowLists(context, plan);
 			checkComposerExclusions(context, plan);
 			return;
@@ -35404,6 +40117,7 @@ const configDrift = {
 			}
 		}
 		checkBundlerCooldown(context, plan);
+		checkPipOptions(context, plan);
 		checkAllowLists(context, plan);
 		checkComposerExclusions(context, plan);
 	}
@@ -35727,11 +40441,34 @@ function checkDurationStrings(context, tool, manager, version, label) {
 		fix: `Write the delay as a number in ${tool.cooldown.unit.status === "disputed" ? "the tool's unit" : String(values$1(tool.cooldown.unit)[0])}, or require ${tool.name} ${String(format["since"])} or later`
 	});
 }
+const isYarnPathRuns = (value) => isRecord(value) && typeof value["classicSince"] === "string";
+/**
+* A packageManager pin of another release than the one yarnPath names (decision D-165): every Yarn from 1.18 runs that
+* release instead of itself, with or without Corepack (yarn extra.yarnPathRuns), so the pin has no effect.
+*/
+function checkOverriddenPins(context, tool, manager) {
+	const yarnPath = manager.versions.find((entry) => entry.source === "yarnPath" && "version" in entry);
+	if (yarnPath === void 0 || tool.extra?.["yarnPathRuns"] === void 0) return;
+	const since = extraOf(tool, "yarnPathRuns", isYarnPathRuns).classicSince;
+	for (const pin of overriddenPins(manager, yarnPath)) {
+		const line = declarationLine(context, pin);
+		const command = setVersionText(tool, pin.version, "or the release you mean to use", yarnPath.file);
+		context.report({
+			level: "warning",
+			location: line === void 0 ? { file: pin.file } : {
+				file: pin.file,
+				line
+			},
+			message: `${pin.source} in ${pin.file} pins ${manager.id}@${pin.version}, but every Yarn from ${since} runs the release yarnPath in ${yarnPath.file} names instead, ${tool.name} ${yarnPath.version}, with or without Corepack, so the pin has no effect`,
+			fix: command === void 0 ? `Make yarnPath in ${yarnPath.file} and ${pin.source} name the same release` : `${command}, so that both name the same release`
+		});
+	}
+}
 const settingIgnoredByVersion = {
 	id: "setting-ignored-by-version",
 	checks: "No setting or file is ignored by the package manager version in use",
 	summary: "A setting or file is ignored by the package manager version in use.",
-	description: "Package managers drop old settings and files in new major versions and only accept new forms from some version on. The configuration stays in the repository and looks effective while the version in use ignores it.",
+	description: "Package managers drop old settings and files in new major versions and only accept new forms from some version on. The configuration stays in the repository and looks effective while the version in use ignores it. The version in use of Yarn is the release yarnPath in .yarnrc.yml names, which every Yarn from 1.18 runs instead of itself, so a packageManager pin of another release has no effect (a warning).",
 	help: "Move the setting to the place and form this version reads.",
 	level: "error",
 	requiresPolicy: false,
@@ -35743,7 +40480,9 @@ const settingIgnoredByVersion = {
 			const pinned = pinnedVersion(manager);
 			const version = pinned ?? latestVersion$1(tool);
 			if (version === void 0) continue;
-			const label = `${tool.name} ${formatVersion(version)}${pinned === void 0 ? " (the latest known version; none is pinned)" : ""}`;
+			const note = yarnPathNote(manager, pinnedDeclaration(manager));
+			const label = `${tool.name} ${formatVersion(version)}${pinned === void 0 ? " (the latest known version; none is pinned)" : note === void 0 ? "" : ` (${note})`}`;
+			checkOverriddenPins(context, tool, manager);
 			checkLockfiles(context, tool, version, label);
 			if (tool.id === "pnpm") checkPnpm(context, tool, version, label);
 			checkDurationStrings(context, tool, manager, version, label);
@@ -35796,6 +40535,9 @@ const invalidProject = {
 		});
 	}
 };
+
+// src/check/json-stream.ts
+const decoder = new TextDecoder();
 
 // src/check/registry.ts
 const TIMEOUT_MS = 15e3;
@@ -36123,6 +40865,10 @@ function withLocalAnswer(pkg, verdict, local) {
 	} : verdict;
 }
 
+// src/user/versions.ts
+/** What Yarn 1.x is called in messages: depcurfew configures only the later Yarn (extra.classicUserFile). */
+const YARN_CLASSIC = "Yarn Classic";
+
 // src/doctor/rules/known-malicious.ts
 /** What to do when OSV.dev did not answer, in doctor. */
 const OSV_DOCTOR_RETRY_FIX = "Run depcurfew doctor --osv again when api.osv.dev can be reached; --osv needs HTTPS access to it";
@@ -36135,12 +40881,12 @@ const knownMalicious = {
 	id: "known-malicious",
 	checks: "With --osv or the local OSV.dev data of depcurfew osv update: no locked package version is a known malicious version in OSV.dev",
 	summary: "With --osv or the local OSV.dev data of depcurfew osv update: a lockfile locks a package version that OSV.dev lists as malicious.",
-	description: "Doctor looks up the exact version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) and reports each version that has a record of the OpenSSF malicious-packages database (an id starting with MAL-): with --osv in api.osv.dev (which then gets the names and versions), else offline in the local OSV.dev data of depcurfew osv update. It looks up what the tool installs (for npm the registry tarball of resolved, for pnpm that of resolution.tarball, for Yarn the resolution); an entry that says otherwise gets a warning, as does a registry entry without an exact version. Local data older than 7 days gives a note; older than 30 days, or in a directory others can write, a warning; OSV.dev out of reach gives a warning. Only reported malware is found, and the database admits false positives. With neither --osv nor local data, a note says how to get them.",
+	description: "Doctor looks up the exact version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) and reports each version that has a record of the OpenSSF malicious-packages database (an id starting with MAL-): with --osv in api.osv.dev (which then gets the names and versions), else offline in the local OSV.dev data of depcurfew osv update. It looks up what the tool installs (for npm and Yarn Classic the tarball of resolved, for pnpm that of resolution.tarball, for Yarn the resolution); an entry that says otherwise gets a warning, as does a registry entry without an exact version. Local data older than 7 days gives a note; older than 30 days, or in a directory others can write, a warning; OSV.dev out of reach gives a warning. Only reported malware is found, and the database admits false positives. With neither --osv nor local data, a note says how to get them.",
 	help: "Remove or replace the package version and lock again; if it was installed anywhere, read the record on OSV.dev and treat that machine as exposed.",
 	level: "error",
 	requiresPolicy: false,
 	alsoInComparedProjects: true,
-	applies: (scope) => scope.osv !== void 0 && !("unavailable" in scope.osv) && hasLockfile(scope),
+	applies: (scope) => scope.osv !== void 0 && !("unavailable" in scope.osv) && hasLockfile(scope, { yarnClassic: true }),
 	check(context) {
 		const osv = context.osv;
 		if (osv === void 0) return;
@@ -36153,10 +40899,11 @@ const knownMalicious = {
 		const again = local === void 0 ? "depcurfew doctor --osv" : "depcurfew doctor";
 		const checker = local === void 0 ? "doctor --osv" : "doctor";
 		const workspaces = context.detection.workspaces?.packages ?? [];
-		for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
+		for (const manager of context.detection.packageManagers.filter((entry) => entry.supported || isYarnClassic(entry))) {
 			const tool = context.tools.find((entry) => entry.id === manager.id);
 			if (tool === void 0) continue;
 			const ecosystem = ecosystemOfTool(tool);
+			const name = isYarnClassic(manager) ? YARN_CLASSIC : tool.name;
 			for (const result of readLockfiles(context.repository, manager, tool, workspaces, context.tools)) {
 				if (!result.ok) {
 					if (!result.unreadable && "answers" in osv) context.notice(`known-malicious could not check ${result.file}: ${result.reason}`, result.file);
@@ -36220,7 +40967,7 @@ const knownMalicious = {
 				const count = unpinned.length;
 				if (count > 0 && ecosystem === "packagist") context.notice(`known-malicious did not check ${plural(count, "package")} of ${lockfile.file}, which locks a branch of ${count === 1 ? "it" : "them"} (a dev- or -dev version), not a release`, lockfile.file, `Require tagged releases of ${count === 1 ? "this package" : "these packages"} in composer.json and run composer update, so that ${checker} can check ${count === 1 ? "it" : "them"}`);
 				else if (count > 0 && lockfile.requirements === true) context.notice(`known-malicious did not check ${plural(count, "package")} of ${lockfile.file}, which pins no exact version of ${count === 1 ? "it" : "them"}`, lockfile.file, `Pin exact versions (name==version), for example with a lockfile exported by the tool that resolves them, so that ${checker} can check them`);
-				else if (count > 0) reportUnpinned(context, lockfile, tool, unpinned, again);
+				else if (count > 0) reportUnpinned(context, lockfile, name, unpinned, again);
 			}
 		}
 	}
@@ -36246,6 +40993,15 @@ function reportMislabel(context, lockfile, entry, installs) {
 		});
 		return;
 	}
+	if (mislabel.tool === "yarn-classic") {
+		context.report({
+			level: "warning",
+			location,
+			message: `${lockfile.file} has ${mislabel.key} as ${mislabel.label}, but its resolved URL is the registry tarball of ${installs}, which is what ${YARN_CLASSIC} fetches; known-malicious checked ${installs}`,
+			fix: `Find out who changed this entry of ${lockfile.file} (${YARN_CLASSIC} writes the version of the package whose tarball it resolves, under the name the entry declares, so an entry where they differ was edited), then lock the package again with ${YARN_CLASSIC}`
+		});
+		return;
+	}
 	if (mislabel.tool === "npm") {
 		context.report({
 			level: "warning",
@@ -36266,7 +41022,7 @@ function reportMislabel(context, lockfile, entry, installs) {
 * Registry entries of a lockfile a tool wrote that give no exact version (decision D-135): a warning, as for versions
 * OSV.dev did not answer for, since the tool installs some version that was not checked. At the first of them.
 */
-function reportUnpinned(context, lockfile, tool, entries, again) {
+function reportUnpinned(context, lockfile, name, entries, again) {
 	const lines = entries.map((entry) => lockfile.lineOf(entry));
 	const named = entries.slice(0, MAX_NAMED).map((entry, index) => lines[index] === void 0 ? entry.name : `${entry.name} (line ${lines[index]})`);
 	const more = entries.length - named.length;
@@ -36278,8 +41034,8 @@ function reportUnpinned(context, lockfile, tool, entries, again) {
 			file: lockfile.file,
 			line: first
 		},
-		message: `known-malicious could not check ${plural(entries.length, "registry package")} of ${lockfile.file}, whose ${one ? "entry gives" : "entries give"} no exact version that ${tool.name} installs: ${more > 0 ? `${named.join(", ")} and ${more} more` : listing$1(named)}`,
-		fix: one ? `Lock this package again with ${tool.name}, so that ${lockfile.file} names its exact version, and find out why it does not; then run ${again} again` : `Lock these packages again with ${tool.name}, so that ${lockfile.file} names the exact version of each, and find out why it does not; then run ${again} again`
+		message: `known-malicious could not check ${plural(entries.length, "registry package")} of ${lockfile.file}, whose ${one ? "entry gives" : "entries give"} no exact version that ${name} installs: ${more > 0 ? `${named.join(", ")} and ${more} more` : listing$1(named)}`,
+		fix: one ? `Lock this package again with ${name}, so that ${lockfile.file} names its exact version, and find out why it does not; then run ${again} again` : `Lock these packages again with ${name}, so that ${lockfile.file} names the exact version of each, and find out why it does not; then run ${again} again`
 	});
 }
 /** One warning per lockfile and reason for the versions OSV.dev did not answer for: the check did not pass. */
@@ -36299,7 +41055,7 @@ const NO_DATA_MESSAGE = "known-malicious did not check the locked package versio
 const NO_DATA_FIX = "Run depcurfew osv update to download the OSV.dev data of known malicious packages (it requests only the public export files and sends no package names), then run depcurfew doctor again; or run depcurfew doctor --osv to ask api.osv.dev";
 /** The first lockfile (or requirements file of pip) of the directory, from detection: where the note without data stands. */
 function firstLockfile(context) {
-	for (const manager of context.detection.packageManagers.filter((entry) => entry.supported && readsLockfile(context.tools, entry.id))) {
+	for (const manager of context.detection.packageManagers.filter((entry) => (entry.supported || isYarnClassic(entry)) && readsLockfile(context.tools, entry.id))) {
 		const lockfile = manager.evidence.find((evidence) => evidence.kind === "lockfile");
 		if (lockfile !== void 0) return lockfile.file;
 		if (manager.id === "pip" && manager.configFiles.length > 0) return manager.configFiles[0];
@@ -36436,7 +41192,7 @@ const lockfileForbiddenSource = {
 				context.report({
 					location: location(lockfile, entry),
 					message: `${lockfile.file} installs ${entry.unnamed === true ? "a package" : entry.name} from ${LABELS[ecosystemOfTool(tool)][entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies${entry.why === void 0 ? "" : `: ${entry.why}`}`,
-					fix: `Use a registry version ${entry.unnamed === true ? "instead" : `of ${entry.name}`}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`
+					fix: entry.registrySpec === true ? registrySpecFix(lockfile, entry) : `Use a registry version ${entry.unnamed === true ? "instead" : `of ${entry.name}`}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`
 				});
 			}
 			for (const [host, entries] of unknownHosts) reportUnknownArchives(context, tool, lockfile, host, entries);
@@ -36445,6 +41201,18 @@ const lockfileForbiddenSource = {
 		});
 	}
 };
+/**
+* What to do about a tarball URL of package-lock.json that package.json asks for by version (decision D-168): npm 12
+* installs it as a registry package only from the registry it is set to use for the package (npm
+* extra.registryHostTarballs), so the fix says how to set that registry, and never to allow tarball URLs, which would
+* let any URL in.
+*/
+function registrySpecFix(lockfile, entry) {
+	const scope = entry.name.startsWith("@") ? entry.name.slice(0, entry.name.indexOf("/")) : void 0;
+	const directory = posix.dirname(lockfile.file);
+	const npmrc = directory === "." ? ".npmrc" : `${directory}/.npmrc`;
+	return `package.json asks for ${entry.name} by version, not by URL: if it comes from a private registry, set ${scope === void 0 ? "registry" : `${scope}:registry`}= to the URL of that registry in the ${npmrc} next to ${posix.basename(lockfile.file)}, as npm installs the tarballs of the registry it is set to use as registry packages; otherwise lock ${entry.name} again from the registry with npm install`;
+}
 /** The host of the archive of a composer.lock entry from its spec ("zip https://host/…"), or "" when it names none. */
 function archiveHost(spec) {
 	const url = spec.split(/\s+/u).find((word) => /^[a-z][a-z0-9+.-]*:\/\//iu.test(word));
@@ -36636,11 +41404,11 @@ function scriptsDisabledBy(context, tool) {
 	const match = typeof value === "string" ? /^([\w.-]+)(?::\s*(\S+))?$/u.exec(value) : null;
 	if (match !== null) {
 		const [, key = "", expected] = match;
-		const found = readSetting(context.repository, file, key);
+		const found = readRuleSetting(context, tool, file, key);
 		if (found !== void 0 && found.value === (expected === void 0 ? true : iniValue(expected))) return {
-			reason: `${key} in ${file} turns them off`,
+			reason: `${key} in ${found.file} turns them off`,
 			all: true,
-			setting: `${key} in ${file}`
+			setting: `${key} in ${found.file}`
 		};
 	}
 	const strict = tool.extra?.["strictAllowScripts"] === void 0 ? void 0 : extraOf(tool, "strictAllowScripts", isSwitch);
@@ -36659,8 +41427,17 @@ function buildsForbiddenBy(context, tool, lockfile) {
 	if (build === void 0) return void 0;
 	if (tool.id === "pip") {
 		const format = requirementsFormatOf(tool);
-		const found = (lockfile.optionFiles ?? []).find((file) => requirementsOptions(context.repository, file, format).some((line) => line.option === build.setting && line.value === build.value));
-		return found === void 0 ? void 0 : `${build.setting}=${String(build.value)} in ${found} forbids building`;
+		const facts = formatControlFacts(tool);
+		const roots = (lockfile.optionFiles ?? []).filter((file) => context.detection.packageManagers.some((manager) => manager.id === "pip" && manager.configFiles.includes(file)));
+		if (facts === void 0 || roots.length === 0) return void 0;
+		const reading = {
+			facts,
+			format,
+			longOptions: requirementsLongOptions(format)
+		};
+		const results = roots.map((root) => formatControlAfter((file) => context.repository.readText(file), root, reading));
+		const found = results[0]?.from;
+		return found === void 0 || !results.every((result) => result.onlyAll) ? void 0 : `${build.setting}=${String(build.value)} in ${found} forbids building`;
 	}
 	const found = readPythonSetting(context.repository, tool, build.setting);
 	return found !== void 0 && switchIsOn(found.value, build.value) ? `${build.setting} in ${found.file} forbids building` : void 0;
@@ -37557,6 +42334,103 @@ const pnpmSharedWorkspaceLockfile = {
 	}
 };
 
+// src/doctor/rules/pnpm-config.ts
+const hasSetting = (value) => isRecord(value) && typeof value["setting"] === "string";
+/**
+* The settings of pnpm that depcurfew manages or that weaken the policy, by the canonical name include uses for them
+* (allowBuilds stands for permissions too).
+*/
+function securitySettings(tool) {
+	const names = [
+		settingOf(tool.cooldown.setting),
+		settingOf(tool.cooldown.exclude.setting),
+		settingOf(tool.installScripts.allowList.setting),
+		settingOf(tool.sources?.git.setting),
+		...[
+			"minimumReleaseAgeStrict",
+			"allowAllBuilds",
+			"buildPermissions"
+		].map((key) => tool.extra?.[key] === void 0 ? void 0 : extraOf(tool, key, hasSetting).setting),
+		...tool.user === void 0 ? [] : (evidenceOf(tool.user.weakening)[0]?.value ?? []).map((entry) => entry.key).filter((key) => /^[a-z][A-Za-z]*$/u.test(key))
+	].filter((name) => typeof name === "string" && name !== "");
+	const spellings = includesFacts(tool, void 0)?.spellings ?? {};
+	return new Set(names.map((name) => spellings[name] ?? name));
+}
+const pnpmConfigUnverifiable = {
+	id: "pnpm-config-unverifiable",
+	checks: "pnpm takes its security settings only from files depcurfew reads",
+	summary: "pnpm loads a pnpmfile or a config-dependency plugin that can change every setting, takes a security setting from a config dependency, or stops at include in pnpm-workspace.yaml.",
+	description: "The updateConfig hook of a pnpmfile (.pnpmfile.mjs, .pnpmfile.cjs, or the files the pnpmfile and globalPnpmfile settings name) and of the pnpmfile pnpm loads by itself from a config dependency named pnpm-plugin-*, @*/pnpm-plugin-* or @pnpm/plugin-* can change every setting after pnpm has read pnpm-workspace.yaml, so the delay and the build settings depcurfew checks may not hold; ignoreScripts does not stop them, ignorePnpmfile does. A plugin the knowledge base knows to set a shorter release-age delay than depcurfew.json is an error. From pnpm 12.15, include in pnpm-workspace.yaml can give a setting to a config dependency, whose values depcurfew cannot read, or to a file outside the directory; and an include pnpm rejects (ERR_PNPM_INVALID_WORKSPACE_INCLUDE, ERR_PNPM_DUPLICATE_SETTING, ERR_PNPM_SETTING_NOT_DELEGATED) makes every pnpm command stop.",
+	help: "Read what the pnpmfile or plugin changes; set pnpmfile: [] when the project needs no pnpmfile, remove plugins it does not need, keep security settings in pnpm-workspace.yaml or a local file of include, and fix what pnpm rejects in include.",
+	level: "warning",
+	requiresPolicy: false,
+	applies: (scope) => usesManager(scope, ["pnpm"]),
+	check(context) {
+		const pnpm = pnpmOf(context.detection, context.tools);
+		if (pnpm === void 0) return;
+		const { tool, version } = pnpm;
+		const manifest = values$1(tool.cooldown.configFiles)[0]?.[0] ?? "pnpm-workspace.yaml";
+		const name = version === void 0 ? tool.name : `${tool.name} ${formatVersion(version)}`;
+		const includes = repositoryIncludes(context.repository, tool, version);
+		for (const problem of includes?.problems ?? []) context.report({
+			location: {
+				file: problem.file,
+				line: problem.line
+			},
+			message: `${name} stops with ${problem.code}: ${problem.message}, so it runs no command in this directory and depcurfew cannot tell which settings it would use`,
+			fix: `Fix include in ${manifest} as the message says (each setting may have one owner, and a list names the only settings its file may define)`
+		});
+		const security = securitySettings(tool);
+		for (const source of includes?.sources ?? []) {
+			if (source.kind === "file" && source.file !== void 0) continue;
+			const owned = source.slots.flatMap((slot, index) => security.has(slot) ? [source.selectors[index] ?? slotName(slot)] : []);
+			if (source.kind === "dependency") {
+				if (owned.length === 0) continue;
+				context.report({
+					location: {
+						file: manifest,
+						line: source.line
+					},
+					message: `include in ${manifest} gives ${listing$1(owned)} to the config dependency ${source.spec}, whose settings depcurfew cannot read, so it cannot verify ${owned.length === 1 ? "that setting" : "these settings"}, and depcurfew apply does not write ${owned.length === 1 ? "it" : "them"}`,
+					fix: `Take ${listing$1(owned)} out of the list of ${source.spec} in include, so that depcurfew apply writes ${owned.length === 1 ? "it" : "them"} into ${manifest} and depcurfew doctor checks ${owned.length === 1 ? "it" : "them"}; or check the pnpm.config file of ${source.spec} by hand against ${POLICY_FILE}`
+				});
+				continue;
+			}
+			if (!source.all && owned.length === 0) continue;
+			context.report({
+				location: {
+					file: manifest,
+					line: source.line
+				},
+				message: `include in ${manifest} gives ${source.all ? "every setting it defines" : listing$1(owned)} to ${source.spec}, which lies outside the directory, so depcurfew cannot read the settings ${name} takes from it`,
+				fix: `Move ${source.spec} into the directory and refer to it from there, or keep the security settings in ${manifest}`
+			});
+		}
+		const minimum = context.policy?.cooldown?.minimum;
+		const delaySetting = settingOf(tool.cooldown.setting);
+		for (const hook of pnpmHooks(tool, version, {
+			read: (file) => context.repository.readText(file),
+			isFile: (file) => context.repository.isFile(file),
+			packages: context.detection.workspaces?.packages ?? [],
+			...includes === void 0 ? {} : { includes }
+		})) {
+			const known = hook.kind === "plugin" && delaySetting !== null ? hook.known?.settings[delaySetting] : void 0;
+			const delay = known === void 0 ? void 0 : delayMinutes(tool, known, version);
+			const shorter = minimum !== void 0 && delay?.ok === true && delay.minutes < minimum.minutes;
+			const line = hook.kind === "plugin" ? hook.line : hook.line ?? hook.updateConfigLine;
+			context.report({
+				...shorter ? { level: "error" } : {},
+				location: {
+					file: hook.file,
+					...line === void 0 ? {} : { line }
+				},
+				message: `${hookMessage(hook, name)}${shorter && delay?.ok === true ? `, so pnpm waits only ${formatMinutes(delay.minutes)}, shorter than ${minimum.text} in ${POLICY_FILE}` : ""}`,
+				fix: hookFix(hook, manifest)
+			});
+		}
+	}
+};
+
 // src/doctor/rules/python-config.ts
 const isStrings = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 /** The settings depcurfew manages for a Python tool, as keys of its configuration table. */
@@ -37664,12 +42538,39 @@ function checkPipenv(context, tool) {
 		});
 	}
 }
+/** A COPY or ADD source of the build context that brings `file` into the image: the file, or a directory that holds it. */
+function copiesFile(source, file) {
+	const path = contextPath(source);
+	return path !== void 0 && (path === "." || path === file || file.startsWith(`${path}/`));
+}
+/**
+* Whether a CI job or a Dockerfile stage points PIP_CONFIG_FILE to `file` (decision D-173): a job with the path of the
+* file from the root of the workspace (pip.conf, ./pip.conf, ${{ github.workspace }}/pip.conf, $GITHUB_WORKSPACE/pip.conf),
+* a stage with a path whose name is the file's name, when it or a stage it starts from copies the file from the build
+* context. Then pip reads the file there.
+*/
+function pointedTo(context, file) {
+	const workspace = /^(?:\$\{\{\s*github\.workspace\s*\}\}|\$\{?GITHUB_WORKSPACE\}?)\//u;
+	const normalized = (value) => value.trim().replace(workspace, "").replace(/^(?:\.\/)+/u, "");
+	if (context.detection.jobs.some((job) => (job.pipConfigFiles ?? []).some((value) => normalized(value) === file))) return true;
+	const name = file.split("/").at(-1) ?? file;
+	return context.detection.dockerfiles.some(({ stages }) => stages.some((stage, index) => {
+		if (!(stage.pipConfigFiles ?? []).some((value) => value.trim().split("/").at(-1) === name)) return false;
+		for (let at = index, seen = 0; at !== void 0 && seen <= index; seen++) {
+			const current = stages[at];
+			if (current === void 0) break;
+			if ((current.copies ?? []).some((source) => copiesFile(source, file))) return true;
+			at = current.from !== void 0 && current.from < at ? current.from : void 0;
+		}
+		return false;
+	}));
+}
 function checkPip(context, tool, configFiles) {
 	const names = extraOf(tool, "configFileNames", isStrings);
 	const configVariable = extraOf(tool, "configFileVariable", (value) => typeof value === "string");
 	for (const directory of [".", ...context.detection.workspaces?.packages ?? []]) for (const name of names) {
 		const file = joinPath(directory, name);
-		if (!context.repository.isFile(file)) continue;
+		if (!context.repository.isFile(file) || pointedTo(context, file)) continue;
 		context.report({
 			level: "warning",
 			location: { file },
@@ -37817,7 +42718,7 @@ const pythonConfigIgnored = {
 	id: "python-config-ignored",
 	checks: "Python tools read their settings where they are written",
 	summary: "A Python tool ignores a setting where it is written.",
-	description: "uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files, so a CI job or a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = \"pure-python\" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.",
+	description: "uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project (a pip.conf counts only where PIP_CONFIG_FILE names it) and rejects options it does not know in requirements files, so a CI job or a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = \"pure-python\" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.",
 	help: "Move the setting to the file the tool reads.",
 	level: "error",
 	requiresPolicy: false,
@@ -37927,7 +42828,9 @@ const RULES = [
 	settingIgnoredByVersion,
 	npmrcOverridesPolicy,
 	pnpmSharedWorkspaceLockfile,
+	pnpmConfigUnverifiable,
 	pythonConfigIgnored,
+	ciWeakensPolicy,
 	composerConfigWeakens,
 	bundlerConfigWeakens,
 	configDrift,
@@ -38386,7 +43289,7 @@ function examine(root, options) {
 		findings.push(...relocated.findings);
 		for (const item of relocated.notices) addNotice(item);
 	}
-	const sorted = condensed(problems.length === 0 ? findings : findings.map((finding) => applyWaits(finding, problems.length))).sort(byLocation);
+	const sorted = condensed(problems.length === 0 ? findings : findings.map((finding) => applyWaits(finding, problems.length))).map(redactedFinding).sort(byLocation);
 	const rootChecked = checkedOf(detection, rootRun.repository, tools, policy !== void 0 && options.defaultPolicy !== true || invalid);
 	const projectChecked = projectRuns.map(({ view, run }) => {
 		const checked = checkedOf(run.detection, run.repository, tools, false);
@@ -38423,13 +43326,28 @@ function examine(root, options) {
 		policy: invalid ? "invalid" : policy === void 0 || options.defaultPolicy === true ? "missing" : "valid",
 		policySource: policy === void 0 ? null : options.defaultPolicy === true ? "default" : "file",
 		findings: sorted,
-		notices,
+		notices: notices.map(redactedNotice),
 		checked: {
 			tools: [...rootChecked.tools, ...projectChecked.flatMap((checked) => checked.tools)],
 			files: [.../* @__PURE__ */ new Set([...rootChecked.files, ...projectChecked.flatMap((checked) => checked.files)])].sort(),
 			rules: ruleResults(rules, sorted, (rule) => policy === void 0 && (rule.requiresPolicy || !invalid && rule.id === "invalid-policy"), (rule) => rule.applies === void 0 || scopes.some((scope) => rule.applies?.(scope) === true)),
 			policyFile: POLICY_FILE
 		}
+	};
+}
+/** A finding with the credentials of the URLs in its message and fix as <redacted> (redactCredentials). */
+function redactedFinding(finding) {
+	return {
+		...finding,
+		message: redactCredentials(finding.message),
+		...finding.fix === void 0 ? {} : { fix: redactCredentials(finding.fix) }
+	};
+}
+function redactedNotice(notice) {
+	return {
+		...notice,
+		message: redactCredentials(notice.message),
+		...notice.fix === void 0 ? {} : { fix: redactCredentials(notice.fix) }
 	};
 }
 /** Whether a bot reads its configuration only from the repository root, so that a project's file of it is not read. */

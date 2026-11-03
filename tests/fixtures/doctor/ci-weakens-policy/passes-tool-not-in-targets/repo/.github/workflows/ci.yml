@@ -1,0 +1,10 @@
+on: push
+env:
+  NPM_CONFIG_MIN_RELEASE_AGE: "0"
+  npm_config_allow_git: all
+  npm_config_dangerously_allow_all_scripts: "true"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: npm ci --min-release-age=0

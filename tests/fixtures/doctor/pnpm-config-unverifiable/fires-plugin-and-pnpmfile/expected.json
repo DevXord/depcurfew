@@ -1,0 +1,20 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": ".pnpmfile.mjs",
+      "line": 2
+    },
+    "message": "pnpm 12.16.1 loads .pnpmfile.mjs and names updateConfig at line 2, and the updateConfig hook of a pnpmfile can change every setting after pnpm has read its configuration files, so depcurfew cannot verify the settings it checks",
+    "fix": "Read .pnpmfile.mjs and make sure its updateConfig hook leaves minimumReleaseAge, allowBuilds and the other security settings as they are; if the project needs no pnpmfile, remove it and set pnpmfile: [] in pnpm-workspace.yaml, so that pnpm loads no new one by itself"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "pnpm-workspace.yaml",
+      "line": 2
+    },
+    "message": "pnpm 12.16.1 loads the pnpmfile of the config dependency @pnpm/plugin-better-defaults (configDependencies in pnpm-workspace.yaml, line 2) because of its name, and its updateConfig hook can change every setting after pnpm has read its configuration files, so depcurfew cannot verify the settings it checks; @pnpm/plugin-better-defaults 0.3.0 and later sets minimumReleaseAge: 1440 and blockExoticSubdeps: true, so pnpm waits only 1 day, shorter than 3d in depcurfew.json",
+    "fix": "Remove @pnpm/plugin-better-defaults from configDependencies in pnpm-workspace.yaml: what it sets replaces the settings of pnpm-workspace.yaml (ignorePnpmfile: true in pnpm-workspace.yaml stops every pnpmfile, those of plugins too)"
+  }
+]

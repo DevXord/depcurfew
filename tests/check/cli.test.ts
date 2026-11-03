@@ -94,7 +94,7 @@ describe('depcurfew check', () => {
     });
     expect(urls).toEqual(['https://npm.internal.example/lodash']);
     expect(code).toBe(EXIT_FAILURE);
-    expect(stdout).toContain('@corp packages come from https://corp.example/ (.npmrc)');
+    expect(stdout).toContain('@corp packages come from https://corp.example/ (@corp:registry= in .npmrc, line 2); depcurfew asks https://npm.internal.example/');
   });
 
   it("reads scope registries from the user's .npmrc and asks about an unknown scoped package", async () => {
@@ -105,7 +105,7 @@ describe('depcurfew check', () => {
     const run2 = (spec: string, directory: string) =>
       run(['check', '--dir', directory, spec], { stdout: (text) => (stdout += text), stderr: () => undefined }, { fetch: recordedFetch, now: () => NOW, stdin: async () => '', home: () => home });
     await run2('@corp/tool', project({}));
-    expect(stdout).toContain('@corp packages come from https://corp.example/ (.npmrc)');
+    expect(stdout).toContain('@corp packages come from https://corp.example/ (@corp:registry= in ~/.npmrc, line 1); depcurfew asks https://registry.npmjs.org/');
     stdout = '';
     await run2('@nobody/made-up-xyz', project({}));
     expect(stdout).toContain('@nobody/made-up-xyz is not in https://registry.npmjs.org/; either @nobody packages come from another registry, which @nobody:registry in .npmrc names, or the name is mistyped or made up');

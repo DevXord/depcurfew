@@ -119,7 +119,7 @@ type EcosystemPage = Pick<StartPage, 'file' | 'nav' | 'guide' | 'rules'>;
 
 /** The start page of each ecosystem of package managers; an ecosystem without an entry gets a page of its own name. */
 const ECOSYSTEM_PAGES: Partial<Record<Ecosystem, EcosystemPage>> = {
-  npm: { file: 'npm.html', nav: 'JavaScript', guide: [], rules: ['npmrc-overrides-policy', 'pnpm-shared-workspace-lockfile'] },
+  npm: { file: 'npm.html', nav: 'JavaScript', guide: [], rules: ['npmrc-overrides-policy', 'pnpm-shared-workspace-lockfile', 'pnpm-config-unverifiable'] },
   pypi: { file: 'python.html', nav: 'Python', guide: ['python-projects'], rules: ['python-config-ignored', 'lockfile-out-of-date'] },
   packagist: { file: 'php.html', nav: 'PHP', guide: ['composer-projects'], rules: ['composer-config-weakens'] },
   rubygems: { file: 'ruby.html', nav: 'Ruby', guide: ['ruby-projects'], rules: ['bundler-config-weakens'] },

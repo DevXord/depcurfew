@@ -3,9 +3,33 @@
 import { closeSync, lstatSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync, type Dirent, type Stats } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { isInside } from '../paths.ts';
+import { evidenceOf } from '../knowledge/facts.ts';
+import { knowledgeBase } from '../knowledge/index.ts';
 import type { DetectionWarning } from './types.ts';
 
 export const MAX_FILE_SIZE = 1024 * 1024;
+
+/** Lockfiles are often larger than configuration files. */
+export const MAX_LOCKFILE_SIZE = 64 * 1024 * 1024;
+
+/** The names of lockfiles in the knowledge base (project.lockfiles of every tool), and the pattern of named pylock files. */
+const LOCKFILE_NAMES: ReadonlySet<string> = new Set(
+  knowledgeBase.flatMap((tool) => (tool.project === undefined ? [] : evidenceOf(tool.project.lockfiles).flatMap((entry) => entry.value.flatMap((version) => [...version.value])))),
+);
+const LOCKFILE_PATTERNS: readonly RegExp[] = knowledgeBase.flatMap((tool) => {
+  const pattern = tool.extra?.['lockfilePattern'] === undefined ? undefined : evidenceOf(tool.extra['lockfilePattern'])[0]?.value;
+  return typeof pattern === 'string' ? [new RegExp(pattern, 'u')] : [];
+});
+
+/**
+ * The most a read of the file takes: the limit of lockfiles for a file named as a lockfile of a tool (in any directory),
+ * the limit of configuration files otherwise. Every reader of a lockfile then uses the same limit, so that a lockfile a
+ * lockfile rule reads is not reported as too large by another reader (decision D-166).
+ */
+export function readLimitFor(path: string): number {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  return LOCKFILE_NAMES.has(name) || LOCKFILE_PATTERNS.some((pattern) => pattern.test(name)) ? MAX_LOCKFILE_SIZE : MAX_FILE_SIZE;
+}
 
 /** Directories never searched for workspace packages or configuration. */
 const SKIPPED_DIRECTORIES = new Set(['node_modules', '.git']);
@@ -117,8 +141,11 @@ export class Repository {
     return stats !== undefined && !stats.isFile() && !stats.isDirectory();
   }
 
-  /** The text of a file, without a byte order mark; undefined (with a warning when useful) if it cannot be read. */
-  readText(path: string, limit = MAX_FILE_SIZE): string | undefined {
+  /**
+   * The text of a file, without a byte order mark; undefined (with a warning when useful) if it cannot be read. The
+   * limit is that of lockfiles for a lockfile and that of configuration files for the rest (readLimitFor).
+   */
+  readText(path: string, limit = readLimitFor(path)): string | undefined {
     const resolved = this.#resolve(path, true, true);
     if (resolved === undefined) return undefined;
     const { real, stats } = resolved;

@@ -8,8 +8,9 @@ import { extraOf, isRecord, isSwitch, settingOf, sinceOf } from '../../apply/fac
 import { convertCooldown } from '../../policy/convert.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { joinPath } from '../../detect/repository.ts';
-import type { ToolCommand } from '../../detect/types.ts';
+import type { DockerStage, ToolCommand } from '../../detect/types.ts';
 import { jobLabel } from '../../detect/workflows.ts';
+import { contextPath } from './bundled-versions.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { requirementsFormatOf } from '../python-lockfiles.ts';
 import { readPythonSetting, requirementsLongOptions, requirementsOptions, tomlSettingAt } from '../python.ts';
@@ -116,13 +117,45 @@ function checkPipenv(context: RuleContext, tool: ToolKnowledge): void {
   }
 }
 
+/** A COPY or ADD source of the build context that brings `file` into the image: the file, or a directory that holds it. */
+function copiesFile(source: string, file: string): boolean {
+  const path = contextPath(source);
+  return path !== undefined && (path === '.' || path === file || file.startsWith(`${path}/`));
+}
+
+/**
+ * Whether a CI job or a Dockerfile stage points PIP_CONFIG_FILE to `file` (decision D-173): a job with the path of the
+ * file from the root of the workspace (pip.conf, ./pip.conf, ${{ github.workspace }}/pip.conf, $GITHUB_WORKSPACE/pip.conf),
+ * a stage with a path whose name is the file's name, when it or a stage it starts from copies the file from the build
+ * context. Then pip reads the file there.
+ */
+function pointedTo(context: RuleContext, file: string): boolean {
+  const workspace = /^(?:\$\{\{\s*github\.workspace\s*\}\}|\$\{?GITHUB_WORKSPACE\}?)\//u;
+  const normalized = (value: string) => value.trim().replace(workspace, '').replace(/^(?:\.\/)+/u, '');
+  if (context.detection.jobs.some((job) => (job.pipConfigFiles ?? []).some((value) => normalized(value) === file))) return true;
+  const name = file.split('/').at(-1) ?? file;
+  return context.detection.dockerfiles.some(({ stages }) =>
+    stages.some((stage, index) => {
+      if (!(stage.pipConfigFiles ?? []).some((value) => value.trim().split('/').at(-1) === name)) return false;
+      // The stage and the stages it starts from, each once.
+      for (let at: number | undefined = index, seen = 0; at !== undefined && seen <= index; seen++) {
+        const current: DockerStage | undefined = stages[at];
+        if (current === undefined) break;
+        if ((current.copies ?? []).some((source) => copiesFile(source, file))) return true;
+        at = current.from !== undefined && current.from < at ? current.from : undefined;
+      }
+      return false;
+    }),
+  );
+}
+
 function checkPip(context: RuleContext, tool: ToolKnowledge, configFiles: readonly string[]): void {
   const names = extraOf(tool, 'configFileNames', isStrings);
   const configVariable = extraOf(tool, 'configFileVariable', (value): value is string => typeof value === 'string');
   for (const directory of ['.', ...(context.detection.workspaces?.packages ?? [])]) {
     for (const name of names) {
       const file = joinPath(directory, name);
-      if (!context.repository.isFile(file)) continue;
+      if (!context.repository.isFile(file) || pointedTo(context, file)) continue;
       context.report({
         level: 'warning',
         location: { file },
@@ -282,7 +315,7 @@ export const pythonConfigIgnored: Rule = {
   checks: 'Python tools read their settings where they are written',
   summary: 'A Python tool ignores a setting where it is written.',
   description:
-    'uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files, so a CI job or a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = "pure-python" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.',
+    'uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project (a pip.conf counts only where PIP_CONFIG_FILE names it) and rejects options it does not know in requirements files, so a CI job or a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = "pure-python" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.',
   help: 'Move the setting to the file the tool reads.',
   level: 'error',
   requiresPolicy: false,

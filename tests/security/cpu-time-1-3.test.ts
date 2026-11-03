@@ -136,7 +136,9 @@ describe('the lockfiles of uv and PDM', () => {
 
   // config-drift compared every changed line with every other one (20 s for half a MiB before).
   it('takes doctor less than 5 s on thousands of uv packages and exclude-newer-package entries', { timeout: 120_000 }, () => {
-    const config = fill(`${PROJECT}\n[tool.uv]\nexclude-newer = "P3D"\n\n[tool.uv.exclude-newer-package]\n`, (index) => `p${index} = "P1D"\n`, MIB / 2);
+    // apply comments every entry out with a marker of 46 characters; the file it writes has to stay under the 1 MiB it
+    // reads (decision D-166), so that doctor can compare it.
+    const config = fill(`${PROJECT}\n[tool.uv]\nexclude-newer = "P3D"\n\n[tool.uv.exclude-newer-package]\n`, (index) => `p${index} = "P1D"\n`, MIB / 8);
     const options = fill('version = 1\n\n[options]\nexclude-newer = "0001-01-01T00:00:00Z"\nexclude-newer-span = "P3D"\n\n[options.exclude-newer-package]\n', (index) => `p${index} = { timestamp = "0001-01-01T00:00:00Z", span = "P2D" }\n`, MIB / 2);
     const lock = fill(options, (index) => `\n[[package]]\nname = "p${index}"\nversion = "1.0.0"\n`, MIB);
     const root = repository({ 'pyproject.toml': config, 'uv.lock': lock });

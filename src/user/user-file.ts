@@ -8,6 +8,26 @@ import type { ToolKnowledge, UserFile } from '../knowledge/types.ts';
 import { libraryVariants, locateUserFile, platformFamily, shownPath, userFileFor, type UserEnvironment } from './locate.ts';
 import { libraryVersion, type InstalledVersion } from './versions.ts';
 
+/**
+ * Whether the tool reads the [section] headers of its INI user file by their exact text (extra.configSectionNames): pip
+ * reads pip.conf with configparser, so [Global] and [ global ] are not [global] (decision D-167).
+ */
+export function exactSections(tool: ToolKnowledge): boolean {
+  const fact = tool.extra?.['configSectionNames'];
+  const value = fact === undefined ? undefined : evidenceOf(fact)[0]?.value;
+  return typeof value === 'object' && value !== null && (value as Record<string, unknown>)['exact'] === true;
+}
+
+/**
+ * The section an INI line opens, as the tool reads it: with `exact`, the text between [ and the first ] as written, as
+ * configparser takes it from the stripped line; otherwise from a line of only [name], trimmed and in lower case.
+ * undefined for any other line.
+ */
+export function iniSection(line: string, exact: boolean): string | undefined {
+  if (exact) return /^\[([^\]]+)\]/u.exec(line.trim())?.[1];
+  return /^\s*\[([^\]]*)\]\s*$/u.exec(line)?.[1]?.trim().toLowerCase();
+}
+
 /** The library that decides the tool's user directories on this platform, if any. */
 function deciding(tool: ToolKnowledge, environment: UserEnvironment): string | undefined {
   const fact = tool.user?.libraryDirectories;

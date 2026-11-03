@@ -36,6 +36,7 @@ import type {
   NpmVersionSelectionKnowledge,
   OverrideSwitch,
   OverrideValues,
+  PassOnCommand,
   PythonInterpreterKnowledge,
   PythonSelectionKnowledge,
   RegistryOverridesKnowledge,
@@ -113,6 +114,11 @@ export interface InstallRequest {
   fromManifest?: true;
   /** Composer: the command word, when the scripts of composer.json may change the command it stands for (decision D-136). */
   composerCommand?: { word: string; command: string };
+  /**
+   * npm link: the command links the package into the project, and installs it from the registry only when the global
+   * space has no package of that name (decision D-172).
+   */
+  linked?: true;
 }
 
 export type { CommandDirectory, KnownDirectory } from './directories.ts';
@@ -405,7 +411,9 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
   /**
    * The delimiter word of a here-document: quoting any part of it keeps the body from being expanded. It ends at a
    * blank (space, tab), a newline or an operator, as bash's words do: a carriage return of a CRLF line belongs to it,
-   * and bash ends the body only at a line that holds it too (cat <<EOF\r\n…\r\nEOF\r\n).
+   * and bash ends the body only at a line that holds it too (cat <<EOF\r\n…\r\nEOF\r\n). A backslash-newline is
+   * removed outside single quotes, also inside double quotes, where a backslash escapes only \ " $ and ` (checked on
+   * GNU bash 5.2.21; decision D-172): cat <<EO\<newline>F ends at EOF, and is not quoted.
    */
   const delimiter = (from: number): { word: string; quoted: boolean; end: number } => {
     let index = from;
@@ -414,11 +422,27 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
     let quoted = false;
     while (index < line.length && !/[ \t\n;&|<>()]/u.test(line[index] as string)) {
       const char = line[index] as string;
-      if (char === "'" || char === '"') {
+      if (char === '\\' && line[index + 1] === '\n') {
+        index += 2;
+      } else if (char === "'") {
         const end = line.indexOf(char, index + 1);
         word += line.slice(index + 1, end === -1 ? line.length : end);
         quoted = true;
         index = end === -1 ? line.length : end + 1;
+      } else if (char === '"') {
+        quoted = true;
+        index += 1;
+        while (index < line.length && line[index] !== '"') {
+          if (line[index] === '\\' && line[index + 1] === '\n') index += 2;
+          else if (line[index] === '\\' && '"\\$`'.includes(line[index + 1] ?? '')) {
+            word += line[index + 1] as string;
+            index += 2;
+          } else {
+            word += line[index] as string;
+            index += 1;
+          }
+        }
+        index += 1;
       } else if (char === '\\') {
         word += line[index + 1] ?? '';
         quoted = true;
@@ -428,7 +452,41 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
         index += 1;
       }
     }
-    return { word, quoted, end: index };
+    return { word, quoted, end: Math.min(index, line.length) };
+  };
+  /**
+   * One line of a here-document body from `start`, as bash's read_secondary_line reads it (checked on GNU bash 5.2.21;
+   * decision D-172): with an unquoted delimiter (`joins`), a backslash before the newline joins the next line to it and
+   * both disappear, while a backslash before any other character keeps both, so a line joins the next one when it ends
+   * in an odd number of backslashes; with a quoted delimiter the line is as written. `at` maps a character of the text
+   * to where it stands in the line, when lines were joined.
+   */
+  const bodyLine = (start: number, joins: boolean): { text: string; next: number; at: ((offset: number) => number) | undefined } => {
+    const segments: { from: number; length: number }[] = [];
+    let text = '';
+    let from = start;
+    for (;;) {
+      const newline = line.indexOf('\n', from);
+      const end = newline === -1 ? line.length : newline;
+      let run = 0;
+      while (joins && end - run - 1 >= from && line[end - run - 1] === '\\') run += 1;
+      const continues = newline !== -1 && run % 2 === 1;
+      const length = end - from - (continues ? 1 : 0);
+      segments.push({ from, length });
+      text += line.slice(from, from + length);
+      if (!continues) {
+        const at = (offset: number) => {
+          let left = offset;
+          for (const segment of segments) {
+            if (left < segment.length) return segment.from + left;
+            left -= segment.length;
+          }
+          return end;
+        };
+        return { text, next: newline === -1 ? line.length : newline + 1, at: segments.length === 1 ? undefined : at };
+      }
+      from = newline + 1;
+    }
   };
   /** Reads the bodies of the here-documents opened on the line that just ended; returns the index after them. */
   const bodies = (from: number): number => {
@@ -437,9 +495,12 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
       const lines: string[] = [];
       while (position < line.length) {
         const lineStart = position;
-        const newline = line.indexOf('\n', position);
-        const current = line.slice(position, newline === -1 ? line.length : newline);
-        position = newline === -1 ? line.length : newline + 1;
+        const read = bodyLine(position, entry.expand);
+        const current = read.text;
+        position = read.next;
+        // bash compares the line before it strips the tabs of <<- too, which matters for a quoted delimiter that
+        // starts with a tab.
+        if (current === entry.delimiter) break;
         const tabs = entry.strip ? (/^\t*/u.exec(current)?.[0].length ?? 0) : 0;
         const content = current.slice(tabs);
         if (content === entry.delimiter) break;
@@ -447,7 +508,8 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
         if (stop === ')' && content.startsWith(entry.delimiter) && /^\s*\)/u.test(after)) {
           // Inside $(...), the delimiter followed by the closing bracket may end it too (shells differ); reading on
           // from the bracket keeps the commands after it in view.
-          position = lineStart + tabs + entry.delimiter.length + after.indexOf(')');
+          const offset = tabs + entry.delimiter.length + after.indexOf(')');
+          position = read.at === undefined ? lineStart + offset : read.at(offset);
           break;
         }
         lines.push(content);
@@ -744,6 +806,8 @@ interface ToolCommands {
   applicationOptions: readonly ApplicationOption[] | undefined;
   /** Where the tool reads the options of its download commands besides after the subcommand (decision D-160). */
   runnerOptions: RunnerOptionsKnowledge | undefined;
+  /** Commands that link the packages they name and install those the global space lacks (npm link; decision D-172). */
+  links: readonly (readonly string[])[];
 }
 
 interface Commands {
@@ -873,6 +937,7 @@ function commands(): Commands {
             composer: factOf<ComposerCommandsKnowledge>(tool, sibling(key, 'commandArguments')),
             applicationOptions: factOf<ApplicationOption[]>(tool, sibling(key, 'applicationOptions')),
             runnerOptions: factOf<RunnerOptionsKnowledge>(tool, sibling(key, 'runnerOptions')),
+            links: factOf<string[][]>(tool, sibling(key, 'linkCommands')) ?? [],
           },
         ];
       }),
@@ -884,7 +949,8 @@ function commands(): Commands {
       overrideVariables.set(name, [...(overrideVariables.get(name) ?? []), { tool: tool.tool, entry }]);
     }
   }
-  const all = tools.flatMap(({ facts }) => [...facts.add, ...[...facts.create, ...facts.run].map((entry) => entry.command)]);
+  // npm link and pipx runpip install packages as well (decision D-172).
+  const all = tools.flatMap(({ facts, links }) => [...facts.add, ...links, ...(facts.passOn ?? []).map((entry) => entry.command), ...[...facts.create, ...facts.run].map((entry) => entry.command)]);
   const executables = new Set(all.map((entry) => entry[0] ?? ''));
   const overrides = tools.flatMap((tool) => {
     const source = knowledgeBase.find((entry) => entry.id === tool.tool);
@@ -1251,6 +1317,12 @@ export const TOO_MANY = 'depcurfew checks at most';
 export const NOT_LOOKED_UP = 'could be looked up in the local OSV.dev data';
 /** composer global update of a name without a constraint (decision D-136). */
 const GLOBAL_CONSTRAINT = 'from the constraint in COMPOSER_HOME/composer.json, which depcurfew does not read';
+/** A command or option that installs the packages a file names (pipx install-all, pipx inject -r; decision D-172). */
+const FROM_FILE = 'installs the packages a file lists, which depcurfew does not read';
+/** pipx runpip with one word of blanks and quotes (decision D-172). */
+const SPLITS_ONE_WORD = 'splits a lone word with blanks into words as a shell does (shlex.split)';
+/** A command name given another program in a way depcurfew does not read (decision D-172). */
+const REBOUND = 'may then run a package manager';
 /** How the reason starts for an install whose directory cannot be told (decision D-118). */
 const UNKNOWN_DIRECTORY = 'depcurfew cannot tell which directory';
 /** A file run in this shell, and a trap that runs between later commands, make every later directory unknown (decision D-123). */
@@ -1314,6 +1386,13 @@ export function unreadableFix(reason: string): string {
   if (reason.includes(AMONG_ARGUMENTS)) return 'Put -- before the command that npm exec or npm x runs (npm exec -- <command> …), so npm does not read its arguments as its own options';
   if (reason.includes(TOO_MANY) || reason.includes(NOT_LOOKED_UP)) return 'Install the packages in smaller groups, so depcurfew can check each of them';
   if (reason.includes(GLOBAL_CONSTRAINT)) return 'Name the version to install (composer global require vendor/name:1.2.3), so depcurfew can check it';
+  if (reason.includes(FROM_FILE)) {
+    return 'Name the packages in the command instead of in a file (pipx install <name>, pipx inject <environment> <name>), so depcurfew can check each of them';
+  }
+  if (reason.includes(SPLITS_ONE_WORD)) return 'Give pip its words as separate arguments (pipx runpip <environment> install <name>), so depcurfew can check them';
+  if (reason.includes(REBOUND)) {
+    return 'Run the package manager by its name, without hash -p, BASH_CMDS or BASH_ALIASES giving a command name another program, so depcurfew can check the command';
+  }
   return 'Write the package names out in the command, so depcurfew can check them';
 }
 
@@ -1458,6 +1537,8 @@ interface CommandContext {
   switches: Switches | undefined;
   /** npm: the option naming the dist-tag npm prefers. */
   tagOption: string | undefined;
+  /** Options whose value is a file of packages to install, which depcurfew does not read (pipx inject -r; decision D-172). */
+  packageFiles: ReadonlySet<string>;
 }
 
 function sameCommand(a: readonly string[], b: readonly string[]): boolean {
@@ -1494,6 +1575,7 @@ function newContext(tool: ToolCommands, command: readonly string[] | undefined):
         ? undefined
         : { prereleases: special?.prereleases ?? selection.prereleases, buildFromSource: special?.buildFromSource ?? selection.buildFromSource },
     tagOption: tool.versionSelection?.tagOption,
+    packageFiles: new Set(own?.packageFileOptions ?? []),
   };
 }
 
@@ -1767,7 +1849,7 @@ function optionsFirst(words: readonly Word[], tool: ToolCommands, takes: (name: 
  * the words left for the package; or why they cannot be read. While the line is read aside (decision D-160), a word
  * the shell expands is passed over, and the package word of a run or create command that the shell expands ends it.
  */
-function readArguments(given: readonly Word[], mode: 'add' | 'run' | 'create', tool: ToolCommands, entry: DownloadCommand | undefined, context: CommandContext): Outcome {
+function readArguments(given: readonly Word[], mode: 'add' | 'run' | 'create', tool: ToolCommands, entry: DownloadCommand | undefined, context: CommandContext, operands = 0): Outcome {
   const packageOptions = entry?.packageOptions ?? [];
   const extraOptions = mode === 'add' ? (tool.facts.addPackageOptions ?? []) : (entry?.extraPackageOptions ?? []);
   const lineOptions = entry?.lineOptions ?? [];
@@ -1785,6 +1867,8 @@ function readArguments(given: readonly Word[], mode: 'add' | 'run' | 'create', t
   let named = false;
   let positional = false;
   let shell = false;
+  /** Operands before the packages that name something else (pipx inject ENVIRONMENT; decision D-172). */
+  let skipped = 0;
   for (let index = 0; index < words.length; index++) {
     const word = words[index] as Word;
     if (!positional && word.text === '--') {
@@ -1801,6 +1885,11 @@ function readArguments(given: readonly Word[], mode: 'add' | 'run' | 'create', t
       const { name, value, next } = option;
       // The arguments are local files (deno install --entrypoint), so no package is named.
       if (mode === 'add' && tool.facts.fileOptions?.includes(name) === true) return { specs: [], lines, rest: [], events, overrides };
+      // pipx inject -r: the packages are in a file (decision D-172); those named besides it are read aside (D-155).
+      if (context.packageFiles.has(name) && !readingAside) {
+        leftAside = true;
+        return { unreadable: `${name} ${FROM_FILE}` };
+      }
       if (entry?.shellOptions?.includes(name) === true) {
         shell = true;
         continue;
@@ -1838,6 +1927,11 @@ function readArguments(given: readonly Word[], mode: 'add' | 'run' | 'create', t
       if (word.input === true) return readingAside ? { specs, lines, rest: [], events, overrides } : expandedArgument(expanded(word));
       lines.push(word.text);
       return { specs, lines, rest: [], events, overrides };
+    }
+    // An operand that names no package, unless the shell may split it into several words.
+    if (mode === 'add' && skipped < operands && word.splits !== true) {
+      skipped += 1;
+      continue;
     }
     if (word.dynamic) {
       if (!readingAside) return expandedArgument(expanded(word));
@@ -2574,6 +2668,116 @@ function aliasWords(value: string): Word[] | undefined {
   }
 }
 
+/** bash's options of hash (lrp:dt) and zsh's (Ldfmrv). */
+const HASH_OPTIONS = new Set(['l', 'r', 'd', 't', 'L', 'f', 'm', 'v']);
+
+/**
+ * hash, which gives command names programs (checked on GNU bash 5.2.21; zsh: hash in Doc/Zsh/builtins.yo at zsh-5.9;
+ * decision D-172). bash reads the options as getopt reads lrp:dt: -p takes the rest of its word or the next word as
+ * the program, -- ends the options, and an option it does not know binds nothing; with -p each operand runs that
+ * program, unless -t lists them instead. zsh's hash name=value gives name the program value (-d names directories
+ * instead). A command name with a / never runs through the table. The names are followed as aliases of the program;
+ * a word the shell expands may hold -p or name=value, so the line cannot be read.
+ */
+function scanHash(words: readonly Word[]): CommandScan {
+  const line = joined(words);
+  if (words.slice(1).some((word) => word.dynamic)) {
+    return unreadable(`${shown(line)}: the shell expands part of it, so depcurfew cannot tell which program hash gives a command name, and that name ${REBOUND}`);
+  }
+  let program: string | undefined;
+  let lists = false;
+  let directories = false;
+  let index = 1;
+  options: for (; index < words.length; index++) {
+    const text = (words[index] as Word).text;
+    if (text === '--') {
+      index += 1;
+      break;
+    }
+    if (!text.startsWith('-') || text === '-') break;
+    for (let at = 1; at < text.length; at++) {
+      const letter = text[at] as string;
+      if (letter === 'p') {
+        const attached = text.slice(at + 1);
+        program = attached === '' ? words[++index]?.text : attached;
+        if (program === undefined) return NOTHING;
+        continue options;
+      }
+      if (!HASH_OPTIONS.has(letter)) return NOTHING;
+      if (letter === 't') lists = true;
+      if (letter === 'd') directories = true;
+    }
+  }
+  const bind = (name: string, value: string) => {
+    if (name !== '' && !name.includes('/')) aliases.set(name, requoted({ text: value, dynamic: false }));
+  };
+  for (const operand of words.slice(index)) {
+    if (lists) break;
+    if (program !== undefined) bind(operand.text, program);
+    else if (!directories && operand.text.indexOf('=') > 0) bind(operand.text.slice(0, operand.text.indexOf('=')), operand.text.slice(operand.text.indexOf('=') + 1));
+  }
+  return NOTHING;
+}
+
+/** An assignment to an element of an array: NAME[KEY]=… or NAME[KEY]+=…. */
+const ELEMENT_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*\[[^\]]*\]\+?=/u;
+/** BASH_CMDS[name]=path and BASH_ALIASES[name]=value, the bash tables of hashed commands and aliases. */
+const TABLE_ELEMENT = /^(BASH_CMDS|BASH_ALIASES)\[([^\]]*)\]=([\s\S]*)$/u;
+/**
+ * Whether an assignment word holds no expansion: the shell expands no glob or braces in it, which the scanner marks
+ * as expanded too, so only $ and ` count (a $ in quotes as well, which fails closed).
+ */
+function literal(word: Word): boolean {
+  return !/[$`]/u.test(word.text);
+}
+
+/** The names of the tables where they stand as names, not inside another one. */
+const TABLES = /(?<![A-Za-z0-9_])BASH_(?:CMDS|ALIASES)(?![A-Za-z0-9_])/gu;
+
+/**
+ * The elements a command of assignments alone sets in bash's tables (checked on GNU bash 5.2.21; decision D-172):
+ * BASH_CMDS[name]=path gives name the program path, as hash -p path name does, and BASH_ALIASES[name]=value is
+ * alias name=value. A word the shell expands is left to tableSetting, which makes the line unreadable.
+ */
+function tableElements(words: readonly Word[], depth: number): CommandScan {
+  const scan: CommandScan = { requests: [], unreadable: undefined };
+  for (const word of words) {
+    const element = literal(word) ? TABLE_ELEMENT.exec(word.text) : null;
+    if (element === null) continue;
+    const [, table, name, value] = element as unknown as [string, string, string, string];
+    if (name === '' || name.includes('/')) continue;
+    if (table === 'BASH_CMDS') aliases.set(name, requoted({ text: value, dynamic: false }));
+    else merge(scan, scanAlias([{ text: 'alias', dynamic: false }, { text: `${name}=${value}`, dynamic: false }], depth));
+  }
+  return scan;
+}
+
+/**
+ * Why a command may set bash's tables of hashed commands and aliases in a way depcurfew does not read (decision D-172),
+ * which may give any later command name a package manager: any word that names BASH_CMDS or BASH_ALIASES but reads it
+ * ($BASH_CMDS, ${BASH_CMDS[npm]}, ${#…}, ${!…}), except an element tableElements reads, and one before a command,
+ * which bash refuses (BASH_CMDS[x]=y foo runs foo and sets nothing). ${BASH_CMDS[foo]:=…} sets it.
+ */
+function tableSetting(words: readonly Word[]): string | undefined {
+  let start = 0;
+  while (start < words.length && (ASSIGNMENT.test((words[start] as Word).text) || ELEMENT_ASSIGNMENT.test((words[start] as Word).text))) start += 1;
+  const alone = start === words.length;
+  for (const [index, word] of words.entries()) {
+    const text = word.text;
+    if (!text.includes('BASH_')) continue;
+    if (index < start && ELEMENT_ASSIGNMENT.test(text) && (!alone || (literal(word) && TABLE_ELEMENT.test(text)))) continue;
+    for (const match of text.matchAll(TABLES)) {
+      const at = match.index;
+      const before = text.slice(Math.max(0, at - 3), at);
+      const expansion = before.endsWith('${') || before === '${#' || before === '${!';
+      const read = text[at - 1] === '$' || expansion;
+      if (read && !(before.endsWith('${') && /^(?:\[[^\]]*\])?:?=/u.test(text.slice(at + match[0].length)))) continue;
+      return `"${shown(text)}" may set ${match[0]} in a way depcurfew does not read, and a command name ${REBOUND}`;
+    }
+  }
+  return undefined;
+}
+
 /** A word of env -S with ${NAME} in it, as the shell would read it back (decision D-123). */
 const SHELL_TEXT = new WeakMap<Word, string>();
 
@@ -3152,7 +3356,7 @@ function commandWords(
 }
 
 /** pip, uv, Poetry, PDM, Pipenv and pipx: their install, run and add commands matched word for word (uv pip install, uv tool run). */
-function scanPythonTool(tool: ToolCommands, executable: string, rest: readonly Word[], line: string, depth: number): CommandScan | undefined {
+function scanPythonTool(tool: ToolCommands, command: SimpleCommand, executable: string, rest: readonly Word[], line: string, depth: number): CommandScan | undefined {
   const { facts } = tool;
   const read = commandWords(rest, tool, line);
   if ('unreadable' in read) return unreadable(read.unreadable);
@@ -3167,9 +3371,11 @@ function scanPythonTool(tool: ToolCommands, executable: string, rest: readonly W
   };
   // Longer commands first, so that uv tool run is not taken for uv run.
   const byLength = <T>(list: readonly T[], command: (entry: T) => readonly string[]) => [...list].sort((a, b) => command(b).length - command(a).length);
-  const run = (mode: 'add' | 'run' | 'create', start: number, command: readonly string[], entry: DownloadCommand | undefined) => {
-    const context = contextOf(tool, command);
-    return finish(tool, line, readArguments(rest.slice(start), mode, tool, entry, context), depth, read.events, context, read.overrides);
+  const run = (mode: 'add' | 'run' | 'create', start: number, words: readonly string[], entry: DownloadCommand | undefined) => {
+    const context = contextOf(tool, words);
+    // pipx inject ENVIRONMENT PACKAGE …: the environment is no package (decision D-172).
+    const operands = mode === 'add' ? (facts.addOperands?.find((item) => sameCommand(item.command, words))?.operands ?? 0) : 0;
+    return finish(tool, line, readArguments(rest.slice(start), mode, tool, entry, context, operands), depth, read.events, context, read.overrides);
   };
   for (const entry of byLength(facts.run, (item) => item.command)) {
     const start = match(entry.command);
@@ -3179,15 +3385,57 @@ function scanPythonTool(tool: ToolCommands, executable: string, rest: readonly W
     const start = match(entry.command);
     if (start !== undefined) return run('create', start, entry.command, entry);
   }
-  for (const command of byLength(facts.add, (item) => item)) {
-    const start = match(command);
-    if (start !== undefined) return run('add', start, command, undefined);
+  // pipx runpip runs pip (decision D-172); pipx install-all and pipx manifest sync install the packages of a file.
+  for (const entry of facts.passOn ?? []) {
+    const start = match(entry.command);
+    if (start !== undefined) return scanPassOn(tool, entry, rest.slice(start), command, line, depth);
+  }
+  for (const words of byLength(facts.fileCommands ?? [], (item) => item)) {
+    if (match(words) !== undefined) return unreadable(`${shown(line)}: ${words.join(' ')} ${FROM_FILE}`);
+  }
+  for (const words of byLength(facts.add, (item) => item)) {
+    const start = match(words);
+    if (start !== undefined) return run('add', start, words, undefined);
   }
   if (dynamic !== undefined) return unreadable(`${shown(line)}: ${expanded(dynamic.word, 'the subcommand ')}`);
   // Another command of the tool (uv sync, poetry run): what its options weaken, and a package manager it runs.
   const scan = managerScan(line, optionOverrides(tool, rest));
   merge(scan, laterCommand(rest, depth));
   return scan;
+}
+
+/**
+ * A command that runs a command line of another tool (pipx runpip ENVIRONMENT ARGS runs pip ARGS; decision D-172):
+ * its own options come before its operands, and every word after them is read as the other tool's command line. A
+ * lone word with blanks is split as the tool splits it (pipx: shlex.split), which depcurfew does only for a word
+ * without quotes and backslashes, the characters shlex reads otherwise than a split at blanks.
+ */
+function scanPassOn(tool: ToolCommands, entry: PassOnCommand, words: readonly Word[], command: SimpleCommand, line: string, depth: number): CommandScan {
+  let index = 0;
+  let operands = 0;
+  for (; index < words.length && operands < entry.operands; index++) {
+    const word = words[index] as Word;
+    if (word.text === '--' && !word.dynamic) continue;
+    if (isOption(word.text)) {
+      if (word.dynamic) return unreadable(`${shown(line)}: ${expanded(word)}`);
+      if (readOption(words, index, tool, (name) => tool.valueOptions.has(name)).next !== undefined) index += 1;
+      continue;
+    }
+    // The shell may split it into the operand and the first words of the other tool.
+    if (word.splits === true) return unreadable(`${shown(line)}: ${expanded(word)}`);
+    operands += 1;
+  }
+  // argparse drops a -- before the words it takes as REMAINDER (pipx runpip ENV -- install x).
+  let passed = words[index]?.text === '--' && words[index]?.dynamic === false ? words.slice(index + 1) : words.slice(index);
+  const only = passed[0];
+  if (entry.splitsOneWord === true && passed.length === 1 && only !== undefined && !only.dynamic && /[ \t\r\n]/u.test(only.text)) {
+    if (/['"\\]/u.test(only.text)) return unreadable(`${shown(line)}: ${entry.command.join(' ')} ${SPLITS_ONE_WORD}, which depcurfew reads only without quotes and backslashes`);
+    passed = only.text
+      .split(/[ \t\r\n]+/u)
+      .filter((text) => text !== '')
+      .map((text) => ({ text, dynamic: false }));
+  }
+  return scanCommand({ ...command, words: [{ text: entry.runs, dynamic: false }, ...passed] }, depth);
 }
 
 /**
@@ -3235,8 +3483,26 @@ function scanWords(command: SimpleCommand, depth: number, put: string[]): Comman
     if (head.dynamic && BUILT_SUBSCRIPT.test(head.text)) noteBuiltName(builtName(shown(joined(words))));
     // A command found further along other words starts with its executable (pipx run pip==25.0), not an assignment.
     if (ASSIGNMENT.test(head.text) && !(command.later === true && words === command.words)) {
-      assigned.push(head);
-      words = words.slice(1);
+      // A run of assignments is taken at once, which keeps a long run of them linear (X=1 X=1 … npm i x).
+      let end = 1;
+      while (end < words.length && ASSIGNMENT.test((words[end] as Word).text)) end += 1;
+      for (let index = 0; index < end; index += 1) {
+        const word = words[index] as Word;
+        if (index > 0 && word.dynamic && BUILT_SUBSCRIPT.test(word.text)) noteBuiltName(builtName(shown(joined(words.slice(index)))));
+        assigned.push(word);
+      }
+      words = words.slice(end);
+    } else if (ELEMENT_ASSIGNMENT.test(head.text) && !(command.later === true && words === command.words)) {
+      // bash refuses an assignment to an array element before a command and runs the command; a command of
+      // assignments alone sets the elements, also of its tables of hashed commands and aliases (checked on GNU bash
+      // 5.2.21; decision D-172).
+      // The assignments are taken at once, which keeps a long run of them linear.
+      let end = 0;
+      while (end < words.length && (ASSIGNMENT.test((words[end] as Word).text) || ELEMENT_ASSIGNMENT.test((words[end] as Word).text))) end += 1;
+      if (words.slice(1, end).some((word) => word.dynamic && BUILT_SUBSCRIPT.test(word.text))) noteBuiltName(builtName(shown(joined(words))));
+      if (end === words.length) return tableElements(words, depth);
+      for (const word of words.slice(0, end)) if (ASSIGNMENT.test(word.text)) assigned.push(word);
+      words = words.slice(end);
     } else if (!head.dynamic && KEYWORDS.has(head.text)) {
       // coproc runs the command in a subshell of its own.
       if (head.text === 'coproc') builtin = false;
@@ -3346,6 +3612,7 @@ function scanSimple(command: SimpleCommand, words: readonly Word[], assigned: re
     if (callback !== undefined) return callback;
   }
   if (!first.dynamic && executable === 'alias') return scanAlias(words, depth);
+  if (!first.dynamic && builtin && first.text === 'hash') return scanHash(words);
   if (!first.dynamic && EXPRESSION_RUNNERS.has(executable)) return scanInvokeExpression(words, command, depth);
   if (!first.dynamic && interpreter()?.executables.includes(executable) === true) return scanInterpreter(words, command, depth);
   const reader = first.dynamic ? undefined : PROGRAM_READERS.get(executable);
@@ -3700,7 +3967,7 @@ function scanToolCommand(tool: ToolCommands, command: SimpleCommand, first: Word
     return finish(tool, line, readArguments(rest, 'run', tool, run, context), depth, [], context);
   }
   if (tool.composer !== undefined) return scanComposer(tool, tool.composer, rest, line, depth);
-  if (tool.ecosystem !== 'npm') return scanPythonTool(tool, executable, rest, line, depth);
+  if (tool.ecosystem !== 'npm') return scanPythonTool(tool, command, executable, rest, line, depth);
   // Download commands whose options the tool reads before the subcommand too (pnpm --package=x dlx y; decision D-160);
   // where such an option takes the next word as its value, the subcommand comes after that word.
   const early = (tool.runnerOptions?.beforeCommand ?? []).filter((entry) => entry.command.length === 2 && entry.command[0] === executable);
@@ -3762,6 +4029,13 @@ function scanToolCommand(tool: ToolCommands, command: SimpleCommand, first: Word
   const createEntry = find(facts.create);
   if (createEntry !== undefined && readsBefore(createEntry)) return finish(tool, line, readArguments([...rest.slice(0, index), ...after], 'create', tool, createEntry, context), depth, [], context);
   if (createEntry !== undefined) return finish(tool, line, readArguments(after, 'create', tool, createEntry, context), depth, before, context, overridesBefore);
+  // npm link installs each spec the global space has none of, as npm install -g does, then links it (decision D-172).
+  if (tool.links.some((command) => command[0] === executable && names.includes(command[1] ?? ''))) {
+    const outcome = readArguments(after, 'add', tool, undefined, context);
+    const scan = finish(tool, line, outcome, depth, before, context, overridesBefore);
+    if (!('unreadable' in outcome)) for (const request of scan.requests.slice(0, outcome.specs.length)) request.linked = true;
+    return scan;
+  }
   if (names.some((name) => add.has(name))) return finish(tool, line, readArguments(after, 'add', tool, undefined, context), depth, before, context, overridesBefore);
   // A package manager's script run by its path (bun /usr/bin/npx …, bun ./npm-cli.js …) is that package manager.
   const manager = /[\\/]/u.test(subcommand.text) || SCRIPT_EXTENSIONS.test(subcommand.text) ? scriptManager(subcommand.text) : undefined;
@@ -4184,6 +4458,9 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
     // The code of python -c or node -e that the command runs (codeSets).
     appendAll(unread, unreadOverrides(line, walk.place));
     add(found);
+    // bash's tables of hashed commands and aliases set in a way depcurfew does not read (decision D-172).
+    const table = shell === 'posix' ? tableSetting(command.words) : undefined;
+    if (table !== undefined) scan.unreadable ??= `${shown(line)}: ${table}`;
     if (found.moves !== undefined) walk.changes(found.moves, command.words, bounds);
     // An activation script run after a command that may write files is not trusted (decision D-123).
     walk.ran(writesNothing(command));
@@ -4282,7 +4559,7 @@ function settle(request: InstallRequest): InstallRequest {
     return { ...rest, ...place };
   }
   const events = [...pending.variables.flatMap(({ name, value }) => variableEvents(pending.switches, pending.tagVariable, name, value)), ...pending.events];
-  const result: InstallRequest = { tool: request.tool, command: request.command, spec: request.spec };
+  const result: InstallRequest = { tool: request.tool, command: request.command, spec: request.spec, ...(request.linked === true ? { linked: true } : {}) };
   const tag = events.findLast((event) => event.setting === 'tag');
   if (tag !== undefined && tag.setting === 'tag') result.tag = tag.value;
   if (pending.switches !== undefined) {

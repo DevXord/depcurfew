@@ -1,0 +1,59 @@
+{
+  "packageManagers": [
+    {
+      "id": "pnpm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "pnpm-lock.yaml"
+        },
+        {
+          "kind": "packageManager",
+          "file": "package.json"
+        },
+        {
+          "kind": "config",
+          "file": "pnpm-workspace.yaml"
+        }
+      ],
+      "versions": [
+        {
+          "version": "12.16.1",
+          "source": "packageManager",
+          "file": "package.json"
+        }
+      ],
+      "configFiles": [
+        "pnpm-workspace.yaml"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
+  "warnings": [
+    {
+      "code": "pnpm-hook",
+      "message": "pnpm loads .pnpmfile.mjs and names updateConfig at line 2, and the updateConfig hook of a pnpmfile can change every setting after pnpm has read its configuration files, so depcurfew cannot verify the settings it checks",
+      "files": [
+        ".pnpmfile.mjs"
+      ],
+      "line": 2
+    },
+    {
+      "code": "pnpm-hook",
+      "message": "pnpm loads the pnpmfile of the config dependency @pnpm/plugin-better-defaults (configDependencies in pnpm-workspace.yaml, line 2) because of its name, and its updateConfig hook can change every setting after pnpm has read its configuration files, so depcurfew cannot verify the settings it checks; @pnpm/plugin-better-defaults 0.3.0 and later sets minimumReleaseAge: 1440 and blockExoticSubdeps: true",
+      "files": [
+        "pnpm-workspace.yaml"
+      ],
+      "line": 2
+    }
+  ]
+}

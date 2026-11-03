@@ -2,6 +2,8 @@ import { verifiedOn } from './define.ts';
 import type { ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
+// Facts whose sources D-170 pinned to a release tag or commit, checked again on 2026-11-03.
+const d170 = verifiedOn('2026-11-03');
 const python = verifiedOn('2026-10-30');
 const review = verifiedOn('2026-10-31');
 const projects = verifiedOn('2026-11-01');
@@ -9,11 +11,13 @@ const bots = verifiedOn('2026-11-02');
 const composer = verifiedOn('2026-11-02');
 const d151 = verifiedOn('2026-11-03');
 const d152 = verifiedOn('2026-11-03');
+// Read again for the booleans and nulls of Psych (decision D-171).
+const d171 = verifiedOn('2026-11-03');
 
 const OPTIONS = 'https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference';
 const COOLDOWN_GA = 'https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/';
 const DEFAULT_COOLDOWN = 'https://github.blog/changelog/2026-07-14-dependabot-version-updates-introduce-default-package-cooldown/';
-const CORE = 'https://github.com/dependabot/dependabot-core/blob/main';
+const CORE = 'https://github.com/dependabot/dependabot-core/blob/v0.403.0';
 
 export const dependabot: ToolKnowledge = {
   id: 'dependabot',
@@ -60,7 +64,7 @@ export const dependabot: ToolKnowledge = {
     ),
   },
   installScripts: {
-    defaultPolicy: uncertain(
+    defaultPolicy: d170.uncertain(
       [{ since: '0.0.0', value: 'deny' }],
       `${CORE}/npm_and_yarn/lib/dependabot/npm_and_yarn/helpers.rb`,
       'From dependabot-core source, not the docs: npm, Yarn and Bun lockfile updates run with scripts disabled; for pnpm only --lockfile-only was found. bundler, mix and pip may execute external code.',
@@ -120,10 +124,10 @@ export const dependabot: ToolKnowledge = {
       'https://github.com/dependabot/dependabot-core/blob/v0.402.0/common/lib/dependabot/config/file.rb',
       'Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load(config, symbolize_names: true); Psych.safe_load takes aliases: false unless told otherwise and raises Psych::AliasesNotEnabled on an alias (*name), so a file with one is not read. The issue that asks for aliases (https://github.com/dependabot/dependabot-core/issues/1582, "YAML aliases", open and labelled Keep on 2026-11-02) quotes the error users get, "YAML aliases are not supported"; the pull request that would allow them (#9653) is open and not merged. The reference of dependabot.yml (dependabot-options-reference.md in github/docs) does not mention anchors or aliases. An anchor (&name) that no alias refers to changes nothing.',
     ),
-    yamlScalars: bots.verified(
+    yamlScalars: d171.verified(
       { library: 'psych', version: '5.5.0', integers: 'legacy' },
       'https://github.com/ruby/psych/blob/v5.5.0/lib/psych/scalar_scanner.rb',
-      'Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load (dependabot-core v0.402.0, common/lib/dependabot/config/file.rb), which is Psych: Ruby 4.0.5 (.ruby-version) with psych 5.5.0 (Gemfile.lock of dependabot-core at v0.402.0). ScalarScanner#tokenize reads a plain scalar in this order: words, booleans (yes, no, on, off, true, false) and null; times and dates; .inf and .nan; :symbols; base 60 integers [-+]?[0-9][0-9_]*(:[0-5]?[0-9]){1,2}, summed as part * 60 ** (index - 2).abs, so 1:30 is 5400; floats with a dot; then INTEGER_LEGACY, the default without strict_integer: 0b binary, 0 followed by octal digits, decimal without a leading zero, 0x hex, each with _ and , allowed, read with Integer(string.delete(\',_\')), so 010 is 8, 1_0 and 1,0 are 10; anything else, 0o12 and 08 too, is a string.',
+      'Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load (dependabot-core v0.402.0, common/lib/dependabot/config/file.rb), which is Psych: Ruby 4.0.5 (.ruby-version) with psych 5.5.0 (Gemfile.lock of dependabot-core at v0.402.0). ScalarScanner#tokenize reads a plain scalar in this order: words, where a word of up to five characters is null when it is ~ or null and a boolean when it is yes, true or on (true) or no, false or off (false), all in any case (BOOLEAN_TRUE and BOOLEAN_FALSE of the default libyaml backend, the YAML 1.1 set; only the experimental libfyaml backend takes true and false alone), and the empty scalar is nil; times and dates; .inf and .nan; :symbols; base 60 integers [-+]?[0-9][0-9_]*(:[0-5]?[0-9]){1,2}, summed as part * 60 ** (index - 2).abs, so 1:30 is 5400; floats with a dot; then INTEGER_LEGACY, the default without strict_integer: 0b binary, 0 followed by octal digits, decimal without a leading zero, 0x hex, each with _ and , allowed, read with Integer(string.delete(\',_\')), so 010 is 8, 1_0 and 1,0 are 10; anything else, 0o12 and 08 too, is a string.',
     ),
     githubActions: bots.verified(
       { ecosystem: 'github-actions', semverDays: false },
@@ -156,11 +160,11 @@ export const dependabot: ToolKnowledge = {
       'https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates',
       'The page says the number of cooldown days must be between 1 and 90; whether 0 is accepted is disputed (see dayRange).',
     ),
-    missingPublishDate: verified(
+    missingPublishDate: d170.verified(
       'Updates proceed when the registry gives no publication date (fail open); for Docker only Docker Hub tag_last_pushed is used',
       `${CORE}/docker/README.md`,
     ),
-    transitiveGating: uncertain(
+    transitiveGating: d170.uncertain(
       'Regular updates pass the cooldown to npm (11.10+), pnpm (10.16+) and Yarn Berry to hold back transitive dependencies; the Bun updater passes none',
       `${CORE}/npm_and_yarn/lib/dependabot/npm_and_yarn/file_updater/npm_lockfile_updater.rb`,
       'Read from dependabot-core source.',

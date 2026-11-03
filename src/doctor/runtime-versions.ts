@@ -26,6 +26,8 @@ export function namingOf(source: VersionSource): Naming {
 
 /** The names a declaration may use: a job container's image tag reads like a Dockerfile's (decision D-115). */
 export function namingFor(declaration: VersionDeclaration): Naming {
+  // A version mise reads in CI (jdx/mise-action) is a mise request, like one of mise.toml (decision D-173).
+  if (declaration.reader === 'mise') return 'semver';
   return declaration.container === undefined ? namingOf(declaration.source) : 'docker';
 }
 

@@ -29,7 +29,8 @@ import { locateUserFile, shownPath, userFilePath, type RelativeDirectory, type U
 import { userPolicyPath } from './policy-path.ts';
 import { loadUserPolicy, userPolicyFix } from './policy.ts';
 import { environmentOverrides } from './variables.ts';
-import { installedUserFile, possibleUserFiles } from './user-file.ts';
+import { iniKeyAsRead, repeatedIniKey, type IniRepeat } from './ini-keys.ts';
+import { exactSections, iniSection, installedUserFile, possibleUserFiles } from './user-file.ts';
 import { findExecutable, installedToolName, toolVersion, type InstalledVersion } from './versions.ts';
 
 const noCheck = (): void => undefined;
@@ -51,7 +52,7 @@ export const USER_RULES: readonly Rule[] = [
     checks: 'Every user-level configuration file can be read and parsed',
     summary: 'A user-level configuration file cannot be read, parsed or edited, or the home directory does not exist, so depcurfew cannot check it.',
     description:
-      'The package manager may still read the file (or stop on it), and its settings may weaken every project on the machine; doctor --user fails closed and reports an error instead of passing silently. Without a home directory the user files of most tools cannot be found at all.',
+      'The package manager may still read the file (or stop on it), and its settings may weaken every project on the machine; doctor --user fails closed and reports an error instead of passing silently. A pip.conf that has a section twice, or a key twice in one section (from pip 26.3 also only_binary next to only-binary), stops pip itself. Without a home directory the user files of most tools cannot be found at all.',
     help: 'Do what the fix of the finding says: fix invalid syntax, give read permission, replace a symlink apply --user does not write through, make a file smaller than 1 MiB, or set HOME to an existing directory.',
     level: 'error',
     requiresPolicy: false,
@@ -150,20 +151,32 @@ function blockLines(lines: readonly string[]): Set<number> {
   return inside;
 }
 
-/** The key as the tool reads it: pip takes only_binary as only-binary (UserFile.underscoresAsDashes). */
-function iniKey(file: UserFile, key: string): string {
-  return file.underscoresAsDashes === true ? key.toLowerCase().replaceAll('_', '-') : key;
-}
+/** The key as the tool reads it: pip takes only_binary and --only-binary as only-binary (UserFile.underscoresAsDashes). */
+const iniKey = iniKeyAsRead;
 
-function iniRead(text: string, file?: UserFile): Entry[] {
-  const managed = blockLines(text.split(/\r\n|\r|\n/u));
-  return iniLines(text).map((entry) => ({
-    path: [file === undefined ? entry.key.replace(/\[\]$/u, '') : iniKey(file, entry.key.replace(/\[\]$/u, ''))],
-    ...(entry.section === undefined ? {} : { section: entry.section }),
-    value: entry.value,
-    line: entry.line,
-    managed: managed.has(entry.line),
-  }));
+function iniRead(text: string, file?: UserFile, exact = false): Entry[] {
+  const lines = text.split(/\r\n|\r|\n/u);
+  const managed = blockLines(lines);
+  // pip reads [Global] and [ global ] as sections of those names, not as [global] (decision D-167): the section of
+  // each line, in one pass.
+  const sectionAt: (string | undefined)[] = [];
+  if (exact) {
+    let section: string | undefined;
+    for (const raw of lines) {
+      section = iniSection(raw, true) ?? section;
+      sectionAt.push(section);
+    }
+  }
+  return iniLines(text).map((entry) => {
+    const section = exact ? sectionAt[entry.line - 1] : entry.section;
+    return {
+      path: [file === undefined ? entry.key.replace(/\[\]$/u, '') : iniKey(file, entry.key.replace(/\[\]$/u, ''))],
+      ...(section === undefined ? {} : { section }),
+      value: entry.value,
+      line: entry.line,
+      managed: managed.has(entry.line),
+    };
+  });
 }
 
 const isTable = (value: unknown): value is TomlTable => typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof TomlDateTime);
@@ -230,9 +243,9 @@ function yamlRead(text: string, merge = false): Read {
 }
 
 /** The keys of a user file as the tool reads them, or why it cannot be parsed; init --user reads delays with it too. */
-export function parseUserFile(file: UserFile, text: string): Read {
+export function parseUserFile(file: UserFile, text: string, tool?: ToolKnowledge): Read {
   if (file.format === 'yaml') return yamlRead(text, file.mergeKeys === true);
-  if (file.format === 'ini') return { ok: true, entries: iniRead(text, file) };
+  if (file.format === 'ini') return { ok: true, entries: iniRead(text, file, tool !== undefined && exactSections(tool)) };
   try {
     return { ok: true, entries: tomlRead(text) };
   } catch (thrown) {
@@ -320,6 +333,37 @@ function sameAsPlanned(entry: Entry, planned: readonly Entry[] | undefined): boo
   if (planned === undefined) return false;
   const value = json(entry.value);
   return planned.some((other) => other.managed && other.section === entry.section && other.path.join('\0') === entry.path.join('\0') && json(other.value) === value);
+}
+
+/**
+ * A section given twice in an INI user file, or a key given twice in one section, which the tool's parser does not take
+ * (UserFile.duplicateKeys): where, and which line to remove. `stops` says who stops on it ("pip 26.3.0 stops").
+ */
+function repeatProblem(repeat: IniRepeat, shown: string, tool: string, stops: string, entries: readonly Entry[]): { message: string; fix: string; line: number } {
+  const { first, second } = repeat;
+  if (repeat.kind === 'section') {
+    return {
+      message: `[${repeat.section}] is in ${shown} twice (lines ${first.line} and ${second.line}), and ${stops} with an error on a file that has a section twice`,
+      fix: `Merge the two [${repeat.section}] sections of ${shown} into one`,
+      line: second.line,
+    };
+  }
+  const where = `[${repeat.section}] of ${shown}`;
+  const what =
+    first.text === second.text
+      ? `${first.text} is set twice in ${where} (lines ${first.line} and ${second.line})`
+      : `${first.text} (line ${first.line}) and ${second.text} (line ${second.line}) in ${where} are the same key to ${tool}`;
+  // A copy outside depcurfew's block is the one to remove: apply --user writes the key in its block.
+  const managed = (place: { line: number }) => entries.some((entry) => entry.managed && entry.line === place.line);
+  const handWritten = managed(first) === managed(second) ? undefined : managed(first) ? second : first;
+  return {
+    message: `${what}, and ${stops} with an error on a file that sets a key twice in one section`,
+    fix:
+      handWritten === undefined
+        ? `Keep one of lines ${first.line} and ${second.line} in ${where}`
+        : `Remove line ${handWritten.line} (${handWritten.text}) from ${shown}: depcurfew apply --user sets ${repeat.key} in its block`,
+    line: second.line,
+  };
 }
 
 /** The text of a read problem, as the file is shown. */
@@ -587,13 +631,24 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
       if (problem !== undefined) reportUnreadable(shown, problem);
       else if (read.ok) {
         filesRead.add(shown);
-        result = parseUserFile(file, read.bytes.toString('utf8'));
+        const text = read.bytes.toString('utf8');
+        result = parseUserFile(file, text, tool);
         if (!result.ok) {
           reportUnreadable(shown, {
             message: `${shown} cannot be parsed (${result.message}), so depcurfew cannot check it`,
             fix: `${result.fix}; ${tool.name} may stop on it or read settings depcurfew cannot see`,
             ...(result.line === undefined ? {} : { line: result.line }),
           });
+        } else {
+          // A section or a key the tool's parser does not take twice stops it (decision D-170). Without a version, the
+          // file as each version reads it.
+          const readers = versions.get(tool.id) === undefined ? filesOf(tool, undefined).filter((other): other is UserFile => other !== null && readPath(other) === path) : [file];
+          for (const reader of readers) {
+            const repeat = repeatedIniKey(reader, text);
+            if (repeat === undefined) continue;
+            reportUnreadable(shown, repeatProblem(repeat, shown, tool.name, stopsOn(tool, reader), result.entries));
+            break;
+          }
         }
       } else {
         // A missing file has no entries, but what apply --user would write into it still counts (plannedEntries).
@@ -604,12 +659,19 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     const result = reads.get(key);
     return result?.ok === true ? result.entries : undefined;
   };
+  /** Who stops on a file this user file of the tool cannot have: the version in use, or the versions that read it so. */
+  const stopsOn = (tool: ToolKnowledge, file: UserFile): string => {
+    const version = versions.get(tool.id);
+    if (version !== undefined) return `${tool.name} ${formatVersion(version)} stops`;
+    const since = (tool.user === undefined ? [] : (evidenceOf(tool.user.files)[0]?.value ?? [])).find((entry) => entry.value === file)?.since;
+    return since === undefined || since === '0.0.0' ? `${tool.name} stops` : `${tool.name} ${since} and newer stop`;
+  };
   /** The entries of the planned text of a file apply --user covers. */
-  const plannedEntries = (file: UserFile, path: string, current: readonly Entry[]): readonly Entry[] | undefined => {
+  const plannedEntries = (file: UserFile, path: string, current: readonly Entry[], tool?: ToolKnowledge): readonly Entry[] | undefined => {
     if (!planned.has(path)) return undefined;
     const text = planned.get(path);
     if (text === undefined) return current;
-    const result = parseUserFile(file, text);
+    const result = parseUserFile(file, text, tool);
     return result.ok ? result.entries : undefined;
   };
   const reported = new Set<string>();
@@ -635,7 +697,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
       seen.add(path);
       const shown = shownPath(path, environment);
       const entries = entriesOf(file, path, tool);
-      const plannedHere = entries === undefined ? undefined : plannedEntries(file, path, entries);
+      const plannedHere = entries === undefined ? undefined : plannedEntries(file, path, entries, tool);
       for (const entry of entries ?? []) {
         if (!readsSection(file, entry) || sameAsPlanned(entry, plannedHere)) continue;
         for (const rule of weakening) {
@@ -650,7 +712,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
         if (otherPath === undefined) continue;
         const otherShown = shownPath(otherPath, environment);
         const otherEntries = entriesOf(other, otherPath, tool);
-        const otherPlanned = otherEntries === undefined ? undefined : plannedEntries(other, otherPath, otherEntries);
+        const otherPlanned = otherEntries === undefined ? undefined : plannedEntries(other, otherPath, otherEntries, tool);
         const read = (otherEntries ?? []).filter((entry) => readsSection(other, entry));
         for (const entry of read) {
           if (sameAsPlanned(entry, otherPlanned)) continue;

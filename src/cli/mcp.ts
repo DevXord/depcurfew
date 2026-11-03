@@ -93,6 +93,8 @@ export async function mcp(flags: McpFlags, io: CliIo, dependencies: McpDependenc
       registry: flags.registry,
       index: flags.index,
       home: dependencies.home?.() ?? homedir(),
+      // The registry and index settings of the environment the server runs in (decision D-168).
+      machine: { env: host.env, platform: process.platform, execPath: process.execPath },
       fetch: dependencies.fetch,
       now: dependencies.now,
       ...(flags.osv === true ? { osv: true } : {}),

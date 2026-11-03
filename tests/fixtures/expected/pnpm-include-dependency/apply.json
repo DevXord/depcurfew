@@ -1,0 +1,50 @@
+{
+  "changed": [
+    "pnpm-workspace.yaml"
+  ],
+  "warnings": [
+    {
+      "code": "cooldown-not-written",
+      "tool": "pnpm",
+      "location": {
+        "file": "pnpm-workspace.yaml",
+        "line": 4
+      },
+      "message": "pnpm: cooldown not written: minimumReleaseAge belongs to the config dependency @acme/pnpm-policy (include in pnpm-workspace.yaml, line 4), whose settings depcurfew cannot change; written into pnpm-workspace.yaml, it would make pnpm stop with ERR_PNPM_DUPLICATE_SETTING",
+      "fix": "Take minimumReleaseAge out of the list of @acme/pnpm-policy in include in pnpm-workspace.yaml, then run depcurfew apply again, which writes it into pnpm-workspace.yaml; or set minimumReleaseAge to 4320 in the settings of @acme/pnpm-policy"
+    },
+    {
+      "code": "allow-pattern-unsupported",
+      "tool": "pnpm",
+      "message": "pnpm: allowBuilds takes package names only; \"@scope/*\" not written",
+      "fix": "List the package names in installScripts.allow"
+    },
+    {
+      "code": "setting-owned-elsewhere",
+      "tool": "pnpm",
+      "location": {
+        "file": "pnpm-workspace.yaml",
+        "line": 4
+      },
+      "message": "pnpm: allowBuilds not written: allowBuilds belongs to the config dependency @acme/pnpm-policy (include in pnpm-workspace.yaml, line 4), whose settings depcurfew cannot change; written into pnpm-workspace.yaml, it would make pnpm stop with ERR_PNPM_DUPLICATE_SETTING",
+      "fix": "Take allowBuilds out of the list of @acme/pnpm-policy in include in pnpm-workspace.yaml, then run depcurfew apply again, which writes it into pnpm-workspace.yaml; or set allowBuilds as depcurfew.json requires in the settings of @acme/pnpm-policy"
+    },
+    {
+      "code": "source-switch-indirect-only",
+      "tool": "pnpm",
+      "message": "pnpm: blockExoticSubdeps stops git and tarball sources only for indirect dependencies; direct ones stay allowed",
+      "fix": "Run depcurfew doctor, which reports direct ones in pnpm-lock.yaml"
+    },
+    {
+      "code": "setting-owned-elsewhere",
+      "tool": "pnpm",
+      "location": {
+        "file": "pnpm-workspace.yaml",
+        "line": 4
+      },
+      "message": "pnpm: blockExoticSubdeps not written: blockExoticSubdeps belongs to the config dependency @acme/pnpm-policy (include in pnpm-workspace.yaml, line 4), whose settings depcurfew cannot change; written into pnpm-workspace.yaml, it would make pnpm stop with ERR_PNPM_DUPLICATE_SETTING",
+      "fix": "Take blockExoticSubdeps out of the list of @acme/pnpm-policy in include in pnpm-workspace.yaml, then run depcurfew apply again, which writes it into pnpm-workspace.yaml; or set blockExoticSubdeps to true in the settings of @acme/pnpm-policy"
+    }
+  ],
+  "snippets": []
+}

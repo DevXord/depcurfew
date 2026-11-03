@@ -309,6 +309,31 @@ export function jsonArrayAppend(text: string, path: Path, value: unknown): strin
   );
 }
 
+/**
+ * Inserts `value` as element `index` of the array at `path`, before the element there now (after the last one when
+ * there is none): on the same line in an inline array; in one written over several lines on a line of its own, right
+ * after the line of the [ or of the comma before, so that comments above the element there now stay with it.
+ */
+export function jsonArrayInsert(text: string, path: Path, index: number, value: unknown): string {
+  return checked(
+    text,
+    `adding ${JSON.stringify(value)} to ${path.join('.')}`,
+    (body) => {
+      const array = arrayAt(body, path);
+      const element = array.elements[index];
+      if (element === undefined) return jsonArrayAppend(body, path, value);
+      const unit = indentUnit(body);
+      if (isSameLine(body, array.start, element.start)) return `${body.slice(0, element.start)}${serialize(value, unit, '').replaceAll(/\n\s*/gu, ' ')}, ${body.slice(element.start)}`;
+      const indent = lineIndent(body, element.start);
+      const previous = array.elements[index - 1];
+      const after = previous === undefined ? array.start + 1 : nextSignificant(body, previous.end) + 1;
+      const at = endOfLine(body, after);
+      return `${body.slice(0, at)}\n${indent}${serialize(value, unit, indent)},${body.slice(at)}`;
+    },
+    (data) => withArray(data, path, (array) => [...array.slice(0, index), value, ...array.slice(index)]),
+  );
+}
+
 export function jsonArrayReplace(text: string, path: Path, index: number, value: unknown): string {
   return checked(
     text,

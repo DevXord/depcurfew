@@ -11,7 +11,9 @@ import { buildAllowList, buildSwitchScopeWarning, compactDuration, forcedBuildWa
 import { convertCooldown } from '../policy/convert.ts';
 import { allowedNames, cooldownValue, denyList, eachSource, exclusions, sameList, scriptsDefault, type SourceKind } from '../apply/generators/common.ts';
 import type { Context } from '../apply/generators/context.ts';
+import { dashedKey } from './ini-keys.ts';
 import { userFileFor } from './locate.ts';
+import { exactSections, iniSection } from './user-file.ts';
 import { matchesPattern } from '../doctor/allow-lists.ts';
 import { delayMinutes, formatMinutes, userCooldownAmount, userDelayMinutes, type DelayValue } from '../doctor/durations.ts';
 import { splitSpec } from '../doctor/lockfiles.ts';
@@ -605,7 +607,6 @@ interface PipSections {
 }
 const isPipSections = (value: unknown): value is PipSections => isRecord(value) && typeof value['global'] === 'string' && typeof value['commandsOverride'] === 'boolean';
 
-const SECTION = /^\s*\[([^\]]*)\]\s*$/u;
 const keyOfLine = (line: string): string | undefined => /^\s*([^#;=\s][^=:]*?)\s*[=:]/u.exec(line)?.[1]?.trim().toLowerCase();
 
 /**
@@ -618,22 +619,30 @@ export function writeSectionBlock(
   section: string,
   entries: readonly string[],
   managedKeys: readonly string[],
-  options: { overriding?: boolean; marker?: string; underscoresAsDashes?: boolean } = {},
+  options: { overriding?: boolean; marker?: string; underscoresAsDashes?: boolean; exactSections?: boolean; readSections?: readonly string[] } = {},
 ): string {
-  // pip reads only_binary as only-binary: a hand-written spelling with underscores is the same key (UserFile.underscoresAsDashes).
-  const keyOf = (line: string): string | undefined => (options.underscoresAsDashes === true ? keyOfLine(line)?.replaceAll('_', '-') : keyOfLine(line));
-  const managed = new Set(managedKeys.map((key) => (options.underscoresAsDashes === true ? key.replaceAll('_', '-') : key)));
+  // pip reads only_binary and --only-binary as only-binary: a hand-written spelling is the same key (UserFile.underscoresAsDashes).
+  const asRead = (key: string): string => (options.underscoresAsDashes === true ? dashedKey(key) : key);
+  const keyOf = (line: string): string | undefined => {
+    const key = keyOfLine(line);
+    return key === undefined ? undefined : asRead(key);
+  };
+  const managed = new Set(managedKeys.map(asRead));
   const marker = options.marker ?? blockStart();
   const removed = removeBlock(splitLines(body), marker);
-  const name = section.toLowerCase();
+  // pip reads [Global] and [ global ] as other sections than [global] (decision D-167).
+  const exact = options.exactSections === true;
+  const name = exact ? section : section.toLowerCase();
   let current: string | undefined;
   // The section of each line after the edit, for placing the block.
   const sections: (string | undefined)[] = [];
   const lines = removed.lines.map((line, index) => {
-    const header = SECTION.exec(line);
-    if (header !== null) current = header[1]?.trim().toLowerCase();
+    const header = iniSection(line, exact);
+    if (header !== undefined) current = header;
     sections[index] = current;
-    if (current === undefined || header !== null || (current !== name && options.overriding !== true)) return line;
+    // With `readSections`, only the sections the tool reads count: keys of [Global] do nothing in pip (decision D-167).
+    const overrides = options.overriding === true && (options.readSections === undefined || options.readSections.includes(current ?? ''));
+    if (current === undefined || header !== undefined || (current !== name && !overrides)) return line;
     const original = commentedOut(line);
     if (original !== undefined) return managed.has(keyOf(original) ?? '') ? line : original;
     const key = keyOf(line);
@@ -642,7 +651,7 @@ export function writeSectionBlock(
   if (entries.length === 0) return joinLines(lines);
   const at = removed.at;
   if (at !== undefined && at > 0 && sections[at - 1] === name) return joinLines(insertBlock(lines, at, entries, removed.separated, marker));
-  const header = lines.findIndex((line) => SECTION.exec(line)?.[1]?.trim().toLowerCase() === name);
+  const header = lines.findIndex((line) => iniSection(line, exact) === name);
   if (header === -1) {
     const trimmed = lines.length > 0 && lines.at(-1) === '' ? lines.slice(0, -1) : lines;
     return joinLines([...trimmed, ...(trimmed.length > 0 ? [''] : []), `[${section}]`, ...blockLines(entries, marker)]);
@@ -651,17 +660,17 @@ export function writeSectionBlock(
 }
 
 /** The hand-written value of a pip.conf key that pip install uses: [install] wins over [global]. */
-function pipFound(text: string, key: string, sections: PipSections): Found | undefined {
-  // pip reads only_binary as only-binary (UserFile.underscoresAsDashes in the pip knowledge).
-  const same = (candidate: string | undefined) => candidate?.replaceAll('_', '-') === key.replaceAll('_', '-');
+function pipFound(text: string, key: string, sections: PipSections, exact: boolean): Found | undefined {
+  // pip reads only_binary and --only-binary as only-binary (UserFile.underscoresAsDashes in the pip knowledge).
+  const same = (candidate: string | undefined) => candidate !== undefined && dashedKey(candidate) === dashedKey(key);
   let current: string | undefined;
   const found = new Map<string, Found>();
   outsideBlocks(text)
     .split('\n')
     .forEach((line, index) => {
-      const header = SECTION.exec(line);
-      if (header !== null) {
-        current = header[1]?.trim().toLowerCase();
+      const header = iniSection(line, exact);
+      if (header !== undefined) {
+        current = header;
         return;
       }
       const equals = line.search(/[=:]/u);
@@ -686,7 +695,7 @@ function pip([target]: readonly UserTarget[]): void {
       const value = `P${String(result.value)}D`;
       entries.push(`${key} = ${value}`);
       managed.push(key);
-      shortenedWarning(target, pipFound(context.read(target.file), key, sections), { key, value, minutes: Number(result.value) * 1440 }, 'block');
+      shortenedWarning(target, pipFound(context.read(target.file), key, sections, exactSections(context.tool)), { key, value, minutes: Number(result.value) * 1440 }, 'block');
     }
   }
   if (policy.installScripts?.default === 'deny') {
@@ -707,8 +716,18 @@ function pip([target]: readonly UserTarget[]): void {
   }
   eachSource(context, () => undefined);
   const marker = blockStart(undefined, context.user ? 'user' : 'project');
-  const underscoresAsDashes = userFileFor(context.tool, context.version)?.underscoresAsDashes === true;
-  context.workspace.edit(target.file, (body) => writeSectionBlock(body, sections.global, entries, managed, { overriding: sections.commandsOverride, marker, underscoresAsDashes }));
+  const file = userFileFor(context.tool, context.version);
+  const underscoresAsDashes = file?.underscoresAsDashes === true;
+  const exact = exactSections(context.tool);
+  context.workspace.edit(target.file, (body) =>
+    writeSectionBlock(body, sections.global, entries, managed, {
+      overriding: sections.commandsOverride,
+      marker,
+      underscoresAsDashes,
+      exactSections: exact,
+      ...(exact && file?.sections !== undefined ? { readSections: file.sections } : {}),
+    }),
+  );
 }
 
 /** Poetry: config.toml with the keys of poetry.toml ([solver] and [installer] tables). */

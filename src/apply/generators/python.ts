@@ -42,6 +42,21 @@ export function buildSwitchScopeWarning(context: Context, setting: string, cover
   });
 }
 
+/** A key of a TOML table ('' for the top level) of a file as it is now, with its line; undefined when unset or unreadable. */
+export function tomlCurrent(context: Context, file: string, table: string, key: string): { value: unknown; line: number | undefined } | undefined {
+  if (!context.exists(file)) return undefined;
+  let document: TomlDocument;
+  try {
+    document = parseToml(context.read(file));
+  } catch {
+    // The edit of the file reports it (cannot-edit).
+    return undefined;
+  }
+  const path = [...(table === '' ? [] : table.split('.')), key];
+  const value = tomlValueAt(document, path);
+  return value === undefined ? undefined : { value, line: document.lineOf(path) };
+}
+
 /** A TOML string or array value. */
 export function tomlValue(value: unknown): string {
   return Array.isArray(value) ? `[${value.map((item) => tomlValue(item)).join(', ')}]` : JSON.stringify(value);
@@ -88,7 +103,8 @@ export function relockWarning(context: Context, file: string, table: string, edi
   const locked = extraOf(tool, 'lockedSettings', isLockedSettings);
   const lockfile = (tool.project === undefined ? [] : values(tool.project.lockfiles))
     .flatMap((versions) => versions.flatMap((entry) => entry.value))
-    .find((name) => context.exists(name));
+    // Only whether the lockfile is there counts: it is not read, so its size does not matter (decision D-166).
+    .find((name) => context.isFile(name));
   if (lockfile === undefined) return;
   const body = context.exists(file) ? context.read(file) : '';
   let before: TomlDocument;

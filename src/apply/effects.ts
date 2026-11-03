@@ -6,7 +6,7 @@ import { knowledgeBase } from '../knowledge/index.ts';
 import { SOURCE_KINDS } from '../knowledge/schema.ts';
 import type { ToolId, ToolKnowledge } from '../knowledge/types.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
-import { settingOf } from './facts.ts';
+import { isRecord, settingOf, values } from './facts.ts';
 import { recordSettings } from './generators/context.ts';
 import { planRepository } from './index.ts';
 import { inProject } from './projects.ts';
@@ -36,7 +36,8 @@ export interface PolicyEffects {
   (project: string | undefined, part: PolicyPart, tool: ToolId): ToolEffect;
   /**
    * Why apply writes no release-age delay for a tool although the policy's delay converts (decision D-134: a
-   * config.policy of composer.json that is no object), as its cooldown-not-written warning says; undefined when it does.
+   * config.policy of composer.json that is no object), as its cooldown-not-written warning says, or its version-too-old
+   * for a version without the delay setting (decision D-173); undefined when it does.
    */
   cooldownNotWritten(tool: ToolId): string | undefined;
 }
@@ -48,9 +49,23 @@ export interface PolicyEffects {
  */
 function partOfSetting(tool: ToolKnowledge | undefined, setting: string): PolicyPart | undefined {
   if (tool === undefined) return undefined;
-  if ([tool.cooldown.setting, tool.cooldown.exclude.setting].some((fact) => settingOf(fact) === setting)) return undefined;
+  // "cooldown once Gemfile.lock exists" and "minimumReleaseAge for packages requested by exact version" are the delay too
+  // (decision D-173).
+  const delay = (name: string | null) => name !== null && (name === setting || setting.startsWith(`${name} `));
+  if ([tool.cooldown.setting, tool.cooldown.exclude.setting].some((fact) => delay(settingOf(fact)))) return undefined;
   if (SOURCE_KINDS.some((kind) => tool.sources !== undefined && settingOf(tool.sources[kind].setting) === setting)) return 'sources';
   return 'installScripts';
+}
+
+/**
+ * The part of the setting a setting-owned-elsewhere warning names ("pnpm: allowBuilds not written: …"); undefined for the
+ * settings of the release-age delay, minimumReleaseAgeStrict included.
+ */
+function ownedPart(tool: ToolKnowledge | undefined, message: string): PolicyPart | undefined {
+  const setting = /^[^:]+: (\S+) not written:/u.exec(message)?.[1];
+  const strict = tool?.extra?.['minimumReleaseAgeStrict'];
+  const strictSetting = strict === undefined ? undefined : values(strict).map((value) => (isRecord(value) ? value['setting'] : undefined))[0];
+  return setting === undefined || setting === strictSetting ? undefined : partOfSetting(tool, setting);
 }
 
 /**
@@ -63,6 +78,14 @@ export function policyEffects(root: string, policy: ResolvedPolicy, detection: D
   const settings = written.map((entry) => ({ ...entry, file: entry.project === undefined ? entry.file : inProject(entry.project, entry.file) }));
   const cooldownNotWritten = (tool: ToolId): string | undefined => {
     const reasons = report.warningDetails.filter((warning) => warning.code === 'cooldown-not-written' && warning.tool === tool).map((warning) => warning.message.replace(/^.*?cooldown not written: /u, ''));
+    // A version too old for the delay setting itself, or for a part of it apply needs to write it at all (Bundler's
+    // "cooldown once Gemfile.lock exists"), gets none either: its version-too-old says why (decision D-173). A version
+    // that lacks only the exceptions still gets the delay.
+    const setting = settingOf(tools.find((entry) => entry.id === tool)?.cooldown.setting);
+    const delayPart = (name: string) => setting !== null && (name === setting || name.startsWith(`${setting} `));
+    if (missing.some((entry) => entry.tool === tool && entry.project === undefined && delayPart(entry.setting))) {
+      reasons.push(...report.warningDetails.filter((warning) => warning.code === 'version-too-old' && warning.tool === tool && warning.project === undefined).map((warning) => warning.message));
+    }
     return reasons.length === 0 ? undefined : [...new Set(reasons)].join('; ');
   };
   const effects = (project: string | undefined, part: PolicyPart, tool: ToolId): ToolEffect => {
@@ -75,6 +98,8 @@ export function policyEffects(root: string, policy: ResolvedPolicy, detection: D
         mine(warning) &&
         ((WARNING_PARTS[warning.code] ?? []).includes(part) ||
           (warning.code === 'version-too-old' && tooOld) ||
+          // pnpm include gives the setting to another source (decision D-164): shown with the part of that setting.
+          (warning.code === 'setting-owned-elsewhere' && ownedPart(knowledge, warning.message) === part) ||
           (warning.code === 'manifest-missing' && own.some((entry) => entry.file === warning.location?.file))),
     );
     const skipped = new Set(warnings.filter((warning) => warning.code === 'manifest-missing').map((warning) => warning.location?.file));

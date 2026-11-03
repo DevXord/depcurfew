@@ -20,25 +20,34 @@ import type {
 } from './types.ts';
 import { parseToml, tomlValueAt, type TomlDocument, type TomlValue } from './toml.ts';
 import { projectOf, readWorkflows } from './workflows.ts';
+import { miseRequest, miseTools } from './mise.ts';
 import { dockerfileCandidates, readDockerStages } from './dockerfiles.ts';
 import { expandWorkspaces } from './workspaces.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import { parseYaml } from '../yaml-parse.ts';
-import { iniEntries } from '../doctor/settings.ts';
+import { iniEntries, yamlSetting } from '../doctor/settings.ts';
 import type { ProjectOptional } from './commands.ts';
-import { yamlOptionsFor } from '../apply/facts.ts';
+import { values, yamlOptionsFor } from '../apply/facts.ts';
+import { hookMessage, pnpmHooks } from '../apply/pnpm-hooks.ts';
+import { readPnpmIncludes } from '../apply/pnpm-includes.ts';
+import { parseVersion, pinnedVersion } from '../apply/version.ts';
 import { botEcosystemFacts, detectBotEcosystems } from './bot-ecosystems.ts';
+import { isAbsoluteAnywhere } from '../paths.ts';
+import { posix } from 'node:path';
 
 export type * from './types.ts';
 
 const EVIDENCE_ORDER: readonly EvidenceKind[] = ['lockfile', 'packageManager', 'devEngines', 'config', 'ci', 'default'];
 const SOURCE_ORDER: readonly VersionSource[] = [
+  // The release yarnPath names runs whichever Yarn starts (decision D-165).
+  'yarnPath',
   'packageManager',
   'tool-config',
   'lockfile',
   'devEngines',
   'volta',
   'tool-versions',
+  'mise',
   'nvmrc',
   'node-version',
   'engines',
@@ -207,6 +216,25 @@ function readVolta(facts: DetectionFacts, manifest: Json, collector: Collector):
   }
 }
 
+/** A TOML file of the repository, parsed once, without a warning when it is no TOML (mise files and version files). */
+function quietToml(repository: Repository, file: string): TomlDocument | undefined {
+  if (!repository.isFile(file)) return undefined;
+  const text = repository.readText(file);
+  if (text === undefined) return undefined;
+  try {
+    return parseToml(text);
+  } catch {
+    return undefined;
+  }
+}
+
+/** The Node.js and Python [tools] of the mise files of the root request (decision D-173). */
+function readMise(repository: Repository, facts: DetectionFacts, collector: Collector): void {
+  for (const [tool, found] of miseTools((file) => quietToml(repository, file), facts.mise)) {
+    collector.addVersion(tool, { version: found.request, source: 'mise', file: found.file, ...(found.line === undefined ? {} : { line: found.line }) });
+  }
+}
+
 function readToolVersions(repository: Repository, facts: DetectionFacts, collector: Collector): void {
   const file = facts.toolVersions.file;
   const text = repository.isFile(file) ? repository.readText(file) : undefined;
@@ -263,12 +291,52 @@ function versionFromFile(repository: Repository, facts: DetectionFacts, path: st
     }
     return undefined;
   }
-  if (file.endsWith('.toml')) return undefined;
   const text = repository.readText(file);
   if (text === undefined) return undefined;
+  // setup-node parses any other file as TOML first and takes tools.node of a mise.toml (decision D-173).
+  const toml = versionFile.toml;
+  if (toml !== undefined) {
+    let document: TomlDocument | undefined;
+    try {
+      document = parseToml(text);
+    } catch {
+      document = undefined;
+    }
+    const table = document === undefined ? undefined : tomlAt(document, [toml.table]);
+    if (typeof table === 'object' && table !== null && !Array.isArray(table) && Object.hasOwn(table, toml.key)) {
+      return miseRequest((table as Record<string, TomlValue>)[toml.key], toml.versionKey, false)?.request;
+    }
+    if (document !== undefined && file.endsWith('.toml')) return undefined;
+  }
   const match = new RegExp(versionFile.textPattern, 'mu').exec(text);
   const version = match?.groups?.['version'] ?? text.trim();
   return version === '' ? undefined : version;
+}
+
+/**
+ * The version of the release yarnPath in the root .yarnrc.yml names (decision D-165): every Yarn from 1.18 runs that
+ * release instead of itself, with or without Corepack (yarn extra.yarnPathRuns), so it is a version the project
+ * declares. Only a relative path to a file of the repository named as yarn set version names it,
+ * yarn-<exact version>.cjs (extra.yarnPath), gives one; a ${VARIABLE}, which Yarn replaces from its environment, a path
+ * outside the repository and any other name give none, and the version stays unknown.
+ */
+function readYarnPath(repository: Repository, facts: DetectionFacts, collector: Collector): void {
+  const known = facts.yarn.yarnPath;
+  if (known === null || !repository.isFile(known.file)) return;
+  const text = repository.readText(known.file);
+  const found = text === undefined ? undefined : yamlSetting(text, [known.key], yamlOptionsFor(known.file));
+  if (found === undefined || typeof found.value !== 'string') return;
+  const value = found.value.trim();
+  if (value === '' || value.includes('${') || isAbsoluteAnywhere(value)) return;
+  // A relative yarnPath is resolved against the folder of the .yarnrc.yml that sets it, here the root.
+  const path = posix.normalize(value.replaceAll('\\', '/'));
+  if (path === '..' || path.startsWith('../') || !repository.isFile(path)) return;
+  const [before = '', after = ''] = known.releaseFile.split('<version>');
+  const name = posix.basename(path);
+  if (name.length <= before.length + after.length || !name.startsWith(before) || !name.endsWith(after)) return;
+  const version = name.slice(before.length, name.length - after.length);
+  if (parseVersion(version) === undefined) return;
+  collector.addVersion('yarn', { version, source: 'yarnPath', file: known.file, line: found.line });
 }
 
 function yarnVariant(repository: Repository, facts: DetectionFacts, collector: Collector): { variant: 'berry' | 'classic'; file: string } {
@@ -277,8 +345,9 @@ function yarnVariant(repository: Repository, facts: DetectionFacts, collector: C
     if (head.includes(facts.yarn.classicHeader)) return { variant: 'classic', file: 'yarn.lock' };
     if (new RegExp(`^${facts.yarn.berryMarker}:`, 'mu').test(head)) return { variant: 'berry', file: 'yarn.lock' };
   }
-  const declared = collector.versions.get('yarn')?.find((entry) => entry.source === 'packageManager');
-  if (declared !== undefined && 'version' in declared && /^1\./u.test(declared.version)) return { variant: 'classic', file: 'package.json' };
+  // The release yarnPath names runs instead of the one packageManager pins (decision D-165).
+  const declared = [...(collector.versions.get('yarn') ?? [])].filter((entry) => entry.source === 'yarnPath' || entry.source === 'packageManager').sort(compareVersions)[0];
+  if (declared !== undefined && 'version' in declared && /^v?1\./u.test(declared.version)) return { variant: 'classic', file: declared.file };
   return { variant: 'berry', file: 'package.json' };
 }
 
@@ -360,6 +429,24 @@ function configFiles(repository: Repository, manager: ManagerFacts, directories:
     .sort(byPath);
 }
 
+/**
+ * pnpm 12.15+: the local files include in pnpm-workspace.yaml names are configuration files of pnpm too; the pnpmfiles
+ * and config-dependency plugins whose updateConfig can change every setting are warnings, which explain shows and
+ * doctor reports as pnpm-config-unverifiable (decision D-164). The version is the pinned one, else the latest known.
+ */
+function readPnpmSources(repository: Repository, manager: PackageManagerInfo, tool: ToolKnowledge, packages: readonly string[]): void {
+  const latest = tool.extra?.['latestVersion'] === undefined ? undefined : values(tool.extra['latestVersion'])[0];
+  const version = pinnedVersion(manager) ?? (typeof latest === 'string' ? parseVersion(latest) : undefined);
+  const read = (file: string) => repository.readText(file);
+  const includes = readPnpmIncludes(tool, version, read);
+  const found = (includes?.files ?? []).filter((file) => !manager.configFiles.includes(file) && repository.isFile(file));
+  if (found.length > 0) manager.configFiles = [...manager.configFiles, ...found].sort(byPath);
+  for (const hook of pnpmHooks(tool, version, { read, isFile: (file) => repository.isFile(file), packages, ...(includes === undefined ? {} : { includes }) })) {
+    const line = hook.kind === 'plugin' ? hook.line : (hook.line ?? hook.updateConfigLine);
+    repository.warn('pnpm-hook', hookMessage(hook, tool.name), [hook.file], line);
+  }
+}
+
 export interface DetectOptions {
   /** The directories listed in projects in depcurfew.json, relative to the root (decision D-137). */
   projects?: readonly string[];
@@ -415,7 +502,9 @@ export function detectProject(
     readDevEngines(facts, manifest, collector);
     readVolta(facts, manifest, collector);
   }
+  readYarnPath(repository, facts, collector);
   readToolVersions(repository, facts, collector);
+  readMise(repository, facts, collector);
   readNodeFiles(repository, facts, manifest, collector);
   readPythonConfig(repository, facts, collector);
 
@@ -442,6 +531,12 @@ export function detectProject(
 
   const workflows = readWorkflows(repository, facts);
   for (const { tool, declaration } of workflows.versions) {
+    // jdx/mise-action: the tool mise reads in the directory the step names, from the file that wins (decision D-173).
+    if (declaration.reader === 'mise' && !('version' in declaration)) {
+      const found = miseTools((file) => quietToml(repository, file), facts.mise, declaration.versionFile).get(tool);
+      if (found !== undefined) collector.addVersion(tool, { ...declaration, version: found.request, versionFile: found.file });
+      continue;
+    }
     const version = tool === 'node' && !('version' in declaration) ? versionFromFile(repository, facts, declaration.versionFile, manifest) : undefined;
     collector.addVersion(tool, version === undefined ? declaration : { version, ...declaration });
   }
@@ -510,6 +605,10 @@ export function detectProject(
       configFiles: configFiles(repository, manager, directories, facts.pythonProject),
     });
   }
+
+  const pnpm = packageManagers.find((entry) => entry.id === 'pnpm' && entry.supported);
+  const pnpmTool = tools.find((tool) => tool.id === 'pnpm');
+  if (pnpm !== undefined && pnpmTool !== undefined) readPnpmSources(repository, pnpm, pnpmTool, workspaces?.packages ?? []);
 
   const bots: BotInfo[] = [];
   for (const bot of facts.bots) {

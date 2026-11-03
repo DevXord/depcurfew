@@ -557,8 +557,8 @@ export interface LockedApi {
 /** plugin-api-version of composer.lock: the plugin API of the Composer that wrote it. */
 export function lockedPluginApi(repository: Repository, tool: ToolKnowledge, lockfile: string): LockedApi | undefined {
   const fact = extraOf(tool, 'pluginApiVersion', (value): value is { key: string } => isRecord(value) && typeof value['key'] === 'string');
-  // The limit of lockfiles (MAX_LOCKFILE_SIZE in lockfiles.ts, which imports this module).
-  const text = repository.readText(lockfile, 64 * 1024 * 1024);
+  // A lockfile is read with the limit of lockfiles (Repository.readText, decision D-166).
+  const text = repository.readText(lockfile);
   if (text === undefined) return undefined;
   const found = jsonSetting(text, [fact.key]);
   return typeof found?.value === 'string' ? { file: lockfile, version: found.value, line: found.line } : undefined;

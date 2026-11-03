@@ -262,6 +262,11 @@ export const bundler: ToolKnowledge = {
       `${LIB}/templates/newgem/gitignore.tt`,
       'bundle config set --local writes <project_root>/.bundle/config, which also holds machine paths such as path (bundle-config(1)); the .gitignore that bundle gem writes for a new gem ignores /.bundle/.',
     ),
+    configCommand: verified(
+      { command: ['bundle', 'config'], set: 'set', scopes: ['--local', '--global'], legacyArguments: 2, keyAnyCase: true },
+      `${LIB}/cli/config.rb`,
+      'bundle config set [--local|--global] NAME VALUE (bundle-config(1)): set "defaults to setting local configuration if executing from within a local application, otherwise it will set global configuration"; --local writes <project_root>/.bundle/config (or $BUNDLE_APP_CONFIG/config), --global ~/.bundle/config. CLI::Config#set joins the value words with spaces (value_.unshift(value), then join(" ")), and the hidden base command still runs bundle config NAME VALUE (two arguments, or one with --local or --global) as set, with a deprecation warning. Settings#set_key stores the key as key_for gives it (lib/bundler/settings.rb: dots to __, dashes to ___, upper case, BUNDLE_ in front), so cooldown in any case is BUNDLE_COOLDOWN. Both files replace the cooldown: of every Gemfile source (extra.cooldownSetting), so a 0 written there turns the delay off for the later bundle commands on that machine.',
+    ),
     updateCommand: verified(
       'bundle update GEM --cooldown 0 --conservative',
       UPDATE,

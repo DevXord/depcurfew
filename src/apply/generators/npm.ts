@@ -5,10 +5,10 @@ import type { ScriptPolicy } from '../../knowledge/types.ts';
 import { npmEnginesOn, npmInUseSeveral, npmInUseText, type NpmInUse } from '../../doctor/rules/bundled-versions.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { hasManagedLines } from '../block.ts';
-import { listing } from '../requirements.ts';
+import { describeRequirements, listing, type Requirement } from '../requirements.ts';
 import { extraOf, firstFile, isRecord, isSwitch, settingOf, sinceOf, values } from '../facts.ts';
 import { compareVersions, formatVersion, parseVersion, type Version } from '../version.ts';
-import { allowedNames, cooldownValue, eachSource, exclusions, scriptsDefault, writeDenyList } from './common.ts';
+import { allowedNames, cooldownValue, eachSource, exclusions, scriptsDefault, sourceLabel, sourceLoosened, writeDenyList, wrongListType } from './common.ts';
 import type { Context, ManagerGenerator } from './context.ts';
 
 const isString = (value: unknown): value is string => typeof value === 'string';
@@ -129,6 +129,65 @@ function scriptsForVersionsInUse(context: Context, file: string, entries: string
   }
 }
 
+/** A setting depcurfew apply writes for the release-age delay or a dependency source, with the release that added it. */
+type Written = Requirement & { kind: 'cooldown' | 'sources' };
+
+/**
+ * version-in-use-too-old (decision D-173): the npm versions the directory runs besides the pinned one (npmInUse, the list
+ * doctor's manager-version-too-old checks too) that lack a setting apply writes for the release-age delay or a dependency
+ * source, such as the npm 11.3 to 11.9 of Node.js 24.0 to 24.14 without min-release-age. A place that only runs npm ci
+ * needs no delay; the install-script settings have warnings of their own (strict-allow-scripts-for-npm-in-use,
+ * scripts-not-enforceable).
+ */
+function versionsInUseTooOld(context: Context, written: readonly Written[]): void {
+  const lacking = context.inUse.flatMap((entry) => {
+    if (entry.pin === true || entry.unknown !== undefined || entry.versions.length === 0) return [];
+    const missing = written.filter((item) => {
+      if (entry.lockfile === true && item.kind === 'cooldown') return false;
+      const since = parseVersion(item.since);
+      return since !== undefined && entry.versions.some((version) => compareVersions(version, since) < 0);
+    });
+    if (missing.length === 0) return [];
+    const newest = entry.versions.reduce((a, b) => (compareVersions(a, b) >= 0 ? a : b));
+    // Settings no version of the place has, and those only some lack.
+    const none = missing.filter((item) => compareVersions(newest, parseVersion(item.since) as Version) < 0);
+    return [{ entry, missing, none, key: `${missing.map((item) => item.setting).join(',')}\u0000${none.map((item) => item.setting).join(',')}` }];
+  });
+  const groups = new Map<string, typeof lacking>();
+  for (const item of lacking) groups.set(item.key, [...(groups.get(item.key) ?? []), item]);
+  for (const group of groups.values()) {
+    const first = group[0];
+    if (first === undefined) continue;
+    const texts = group.map((item) => npmInUseText(item.entry));
+    const shown = texts.length <= MAX_PLACES ? listing(texts) : `${texts.slice(0, MAX_PLACES - 1).join(', ')} and ${texts.length - MAX_PLACES + 1} more places`;
+    const several = group.length > 1 || npmInUseSeveral(first.entry);
+    const all = first.none.length === first.missing.length;
+    // The note on disputed versions goes to the end of the message.
+    const list = describeRequirements(first.missing.map(({ setting, since }) => ({ setting, since })));
+    const disputed = first.missing.some((item) => item.disputed === true) ? '; where official sources disagree on the version, depcurfew assumes the later one' : '';
+    const subject = all ? `${shown} ${several ? 'do' : 'does'} not support ${list}` : `${shown} ${group.length > 1 ? 'include' : 'includes'} npm releases that do not support ${list}`;
+    const needed = first.missing.map((item) => item.since).reduce((a, b) => (compareVersions(parseVersion(a) as Version, parseVersion(b) as Version) >= 0 ? a : b));
+    const engines = npmEnginesOn(parseVersion(needed) as Version, group.flatMap((item) => item.entry.nodes ?? []));
+    const only = engines?.verdict === 'some' ? `; npm ${needed} runs on Node.js ${engines.range} only` : '';
+    // A declaration of npm itself is raised where it is written; the other places install a newer npm or choose a newer
+    // Node.js (decision D-115).
+    const declared = [...new Set(group.flatMap((item) => (item.entry.declared === undefined ? [] : [item.entry.declared])))];
+    const raise = declared.length === 0 ? '' : `require npm ${needed} or later in ${listing(declared)}`;
+    const others = group.some((item) => item.entry.declared === undefined);
+    const install = [
+      ...(raise === '' ? [] : [raise]),
+      ...(others ? [`install npm ${needed} or later before packages are installed there (npm install -g npm@${needed}${only}), or move to a Node.js release that comes with it`] : []),
+    ].join(', and ');
+    const location = group.find((item) => item.entry.location !== undefined)?.entry.location;
+    context.warn({
+      code: 'version-in-use-too-old',
+      ...(location === undefined ? {} : { location }),
+      message: `${subject}, which depcurfew apply writes for ${context.project ?? 'the repository'}, so ${first.missing.length === 1 ? 'it has' : 'they have'} no effect there${disputed}`,
+      fix: `${engines?.verdict === 'none' ? `Move to a Node.js release that npm ${needed} runs on (${engines.range}), then ${install}` : `${install.charAt(0).toUpperCase()}${install.slice(1)}`}; depcurfew doctor reports each place (manager-version-too-old)`,
+    });
+  }
+}
+
 /** Whether some npm in use (or the pinned one) has a setting available since `since`. */
 function someSupports(context: Context, since: string | undefined, setting: string): boolean {
   if (context.inUse.length === 0) return context.supports(since, setting);
@@ -146,6 +205,12 @@ export const npm: ManagerGenerator = (context) => {
   const entries: string[] = [];
   const managed: string[] = [];
   let minutes: number | undefined;
+  // The settings of the delay and the sources it writes, for the npm versions in use that lack them (decision D-173).
+  const written: Written[] = [];
+  const requirement = (setting: string, fact: Parameters<typeof sinceOf>[0], kind: Written['kind']) => {
+    const since = sinceOf(fact);
+    if (since !== undefined) written.push({ setting, since, kind, ...(fact?.status === 'disputed' ? { disputed: true } : {}) });
+  };
 
   if (policy.cooldown !== undefined) {
     const setting = settingOf(tool.cooldown.setting) ?? 'min-release-age';
@@ -154,6 +219,7 @@ export const npm: ManagerGenerator = (context) => {
       minutes = cooldown.minutes;
       entries.push(`${setting}=${cooldown.value}`);
       managed.push(setting);
+      requirement(setting, tool.cooldown.availableSince, 'cooldown');
       // before= in the same file wins over min-release-age from 11.15.0 and makes 11.10 to 11.14 stop with an error
       // (extra.beforeInteraction); it is the user's own setting, so it stays, with a warning (decision D-080).
       const fact = extraOf(tool, 'beforeInteraction', isBefore);
@@ -175,6 +241,7 @@ export const npm: ManagerGenerator = (context) => {
         const suffix = extraOf(tool, 'npmrcListSyntax', isString);
         for (const pattern of patterns) entries.push(`${excludeSetting}${suffix}=${pattern}`);
         managed.push(excludeSetting);
+        if (patterns.length > 0) requirement(excludeSetting, tool.cooldown.exclude.availableSince, 'cooldown');
       }
     }
   }
@@ -214,19 +281,40 @@ export const npm: ManagerGenerator = (context) => {
         if (wanted && someSupports(context, sinceOf(tool.installScripts.allowList.availableSince), setting)) {
           const json = context.json(listFile);
           const names = allowedNames(context, setting);
-          if (names.length > 0) context.writes('installScripts', setting, listFile);
-          for (const name of names) if (json.get([setting, name]) !== true) json.set([setting, name], true);
+          // allowScripts is an object of package names; one of another type is left as it is (decision D-167).
+          if (names.length > 0 && !wrongListType(context, listFile, [setting], json.get([setting]), 'object', names, `{${JSON.stringify(names[0])}: true}`)) {
+            context.writes('installScripts', setting, listFile);
+            for (const name of names) if (json.get([setting, name]) !== true) json.set([setting, name], true);
+          }
         }
       }
       writeDenyList(context);
     }
   }
 
-  eachSource(context, (_kind, setting, access) => {
+  eachSource(context, (kind, setting, access) => {
+    // npm reads the last line of a key; one written by hand with none or root is stricter than "allow" (decision D-167).
+    const last = iniEntries(context.read(file)).filter((entry) => entry.key === setting).at(-1);
+    if (access === 'allow' && last !== undefined && !last.managed && (last.value === 'none' || last.value === 'root')) {
+      const label = sourceLabel(context, kind);
+      sourceLoosened(
+        context,
+        [kind],
+        { file, line: last.line },
+        `${setting}=${last.value}`,
+        last.value === 'none' ? `blocks ${label} dependencies` : `allows ${label} dependencies only where the root package.json names them`,
+        `comments it out and writes ${setting}=all, so ${context.name} installs them ${last.value === 'none' ? 'again' : 'for every package'}`,
+        last.value === 'root'
+          ? `${POLICY_FILE} has no value for root: to keep such dependencies out, set sources.${kind} to "deny" (${setting}=none) in ${POLICY_FILE} and run depcurfew apply again; keep "allow" if the project needs them`
+          : undefined,
+      );
+    }
     entries.push(`${setting}=${access === 'deny' ? 'none' : 'all'}`);
     managed.push(setting);
     context.writes('sources', setting, file);
+    requirement(setting, tool.sources?.[kind].availableSince, 'sources');
   });
+  versionsInUseTooOld(context, written);
 
   // Without entries, the file is still edited when it sets a managed key by hand (such as the switch that allows
   // every install script while the policy denies them), so that the key is commented out.

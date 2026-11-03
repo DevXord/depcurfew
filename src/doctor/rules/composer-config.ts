@@ -2,7 +2,9 @@
 // protection off while the cooldown and allow-plugins still look configured: the whole policy, the cooldown or its
 // blocking, malware blocking, a repository that lets the author-set time count or skips the malware list,
 // allow-plugins that allows every plugin, plain HTTP and no TLS. The settings and values come from the knowledge base.
+import { programName } from '../../detect/commands.ts';
 import { jobLabel } from '../../detect/workflows.ts';
+import { ciSettings, variablePlace } from '../ci-settings.ts';
 import { extraOf, isRecord } from '../../apply/facts.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
@@ -220,12 +222,127 @@ function checkWorkflows(context: RuleContext, tool: ToolKnowledge): void {
   }
 }
 
+interface ConfigValues {
+  command: string[];
+  section: string;
+  accepted: string[];
+  falseValues: string[];
+  period: string;
+  otherFile: string[];
+}
+
+const isConfigValues = (value: unknown): value is ConfigValues =>
+  isRecord(value) && Array.isArray(value['command']) && typeof value['section'] === 'string' && Array.isArray(value['accepted']) && Array.isArray(value['falseValues']) && typeof value['period'] === 'string' && Array.isArray(value['otherFile']);
+
+/** The variables of environmentOverrides set outside the env maps of workflows: run steps, $GITHUB_ENV and Dockerfiles (decision D-166). */
+function checkCiVariables(context: RuleContext, tool: ToolKnowledge): void {
+  const variables = extraOf(tool, 'environmentOverrides', isList<Variable>((item) => isRecord(item) && typeof item['name'] === 'string'));
+  for (const place of ciSettings(context.repository, context.detection).variables) {
+    if (place.kind === 'env') continue;
+    const variable = variables.find((entry) => entry.name === place.name);
+    if (variable === undefined || (variable.name.includes('COOLDOWN') && !cooldownInPolicy(context))) continue;
+    // A value the shell expands may be anything, like an expression of the workflow.
+    const effect = variableEffect(context, tool, variable, place.value.includes('$') ? '${{' : place.value);
+    if (effect === undefined) continue;
+    const verb =
+      effect.detail === 'may'
+        ? `may ${variable.effect.replace(/^(\w+)s\b/u, '$1')}`
+        : effect.detail === undefined
+          ? variable.effect
+          : `${variable.effect} with ${effect.detail}, shorter than the ${context.policy?.cooldown?.minimum.text ?? ''} of ${POLICY_FILE}`;
+    const text = variablePlace(place, 'Composer');
+    context.report({
+      level: effect.level,
+      location: place.line === undefined ? { file: place.file } : { file: place.file, line: place.line },
+      message: `${place.name}=${place.value} ${text.place}, ${text.reach}, and ${verb}`,
+      fix: `${text.remove}, or set it only for a run that needs it after reviewing the packages`,
+    });
+  }
+}
+
+/**
+ * What composer config KEY VALUE writes (extra.configCommandValues): the path under config and the value as Composer
+ * stores it; undefined for a command that writes another file, removes a setting or does not set one.
+ */
+function configWrite(words: readonly string[], facts: ConfigValues): { key: string; path: string[]; written: string; value: unknown } | undefined {
+  const [program, subcommand, ...rest] = words;
+  if (program === undefined || programName(program) !== facts.command[0] || subcommand !== facts.command[1]) return undefined;
+  const otherFile = (word: string) => facts.otherFile.includes(word) || facts.otherFile.some((option) => option.startsWith('--') && word.startsWith(`${option}=`));
+  if (rest.some((word) => otherFile(word) || word === '--unset' || word === '--editor' || word === '-e')) return undefined;
+  const [key, written] = rest.filter((word) => !word.startsWith('-'));
+  if (key === undefined || written === undefined) return undefined;
+  const path = [facts.section, ...(key.startsWith('policy.') ? key.split('.') : [key])];
+  if (key === facts.period) return { key, path, written, value: written === '' || written === 'null' ? null : /^\d+$/u.test(written) ? Number(written) : written };
+  if (!facts.accepted.includes(written)) return { key, path, written, value: written };
+  return { key, path, written, value: !facts.falseValues.includes(written) };
+}
+
+/** composer config commands in run steps and RUN instructions that write a setting turning a protection off (decision D-166). */
+function checkConfigCommands(context: RuleContext, tool: ToolKnowledge): void {
+  if (tool.extra?.['configCommandValues'] === undefined) return;
+  const facts = extraOf(tool, 'configCommandValues', isConfigValues);
+  const settings = extraOf(tool, 'weakeningSettings', isList<Weakening>((item) => isRecord(item) && isPath(item['path']) && typeof item['when'] === 'string'));
+  const transport = extraOf(tool, 'transportSettings', isList<Transport>((item) => isRecord(item) && isPath(item['path']) && typeof item['weakensWhen'] === 'boolean'));
+  const all = extraOf(tool, 'allowAllPlugins', (value): value is { setting: string } => isRecord(value) && typeof value['setting'] === 'string');
+  const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((part, index) => part === b[index]);
+  for (const command of ciSettings(context.repository, context.detection).commands) {
+    const write = configWrite(command.words, facts);
+    if (write === undefined) continue;
+    let found: { level: Level; effect: string } | undefined;
+    const weakening = settings.find((entry) => same(entry.path, write.path));
+    if (weakening !== undefined && weakens(weakening.when, write.value) && (!write.path.includes('cooldown') || cooldownInPolicy(context))) {
+      found = { level: write.path.includes('malware') ? 'warning' : 'error', effect: weakening.effect };
+    }
+    const unsafe = transport.find((entry) => same(entry.path, write.path));
+    if (unsafe !== undefined && typeof write.value === 'boolean' && write.value === unsafe.weakensWhen) found = { level: 'error', effect: `${unsafe.effect}: a package or its metadata can be changed on the way` };
+    if (same(all.setting.split('.'), write.path) && write.value === true && context.policy?.installScripts?.default === 'deny') {
+      found = { level: 'error', effect: `lets every Composer plugin run its code, but installScripts in ${POLICY_FILE} denies dependency code by default` };
+    }
+    if (write.key === facts.period && cooldownInPolicy(context)) {
+      const minutes = delayMinutes(tool, write.value, latestVersion(tool));
+      const wanted = context.policy?.cooldown?.minimum.minutes ?? 0;
+      if (minutes.ok && minutes.minutes < wanted) {
+        found = { level: 'error', effect: minutes.minutes === 0 ? 'turns off the cooldown' : `shortens the cooldown to ${formatMinutes(minutes.minutes)}, shorter than the ${context.policy?.cooldown?.minimum.text ?? ''} of ${POLICY_FILE}` };
+      }
+    }
+    if (found === undefined) continue;
+    context.report({
+      level: found.level,
+      location: { file: command.file, line: command.line },
+      message: `${command.where} in ${command.file} (line ${command.line}) runs composer config ${write.key} ${write.written}, which writes ${write.path.join('.')}: ${JSON.stringify(write.value)} into ${COMPOSER_MANIFEST} for the later Composer commands and ${found.effect}`,
+      fix: `Remove that composer config command from ${command.file}, so that the settings depcurfew apply wrote into ${COMPOSER_MANIFEST} apply`,
+    });
+  }
+}
+
+/** Options of composer commands in run steps and RUN instructions that turn a protection off (installOverrides, decision D-166). */
+function checkCommandOptions(context: RuleContext, tool: ToolKnowledge): void {
+  if (tool.extra?.['installOverrides'] === undefined || tool.extra['configCommandValues'] === undefined) return;
+  const fact = extraOf(tool, 'installOverrides', isRecord);
+  const options = Array.isArray(fact['options']) ? (fact['options'] as { name: string; weakens: string; effect?: string }[]) : [];
+  const executable = extraOf(tool, 'configCommandValues', isConfigValues).command[0];
+  for (const command of ciSettings(context.repository, context.detection).commands) {
+    if (programName(command.words[0] ?? '') !== executable) continue;
+    for (const word of command.words.slice(1)) {
+      if (word === '--') break;
+      const option = options.find((entry) => entry.name === word);
+      if (option === undefined || (option.weakens === 'delay' && !cooldownInPolicy(context))) continue;
+      const effect = option.weakens === 'delay' ? 'turns off the cooldown for that command' : (option.effect ?? 'turns a protection of Composer off');
+      context.report({
+        location: { file: command.file, line: command.line },
+        message: `${command.where} in ${command.file} (line ${command.line}) runs composer with ${word}, which ${effect}`,
+        fix: `Remove ${word} from that command in ${command.file}; for a package that cannot wait, run the command with it by hand after reviewing the package`,
+      });
+    }
+  }
+}
+
 export const composerConfigWeakens: Rule = {
   id: RULE,
-  checks: 'composer.json and the env of CI workflows keep Composer protections on',
-  summary: 'composer.json or the env of a CI workflow turns a Composer protection off: the cooldown, malware blocking, allow-plugins, secure-http or TLS.',
+  checks: 'composer.json, CI workflows and Dockerfiles keep Composer protections on',
+  summary: 'composer.json, a CI workflow or a Dockerfile turns a Composer protection off: the cooldown, malware blocking, allow-plugins, secure-http or TLS.',
   description:
-    'Composer 2.11 withholds new versions with config.policy.cooldown and runs only the plugins config.allow-plugins allows. "policy": false, "cooldown": false or "block": false under it, a repository with "require-published-time": false (the cooldown then counts from the time the package author wrote) or "filter": false (no malware list), "allow-plugins": true (or a "*" or "*/*" key) and "secure-http": false or "disable-tls": true turn such a protection off while the configuration still looks right; so do COMPOSER_POLICY=0, COMPOSER_NO_BLOCKING or COMPOSER_NO_SECURITY_BLOCKING set to 1, true, on, false or off, COMPOSER_POLICY_COOLDOWN_PERIOD with a shorter period and COMPOSER_POLICY_COOLDOWN_BLOCK=0 in the env of a CI workflow. Settings of the cooldown are reported when depcurfew.json sets one, allow-plugins when it denies dependency code; malware blocking and filter give warnings, because depcurfew.json does not manage them. COMPOSER_HOME/config.json on a machine is not read.',
+    'Composer 2.11 withholds new versions with config.policy.cooldown and runs only the plugins config.allow-plugins allows. "policy", "cooldown" or "block" under it set to false, a repository with "require-published-time": false or "filter": false, "allow-plugins": true (or a "*" or "*/*" key), "secure-http": false and "disable-tls": true turn such a protection off while the configuration looks right; so do COMPOSER_POLICY=0, COMPOSER_NO_BLOCKING or COMPOSER_NO_SECURITY_BLOCKING set to 1, true, on, false or off, a shorter COMPOSER_POLICY_COOLDOWN_PERIOD and COMPOSER_POLICY_COOLDOWN_BLOCK=0 in a CI workflow (env, run step, $GITHUB_ENV) or a Dockerfile (ENV, ARG, RUN), composer config policy.cooldown false and the like run there, and --no-cooldown or --no-blocking on a composer command there. Cooldown settings count when depcurfew.json sets a cooldown, allow-plugins when it denies dependency code; malware blocking and filter give warnings. COMPOSER_HOME/config.json is not read.',
   help: 'Remove the setting or the variable, or limit it to the repository or the run that needs it.',
   level: 'error',
   requiresPolicy: false,
@@ -239,5 +356,8 @@ export const composerConfigWeakens: Rule = {
       checkRepositories(context, tool);
     }
     checkWorkflows(context, tool);
+    checkCiVariables(context, tool);
+    checkConfigCommands(context, tool);
+    checkCommandOptions(context, tool);
   },
 };

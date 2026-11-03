@@ -1,0 +1,19 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "hooks/pnpmfile.cjs"
+    },
+    "message": "pnpm 12.16.1 loads hooks/pnpmfile.cjs, which pnpmfile names, and the updateConfig hook of a pnpmfile can change every setting after pnpm has read its configuration files, so depcurfew cannot verify the settings it checks",
+    "fix": "Read hooks/pnpmfile.cjs and make sure its updateConfig hook leaves minimumReleaseAge, allowBuilds and the other security settings as they are, or take it out of pnpmfile in pnpm-workspace.yaml if the project does not need it"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "pnpm-workspace.yaml",
+      "line": 3
+    },
+    "message": "pnpm 12.16.1 loads the pnpmfile ~/.pnpm/global_pnpmfile.cjs, which globalPnpmfile in pnpm-workspace.yaml names and depcurfew cannot read, and the updateConfig hook of a pnpmfile can change every setting after pnpm has read its configuration files, so depcurfew cannot verify the settings it checks",
+    "fix": "Read ~/.pnpm/global_pnpmfile.cjs and make sure its updateConfig hook leaves minimumReleaseAge, allowBuilds and the other security settings as they are, or take it out of globalPnpmfile in pnpm-workspace.yaml if the project does not need it"
+  }
+]

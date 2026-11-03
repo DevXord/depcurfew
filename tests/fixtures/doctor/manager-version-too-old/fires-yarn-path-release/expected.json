@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".yarnrc.yml",
+      "line": 3
+    },
+    "message": "Yarn (Berry) 3.6.4 in yarnPath (.yarnrc.yml) does not support npmMinimalAgeGate (added in 4.10.2)",
+    "fix": "Run yarn set version 4.10.2 (or a later release), which saves it in .yarn/releases, points yarnPath in .yarnrc.yml to it and sets packageManager in package.json, then run depcurfew apply again and commit the changes"
+  }
+]

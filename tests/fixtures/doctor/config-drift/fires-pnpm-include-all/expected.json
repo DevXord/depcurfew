@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "config/security.yaml",
+      "line": 1
+    },
+    "message": "config/security.yaml does not match depcurfew.json: `dangerouslyAllowAllBuilds: true` should be `dangerouslyAllowAllBuilds: false`",
+    "fix": "Run depcurfew apply to bring config/security.yaml back in line with depcurfew.json (depcurfew apply --dry-run shows the change first), or change depcurfew.json if the edit was intended"
+  }
+]

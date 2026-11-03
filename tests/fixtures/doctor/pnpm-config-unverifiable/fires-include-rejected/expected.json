@@ -1,0 +1,38 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "config/catalog.yaml",
+      "line": 3
+    },
+    "message": "pnpm 12.16.1 stops with ERR_PNPM_SETTING_NOT_DELEGATED: ./config/catalog.yaml defines dangerouslyAllowAllBuilds, which include does not give to it, so it runs no command in this directory and depcurfew cannot tell which settings it would use",
+    "fix": "Fix include in pnpm-workspace.yaml as the message says (each setting may have one owner, and a list names the only settings its file may define)"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "pnpm-workspace.yaml",
+      "line": 3
+    },
+    "message": "pnpm 12.16.1 stops with ERR_PNPM_INVALID_WORKSPACE_INCLUDE: config/missing.yaml, which include names, does not exist or cannot be read (pnpm needs every included file, also an empty one), so it runs no command in this directory and depcurfew cannot tell which settings it would use",
+    "fix": "Fix include in pnpm-workspace.yaml as the message says (each setting may have one owner, and a list names the only settings its file may define)"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "pnpm-workspace.yaml",
+      "line": 6
+    },
+    "message": "pnpm 12.16.1 stops with ERR_PNPM_DUPLICATE_SETTING: minimumReleaseAge is delegated to ./config/security.yaml and defined in pnpm-workspace.yaml, so it runs no command in this directory and depcurfew cannot tell which settings it would use",
+    "fix": "Fix include in pnpm-workspace.yaml as the message says (each setting may have one owner, and a list names the only settings its file may define)"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "pnpm-workspace.yaml",
+      "line": 8
+    },
+    "message": "pnpm 12.16.1 stops with ERR_PNPM_DUPLICATE_SETTING: minimumReleaseAgeStrict is delegated to ./config/security.yaml and defined in pnpm-workspace.yaml, so it runs no command in this directory and depcurfew cannot tell which settings it would use",
+    "fix": "Fix include in pnpm-workspace.yaml as the message says (each setting may have one owner, and a list names the only settings its file may define)"
+  }
+]

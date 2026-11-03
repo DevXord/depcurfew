@@ -39,6 +39,36 @@
       "tool": "npm",
       "message": "npm: allowScripts takes package names only; \"@scope/*\" not written",
       "fix": "List the package names in installScripts.allow"
+    },
+    {
+      "code": "version-in-use-too-old",
+      "tool": "npm",
+      "location": {
+        "file": "Dockerfile",
+        "line": 3
+      },
+      "message": "npm 10.5.1 to 10.9.9 (with Node.js 22 of node:22-alpine in Dockerfile) do not support allow-git (added in 11.10.0), allow-remote, allow-file and allow-directory (added in 11.15.0), which depcurfew apply writes for the repository, so they have no effect there; where official sources disagree on the version, depcurfew assumes the later one",
+      "fix": "Install npm 11.15.0 or later before packages are installed there (npm install -g npm@11.15.0; npm 11.15.0 runs on Node.js ^20.17.0 || >=22.9.0 only), or move to a Node.js release that comes with it; depcurfew doctor reports each place (manager-version-too-old)"
+    },
+    {
+      "code": "version-in-use-too-old",
+      "tool": "npm",
+      "location": {
+        "file": ".nvmrc",
+        "line": 2
+      },
+      "message": "npm 11.3.0 to 11.19.1 (with Node.js 24 in .nvmrc) includes npm releases that do not support min-release-age and allow-git (added in 11.10.0), allow-remote, allow-file and allow-directory (added in 11.15.0), min-release-age-exclude (added in 11.17.0), which depcurfew apply writes for the repository, so they have no effect there; where official sources disagree on the version, depcurfew assumes the later one",
+      "fix": "Install npm 11.17.0 or later before packages are installed there (npm install -g npm@11.17.0), or move to a Node.js release that comes with it; depcurfew doctor reports each place (manager-version-too-old)"
+    },
+    {
+      "code": "version-in-use-too-old",
+      "tool": "npm",
+      "location": {
+        "file": ".node-version",
+        "line": 1
+      },
+      "message": "npm 10.9.0 (with Node.js v22.11.0 in .node-version) does not support min-release-age and allow-git (added in 11.10.0), allow-remote, allow-file and allow-directory (added in 11.15.0), min-release-age-exclude (added in 11.17.0), which depcurfew apply writes for the repository, so they have no effect there; where official sources disagree on the version, depcurfew assumes the later one",
+      "fix": "Install npm 11.17.0 or later before packages are installed there (npm install -g npm@11.17.0), or move to a Node.js release that comes with it; depcurfew doctor reports each place (manager-version-too-old)"
     }
   ],
   "snippets": []

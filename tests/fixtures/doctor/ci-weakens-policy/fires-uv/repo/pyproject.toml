@@ -1,0 +1,6 @@
+[project]
+name = "app"
+version = "1.0.0"
+
+[tool.uv]
+exclude-newer = "3 days"

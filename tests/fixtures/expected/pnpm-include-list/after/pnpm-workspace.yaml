@@ -1,0 +1,5 @@
+include:
+  ./config/security.yaml: [minimumReleaseAge, minimumReleaseAgeStrict, allowBuilds, minimumReleaseAgeExclude]
+  ./config/catalog.yaml: [catalog]
+# managed by depcurfew
+blockExoticSubdeps: true

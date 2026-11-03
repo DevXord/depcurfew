@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "pnpm-workspace.yaml",
+      "line": 4
+    },
+    "message": "include in pnpm-workspace.yaml gives minimumReleaseAge and permissions to the config dependency @acme/pnpm-policy, whose settings depcurfew cannot read, so it cannot verify these settings, and depcurfew apply does not write them",
+    "fix": "Take minimumReleaseAge and permissions out of the list of @acme/pnpm-policy in include, so that depcurfew apply writes them into pnpm-workspace.yaml and depcurfew doctor checks them; or check the pnpm.config file of @acme/pnpm-policy by hand against depcurfew.json"
+  }
+]

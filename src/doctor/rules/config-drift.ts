@@ -14,7 +14,7 @@ import { listing } from '../../apply/requirements.ts';
 import { extraOf, isRecord, settingOf, values, yamlOptionsFor } from '../../apply/facts.ts';
 import { parseJsonc } from '../../detect/jsonc.ts';
 import { parseYaml } from '../../yaml-parse.ts';
-import { denyConflictText, outsideConflictText, remainingConflicts, type TextSource } from '../allow-lists.ts';
+import { denyConflictText, outsideConflictText, remainingConflicts, unreadAllowList, type TextSource } from '../allow-lists.ts';
 import { ignoreOutsidePolicy, ignoreOutsideText } from '../composer.ts';
 import { latestVersion, managerDelay } from '../effective.ts';
 import { APPLY_NEXT, DEFAULT_POLICY_NAME, INIT_FIRST } from '../default-policy.ts';
@@ -191,7 +191,11 @@ function keyOf(line: string): string | undefined {
 }
 
 /** What is wrong, in words: a value to change, a line to add or remove, or a hand-written line to comment out. */
-function describe(file: string, difference: Difference, before: string, after: string): string {
+function describe(file: string, original: Difference, before: string, after: string): string {
+  // In YAML apply keeps the entries it drops from a list as a comment above it (decision D-167); the difference is the
+  // value it writes, which says more than the comment.
+  const kept = /\.ya?ml$/u.test(file) ? original.added.filter((text) => !isCommentedOut(text)) : original.added;
+  const difference = kept.length > 0 ? { ...original, added: kept } : original;
   const commented = difference.added.filter(isCommentedOut);
   if (commented.length > 0) {
     // Every line apply comments out, also those further down: each one is a setting that does not hold.
@@ -260,17 +264,20 @@ function checkAllowLists(context: RuleContext, plan: ApplyReport): void {
     const scripts = policyFor(policy, knowledge === undefined ? 'npm' : ecosystemOfTool(knowledge)).installScripts ?? { allow: [], deny: [] };
     const version = pinnedVersion(manager) ?? (knowledge === undefined ? undefined : latestVersion(knowledge));
     const options = { ...(knowledge === undefined ? {} : { tool: knowledge }), ...(version === undefined ? {} : { version }) };
+    // A version that does not read the allow-list yet runs no script an entry names (Deno before 2.6.0, decision D-173).
+    const unread = unreadAllowList(knowledge, version);
     for (const conflict of remainingConflicts(context.repository, planned, manager.id, manager.configFiles, options, scripts)) {
       const { entry } = conflict;
       const location = entry.line === undefined ? { file: entry.file } : { file: entry.file, line: entry.line };
       // An entry that lets a package of installScripts.deny run its scripts contradicts the policy, so it is an error,
       // like the differences apply would fix; entries for packages the policy does not name, and entries that only
-      // block a package the policy allows, are warnings (decision D-092).
+      // block a package the policy allows, are warnings (decision D-092). One the version in use does not read is a
+      // warning: it lets nothing run there yet.
       if (conflict.kind !== 'outside') {
-        context.report({ level: conflict.kind === 'denied' ? 'error' : 'warning', location, ...denyConflictText({ kind: conflict.kind, entry }) });
+        context.report({ level: conflict.kind === 'denied' && unread === undefined ? 'error' : 'warning', location, ...denyConflictText({ kind: conflict.kind, entry }, false, unread) });
         continue;
       }
-      context.report({ level: 'warning', location, ...outsideConflictText(entry) });
+      context.report({ level: 'warning', location, ...outsideConflictText(entry, false, unread) });
     }
   }
 }
@@ -321,6 +328,19 @@ function checkBundlerCooldown(context: RuleContext, plan: ApplyReport): void {
     const text = context.repository.readText(warning.location.file);
     const mayHold = days !== undefined && text !== undefined && cooldownMayHold(text, warning.location.line, days);
     context.report({ ...(mayHold ? { level: 'warning' as const } : {}), location: warning.location, message: warning.message, ...(warning.fix === undefined ? {} : { fix: warning.fix }) });
+  }
+}
+
+/**
+ * pip: a --no-binary or --only-binary=:none: in requirements.txt or a file it includes that apply cannot comment out
+ * (after a requirement, next to other options, on a continued line) undoes --only-binary=:all: after apply too; each
+ * build-switch-undone of the plan is reported where it points, with apply's text (decision D-167). Lines apply comments
+ * out are differences of the plan, reported above.
+ */
+function checkPipOptions(context: RuleContext, plan: ApplyReport): void {
+  for (const warning of plan.warningDetails) {
+    if (warning.code !== 'build-switch-undone' || warning.location === undefined) continue;
+    context.report({ location: warning.location, message: warning.message, ...(warning.fix === undefined ? {} : { fix: warning.fix }) });
   }
 }
 
@@ -392,7 +412,7 @@ export const configDrift: Rule = {
   checks: 'Configuration files match what depcurfew apply writes for depcurfew.json',
   summary: 'A configuration file does not match what depcurfew apply writes for depcurfew.json.',
   description:
-    'A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool\'s own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning. So is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, which apply keeps unless it wrote the entry itself. A Gemfile apply cannot write the cooldown of Bundler into (a source with a block or a modifier or inside other code, a cooldown: given twice, a URL from ENV, no rubygems.org source, a Gemfile depcurfew cannot read as Ruby does) is an error where apply says so, or a warning when that call already waits as long as the policy.',
+    'A generated setting was edited by hand, or depcurfew.json changed without depcurfew apply, so the tools enforce something other than the policy. Entries in a tool\'s own install-script lists that apply does not change are reported too: one that lets a package of installScripts.deny run its scripts is an error; one that lets a package the policy does not name run them, blocks a package the policy allows, or is not read by the version in use yet (Deno before 2.6.0) is a warning, as is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, unless apply wrote it. What apply cannot write is an error where it says: the cooldown of Bundler in a Gemfile (a source with a block, a modifier or in other code, cooldown: twice, a URL from ENV, no rubygems.org source, a Gemfile depcurfew cannot read as Ruby does; a warning if that call waits as long as the policy), and a --no-binary or --only-binary=:none: of pip it cannot comment out.',
   help: 'Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.',
   level: 'error',
   requiresPolicy: true,
@@ -402,6 +422,7 @@ export const configDrift: Rule = {
     if (context.defaultPolicy === true) {
       reportAgainstDefault(context, plan);
       checkBundlerCooldown(context, plan);
+      checkPipOptions(context, plan);
       checkAllowLists(context, plan);
       checkComposerExclusions(context, plan);
       return;
@@ -430,6 +451,7 @@ export const configDrift: Rule = {
       }
     }
     checkBundlerCooldown(context, plan);
+    checkPipOptions(context, plan);
     checkAllowLists(context, plan);
     checkComposerExclusions(context, plan);
   },

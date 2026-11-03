@@ -1,0 +1,110 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 3
+    },
+    "message": "NPM_CONFIG_MIN_RELEASE_AGE=0 is set in the env of the workflow in .github/workflows/ci.yml, reaches every npm command there, and turns off the release-age delay of npm (3d in depcurfew.json)",
+    "fix": "Remove NPM_CONFIG_MIN_RELEASE_AGE from that env in .github/workflows/ci.yml; for a package that cannot wait, add it to cooldown.exclude in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 8
+    },
+    "message": "npm_config_strict_allow_scripts=false is set in the env of job build in .github/workflows/ci.yml, reaches every npm command there, and lets dependency install scripts run that depcurfew.json denies for npm",
+    "fix": "Remove npm_config_strict_allow_scripts from that env in .github/workflows/ci.yml; to let a package run its install scripts, add it to installScripts.allow in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 12
+    },
+    "message": "npm_config_allow_git=root is exported in a run step of job build in .github/workflows/ci.yml, reaches the npm commands after it in that step, and allows git dependencies, although depcurfew.json denies them for npm",
+    "fix": "Remove that export of npm_config_allow_git from .github/workflows/ci.yml; if such dependencies are wanted, set sources.git to \"allow\" in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 13
+    },
+    "message": "npm_config_min_release_age=1 is written to $GITHUB_ENV in a run step of job build in .github/workflows/ci.yml, reaches every npm command of the later steps of the job, and sets the release-age delay of npm to 1 day, shorter than the 3d of depcurfew.json",
+    "fix": "Remove the line that writes npm_config_min_release_age to $GITHUB_ENV in .github/workflows/ci.yml; for a package that cannot wait, add it to cooldown.exclude in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 14
+    },
+    "message": "job build in .github/workflows/ci.yml (line 14) runs npm with --min-release-age=0, which turns off the release-age delay of npm (3d in depcurfew.json)",
+    "fix": "Remove --min-release-age=0 from that command in .github/workflows/ci.yml; for a package that cannot wait, add it to cooldown.exclude in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 14
+    },
+    "message": "job build in .github/workflows/ci.yml (line 14) runs npm with --allow-git=all, which allows git dependencies, although depcurfew.json denies them for npm",
+    "fix": "Remove --allow-git=all from that command in .github/workflows/ci.yml; if such dependencies are wanted, set sources.git to \"allow\" in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 14
+    },
+    "message": "job build in .github/workflows/ci.yml (line 14) runs npm with --no-strict-allow-scripts, which lets dependency install scripts run that depcurfew.json denies for npm",
+    "fix": "Remove --no-strict-allow-scripts from that command in .github/workflows/ci.yml; to let a package run its install scripts, add it to installScripts.allow in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 16
+    },
+    "message": "NPM_CONFIG_BEFORE=${{ vars.CUTOFF }} is set in the env of step 3 of job build in .github/workflows/ci.yml, reaches every npm command there, and may weaken the release-age delay of npm (3d in depcurfew.json): depcurfew does not expand the value",
+    "fix": "Remove NPM_CONFIG_BEFORE from that env in .github/workflows/ci.yml, or make sure its value never weakens what depcurfew.json requires"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 17
+    },
+    "message": "npm_config_dangerously_allow_all_scripts=true is set for npm in a run step of job build in .github/workflows/ci.yml, reaches the npm commands it runs, and lets dependency install scripts run that depcurfew.json denies for npm",
+    "fix": "Remove npm_config_dangerously_allow_all_scripts from that command in .github/workflows/ci.yml; to let a package run its install scripts, add it to installScripts.allow in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "Dockerfile",
+      "line": 2
+    },
+    "message": "npm_config_min_release_age=1 is the default of an ARG instruction in stage build of Dockerfile, reaches every npm command of the later RUN instructions there, which get build arguments as variables, and sets the release-age delay of npm to 1 day, shorter than the 3d of depcurfew.json",
+    "fix": "Remove the default of npm_config_min_release_age from that ARG instruction in Dockerfile (or the ARG); for a package that cannot wait, add it to cooldown.exclude in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "Dockerfile",
+      "line": 3
+    },
+    "message": "npm_config_allow_remote=all is set with ENV in stage build of Dockerfile, reaches every npm command of the later RUN instructions there and of the stages built from it, and allows remote tarball dependencies, although depcurfew.json denies them for npm",
+    "fix": "Remove npm_config_allow_remote from that ENV instruction in Dockerfile; if such dependencies are wanted, set sources.remoteTarball to \"allow\" in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "Dockerfile",
+      "line": 5
+    },
+    "message": "npm_config_min_release_age=0 is set for npm in a RUN instruction of stage build in Dockerfile, reaches the npm commands it runs, and turns off the release-age delay of npm (3d in depcurfew.json)",
+    "fix": "Remove npm_config_min_release_age from that command in Dockerfile; for a package that cannot wait, add it to cooldown.exclude in depcurfew.json and run depcurfew apply"
+  }
+]

@@ -1,0 +1,31 @@
+{
+  "changed": [
+    "config/security.yaml",
+    "pnpm-workspace.yaml"
+  ],
+  "warnings": [
+    {
+      "code": "allow-all-replaced",
+      "tool": "pnpm",
+      "location": {
+        "file": "config/security.yaml",
+        "line": 2
+      },
+      "message": "pnpm: dangerouslyAllowAllBuilds: true in config/security.yaml (line 2) allowed every build script; set to false because the policy denies install scripts",
+      "fix": "Add the packages whose install scripts must run to installScripts.allow in depcurfew.json, then run depcurfew apply again"
+    },
+    {
+      "code": "allow-pattern-unsupported",
+      "tool": "pnpm",
+      "message": "pnpm: allowBuilds takes package names only; \"@scope/*\" not written",
+      "fix": "List the package names in installScripts.allow"
+    },
+    {
+      "code": "source-switch-indirect-only",
+      "tool": "pnpm",
+      "message": "pnpm: blockExoticSubdeps stops git and tarball sources only for indirect dependencies; direct ones stay allowed",
+      "fix": "Run depcurfew doctor, which reports direct ones in pnpm-lock.yaml"
+    }
+  ],
+  "snippets": []
+}

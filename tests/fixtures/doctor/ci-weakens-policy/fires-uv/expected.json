@@ -1,0 +1,38 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 3
+    },
+    "message": "UV_EXCLUDE_NEWER=1 hour is set in the env of the workflow in .github/workflows/ci.yml, reaches every uv command there, and sets the release-age delay of uv to 1 hour, shorter than the 3d of depcurfew.json",
+    "fix": "Remove UV_EXCLUDE_NEWER from that env in .github/workflows/ci.yml; for a package that cannot wait, add it to cooldown.exclude in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 9
+    },
+    "message": "job lock in .github/workflows/ci.yml (line 9) runs uv with --exclude-newer 2 hours, which sets the release-age delay of uv to 2 hours, shorter than the 3d of depcurfew.json",
+    "fix": "Remove --exclude-newer 2 hours from that command in .github/workflows/ci.yml; for a package that cannot wait, add it to cooldown.exclude in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 10
+    },
+    "message": "job lock in .github/workflows/ci.yml (line 10) runs uv with --exclude-newer 2026-11-01T00:00:00Z, which sets the release-age delay of uv to a value depcurfew cannot compare with the 3d of depcurfew.json (a date, false or another form), and may weaken it",
+    "fix": "Remove --exclude-newer 2026-11-01T00:00:00Z from that command in .github/workflows/ci.yml, or make sure its value never weakens what depcurfew.json requires"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 11
+    },
+    "message": "job lock in .github/workflows/ci.yml (line 11) runs uv with --exclude-newer-package, which weakens the release-age delay of uv (3d in depcurfew.json)",
+    "fix": "Remove --exclude-newer-package from that command in .github/workflows/ci.yml; for a package that cannot wait, add it to cooldown.exclude in depcurfew.json and run depcurfew apply"
+  }
+]

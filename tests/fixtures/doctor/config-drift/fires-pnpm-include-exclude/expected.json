@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "config/deps.yaml",
+      "line": 1
+    },
+    "message": "config/deps.yaml does not match depcurfew.json: `minimumReleaseAgeExclude: [\"*\",\"@*/*\"]` should be `minimumReleaseAgeExclude: []`",
+    "fix": "Run depcurfew apply to bring config/deps.yaml back in line with depcurfew.json (depcurfew apply --dry-run shows the change first), or change depcurfew.json if the edit was intended"
+  }
+]

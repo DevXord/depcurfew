@@ -1,11 +1,30 @@
-// pnpm: settings in pnpm-workspace.yaml (read in every version that has them, also in single-package projects);
-// the allow-list is allowBuilds since 10.26.0 and onlyBuiltDependencies before.
+// pnpm: settings in pnpm-workspace.yaml (read in every version that has them, also in single-package projects), or
+// from 12.15.0 in the file include gives each one to; the allow-list is allowBuilds since 10.26.0 and
+// onlyBuiltDependencies before.
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { pnpmNpmrcAllowsAllBuilds } from '../../doctor/effective.ts';
 import { yamlSetting } from '../../doctor/settings.ts';
 import { extraOf, firstFile, isRecord, isSwitch, mergesYamlKeys, settingOf, sinceOf, switchIsOff } from '../facts.ts';
 import { isSecurityExclusionFormat, restoreEntries, securityEntries, withoutComments, type KeptEntry } from '../renovate-exclusions.ts';
-import { allowedInFiles, allowedNames, cooldownValue, deniedNames, eachSource, exclusions, sameList, scriptsDefault, writeDenyList, type SourceKind } from './common.ts';
+import {
+  allowedInFiles,
+  allowedNames,
+  commentReplacedList,
+  cooldownValue,
+  deniedNames,
+  droppedYamlList,
+  eachSource,
+  exclusions,
+  sameList,
+  scriptsDefault,
+  sourceLoosened,
+  workspaceText,
+  writeDenyList,
+  wrongListType,
+  type SourceKind,
+} from './common.ts';
+import { ownerText, pnpmOwner, readPnpmIncludes } from '../pnpm-includes.ts';
+import { YAML_MARKER } from '../yaml-edit.ts';
 import type { Context, ManagerGenerator } from './context.ts';
 import { formatVersion } from '../version.ts';
 
@@ -30,8 +49,10 @@ function mergeList(context: Context, workspaceFileSince: string, setting: string
   const file = inWorkspaceFile ? (firstFile(context.tool.cooldown.configFiles) ?? 'pnpm-workspace.yaml') : 'package.json';
   const target = inWorkspaceFile ? context.yaml(file) : context.json(file);
   const path = inWorkspaceFile ? [setting] : ['pnpm', setting];
-  context.writes('installScripts', path.join('.'), file);
   const current = target.get(path);
+  // A value of another type is left as it is, since replacing it would drop what it names (decision D-167).
+  if (wrongListType(context, file, path, current, 'list', names, JSON.stringify(names.length > 0 ? names : ['esbuild']))) return;
+  context.writes('installScripts', path.join('.'), file);
   const list = Array.isArray(current) ? [...(current as unknown[])] : [];
   const merged = [...list, ...names.filter((name) => !list.includes(name))];
   if (!sameList(current, merged)) target.set(path, merged);
@@ -61,19 +82,41 @@ function renovateEntries(context: Context, file: string, setting: string): KeptE
 
 export const pnpm: ManagerGenerator = (context) => {
   const { tool, policy } = context;
-  const file = firstFile(tool.cooldown.configFiles) ?? 'pnpm-workspace.yaml';
-  const yaml = context.yaml(file);
+  const root = firstFile(tool.cooldown.configFiles) ?? 'pnpm-workspace.yaml';
+  // pnpm 12.15+ takes a setting from the file include gives it to (decision D-164): apply writes it there, and never
+  // into pnpm-workspace.yaml when another source owns it, which would make pnpm stop with ERR_PNPM_DUPLICATE_SETTING.
+  const includes = readPnpmIncludes(tool, context.version, (name) => workspaceText(context.workspace).readText(name), root);
+  const owned = (setting: string) => pnpmOwner(includes, setting, root);
+  /** The file apply writes `setting` into; undefined, with a warning, when a config dependency or a file outside owns it. */
+  const fileFor = (setting: string, value?: unknown): string | undefined => {
+    const owner = owned(setting);
+    if (owner.kind === 'file') return owner.file;
+    const reason = `${setting} belongs to ${ownerText(owner, root)}, ${owner.kind === 'dependency' ? 'whose settings depcurfew cannot change' : 'which depcurfew does not edit'}; written into ${root}, it would make pnpm stop with ERR_PNPM_DUPLICATE_SETTING`;
+    const wanted = value === undefined ? `as ${POLICY_FILE} requires` : `to ${JSON.stringify(value)}`;
+    const fix =
+      owner.kind === 'dependency'
+        ? `Take ${setting} out of the list of ${owner.name} in include in ${root}, then run depcurfew apply again, which writes it into ${root}; or set ${setting} ${wanted} in the settings of ${owner.name}`
+        : `Take ${setting} out of the list of ${owner.spec} in include in ${root}, or move that file into the directory, then run depcurfew apply again`;
+    const location = { file: root, line: owner.line };
+    if (setting === settingOf(tool.cooldown.setting)) context.warn({ code: 'cooldown-not-written', location, message: `${context.name}: cooldown not written: ${reason}`, fix });
+    else context.warn({ code: 'setting-owned-elsewhere', location, message: `${context.name}: ${setting} not written: ${reason}`, fix });
+    return undefined;
+  };
   let minutes: number | undefined;
 
   if (policy.cooldown !== undefined) {
     const setting = settingOf(tool.cooldown.setting) ?? 'minimumReleaseAge';
     const cooldown = cooldownValue(context);
     if (cooldown !== undefined) {
-      minutes = cooldown.minutes;
-      yaml.set([setting], cooldown.value);
+      const file = fileFor(setting, cooldown.value);
+      if (file !== undefined) {
+        minutes = cooldown.minutes;
+        context.yaml(file).set([setting], cooldown.value);
+      }
       // Some versions fall back to a version that is too young unless strict mode is set explicitly.
       const strict = extraOf(tool, 'minimumReleaseAgeStrict', isSwitch);
-      if (context.atLeast(strict.since) && yaml.get([strict.setting]) !== strict.value) yaml.set([strict.setting], strict.value);
+      const strictFile = context.atLeast(strict.since) ? fileFor(strict.setting, strict.value) : undefined;
+      if (strictFile !== undefined && context.yaml(strictFile).get([strict.setting]) !== strict.value) context.yaml(strictFile).set([strict.setting], strict.value);
       const exact = extraOf(tool, 'cooldownExactVersions', (value): value is string => typeof value === 'string');
       if (!context.atLeast(exact)) {
         context.warn({
@@ -85,14 +128,28 @@ export const pnpm: ManagerGenerator = (context) => {
     }
     const excludeSetting = settingOf(tool.cooldown.exclude.setting);
     const patterns = cooldown === undefined ? undefined : exclusions(context);
-    if (excludeSetting !== null && patterns !== undefined && (patterns.length > 0 || yaml.get([excludeSetting]) !== undefined)) {
+    // The list where pnpm reads it; one a config dependency owns is reported only when the policy has entries for it.
+    const excludeOwner = excludeSetting === null ? undefined : owned(excludeSetting);
+    const file =
+      excludeSetting === null || excludeOwner === undefined || patterns === undefined
+        ? undefined
+        : excludeOwner.kind === 'file'
+          ? excludeOwner.file
+          : patterns.length > 0
+            ? fileFor(excludeSetting, patterns)
+            : undefined;
+    const yaml = file === undefined ? undefined : context.yaml(file);
+    if (excludeSetting !== null && file !== undefined && yaml !== undefined && patterns !== undefined && (patterns.length > 0 || yaml.get([excludeSetting]) !== undefined)) {
       const kept = renovateEntries(context, file, excludeSetting);
       const wanted = [...patterns, ...kept.map((entry) => entry.value).filter((value) => !patterns.includes(value))];
       const current = yaml.get([excludeSetting]);
       if (kept.length === 0 ? !sameList(current, wanted) : !sameMembers(current, wanted)) {
+        // Entries written by hand that the policy does not name stay as a comment (decision D-167).
+        const dropped = droppedYamlList(context, file, [excludeSetting], wanted);
         if (kept.length > 0) context.workspace.edit(file, (body) => withoutComments(body, excludeSetting, kept));
         yaml.set([excludeSetting], wanted);
         if (kept.length > 0) context.workspace.edit(file, (body) => restoreEntries(body, excludeSetting, kept));
+        if (dropped !== undefined) commentReplacedList(context, file, [excludeSetting], dropped);
       }
     }
   }
@@ -100,8 +157,9 @@ export const pnpm: ManagerGenerator = (context) => {
   if (policy.installScripts !== undefined) {
     const allowAll = extraOf(tool, 'allowAllBuilds', isSwitch);
     if (policy.installScripts.default === 'allow') {
-      if (context.supports(allowAll.since, allowAll.setting)) {
-        yaml.set([allowAll.setting], allowAll.value);
+      const file = context.supports(allowAll.since, allowAll.setting) ? fileFor(allowAll.setting, allowAll.value) : undefined;
+      if (file !== undefined) {
+        context.yaml(file).set([allowAll.setting], allowAll.value);
         context.writes('installScripts', allowAll.setting, file);
       }
     } else {
@@ -119,9 +177,11 @@ export const pnpm: ManagerGenerator = (context) => {
         });
       }
       // pnpm tests the switch for truth, so every value but the ones it reads as off allows every build: "false"
-      // and yes too, also when the key comes in through a merge key (<<), which the value written here overrides.
-      const current = yaml.get([allowAll.setting]);
-      if (context.atLeast(allowAll.since) && !switchIsOff(allowAll, current)) {
+      // and yes too, also when the key comes in through a merge key (<<), which the value written here overrides. A
+      // switch a config dependency owns cannot be read, so apply says that it cannot turn it off.
+      const file = context.atLeast(allowAll.since) ? fileFor(allowAll.setting, false) : undefined;
+      const current = file === undefined ? undefined : context.yaml(file).get([allowAll.setting]);
+      if (file !== undefined && !switchIsOff(allowAll, current)) {
         const found = context.exists(file) ? yamlSetting(context.read(file), [allowAll.setting], { merge: mergesYamlKeys(tool) }) : undefined;
         const written = `${allowAll.setting}: ${JSON.stringify(current)}`;
         const where = found === undefined ? '' : ` (line ${found.line}${found.mergedAt === undefined ? '' : `, through the merge key << at line ${found.mergedAt}`})`;
@@ -133,7 +193,7 @@ export const pnpm: ManagerGenerator = (context) => {
           message: `${context.name}: ${written} in ${file}${where} allowed every build script${reading}; set to false because the policy denies install scripts`,
           fix: `Add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`,
         });
-        yaml.set([allowAll.setting], false);
+        context.yaml(file).set([allowAll.setting], false);
         context.writes('installScripts', allowAll.setting, file);
       }
       const setting = settingOf(tool.installScripts.allowList.setting) ?? 'allowBuilds';
@@ -141,9 +201,16 @@ export const pnpm: ManagerGenerator = (context) => {
       const wanted = policy.installScripts.allow.length > 0;
       if (context.atLeast(since)) {
         const names = wanted ? allowedNames(context, setting) : [];
-        if (names.length > 0) context.writes('installScripts', setting, file);
-        for (const name of names) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
-        writeDenyList(context);
+        const listFile = names.length > 0 ? fileFor(setting) : undefined;
+        if (listFile !== undefined) {
+          const yaml = context.yaml(listFile);
+          // allowBuilds is a map of package names; one of another type is left as it is (decision D-167).
+          if (!wrongListType(context, listFile, [setting], yaml.get([setting]), 'object', names, `{${JSON.stringify(names[0])}: true}`)) {
+            context.writes('installScripts', setting, listFile);
+            for (const name of names) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
+          }
+        }
+        writeDenyList(context, fileFor);
       } else {
         if ((wanted || mustList) && (mustList ? context.atLeast(legacy.since) : context.supports(legacy.since, 'onlyBuiltDependencies'))) {
           mergeList(context, legacy.workspaceFileSince, 'onlyBuiltDependencies', allowedNames(context, 'onlyBuiltDependencies'));
@@ -165,11 +232,11 @@ export const pnpm: ManagerGenerator = (context) => {
         context.warn({
           code: 'allow-all-replaced',
           location: { file: '.npmrc', line: fromNpmrc.line },
-          message: `${context.name}: ${fromNpmrc.key}=${fromNpmrc.value} in .npmrc (line ${fromNpmrc.line}) allowed every build script, because ${file} has no build settings that override it; set ${allowAll.setting}: false in ${file}, which wins, because the policy denies install scripts`,
+          message: `${context.name}: ${fromNpmrc.key}=${fromNpmrc.value} in .npmrc (line ${fromNpmrc.line}) allowed every build script, because ${root} has no build settings that override it; set ${allowAll.setting}: false in ${root}, which wins, because the policy denies install scripts`,
           fix: `Remove the ${fromNpmrc.key} line from .npmrc; add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`,
         });
-        yaml.set([allowAll.setting], false);
-        context.writes('installScripts', allowAll.setting, file);
+        context.yaml(root).set([allowAll.setting], false);
+        context.writes('installScripts', allowAll.setting, root);
       }
     }
   }
@@ -197,8 +264,23 @@ export const pnpm: ManagerGenerator = (context) => {
         });
       }
     }
-    yaml.set([exoticSetting], denied.length > 0);
-    context.writes('sources', exoticSetting, file);
+    const file = fileFor(exoticSetting, denied.length > 0);
+    if (file !== undefined) {
+      // true written by hand blocks git and tarball sources of indirect dependencies, which "allow" turns off (decision D-167).
+      const found = denied.length === 0 && context.exists(file) ? yamlSetting(context.read(file), [exoticSetting], { merge: mergesYamlKeys(tool) }) : undefined;
+      if (found?.value === true && context.read(file).split('\n')[found.line - 2]?.trim() !== YAML_MARKER) {
+        sourceLoosened(
+          context,
+          [...exotic.keys()],
+          { file, line: found.line },
+          `${exoticSetting}: true`,
+          'blocks git and tarball sources of indirect dependencies',
+          `sets it to false, so ${context.name} installs them again`,
+        );
+      }
+      context.yaml(file).set([exoticSetting], denied.length > 0);
+      context.writes('sources', exoticSetting, file);
+    }
   }
   return minutes;
 };

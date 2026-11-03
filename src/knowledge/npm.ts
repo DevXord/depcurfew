@@ -1,7 +1,9 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, EnvironmentNameRule, OmitOptionalKnowledge, RootLifecycleScriptsKnowledge, RunnerOptionsKnowledge, ToolKnowledge } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, NpmGlobalConfigKnowledge, NpmRegistryHostKnowledge, OmitOptionalKnowledge, RootLifecycleScriptsKnowledge, RunnerOptionsKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
+// Facts whose sources D-170 pinned to a release tag or commit, checked again on 2026-11-03.
+const d170 = verifiedOn('2026-11-03');
 const checked = verifiedOn('2026-10-29');
 const reviewed = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
@@ -9,6 +11,10 @@ const runtimes = verifiedOn('2026-11-01');
 const finalReview = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
 const runners = verifiedOn('2026-11-03');
+const secrets = verifiedOn('2026-11-03');
+// The npm that npm install -g npm@<range> installs (decision D-173).
+const d173 = verifiedOn('2026-11-03');
+const d172 = verifiedOn('2026-11-03');
 
 const CONFIG = 'https://docs.npmjs.com/cli/v12/using-npm/config';
 const CONFIG_V11 = 'https://docs.npmjs.com/cli/v11/using-npm/config';
@@ -163,9 +169,9 @@ export const npm: ToolKnowledge = {
     ),
     manifests: verified(['package.json'], PACKAGE_JSON),
     workspaces: verified({ files: ['package.json'], key: 'workspaces' }, `${PACKAGE_JSON}#workspaces`, 'An array of folder paths or globs.'),
-    workspacesObjectKey: uncertain(
+    workspacesObjectKey: d170.uncertain(
       'packages',
-      'https://github.com/npm/map-workspaces/blob/main/lib/index.js',
+      'https://github.com/npm/map-workspaces/blob/v6.0.0/lib/index.js',
       'Not documented; npm\'s map-workspaces also accepts { "packages": [...] } and negated patterns.',
     ),
   },
@@ -317,6 +323,22 @@ export const npm: ToolKnowledge = {
       release('12.2.1'),
       'Marked as the latest GitHub release on 2026-10-28; the 11.x line is still maintained (11.21.1).',
     ),
+    lineReleases: d173.verified(
+      [
+        '6.14.18', '7.24.2', '8.19.4',
+        '9.0.1', '9.1.3', '9.2.0', '9.3.1', '9.4.2', '9.5.1', '9.6.7', '9.7.2', '9.8.1', '9.9.4',
+        '10.0.0', '10.1.0', '10.2.5', '10.3.0', '10.4.0', '10.5.2', '10.6.0', '10.7.0', '10.8.3', '10.9.9',
+        '11.0.0', '11.1.0', '11.2.0', '11.3.0', '11.4.2', '11.5.2', '11.6.4', '11.7.0', '11.8.0', '11.9.0', '11.10.1', '11.11.1', '11.12.1', '11.13.0', '11.14.1', '11.15.0', '11.16.0', '11.17.0', '11.18.0', '11.19.1', '11.20.0', '11.21.1',
+        '12.0.2', '12.1.0', '12.2.1',
+      ],
+      'https://registry.npmjs.org/npm',
+      'The newest release of each minor line from 9.0 to 12.2, and of the major lines 6, 7 and 8, among the versions of the npm package in the registry on 2026-11-03 (modified 2026-10-21); none of 10.x to 12.x is deprecated. The dist-tags agree (https://registry.npmjs.org/-/package/npm/dist-tags: latest 12.2.1, next-11 11.21.1, next-10 10.9.9, next-9 9.9.4, next-8 8.19.4, latest-7 7.24.2, latest-6 6.14.18), and so do the v<version> tags of npm/cli. npm does not publish a release twice, so a later run of npm install -g npm@11 installs this release or a newer 11.x.',
+    ),
+    rangeInstall: d173.verified(
+      { picks: 'highest', prefersTag: 'latest', enginesFirst: true },
+      'https://github.com/npm/npm-pick-manifest/blob/v12.0.0/lib/index.js',
+      'npm 12.2.1 depends on npm-pick-manifest ^12.0.0 and npm 11.21.1 on ^11.0.3 (package.json of npm/cli at those tags). For a range (npm install -g npm@11, npm@^11.10.0) or a tag (npm@latest, a bare npm), pickManifest returns the version of the latest dist-tag when it satisfies the range, runs on the Node.js in use (engineOk with nodeVersion, process.version by default) and is not deprecated; otherwise it sorts the versions that satisfy the range by: not avoided, not restricted, not staged, not deprecated and engine ok, engine ok, not deprecated, then semver.rcompare, and returns the first. So npm installs the newest release of the range that runs on that Node.js, and the newest release of the range when none does.',
+    ),
     beforeInteraction: reviewed.verified(
       { setting: 'before', exclusive: { since: '11.10.0', until: '11.15.0' }, beforeWinsSince: '11.15.0' },
       'https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js',
@@ -458,6 +480,25 @@ export const npm: ToolKnowledge = {
       NPM_DEFINITIONS,
       'userconfig, the location of user-level settings, defaults to ~/.npmrc; registry is the base URL of the npm registry (default https://registry.npmjs.org/); a per-project .npmrc can set it like any config key (docs/lib/content/using-npm/config.md). npm config set @myco:registry=http://reg.example.com associates a scope with a registry, and any npm install of a package with that scope then requests it from there (https://docs.npmjs.com/cli/v12/using-npm/scope#associating-a-scope-with-a-registry).',
     ),
+    globalConfig: secrets.verified<NpmGlobalConfigKnowledge>(
+      {
+        userKey: 'userconfig',
+        globalKey: 'globalconfig',
+        prefixKey: 'prefix',
+        file: 'etc/npmrc',
+        prefixVariable: 'PREFIX',
+        destDirVariable: 'DESTDIR',
+        execPathLevels: { win32: 1, other: 2 },
+        order: ['cli', 'env', 'project', 'user', 'global', 'builtin'],
+      },
+      `${NPM_CONFIG_LIB}/index.js`,
+      'load() reads the builtin config, the command line, the environment (loadEnv), the project .npmrc, the user file (#get("userconfig")) and the global file (#get("globalconfig")), and a key of an earlier source in the order above wins. loadGlobalPrefix: the default prefix is PREFIX of the environment, else on Windows the directory of the Node.js executable ("c:\\node\\node.exe --> prefix=c:\\node\\") and elsewhere the directory above it ("/usr/local/bin/node --> prefix=/usr/local"), with DESTDIR joined in front on POSIX only; the default of globalconfig is a getter, resolve(prefix, "etc/npmrc"), of the prefix the command line, the environment or the user file sets (loadDefaults). userconfig, globalconfig and prefix are of type path (definitions.js), which parseField (parse-field.js at the same tag) trims, expands ${VAR} in and resolves: ~/ against the home directory, anything else against the current directory.',
+    ),
+    registryHostTarballs: secrets.verified<NpmRegistryHostKnowledge>(
+      { dependencies: 'registry specs', match: 'origin and path' },
+      'https://github.com/npm/cli/blob/v12.2.1/workspaces/arborist/lib/arborist/reify.js',
+      '#isRegistryResolvedTarball: a node whose every dependency edge has a registry spec (node.isRegistryDependency, workspaces/arborist/lib/node.js: npa(edge.spec).registry) and whose resolved URL, after replace-registry-host, has the origin of pickRegistry(npa(node.name)), the registry of its scope or else registry, and a path that starts with that registry\'s path, is extracted with allowRemote "all": "pacote\'s npa re-parses our name@URL spec as type=remote, so allowRemote would mis-fire on registry tarballs". The allow-remote definition says so for users: "Tarballs that share a hostname with the configured registry (the typical case for the npm registry, GitHub Packages, and most private registries) are still installed normally" (workspaces/config/lib/definitions/definitions.js).',
+    ),
     registryOverrides: checked.verified(
       {
         registryOptions: ['--registry', '--@<scope>:registry'],
@@ -476,6 +517,11 @@ export const npm: ToolKnowledge = {
       ],
       'https://github.com/npm/cli/blob/v12.2.1/lib/commands/config.js',
       'npm config set sets keys (in the user configuration unless location is given), delete (also rm and del) removes keys from every configuration file, edit opens a configuration file in an editor and fix repairs invalid items; get and list (ls) only read (the switch in exec, and docs/lib/content/commands/npm-config.md). npm set <key>=<value> runs npm config set with its arguments and fails without any (lib/commands/set.js); npm get only reads (lib/commands/get.js). npm pkg set, delete and fix write package.json back, get only reads (lib/commands/pkg.js). Other spellings of these commands come from commandNames.',
+    ),
+    linkCommands: d172.verified<readonly (readonly string[])[]>(
+      [['npm', 'link']],
+      `${NPM_GITHUB_V12}/lib/commands/link.js`,
+      'npm link with package specs (linkInstall in lib/commands/link.js at v12.2.1, the same in 11.21.1): it loads the top-level packages of the global space, takes every spec that no package there matches (missingArgsFromTree), and installs those into the global space first (globalArb.reify with add: missing, after the strict-allow-scripts preflight of npm install and with its allow-scripts policy), so a registry name comes from the registry as with npm install -g; then it links each package into the project (localArb.reify with add: file:<global>/node_modules/<name>). A directory spec links that folder, and a spec that resolves to the project directory itself is dropped; without specs npm link links the current package into the global space (linkPkg). Its params include ignore-scripts, allow-directory, allow-file, allow-git and allow-remote; it refuses --global (ELINKGLOBAL). ln is its alias (commandNames), and unlink is an alias of uninstall.',
     ),
     commandNames: runners.verified(
       {
@@ -523,6 +569,22 @@ export const npm: ToolKnowledge = {
       },
       NPM_DEFINITIONS,
       'Settings that a single npm command can change on its command line or in its environment: "Putting --foo bar on the command line sets the foo configuration parameter", "--flag without specifying any value will set the value to true", "Any environment variables that start with npm_config_ will be interpreted as a configuration parameter", case-insensitive, and an environment configuration without a value is true (docs/lib/content/using-npm/config.md at v12.2.1). Types in definitions.js at v12.2.1: ignore-scripts Boolean, default false ("If true, npm does not run scripts specified in package.json files"); min-release-age null or Number of days; before null or Date; min-release-age-exclude a list exempt from min-release-age and before; dangerously-allow-all-scripts Boolean, which bypasses the allowScripts policy; allow-scripts a list of packages whose install scripts may run. A value other than true for ignore-scripts, any true value of dangerously-allow-all-scripts (the false values as in user.variables), any allow-scripts, before or min-release-age-exclude, and a min-release-age shorter than the policy weaken what depcurfew apply wrote.',
+    ),
+    settingOverrides: runners.verified(
+      {
+        optionPrefix: '--',
+        negation: '--no-',
+        variablePrefix: 'npm_config_',
+        settings: [
+          { setting: 'strict-allow-scripts', weakens: 'scripts', values: ['false', 'null', 'undefined'], when: 'written' },
+          { setting: 'allow-git', weakens: 'sources', source: 'git', values: { except: ['none'] } },
+          { setting: 'allow-remote', weakens: 'sources', source: 'remoteTarball', values: { except: ['none'] } },
+          { setting: 'allow-file', weakens: 'sources', source: 'file', values: { except: ['none'] } },
+          { setting: 'allow-directory', weakens: 'sources', source: 'directory', values: { except: ['none'] } },
+        ],
+      },
+      `${NPM_GITHUB_V12}/docs/lib/content/using-npm/config.md`,
+      'The settings depcurfew apply writes into .npmrc for installScripts and sources that installOverrides (the options and variables the install guard asks about) does not list, for doctor (decision D-166). npm takes its configuration from, "sorted by priority", the command line ("Putting --foo bar on the command line sets the foo configuration parameter", "Using --flag without specifying any value will set the value to true"), then the environment ("Any environment variables that start with npm_config_ will be interpreted as a configuration parameter", "Config values are case-insensitive", with underscores instead of dashes), then the .npmrc files, so either replaces a key of the project .npmrc for the commands it reaches; a --no- prefix sets false (booleanWords). In definitions.js at v12.2.1 strict-allow-scripts is a Boolean (default false), and parseField (workspaces/config/lib/parse-field.js) turns only "false", "null" and "undefined" into values that turn it off, so those weaken it where .npmrc sets it to true (apply writes it for an npm 11.16 to 11.x in use, which runs uncovered scripts without it). allow-git, allow-remote, allow-file and allow-directory take all, none or root; apply writes none for a source the policy denies, root allows the dependencies listed in the root package.json, and a value npm does not accept is reported as invalid and replaced by the default (all before npm 12; user.invalidValueFails), so every value but none weakens a denied source.',
     ),
     directoryOptions: runtimes.verified<DirectoryOptionsKnowledge>(
       { options: [{ name: '--prefix', moves: 'directory', localPrefix: true }], variables: [] },

@@ -12,8 +12,9 @@ export interface YamlOptions {
    */
   merge?: boolean;
   /**
-   * Read plain numbers as Ruby's Psych does (dependabot.yml, extra.yamlScalars, decision D-136): 010 is 8, 1_0 and 1,0
-   * are 10, 1:30 is 5400, and 0o12 or 1e3 are text. Values only; keys are read as YAML 1.2 reads them.
+   * Read plain numbers, booleans and nulls as Ruby's Psych does (dependabot.yml, extra.yamlScalars, decisions D-136
+   * and D-171): 010 is 8, 1_0 and 1,0 are 10, 1:30 is 5400, 0o12 or 1e3 are text, yes and Off are booleans and nUll is
+   * null. Values only; keys are read as YAML 1.2 reads them.
    */
   psychScalars?: boolean;
   /**
@@ -26,8 +27,11 @@ export interface YamlOptions {
 /** The most aliases depcurfew expands in one value it converts, as for merge keys: more is read as no value. */
 export const MAX_YAML_ALIASES = 100;
 
-/** A plain scalar as Psych reads it, as far as numbers go: an integer, text where YAML 1.2 may read a number, or as YAML 1.2 does. */
-export type PsychReading = { kind: 'integer'; value: number } | { kind: 'string'; value: string } | { kind: 'other' };
+/**
+ * A plain scalar as Psych reads it, as far as it differs from YAML 1.2: an integer, text where YAML 1.2 may read a
+ * number, a YAML 1.1 boolean or null (yes, Off, nUll), or as YAML 1.2 does.
+ */
+export type PsychReading = { kind: 'integer'; value: number } | { kind: 'string'; value: string } | { kind: 'boolean'; value: boolean } | { kind: 'null' } | { kind: 'other' };
 
 const PSYCH_WORD = /^[^\d.:-]?[\p{L}_\s!@#$%^&*(){}<>|/\\~;=]+/u;
 const PSYCH_TIME = /^-?\d{4}-\d{1,2}-\d{1,2}(?:[Tt]|\s+)\d{1,2}:\d\d:\d\d(?:\.\d*)?(?:\s*(?:Z|[-+]\d{1,2}:?(?:\d\d)?))?$/u;
@@ -53,12 +57,27 @@ function rubyInteger(text: string): number {
 }
 
 /**
- * A plain scalar as Psych 5.5.0's ScalarScanner#tokenize reads it (extra.yamlScalars of Dependabot), as far as numbers
- * go: words, booleans, null, times, dates, infinities and symbols are `other` (no number either way), so are floats;
- * base 60 and INTEGER_LEGACY integers are integers; any other text is a string, also where YAML 1.2 reads a number.
+ * A word of up to five characters as Psych 5.5.0 reads it with its default libyaml backend (extra.yamlScalars of
+ * Dependabot): ~ and null in any case are null, yes, true and on true, no, false and off false, in any case (YAML 1.1);
+ * undefined for any other word, which Psych reads as text.
+ */
+function psychWord(text: string): { kind: 'boolean'; value: boolean } | { kind: 'null' } | undefined {
+  if (text.length > 5 || /^[^ytonf~]/iu.test(text)) return undefined;
+  if (text === '~' || /^null$/iu.test(text)) return { kind: 'null' };
+  if (/^(?:yes|true|on)$/iu.test(text)) return { kind: 'boolean', value: true };
+  if (/^(?:no|false|off)$/iu.test(text)) return { kind: 'boolean', value: false };
+  return undefined;
+}
+
+/**
+ * A plain scalar as Psych 5.5.0's ScalarScanner#tokenize reads it (extra.yamlScalars of Dependabot), as far as it
+ * differs from YAML 1.2: the YAML 1.1 booleans and nulls are `boolean` and `null`; other words, times, dates,
+ * infinities, symbols and floats are `other` (as YAML 1.2 reads them, or no number either way); base 60 and
+ * INTEGER_LEGACY integers are integers; any other text is a string, also where YAML 1.2 reads a number.
  */
 export function psychScalar(text: string): PsychReading {
-  if (text === '' || PSYCH_WORD.test(text) || text.includes('\n')) return { kind: 'other' };
+  if (text === '') return { kind: 'other' };
+  if (PSYCH_WORD.test(text) || text.includes('\n')) return (text.includes('\n') ? undefined : psychWord(text)) ?? { kind: 'other' };
   if (PSYCH_TIME.test(text) || PSYCH_DATE.test(text)) return { kind: 'other' };
   if (/^\+?\.inf$/iu.test(text) || /^-\.inf$/iu.test(text) || /^\.nan$/iu.test(text) || /^:./u.test(text)) return { kind: 'other' };
   if (PSYCH_BASE60.test(text)) {
@@ -71,13 +90,31 @@ export function psychScalar(text: string): PsychReading {
   return { kind: 'string', value: text };
 }
 
-/** Gives the plain values of a document the numbers Psych reads (YamlOptions.psychScalars). */
+/**
+ * Whether Psych 5.5.0 reads a plain scalar as this very text (ScalarScanner#tokenize): not for the empty scalar (nil),
+ * the YAML 1.1 booleans and nulls, times and dates (which YAML.safe_load does not even accept), infinities, NaN,
+ * symbols, base 60 numbers, floats and integers. A string for which this is false has to be quoted in a file Psych
+ * reads, so that it stays a string (decision D-171).
+ */
+export function psychReadsAsString(text: string): boolean {
+  if (text === '') return false;
+  if (PSYCH_WORD.test(text) || text.includes('\n')) return text.includes('\n') || psychWord(text) === undefined;
+  if (PSYCH_TIME.test(text) || PSYCH_DATE.test(text)) return false;
+  if (/^\+?\.inf$/iu.test(text) || /^-\.inf$/iu.test(text) || /^\.nan$/iu.test(text) || /^:./u.test(text)) return false;
+  if (PSYCH_BASE60.test(text) || PSYCH_BASE60_FLOAT.test(text)) return false;
+  // A lone dot (with a sign) matches the float pattern, but Psych gives it back as text.
+  if (PSYCH_FLOAT.test(text)) return /^[-+]?\.$/u.test(text);
+  return !PSYCH_INTEGER.test(text);
+}
+
+/** Gives the plain values of a document the numbers, booleans and nulls Psych reads (YamlOptions.psychScalars). */
 function readLikePsych(document: Document.Parsed): void {
   visit(document, {
     Scalar(key, node) {
       if (key === 'key' || node.type !== 'PLAIN' || typeof node.source !== 'string') return;
       const reading = psychScalar(node.source);
-      if (reading.kind === 'integer') node.value = reading.value;
+      if (reading.kind === 'integer' || reading.kind === 'boolean') node.value = reading.value;
+      else if (reading.kind === 'null') node.value = null;
       else if (reading.kind === 'string' && typeof node.value === 'number') node.value = reading.value;
     },
   });

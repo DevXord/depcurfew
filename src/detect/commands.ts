@@ -42,8 +42,11 @@ export interface CommandFacts {
   python: { executables: readonly string[]; moduleOption: string; commandOption: string; valueOptions: readonly string[] };
   /** `corepack <command>`; `package`: the npm package of Corepack, installed with npm install -g (decision D-128). */
   corepack: { enableCommand: string; package?: string };
-  /** The package of Poetry and the commands that install it (pipx install, pip install; poetry extra.installedPackage). */
-  poetry?: { name: string; commands: readonly (readonly string[])[] };
+  /**
+   * The packages of Poetry, PDM, Pipenv and uv and the commands that install them (pipx install, pip install, uv tool
+   * install; extra.installedPackage of each tool, decisions D-115 and D-173).
+   */
+  installed: readonly InstalledPackage[];
   /**
    * Bundler (decision D-152): its executables, the commands that resolve the Gemfile with their --cooldown option and
    * the variable BUNDLE_COOLDOWN, and gem install bundler with the options that name its version.
@@ -70,6 +73,13 @@ export interface CommandFacts {
     /** bundle _4.0.23_ install runs that version (the executables RubyGems writes). */
     versionSelector?: boolean;
   };
+}
+
+/** A tool installed as a Python package, by the commands its documentation names. */
+export interface InstalledPackage {
+  tool: 'poetry' | 'pdm' | 'pipenv' | 'uv';
+  name: string;
+  commands: readonly (readonly string[])[];
 }
 
 export interface Word {
@@ -180,7 +190,7 @@ function splitWithDepth(script: string): { words: Word[]; depth: number }[] {
 }
 
 /** The program name of a word: without its directory, in lower case, without .exe, .cmd, .bat or .ps1. */
-function programName(word: string): string {
+export function programName(word: string): string {
   const base = word.slice(Math.max(word.lastIndexOf('/'), word.lastIndexOf('\\')) + 1).toLowerCase();
   return base.replace(/\.(?:exe|cmd|bat|ps1)$/u, '');
 }
@@ -191,7 +201,7 @@ function commandWords(words: readonly Word[]): Word[] {
 }
 
 /** The program and its arguments, and the variables the command line sets for it (NAME=value, env NAME=value). */
-function commandParts(words: readonly Word[]): { command: Word[]; assignments: [string, string][] } {
+export function commandParts(words: readonly Word[]): { command: Word[]; assignments: [string, string][] } {
   const assignments: [string, string][] = [];
   let index = 0;
   while (index < words.length) {
@@ -501,7 +511,7 @@ function pipArguments(words: readonly Word[], facts: CommandFacts): Word[] | und
 }
 
 /** pip==26.1 or pip>=26.1 as a version: an exact one with three parts (pip pins 26.1 as 26.1.0), a range as written. */
-function pipVersion(spec: string): string {
+export function pipVersion(spec: string): string {
   const exact = /^===?\s*(\d+(?:\.\d+)*)$/u.exec(spec.trim());
   if (exact?.[1] !== undefined) {
     const parts = exact[1].split('.');
@@ -511,14 +521,21 @@ function pipVersion(spec: string): string {
   return spec.trim();
 }
 
-/** poetry==2.3.0 (or poetry>=2.4) among the operands of an install: the Poetry it installs, as written (decision D-115). */
-function poetryVersions(words: readonly Word[], at: number, facts: CommandFacts): Found[] {
-  const name = facts.poetry?.name;
-  if (name === undefined) return [];
+/**
+ * poetry==2.3.0 (or poetry>=2.4), pdm==2.20.1, pipenv==2025.0.4 or uv==0.8.22 among the operands of an install that the
+ * tool's documentation names (`via`, such as pipx install): the tool it installs, with the version as written
+ * (decisions D-115 and D-173).
+ */
+function installedVersions(words: readonly Word[], at: number, facts: CommandFacts, via: readonly string[]): Found[] {
+  const tools = facts.installed.filter((entry) => entry.commands.some((command) => command.length === via.length && command.every((word, index) => word === via[index])));
+  if (tools.length === 0) return [];
   return words.flatMap((word): Found[] => {
-    const match = new RegExp(`^${name}(?:\\[[^\\]]*\\])?\\s*([=<>~!].*)$`, 'iu').exec(word.text);
-    const spec = match?.[1];
-    return spec === undefined ? [] : [{ kind: 'upgrade', tool: 'poetry', version: pipVersion(spec), offset: at }];
+    for (const tool of tools) {
+      const match = new RegExp(`^${tool.name}(?:\\[[^\\]]*\\])?\\s*([=<>~!].*)$`, 'iu').exec(word.text);
+      const spec = match?.[1];
+      if (spec !== undefined) return [{ kind: 'upgrade', tool: tool.tool, version: pipVersion(spec), offset: at }];
+    }
+    return [];
   });
 }
 
@@ -554,7 +571,7 @@ function pipCommand(args: readonly Word[], at: number, facts: CommandFacts, envi
     if (upgrade) return [{ kind: 'upgrade', tool: 'pip', version: 'latest', offset: at }];
     return [];
   }
-  return [{ kind: 'install', tool: 'pip', ...pipDelay(rest, environment, facts), offset: at }, ...poetryVersions(operands(rest, values), at, facts)];
+  return [{ kind: 'install', tool: 'pip', ...pipDelay(rest, environment, facts), offset: at }, ...installedVersions(operands(rest, values), at, facts, ['pip', 'install'])];
 }
 
 /**
@@ -642,12 +659,20 @@ function gemCommand(args: readonly Word[], at: number, facts: CommandFacts): Fou
   return named && version !== undefined && version !== '' ? [{ kind: 'upgrade', tool: 'bundler', version, offset: at }] : [];
 }
 
-/** pipx install poetry==2.3.0: the Poetry it installs. */
+/** pipx install poetry==2.3.0: the Poetry it installs, or the PDM, Pipenv or uv (decision D-173). */
 function pipxCommand(args: readonly Word[], at: number, facts: CommandFacts): Found[] {
-  const pipx = facts.poetry?.commands.find((command) => command[0] === 'pipx');
   const index = args.findIndex((word) => !word.text.startsWith('-'));
-  if (pipx === undefined || args[index]?.text !== pipx[1]) return [];
-  return poetryVersions(args.slice(index + 1).filter((word) => !word.text.startsWith('-')), at, facts);
+  const command = args[index]?.text;
+  if (command === undefined) return [];
+  return installedVersions(args.slice(index + 1).filter((word) => !word.text.startsWith('-')), at, facts, ['pipx', command]);
+}
+
+/** uv tool install pdm==2.20.1: the tool it installs (decision D-173); --from pdm==2.20.1 names it too. */
+function uvCommand(args: readonly Word[], at: number, facts: CommandFacts): Found[] {
+  const words = args.filter((word) => !word.text.startsWith('-'));
+  const [group, command] = words;
+  if (group === undefined || command === undefined) return [];
+  return installedVersions(words.slice(2), at, facts, ['uv', group.text, command.text]);
 }
 
 /**
@@ -705,6 +730,7 @@ function readCommand(words: readonly Word[], facts: CommandFacts, depth: number,
   const other = facts.others.find((entry) => entry.tool === name);
   if (other !== undefined) return { found: [otherCommand(other, args, first.offset)].filter((item) => item !== undefined), runsNode };
   if (name === 'pipx') return { found: pipxCommand(args, first.offset, facts), runsNode };
+  if (name === 'uv') return { found: uvCommand(args, first.offset, facts), runsNode };
   if (facts.bundler !== undefined && facts.bundler.executables.includes(name)) return { found: [bundlerCommand(args, first.offset, facts, seen)].filter((item) => item !== undefined), runsNode };
   if (facts.bundler !== undefined && name === facts.bundler.gem.install[0]) return { found: gemCommand(args, first.offset, facts), runsNode };
   const pip = pipArguments(command, facts);

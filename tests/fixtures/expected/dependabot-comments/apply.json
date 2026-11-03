@@ -3,6 +3,17 @@
     ".github/dependabot.yml",
     ".npmrc"
   ],
-  "warnings": [],
+  "warnings": [
+    {
+      "code": "exclusion-dropped",
+      "tool": "dependabot",
+      "location": {
+        "file": ".github/dependabot.yml",
+        "line": 22
+      },
+      "message": "Dependabot: cooldown.exclude in .github/dependabot.yml (line 22) for npm updates exempts react from the release-age delay, but cooldown.exclude in depcurfew.json does not; depcurfew apply comments it out, so Dependabot delays it like every other package",
+      "fix": "To keep the exception, add \"react\" to cooldown.exclude in depcurfew.json and run depcurfew apply again"
+    }
+  ],
   "snippets": []
 }

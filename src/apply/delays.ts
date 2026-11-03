@@ -1,9 +1,10 @@
 // Release-age delays a repository already configures, read with doctor's readers: init keeps the longest one in the
 // policy, and apply warns when it replaces a longer delay someone set by hand with the policy's shorter one
 // (decision D-075). Only values apply would replace count: the file each tool reads first, at the root.
-import { delayMinutes, formatMinutes } from '../doctor/durations.ts';
+import { cutoffAge, delayMinutes, formatMinutes } from '../doctor/durations.ts';
 import { gemfileNamesOf, latestVersion } from '../doctor/effective.ts';
 import { readPythonSetting } from '../doctor/python.ts';
+import { readToolSetting } from '../doctor/pnpm-config.ts';
 import { jsonSetting, readSetting, rejectsYamlAliases, yamlAliasLine, yamlKeyLine, yamlSetting, type Setting } from '../doctor/settings.ts';
 import { Repository } from '../detect/repository.ts';
 import type { Detection, PackageManagerInfo } from '../detect/types.ts';
@@ -19,6 +20,8 @@ import { compareVersions, parseVersion, pinnedVersion, type Version } from './ve
 import type { ApplyWarning } from './warnings.ts';
 import type { FileChange } from './workspace.ts';
 import { YAML_MARKER } from './yaml-edit.ts';
+import { matchesEveryName } from '../doctor/renovate.ts';
+import { listing } from './requirements.ts';
 
 export interface ConfiguredDelay {
   tool: ToolId;
@@ -36,11 +39,14 @@ export interface ConfiguredDelay {
   location: { file: string; line: number };
   /** Written by depcurfew: inside its managed block or under its YAML marker. */
   managed: boolean;
+  /** A fixed date in place of a delay (extra.cutoffDates), which counts as the whole days since it (decision D-167). */
+  cutoff?: true;
 }
 
 const isString = (value: unknown): value is string => typeof value === 'string';
 const isNpmrcKey = (value: unknown): value is { key: string; until: string } => isRecord(value) && isString(value['key']) && isString(value['until']);
-const isCooldownKeys = (value: unknown): value is { days: string } => isRecord(value) && isString(value['days']);
+const isCooldownKeys = (value: unknown): value is { days: string; exclude: string } => isRecord(value) && isString(value['days']) && isString(value['exclude']);
+const isInclude = (value: unknown): value is { key: string } => isRecord(value) && isString(value['key']);
 const isPackageJsonConfig = (value: unknown): value is { file: string; key: string } => isRecord(value) && isString(value['file']) && isString(value['key']);
 
 function lines(text: string): string[] {
@@ -69,7 +75,8 @@ function markedInYaml(text: string, path: readonly string[], all: readonly strin
   return false;
 }
 
-function managed(text: string | undefined, file: string, path: readonly string[], line: number): boolean {
+/** Whether depcurfew wrote the value at `path` of `file`: inside its managed block, or under its YAML marker. */
+export function managedValue(text: string | undefined, file: string, path: readonly string[], line: number): boolean {
   if (text === undefined) return false;
   const name = file.split('/').at(-1) ?? file;
   if (/\.ya?ml$/u.test(name)) return markedInYaml(text, path);
@@ -114,7 +121,8 @@ function managerDelay(repository: Repository, manager: PackageManagerInfo, tool:
     if (python !== undefined && setting !== null) found = { ...python, setting };
   } else {
     for (const source of managerSources(repository, manager, tool, version)) {
-      const setting = readSetting(repository, source.file, source.setting);
+      // pnpm 12.15+ may take the delay from a file of include (decision D-164).
+      const setting = readToolSetting(repository, tool, version, source.file, source.setting);
       if (setting !== undefined) {
         found = { ...setting, setting: source.setting };
         break;
@@ -127,16 +135,20 @@ function managerDelay(repository: Repository, manager: PackageManagerInfo, tool:
   // A TOML integer beyond the safe range is no delay any tool reads.
   if (typeof value === 'bigint') return undefined;
   const delay = delayMinutes(tool, value, version);
-  if (!delay.ok || delay.minutes <= 0) return undefined;
+  // A fixed date holds back every version uploaded since, so it counts as the days since it (decision D-167).
+  const cutoff = delay.ok ? undefined : cutoffAge(tool, value, Date.now());
+  const minutes = cutoff?.minutes ?? (delay.ok ? delay.minutes : 0);
+  if (minutes <= 0) return undefined;
   const path = found.setting.split('.');
   return {
     tool: tool.id,
     scope: '',
     setting: found.setting,
-    value,
-    minutes: delay.minutes,
+    value: cutoff?.text ?? value,
+    minutes,
     location: { file: found.file, line: found.line },
-    managed: managed(repository.readText(found.file), found.file, path, found.line),
+    managed: managedValue(repository.readText(found.file), found.file, path, found.line),
+    ...(cutoff === undefined ? {} : { cutoff: true as const }),
   };
 }
 
@@ -149,6 +161,7 @@ function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: stri
   const updates = yamlSetting(text, ['updates'], yaml);
   if (updates === undefined || !Array.isArray(updates.value)) return [];
   const keys = extraOf(bot, 'cooldownKeys', isCooldownKeys);
+  const include = extraOf(bot, 'cooldownInclude', isInclude);
   const ecosystems = Object.keys(extraOf(bot, 'ecosystems', isRecord));
   // apply writes the github-actions entries too when there are workflows (decision D-130), and the entries of the
   // ecosystems updated by bots only (decision D-151).
@@ -162,6 +175,12 @@ function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: stri
     const cooldown = entry[setting];
     const days = isRecord(cooldown) ? cooldown[keys.days] : undefined;
     if (typeof days !== 'number' || days <= 0) return [];
+    // An exclude list that matches every dependency leaves the entry without a cooldown, and an include list limits it
+    // to the dependencies it names (decision D-171): the delay is none, or covers only those.
+    const strings = (key: string) => (isRecord(cooldown) && Array.isArray(cooldown[key]) ? (cooldown[key] as unknown[]).filter(isString) : []);
+    if (strings(keys.exclude).some(matchesEveryName)) return [];
+    const included = strings(include.key);
+    const only = included.length > 0 && !included.some((pattern) => /^\*+$/u.test(pattern)) ? ` of ${listing(included)}` : '';
     const path = ['updates', String(index), setting, keys.days];
     const found = yamlSetting(text, path, yaml);
     const line = found?.line ?? updates.line;
@@ -169,7 +188,7 @@ function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: stri
       {
         tool: bot.id,
         scope: `updates[${index}]`,
-        label: `${String(entry['package-ecosystem'])} updates`,
+        label: `${String(entry['package-ecosystem'])} updates${only}`,
         setting: keys.days,
         value: days,
         ...(found?.written === undefined ? {} : { written: found.written }),
@@ -255,6 +274,7 @@ export function policyDuration(minutes: number): string {
  */
 export function describeDelay(delay: ConfiguredDelay): string {
   const where = `in ${delay.location.file} (line ${delay.location.line})`;
+  if (delay.cutoff === true) return `${settingText(delay.location.file, delay.setting, delay.value)} ${where}, a fixed date ${formatMinutes(delay.minutes)} ago`;
   if (delay.written === undefined) return `${settingText(delay.location.file, delay.setting, delay.value)} ${where}`;
   const name = knowledgeBase.find((tool) => tool.id === delay.tool)?.name ?? delay.tool;
   return `${delay.setting}: ${delay.written} ${where}, which ${name} reads as ${String(delay.value)}`;
@@ -275,7 +295,7 @@ export function settingText(file: string, key: string, value: unknown): string {
 }
 
 /** Files read as lines, where apply comments out a setting it takes over instead of replacing its value. */
-function lineBased(file: string): boolean {
+export function lineBased(file: string): boolean {
   const name = file.split('/').at(-1) ?? file;
   return name === '.npmrc' || name.endsWith('.toml') || name === 'Pipfile';
 }
@@ -318,14 +338,20 @@ export function shortenedDelays(root: string, changes: readonly FileChange[], de
       : lineBased(old.location.file)
         ? `comments it out and writes ${settingText(now.location.file, now.setting, now.value)} in its managed block`
         : `replaces it with ${JSON.stringify(now.value)}`;
+    // A fixed date holds back what was uploaded since, rather than waiting (decision D-167).
+    const waits = old.cutoff === true ? `, holds back every version uploaded since${scope}` : `${old.written === undefined ? '' : ','} waits ${formatMinutes(old.minutes)}${scope}`;
+    const json = old.location.file.endsWith('.json') || old.location.file.endsWith('.jsonc');
     return [
       {
         code: 'cooldown-shortened',
         tool: old.tool,
         location: { ...old.location },
-        message: `${name}: ${describeDelay(old)}${old.written === undefined ? '' : ','} waits ${formatMinutes(old.minutes)}${scope}, longer than cooldown.minimum "${policyMinimum}" in ${POLICY_FILE}; depcurfew apply ${action}, so ${name} waits only ${formatMinutes(now.minutes)}`,
+        message: `${name}: ${describeDelay(old)}${waits}, longer than cooldown.minimum "${policyMinimum}" in ${POLICY_FILE}; depcurfew apply ${action}, so ${name} waits only ${formatMinutes(now.minutes)}`,
         // JSON has no comments to mark what apply wrote, so a value an earlier apply wrote there counts as set by hand.
-        fix: `To keep the longer delay, set cooldown.minimum to "${policyDuration(old.minutes)}" in ${POLICY_FILE} and run depcurfew apply again${old.location.file.endsWith('.json') || old.location.file.endsWith('.jsonc') ? `; if an earlier depcurfew apply wrote this value to ${old.location.file} and you lowered cooldown.minimum on purpose, nothing to do` : ''}`,
+        fix:
+          old.cutoff === true
+            ? `To keep a delay at least that long, set cooldown.minimum to "${policyDuration(old.minutes)}" in ${POLICY_FILE} and run depcurfew apply again; ${POLICY_FILE} sets a delay that moves with time, not a fixed date`
+            : `To keep the longer delay, set cooldown.minimum to "${policyDuration(old.minutes)}" in ${POLICY_FILE} and run depcurfew apply again${json ? `; if an earlier depcurfew apply wrote this value to ${old.location.file} and you lowered cooldown.minimum on purpose, nothing to do` : ''}`,
       },
     ];
   });

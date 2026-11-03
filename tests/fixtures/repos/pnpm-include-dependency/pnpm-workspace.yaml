@@ -1,0 +1,4 @@
+configDependencies:
+  '@acme/pnpm-policy': 3.1.0
+include:
+  '@acme/pnpm-policy': [minimumReleaseAge, allowBuilds, blockExoticSubdeps]

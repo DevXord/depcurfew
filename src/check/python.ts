@@ -116,6 +116,9 @@ async function checkIndexPackage(report: PackageReport, name: string, clauses: r
     });
   }
 
+  // An index of the machine that replaces the one depcurfew asks (PIP_INDEX_URL, the user pip.conf, decision D-168):
+  // the caller says why, and the name does not go to an index the install does not use.
+  if (options.skipLookup?.(label, chosen.tool, chosen) === true) return;
   const lookup = await cachedLookup(options.lookups, `pypi\0${index}\0${name}`, () => fetchProject(name, { index, fetch: options.fetch, signal: options.signal }));
   if (lookup.status === 'not-found') {
     add({

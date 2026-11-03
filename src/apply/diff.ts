@@ -1,6 +1,6 @@
 // Unified diff of two texts (Myers' algorithm on lines), for `apply --dry-run`.
 import { isAbsoluteAnywhere } from '../paths.ts';
-import { printable } from '../printable.ts';
+import { printable, redactCredentials } from '../printable.ts';
 
 export type Operation = { kind: 'same' | 'delete' | 'insert'; line: string };
 
@@ -201,8 +201,6 @@ const COLON = /^(\s*(?:-\s+)?["']?)([A-Za-z0-9_.-]+)(["']?\s*:(?:\s+|$))(.*)$/u;
 const INLINE = /([{,]\s*["']?)([A-Za-z0-9_.-]+)(["']?\s*[=:]\s*)("(?:[^"\\]|\\.)*"|'[^']*'|[^,{}[\]\s][^,}\s]*)/gu;
 /** A reference to an environment variable (${NPM_TOKEN}, $NPM_TOKEN) is no secret, and shows where the value comes from. */
 const REFERENCE = /^(["']?)\$(?:\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)\1$/u;
-/** The user name and password of a URL (scheme://user:password@host); a password may hold an unencoded @. */
-const URL_CREDENTIALS = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/?#@:]*:[^\s/?#]*@/giu;
 const REDACTED = '<redacted>';
 
 function isSecret(key: string, value: string): boolean {
@@ -210,13 +208,20 @@ function isSecret(key: string, value: string): boolean {
   return SECRET_KEY.test(name) && value.trim() !== '' && !REFERENCE.test(value.trim());
 }
 
-/** A line of a configuration file with the value of a secret key and the user and password of URLs as <redacted>. */
+/**
+ * A line of a configuration file with the value of a secret key and the user part of URLs as <redacted>
+ * (redactCredentials: also a token alone and a password with an unencoded @). The diff splits lines at \n only, while
+ * npm's ini, pip's configparser and YAML end a line at a lone \r too (decision D-168): each part is redacted as the
+ * line of its own that those tools read, so that `fund=false\r_authToken=…` hides the token.
+ */
 export function redactSecrets(line: string): string {
+  return line.includes('\r') ? line.split('\r').map(redactLine).join('\r') : redactLine(line);
+}
+
+function redactLine(line: string): string {
   for (const pattern of [EQUALS, COLON]) {
     const match = pattern.exec(line);
     if (match !== null && isSecret(match[2] ?? '', match[4] ?? '')) return `${match[1] ?? ''}${match[2] ?? ''}${match[3] ?? ''}${REDACTED}`;
   }
-  return line
-    .replace(INLINE, (whole, before: string, key: string, separator: string, value: string) => (isSecret(key, value) ? `${before}${key}${separator}${REDACTED}` : whole))
-    .replace(URL_CREDENTIALS, `$1${REDACTED}@`);
+  return redactCredentials(line.replace(INLINE, (whole, before: string, key: string, separator: string, value: string) => (isSecret(key, value) ? `${before}${key}${separator}${REDACTED}` : whole)));
 }

@@ -2,6 +2,7 @@ import type { Rule } from '../types.ts';
 import { botCooldownMismatch } from './bot-cooldown.ts';
 import { broadExclusion } from './broad-exclusion.ts';
 import { bundlerConfigWeakens } from './bundler-config.ts';
+import { ciWeakensPolicy } from './ci-weakens-policy.ts';
 import { composerConfigWeakens } from './composer-config.ts';
 import { configDrift } from './config-drift.ts';
 import { corepackUnavailable } from './corepack.ts';
@@ -14,6 +15,7 @@ import { lockfileForbiddenSource, lockfileInstallScripts } from './lockfile.ts';
 import { lockfileOutOfDate } from './lockfile-out-of-date.ts';
 import { managerVersionTooOld } from './manager-version.ts';
 import { npmrcOverridesPolicy, pnpmSharedWorkspaceLockfile } from './npmrc.ts';
+import { pnpmConfigUnverifiable } from './pnpm-config.ts';
 import { pythonConfigIgnored } from './python-config.ts';
 import { runtimeEndOfLife } from './runtime-end-of-life.ts';
 import { unreadableConfig } from './unreadable-config.ts';
@@ -29,7 +31,9 @@ export const RULES: readonly Rule[] = [
   settingIgnoredByVersion,
   npmrcOverridesPolicy,
   pnpmSharedWorkspaceLockfile,
+  pnpmConfigUnverifiable,
   pythonConfigIgnored,
+  ciWeakensPolicy,
   composerConfigWeakens,
   bundlerConfigWeakens,
   configDrift,

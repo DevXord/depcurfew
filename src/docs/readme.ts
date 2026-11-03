@@ -54,7 +54,10 @@ function shown(fact: Fact<unknown> | undefined, format: (value: unknown) => stri
 }
 
 const code = (value: unknown) => (value === null || value === undefined ? 'none' : `\`${String(value)}\``);
-const plain = (value: unknown) => (value === null || value === undefined ? 'n/a' : String(value).replaceAll('-', ' '));
+/** A unit in words: duration-string is "duration string". */
+const unitWords = (value: unknown) => (value === null || value === undefined ? 'n/a' : String(value).replaceAll('-', ' '));
+/** A version or date as it is written (2025-07-01 keeps its dashes). */
+const asWritten = (value: unknown) => (value === null || value === undefined ? 'n/a' : String(value));
 
 function setting(fact: Fact<string | null> | undefined): string | undefined {
   return fact === undefined || values(fact).every((value) => value === null) ? undefined : shown(fact, code);
@@ -110,18 +113,25 @@ function botEcosystemRows(tools: readonly ToolKnowledge[], environment: Environm
 function toolsTable(tools: readonly ToolKnowledge[], environment?: EnvironmentKnowledge): string {
   const rows = tools.map((tool) => {
     const cooldownSetting = setting(tool.cooldown.setting);
+    // Files that take the delay under another key or in another unit (Deno's .npmrc) get their own part (decision D-170).
+    const fileSettings = tool.cooldown.fileSettings === undefined ? [] : (values(tool.cooldown.fileSettings)[0] ?? []);
+    const special = new Set(fileSettings.map((entry) => entry.file));
     const files = shown(tool.cooldown.configFiles, (value) => {
-      const list = Array.isArray(value) ? (value as unknown[]).map(String) : [String(value)];
+      const list = (Array.isArray(value) ? (value as unknown[]).map(String) : [String(value)]).filter((file) => !special.has(file));
       return list.length > 2 ? `${list.slice(0, 2).map(code).join(', ')} …` : list.map(code).join(', ');
     });
+    const unit = shown(tool.cooldown.unit, unitWords) ?? 'n/a';
+    const others = fileSettings.map((entry) => `${code(entry.setting)} in ${code(entry.file)} (${unitWords(entry.unit)})`);
     // A tool without a project file for the setting (pip) takes it from the environment or the command line.
-    const where = files === undefined || files === '' ? 'on the command line or in the environment (no project file)' : `in ${files}`;
-    const delay =
-      cooldownSetting === undefined
-        ? 'none'
-        : `${cooldownSetting} ${where} (${shown(tool.cooldown.unit, plain) ?? 'n/a'}), since ${shown(tool.cooldown.availableSince, plain) ?? 'n/a'}`;
+    const where =
+      files === undefined || files === ''
+        ? others.length > 0
+          ? others.join(' or ')
+          : `${cooldownSetting ?? ''} (${unit}) on the command line or in the environment, no project file`
+        : [`${cooldownSetting ?? ''} in ${files} (${unit})`, ...others].join(' or ');
+    const delay = cooldownSetting === undefined ? 'none' : `${where}, since ${shown(tool.cooldown.availableSince, asWritten) ?? 'n/a'}`;
     const excludeSetting = setting(tool.cooldown.exclude.setting);
-    const exceptions = excludeSetting === undefined ? 'none' : `${excludeSetting}, since ${shown(tool.cooldown.exclude.availableSince, plain) ?? 'n/a'}`;
+    const exceptions = excludeSetting === undefined ? 'none' : `${excludeSetting}, since ${shown(tool.cooldown.exclude.availableSince, asWritten) ?? 'n/a'}`;
     const allowSetting = setting(tool.installScripts.allowList.setting);
     const allowFile = shown(tool.installScripts.allowList.file, code);
     const scripts = allowSetting === undefined ? 'none' : `${allowSetting}${allowFile === undefined ? '' : ` in ${allowFile}`}`;
@@ -343,7 +353,10 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
             const aliases = Object.entries(names.aliases).filter(([alias, target]) => target === command && !entries.some((other) => other[0] === executable && other[1] === alias));
             return [entry, ...aliases.map(([alias]) => [executable, alias])];
           });
-        const add = commandList(withAliases(commandLine.add));
+        // npm link installs the names the global space lacks before it links them (decision D-172).
+        const linksFact = key === 'commandLine' ? tool.extra?.['linkCommands'] : undefined;
+        const links = linksFact === undefined ? [] : ((values(linksFact)[0] as readonly (readonly string[])[] | undefined) ?? []);
+        const add = commandList(withAliases([...commandLine.add, ...links]));
         const run = commandList(withAliases(commandLine.run.map((entry) => entry.command)));
         const create = commandList(withAliases(commandLine.create.map((entry) => entry.command)));
         const name = key === 'commandLine' ? tool.name : (commandLine.add[0]?.[0] ?? commandLine.run[0]?.command[0] ?? key);
@@ -363,7 +376,7 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
     '',
     ...bootstrap(environment),
     '',
-    'Commands the guard reads (an add subcommand of any npm package manager, such as `install` or `i`, is checked for all of them; npm commands also count abbreviated or in camelCase, as npm resolves them (`npm exe`, `npm installTest`); pnpm, Yarn and Bun take their command names only as written, with the aliases in the table; Python commands are matched word for word, and `python -m pip` counts as `pip`):',
+    'Commands the guard reads (an add subcommand of any npm package manager, such as `install` or `i`, is checked for all of them, while `npm link` counts for npm alone; npm commands also count abbreviated or in camelCase, as npm resolves them (`npm exe`, `npm installTest`); pnpm, Yarn and Bun take their command names only as written, with the aliases in the table; Python commands are matched word for word, and `python -m pip` counts as `pip`):',
     '',
     '| Package manager | Add packages | Download and run | Starter kits |',
     '| --- | --- | --- | --- |',
@@ -435,10 +448,12 @@ function userFileText(file: UserFile): string {
       const separator = platform === 'win32' ? '\\' : '/';
       const where = location.directories
         .map((directory) => {
+          const unless = directory.unlessEnv === undefined ? undefined : typeof directory.unlessEnv === 'string' ? { env: directory.unlessEnv, absolute: false } : directory.unlessEnv;
           const conditions = [
+            ...(directory.from !== 'home' && directory.from.emptyCounts === true ? ['it is set, also to an empty value'] : []),
             ...(directory.from !== 'home' && directory.from.absolute === true ? ['it is an absolute path'] : []),
             ...(directory.ifExists === true ? ['the folder exists'] : []),
-            ...(directory.unlessEnv === undefined ? [] : [`${platform === 'win32' ? `%${directory.unlessEnv}%` : `$${directory.unlessEnv}`} is not set`]),
+            ...(unless === undefined ? [] : [`${platform === 'win32' ? `%${unless.env}%` : `$${unless.env}`} ${unless.absolute ? 'is not an absolute path' : 'is not set'}`]),
           ];
           return `\`${directoryText(directory, platform)}${separator}${location.file}\`${conditions.length === 0 ? '' : ` (when ${conditions.join(' and ')})`}`;
         })

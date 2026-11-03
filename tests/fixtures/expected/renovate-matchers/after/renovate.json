@@ -9,6 +9,9 @@
     { "matchManagers": ["bun", "deno"], "minimumReleaseAge": null },
     {
       "description": "depcurfew: packages excluded from minimumReleaseAge",
+      "matchDatasources": [
+        "npm"
+      ],
       "matchPackageNames": [
         "@acme/*",
         "left-pad"

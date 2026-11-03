@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "pnpm-workspace.yaml",
+      "line": 2
+    },
+    "message": "include in pnpm-workspace.yaml gives every setting it defines to ../shared/pnpm.yaml, which lies outside the directory, so depcurfew cannot read the settings pnpm 12.16.1 takes from it",
+    "fix": "Move ../shared/pnpm.yaml into the directory and refer to it from there, or keep the security settings in pnpm-workspace.yaml"
+  }
+]

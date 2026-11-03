@@ -17,6 +17,7 @@
 import { realpathSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { agentFix, POLICY_IS_THE_USERS, reasonText } from '../check/hook.ts';
+import type { MachineEnvironment } from '../check/machine-settings.ts';
 import type { FetchLike } from '../check/registry.ts';
 import { osvBatchUrl } from '../check/osv.ts';
 import type { LocalOsvData } from '../osv/data.ts';
@@ -41,6 +42,8 @@ export interface ToolContext {
   registry: string | undefined;
   index: string | undefined;
   home: string;
+  /** The environment the server runs in, whose registry and index settings count (decision D-168); this process's when left out. */
+  machine?: MachineEnvironment;
   fetch: FetchLike;
   now: () => Date;
   /** --osv of depcurfew mcp: check_packages looks the versions up in OSV.dev too; never an argument of a call. */
@@ -231,6 +234,7 @@ const checkPackages: ToolDefinition = {
       registry: context.registry,
       index: context.index,
       home: context.home,
+      ...(context.machine === undefined ? {} : { machine: context.machine }),
       fetch: context.fetch,
       now: context.now(),
       signal,
@@ -278,12 +282,12 @@ const explainPolicy: ToolDefinition = {
     const empty = { cooldown: null, installScripts: null, sources: null };
     const target = existingDirectory(directory.directory, context);
     if (!target.ok) {
-      const lookups = lookupsOf(appliedLookups(appliedPolicy(context.projectDir, { registry: context.registry, index: context.index, home: context.home, project: context.projectDir, base: context.projectDir })), context);
+      const lookups = lookupsOf(appliedLookups(appliedPolicy(context.projectDir, { registry: context.registry, index: context.index, home: context.home, machine: context.machine, project: context.projectDir, base: context.projectDir })), context);
       return documentResult({ schemaVersion: 1, policy: null, values: empty, lookups, notices: [], errors: [target.error] } satisfies PolicyDocument, true);
     }
     // The policies of the hook for that directory; the lookups come from .npmrc and the server's options, so they are
     // known even when depcurfew.json cannot be used.
-    const result = appliedPolicy(target.directory, { registry: context.registry, index: context.index, home: context.home, project: context.projectDir, base: context.projectDir });
+    const result = appliedPolicy(target.directory, { registry: context.registry, index: context.index, home: context.home, machine: context.machine, project: context.projectDir, base: context.projectDir });
     const lookups = lookupsOf(appliedLookups(result), context);
     if (!result.ok) return documentResult({ schemaVersion: 1, policy: result.file, values: empty, lookups, notices: [], errors: [result.error] } satisfies PolicyDocument, true);
     const { policy, file } = result.applied;

@@ -133,7 +133,7 @@ describe('the .npmrc npm reads: its local prefix (A3, P2)', () => {
     expect(scoped.permissionDecisionReason).not.toContain('- lodash@4.17.21');
     const fix = JSON.parse((await exec(['check', '--json', '--dir', join(root, 'sub'), '@acme/ui'])).stdout) as { packages: { findings: { fix: string }[] }[] };
     expect(fix.packages[0]?.findings.at(-1)?.fix).toBe(
-      'Before installing it, check the package in the registry that .npmrc names; if you trust that registry, set @acme:registry=https://evil.example/ in the .npmrc next to depcurfew.json',
+      'Before installing it, check the package in the registry that .npmrc names; if you trust that registry, pass --registry https://evil.example/ to depcurfew check in the hook command (.claude/settings.json), to depcurfew mcp, or on the command line',
     );
     const tagged = await hook('npm install lodash', join(root, 'sub'), root);
     expect(tagged.permissionDecisionReason).toContain('- lodash: the install would pick the version by the dist-tag "next" set in sub/.npmrc (line 2); depcurfew checked the version that latest names');
@@ -153,10 +153,10 @@ describe('the .npmrc npm reads: its local prefix (A3, P2)', () => {
     );
     const answer = await hook('npm install @acme/ui lodash', join(root, 'frontend', 'src'), root);
     expect(answer.permissionDecision).toBe('ask');
-    expect(answer.permissionDecisionReason).toContain('@acme packages come from https://npm.acme.example/ (.npmrc)');
+    expect(answer.permissionDecisionReason).toContain('@acme packages come from https://npm.acme.example/ (@acme:registry= in frontend/.npmrc, line 1); depcurfew asks https://npm.mirror.example/');
     expect(answer.permissionDecisionReason).toContain('npm packages were looked up in https://npm.mirror.example/ (registry= in frontend/.npmrc, line 2), not in the public npm registry.');
     const checked = await exec(['check', '--dir', join(root, 'frontend'), '@acme/ui']);
-    expect(checked.stdout).toContain('@acme packages come from https://npm.acme.example/ (.npmrc)');
+    expect(checked.stdout).toContain('@acme packages come from https://npm.acme.example/ (@acme:registry= in .npmrc, line 1); depcurfew asks https://npm.mirror.example/');
   });
 
   it('takes the .npmrc of the workspace root for a workspace package, as npm does', async () => {
@@ -186,10 +186,10 @@ describe("the registry settings of Yarn, Bun and uv, which depcurfew does not re
     const root = repository({ cooldown: { minimum: '3d' } }, { '.yarnrc.yml': 'npmScopes:\n  acme:\n    npmRegistryServer: "https://npm.acme.example"\n' });
     const scoped = await hook('yarn add @acme/ui lodash', root, root);
     expect(scoped.permissionDecisionReason).toBe(
-      "depcurfew cannot vouch for what this command installs:\n- @acme/ui: the install would use the registry for @acme https://npm.acme.example from .yarnrc.yml (line 3); depcurfew checked https://registry.npmjs.org/. Fix: Do not install it before it is checked. Where the install gets its packages from is the user's setting, not the agent's: tell the user, and do not change that file, .npmrc or depcurfew.json yourself",
+      "depcurfew cannot vouch for what this command installs:\n- @acme/ui: the install would use the registry for @acme https://npm.acme.example from .yarnrc.yml (line 3); depcurfew asks https://registry.npmjs.org/, so it did not look the package up there. Fix: Do not install it before it is checked. Where the install gets its packages from is the user's setting, not the agent's: tell the user, and do not change that file, .npmrc or depcurfew.json yourself",
     );
     expect(await fixFor(root, { spec: '@acme/ui', tool: 'yarn' })).toBe(
-      'Before installing it, check the package in the registry that .yarnrc.yml names; if you trust that registry, set @acme:registry=https://npm.acme.example in the .npmrc next to depcurfew.json',
+      'Before installing it, check the package in the registry that .yarnrc.yml names; if you trust that registry, pass --registry https://npm.acme.example to depcurfew check in the hook command (.claude/settings.json), to depcurfew mcp, or on the command line',
     );
     writeFileSync(join(root, '.yarnrc.yml'), 'npmRegistryServer: "https://npm.corp.example"\n');
     expect((await hook('yarn add lodash', join(root, 'src'), root)).permissionDecisionReason).toContain(

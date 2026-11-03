@@ -11,6 +11,9 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
     { host: 'docs.npmjs.com' },
     { host: 'github.com', pathPrefix: '/npm/' },
     { host: 'github.blog', pathPrefix: '/changelog/' },
+    // The registry's own documents of the npm package: its versions and dist-tags (decision D-173).
+    { host: 'registry.npmjs.org', pathPrefix: '/npm' },
+    { host: 'registry.npmjs.org', pathPrefix: '/-/package/npm/' },
   ],
   pnpm: [{ host: 'pnpm.io' }, { host: 'github.com', pathPrefix: '/pnpm/' }],
   // Clipanion (arcanis) is the library Yarn parses its command line with (extra.runnerOptions).
@@ -19,11 +22,13 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   deno: [{ host: 'docs.deno.com' }, { host: 'deno.com' }, { host: 'github.com', pathPrefix: '/denoland/' }],
   // jiff (BurntSushi) is the library uv reads and prints exclude-newer spans with (extra.spanSyntax).
   uv: [{ host: 'docs.astral.sh' }, { host: 'github.com', pathPrefix: '/astral-sh/' }, { host: 'github.com', pathPrefix: '/burntsushi/jiff/' }],
+  // configparser of the standard library (python/cpython) is what pip reads pip.conf with (extra.configSectionNames).
   pip: [
     { host: 'pip.pypa.io' },
     { host: 'github.com', pathPrefix: '/pypa/' },
     { host: 'packaging.python.org' },
     { host: 'peps.python.org' },
+    { host: 'github.com', pathPrefix: '/python/cpython/' },
   ],
   // platformdirs (tox-dev) is the library both Poetry and PDM call for their user config directory, without an override.
   poetry: [{ host: 'python-poetry.org' }, { host: 'github.com', pathPrefix: '/python-poetry/' }, { host: 'github.com', pathPrefix: '/tox-dev/' }],
@@ -75,6 +80,8 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'github.com', pathPrefix: '/asdf-vm/' },
   { host: 'docs.github.com' },
   { host: 'github.com', pathPrefix: '/actions/' },
+  // GitLab's npm registry (decision D-168): docs.gitlab.com is built from doc/ in gitlab-org/gitlab.
+  { host: 'gitlab.com', pathPrefix: '/gitlab-org/gitlab/' },
   { host: 'github.com', pathPrefix: '/pnpm/' },
   { host: 'github.com', pathPrefix: '/oven-sh/' },
   { host: 'github.com', pathPrefix: '/denoland/' },
@@ -97,6 +104,11 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'github.com', pathPrefix: '/abatilo/' },
   // ruby/setup-ruby, the action that installs Ruby and Bundler (decision D-152).
   { host: 'github.com', pathPrefix: '/ruby/setup-ruby/' },
+  // pdm-project/setup-pdm, the action that installs PDM, and mise with jdx/mise-action, which pin Node.js and Python
+  // (decision D-173).
+  { host: 'github.com', pathPrefix: '/pdm-project/setup-pdm/' },
+  { host: 'github.com', pathPrefix: '/jdx/mise/' },
+  { host: 'github.com', pathPrefix: '/jdx/mise-action/' },
   // git: git-scm.com/docs is built from Documentation/ in git/git.
   { host: 'github.com', pathPrefix: '/git/' },
   // PowerShell and cmd.exe: learn.microsoft.com is built from MicrosoftDocs repositories such as PowerShell-Docs.

@@ -202,17 +202,19 @@ describe("init: packages a package manager's own allow-list allows stay out of i
       'pnpm-lock.yaml': PNPM_LOCK,
     });
     const notes = await initNotes(root);
-    const policy = JSON.parse(readFileSync(join(root, 'depcurfew.json'), 'utf8')) as { installScripts: { deny: string[] } };
+    const policy = JSON.parse(readFileSync(join(root, 'depcurfew.json'), 'utf8')) as { installScripts: { allow: string[]; deny: string[] } };
     expect(policy.installScripts.deny).toEqual([]);
     expect(notes.filter((note) => note.code === 'install-script-denied')).toEqual([]);
-    expect(notes.filter((note) => note.code === 'install-scripts-to-review')).toEqual([
+    // The project's own approval goes into installScripts.allow (decision D-167).
+    expect(policy.installScripts.allow).toEqual(['esbuild']);
+    expect(notes.filter((note) => note.code === 'install-scripts-kept')).toEqual([
       {
-        code: 'install-scripts-to-review',
+        code: 'install-scripts-kept',
         level: 'note',
-        location: { file: 'pnpm-lock.yaml' },
+        location: { file: 'pnpm-workspace.yaml', line: 2 },
         message:
-          "pnpm-lock.yaml has a package whose install script depcurfew knows and would add to installScripts.deny, but the package manager's own allow-list already lets it run, so init leaves it out of installScripts.deny: esbuild (onlyBuiltDependencies in pnpm-workspace.yaml, line 2)",
-        fix: 'Review each one before you run depcurfew apply: add it to installScripts.allow in depcurfew.json if the project needs its install script, or to installScripts.deny if it works without it and remove it from that allow-list; until depcurfew.json lists it, depcurfew apply and depcurfew doctor report the allow-list entry',
+          "installScripts.allow lists the packages that the package managers' own allow-lists already let run install scripts, so that depcurfew apply and depcurfew doctor keep them allowed: esbuild (onlyBuiltDependencies in pnpm-workspace.yaml, line 2; depcurfew knows it works without its install script, so installScripts.deny may suit it better)",
+        fix: "Review each one before you run depcurfew apply: installScripts.allow lets it run its install scripts in every tool depcurfew configures, so remove the ones that do not need them from depcurfew.json and from the package manager's allow-list",
       },
     ]);
   });
@@ -225,7 +227,7 @@ describe("init: packages a package manager's own allow-list allows stay out of i
     const notes = await initNotes(root);
     const policy = JSON.parse(readFileSync(join(root, 'depcurfew.json'), 'utf8')) as { installScripts: { deny: string[] } };
     expect(policy.installScripts.deny).toEqual(['fsevents']);
-    expect(notes.find((note) => note.code === 'install-scripts-to-review')?.message).toMatch(/: esbuild \(allowScripts in package\.json, line 6\) and lefthook \(allowScripts in package\.json, line 7\)$/u);
+    expect(notes.find((note) => note.code === 'install-scripts-kept')?.message).toMatch(/: esbuild \(allowScripts in package\.json, line 6; [^)]*\) and lefthook \(allowScripts in package\.json, line 7; [^)]*\)$/u);
   });
 });
 

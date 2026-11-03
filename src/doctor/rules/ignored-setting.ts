@@ -1,6 +1,7 @@
 // setting-ignored-by-version: settings and files that a newer version no longer reads, or an older one does not
 // understand yet, but that still look like they work: npm-shrinkwrap.json in npm 12, the package.json "pnpm" field
-// and non-auth .npmrc settings in pnpm 11, onlyBuiltDependencies after its removal, duration strings in Yarn 4.10.
+// and non-auth .npmrc settings in pnpm 11, onlyBuiltDependencies after its removal, duration strings in Yarn 4.10, and
+// a packageManager pin of another Yarn than the release yarnPath names, which runs instead (decision D-165).
 import { extraOf, isRecord, isSwitch, settingOf, values, yamlOptionsFor } from '../../apply/facts.ts';
 import { compareVersions, formatVersion, parseVersion, pinnedVersion, type Version } from '../../apply/version.ts';
 import type { PackageManagerInfo } from '../../detect/types.ts';
@@ -9,6 +10,8 @@ import { latestVersion, versionedValue } from '../effective.ts';
 import { iniEntries, jsonSetting, npmrcKey, readSetting, yamlSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
 import { usesManager } from '../applies.ts';
+import { overriddenPins, pinnedDeclaration, setVersionText, yarnPathNote, type Declared } from '../../apply/yarn-path.ts';
+import { declarationLine } from './manager-version.ts';
 
 function atLeast(version: Version, since: unknown): boolean {
   const required = typeof since === 'string' ? parseVersion(since) : undefined;
@@ -99,12 +102,34 @@ function checkDurationStrings(context: RuleContext, tool: ToolKnowledge, manager
   });
 }
 
+const isYarnPathRuns = (value: unknown): value is { classicSince: string } => isRecord(value) && typeof value['classicSince'] === 'string';
+
+/**
+ * A packageManager pin of another release than the one yarnPath names (decision D-165): every Yarn from 1.18 runs that
+ * release instead of itself, with or without Corepack (yarn extra.yarnPathRuns), so the pin has no effect.
+ */
+function checkOverriddenPins(context: RuleContext, tool: ToolKnowledge, manager: PackageManagerInfo): void {
+  const yarnPath = manager.versions.find((entry): entry is Declared => entry.source === 'yarnPath' && 'version' in entry);
+  if (yarnPath === undefined || tool.extra?.['yarnPathRuns'] === undefined) return;
+  const since = extraOf(tool, 'yarnPathRuns', isYarnPathRuns).classicSince;
+  for (const pin of overriddenPins(manager, yarnPath)) {
+    const line = declarationLine(context, pin);
+    const command = setVersionText(tool, pin.version, 'or the release you mean to use', yarnPath.file);
+    context.report({
+      level: 'warning',
+      location: line === undefined ? { file: pin.file } : { file: pin.file, line },
+      message: `${pin.source} in ${pin.file} pins ${manager.id}@${pin.version}, but every Yarn from ${since} runs the release yarnPath in ${yarnPath.file} names instead, ${tool.name} ${yarnPath.version}, with or without Corepack, so the pin has no effect`,
+      fix: command === undefined ? `Make yarnPath in ${yarnPath.file} and ${pin.source} name the same release` : `${command}, so that both name the same release`,
+    });
+  }
+}
+
 export const settingIgnoredByVersion: Rule = {
   id: 'setting-ignored-by-version',
   checks: 'No setting or file is ignored by the package manager version in use',
   summary: 'A setting or file is ignored by the package manager version in use.',
   description:
-    'Package managers drop old settings and files in new major versions and only accept new forms from some version on. The configuration stays in the repository and looks effective while the version in use ignores it.',
+    'Package managers drop old settings and files in new major versions and only accept new forms from some version on. The configuration stays in the repository and looks effective while the version in use ignores it. The version in use of Yarn is the release yarnPath in .yarnrc.yml names, which every Yarn from 1.18 runs instead of itself, so a packageManager pin of another release has no effect (a warning).',
   help: 'Move the setting to the place and form this version reads.',
   level: 'error',
   requiresPolicy: false,
@@ -116,7 +141,10 @@ export const settingIgnoredByVersion: Rule = {
       const pinned = pinnedVersion(manager);
       const version = pinned ?? latestVersion(tool);
       if (version === undefined) continue;
-      const label = `${tool.name} ${formatVersion(version)}${pinned === undefined ? ' (the latest known version; none is pinned)' : ''}`;
+      // The release yarnPath names is the version in use, and the message says so (decision D-165).
+      const note = yarnPathNote(manager, pinnedDeclaration(manager));
+      const label = `${tool.name} ${formatVersion(version)}${pinned === undefined ? ' (the latest known version; none is pinned)' : note === undefined ? '' : ` (${note})`}`;
+      checkOverriddenPins(context, tool, manager);
       checkLockfiles(context, tool, version, label);
       if (tool.id === 'pnpm') checkPnpm(context, tool, version, label);
       checkDurationStrings(context, tool, manager, version, label);

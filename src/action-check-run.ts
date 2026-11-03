@@ -51,10 +51,16 @@ export function checkRunName(directory: string): string {
   return directory === '' ? CHECK_RUN_NAME : `${CHECK_RUN_NAME} (${directory})`;
 }
 
-/** The commit the check belongs to: the head of a pull request (GITHUB_SHA is the merge commit there), else GITHUB_SHA. */
+/**
+ * The commit the check belongs to: the head of the pull request for the events whose GITHUB_SHA is its merge commit
+ * (pull_request and its reviews), else GITHUB_SHA. Under pull_request_target GITHUB_SHA is the base branch, which is what
+ * the workflow checks out by default: the check stays there, so it never marks the head of a pull request it did not
+ * check as passed (decision D-169).
+ */
 export function checkRunSha(env: NodeJS.ProcessEnv, facts: CheckRunsKnowledge): string | undefined {
   const eventPath = env[facts.variables.eventPath];
-  if (eventPath !== undefined && eventPath !== '') {
+  const event = env[facts.variables.eventName];
+  if (event !== undefined && facts.mergeCommitEvents.includes(event) && eventPath !== undefined && eventPath !== '') {
     try {
       let value: unknown = JSON.parse(readFileSync(eventPath, 'utf8'));
       for (const key of facts.pullRequestHeadSha) value = typeof value === 'object' && value !== null ? (value as Record<string, unknown>)[key] : undefined;

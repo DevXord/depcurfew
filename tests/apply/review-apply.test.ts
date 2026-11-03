@@ -89,6 +89,8 @@ describe("Renovate's security exceptions in pnpm-workspace.yaml", () => {
       [
         '# managed by depcurfew',
         'minimumReleaseAge: 4320',
+        // The entry written by hand that the policy does not name stays as a comment (decision D-167).
+        '# depcurfew: superseded by the managed block: minimumReleaseAgeExclude: ["webpack"]',
         '# managed by depcurfew',
         'minimumReleaseAgeExclude:',
         '  - left-pad',
@@ -118,7 +120,15 @@ describe("Renovate's security exceptions in pnpm-workspace.yaml", () => {
     writeFileSync(join(root, 'depcurfew.json'), '{"version": 1, "cooldown": {"minimum": "3d"}}\n');
     applyProject(root);
     expect(readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8')).toBe(
-      ['minimumReleaseAge: 4320', '# managed by depcurfew', 'minimumReleaseAgeExclude:', '  # Renovate security update: undici@7.24.0', '  - undici@7.24.0', ''].join('\n'),
+      [
+        'minimumReleaseAge: 4320',
+        '# depcurfew: superseded by the managed block: minimumReleaseAgeExclude: ["webpack"]',
+        '# managed by depcurfew',
+        'minimumReleaseAgeExclude:',
+        '  # Renovate security update: undici@7.24.0',
+        '  - undici@7.24.0',
+        '',
+      ].join('\n'),
     );
   });
 
@@ -136,9 +146,10 @@ describe("Renovate's security exceptions in pnpm-workspace.yaml", () => {
     ].join('\n');
     const root = repo({ ...files, 'pnpm-workspace.yaml': text, 'depcurfew.json': '{"version": 1, "cooldown": {"minimum": "3d"}}\n' });
     applyProject(root);
-    // The entries are replaced; the comment before the first entry stays, as every comment before a replaced list (D-074).
+    // The entries are replaced, and kept as a comment (decision D-167); the comment before the first entry stays, as
+    // every comment before a replaced list (D-074).
     expect(readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8')).toBe(
-      'minimumReleaseAge: 4320\n# managed by depcurfew\nminimumReleaseAgeExclude: []\n  # Renovate security update: undici@7.24.0\n',
+      'minimumReleaseAge: 4320\n# depcurfew: superseded by the managed block: minimumReleaseAgeExclude: ["left-pad@1.3.0","lodash@>=4.17.21","axios@0.21.1"]\n# managed by depcurfew\nminimumReleaseAgeExclude: []\n  # Renovate security update: undici@7.24.0\n',
     );
   });
 });

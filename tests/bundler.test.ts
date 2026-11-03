@@ -245,7 +245,7 @@ describe('apply', () => {
     const root = repository({ Gemfile: 'source "https://rubygems.org"\n', 'Gemfile.lock': LOCK('4.0.23'), 'renovate.json': '{}\n', 'depcurfew.json': POLICY('3d', { cooldown: { minimum: '3d', exclude: ['rake'] } }) });
     applyProject(root, { write: true });
     const config = JSON.parse(readFileSync(join(root, 'renovate.json'), 'utf8')) as { packageRules: { matchDatasources?: string[]; matchPackageNames: string[] }[] };
-    expect(config.packageRules).toEqual([expect.objectContaining({ matchDatasources: ['!rubygems'], matchPackageNames: ['rake'] })]);
+    expect(config.packageRules).toEqual([expect.objectContaining({ matchDatasources: ['npm'], matchPackageNames: ['rake'] })]);
   });
 });
 

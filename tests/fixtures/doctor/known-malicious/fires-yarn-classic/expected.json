@@ -1,0 +1,12 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "yarn.lock",
+      "line": 5
+    },
+    "message": "yarn.lock locks cutekitten-test@1.0.1, a known malicious version: OSV.dev lists it as MAL-2026-18458 (https://osv.dev/vulnerability/MAL-2026-18458)",
+    "fix": "Remove cutekitten-test@1.0.1 from the project: update or replace the package and lock again. If it was installed anywhere, read the record on OSV.dev for what it does and treat that machine as exposed",
+    "source": "osv-api"
+  }
+]

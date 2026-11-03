@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": ".pnpmfile.cjs",
+      "line": 1
+    },
+    "message": "pnpm 10.28.0 loads .pnpmfile.cjs and names updateConfig at line 1, and the updateConfig hook of a pnpmfile can change every setting after pnpm has read its configuration files, so depcurfew cannot verify the settings it checks",
+    "fix": "Read .pnpmfile.cjs and make sure its updateConfig hook leaves minimumReleaseAge, allowBuilds and the other security settings as they are; if the project needs no pnpmfile, remove it and set pnpmfile: [] in pnpm-workspace.yaml, so that pnpm loads no new one by itself"
+  }
+]

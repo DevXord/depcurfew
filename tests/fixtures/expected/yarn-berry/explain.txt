@@ -1,7 +1,7 @@
 Policy (depcurfew.json):
   targets: Yarn (Berry) (detected)
   cooldown 3d:
-    Yarn (Berry): 4320 minutes
+    Yarn (Berry): cannot apply: Yarn (Berry) 4.9.2 does not support npmMinimalAgeGate (added in 4.10.2), approvedGitRepositories (added in 4.14.0); not written
   installScripts deny, allow esbuild and @scope/*:
     Yarn (Berry): enableScripts in .yarnrc.yml, dependenciesMeta.<package>.built in package.json; warning: Yarn (Berry): dependenciesMeta takes package names only; "@scope/*" not written (allow-pattern-unsupported); fix: List the package names in installScripts.allow
   sources git deny, remoteTarball deny, file allow, directory allow:

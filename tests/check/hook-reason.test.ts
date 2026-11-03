@@ -82,7 +82,7 @@ describe('the reason of a hook decision', () => {
     const directory = project({ '.npmrc': '@evil:registry=https://r.example/\u001b[1A\u001b[2K\u001b[32mall fine\u001b[8m\n' });
     const decision = reason((await hook('npm i @evil/pkg', directory, home)).stdout);
     expect(decision.permissionDecision).toBe('ask');
-    expect(decision.permissionDecisionReason).toContain('@evil packages come from https://r.example/\\x1b[1A\\x1b[2K\\x1b[32mall fine\\x1b[8m (.npmrc)');
+    expect(decision.permissionDecisionReason).toContain('@evil packages come from https://r.example/\\x1b[1A\\x1b[2K\\x1b[32mall fine\\x1b[8m (@evil:registry= in .npmrc, line 1)');
     expect(decision.permissionDecisionReason).not.toMatch(HIDDEN);
   });
 

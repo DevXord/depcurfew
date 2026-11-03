@@ -132,6 +132,24 @@ function heredocMarkers(text: string): Marker[] {
   return markers;
 }
 
+/** Dockerfiles already read in this process, newest last: detection and doctor read the same file (decision D-166). */
+const READ_CACHE = new Map<string, { syntax: DockerfileSyntaxKnowledge; instructions: Instruction[] }>();
+const READ_CACHE_SIZE = 4;
+
+/**
+ * readDockerfile, shared by every reader of the same text in a run, so that a large Dockerfile is read once. Nothing may
+ * change the instructions it returns.
+ */
+export function readDockerfileOnce(source: string, syntax: DockerfileSyntaxKnowledge): readonly Instruction[] {
+  const cached = READ_CACHE.get(source);
+  if (cached !== undefined && cached.syntax === syntax) return cached.instructions;
+  const instructions = readDockerfile(source, syntax);
+  READ_CACHE.set(source, { syntax, instructions });
+  const oldest = READ_CACHE.keys().next().value;
+  if (READ_CACHE.size > READ_CACHE_SIZE && oldest !== undefined) READ_CACHE.delete(oldest);
+  return instructions;
+}
+
 /** Reads the instructions of a Dockerfile. Every line is looked at once, so the time grows with the size of the file. */
 export function readDockerfile(source: string, syntax: DockerfileSyntaxKnowledge): Instruction[] {
   const lines = source.split(/\r?\n/u);
@@ -245,7 +263,7 @@ const TOO_LONG = `it is longer than ${MAX_SUBSTITUTED_LENGTH} characters after A
  * `unreadable` (an ARG whose own value depcurfew did not read) and a result past MAX_SUBSTITUTED_LENGTH characters or
  * MAX_SUBSTITUTIONS variables are unknown too, with the reason.
  */
-export function substitute(text: string, args: ReadonlyMap<string, string | undefined>, escape: string, unreadable: ReadonlyMap<string, string> = new Map()): Substitution {
+export function substitute(text: string, args: Pick<ReadonlyMap<string, string | undefined>, 'get'>, escape: string, unreadable: ReadonlyMap<string, string> = new Map()): Substitution {
   let result = '';
   let substitutions = 0;
   if (text.length > MAX_SUBSTITUTED_LENGTH) return { ok: false, variable: '', reason: TOO_LONG };

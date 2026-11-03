@@ -5,7 +5,9 @@
 // depcurfew takes the registries and the dist-tag of that .npmrc only when the prefix is a directory of the policy:
 // the directory of depcurfew.json or one of its projects (or, without a policy, the directory the check is about).
 // Any other directory can hold an .npmrc that someone else wrote, and a registry named there could vouch for any
-// package, so its settings are not used but reported (`unread`): the packages they apply to are not vouched for.
+// package, so its settings are not used but reported (`unread`): the packages they apply to are not vouched for. The
+// settings of the machine are reported the same way (decision D-168): npm_config_* of the environment, the user file
+// npm_config_userconfig names in place of ~/.npmrc, and the global npmrc for the keys nothing before it sets.
 //
 // Yarn, Bun, uv, Poetry, PDM and Pipenv have registry or index settings of their own (extra.registrySettings), which
 // depcurfew does not read at all; they are reported the same way for the packages those tools install. An index that
@@ -16,7 +18,7 @@
 // a note, so that it can neither hang depcurfew nor exhaust its memory. Workspace patterns are matched with a limit on
 // their number, their length and the steps matching takes, so that a package.json cannot make it take minutes.
 import { readdirSync, realpathSync, statSync } from 'node:fs';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { dirname, join, posix, relative, resolve, sep, win32 } from 'node:path';
 import { extraOf, isRecord, values } from '../apply/facts.ts';
 import { tomlValueAt, parseToml, type TomlDocument, type TomlValue } from '../detect/toml.ts';
 import { matchSegment, OutOfSteps, spendSteps, type StepBudget } from '../detect/wildcard.ts';
@@ -28,6 +30,7 @@ import type {
   ComposerScriptCommandsKnowledge,
   IndexEntriesKnowledge,
   IndexEntryEffect,
+  NpmGlobalConfigKnowledge,
   NpmLocalPrefixKnowledge,
   NpmVersionSelectionKnowledge,
   RegistryConfigKnowledge,
@@ -40,6 +43,7 @@ import { withoutCredentials } from '../printable.ts';
 import { readLimited } from '../read-limited.ts';
 import { readYamlDocument } from '../yaml-parse.ts';
 import { scriptCommands, type ScriptCommands } from './composer-commands.ts';
+import { currentMachine, machinePath, machineSettings, npmDefaultPrefix, npmEnvironment, npmPath, type MachineEnvironment } from './machine-settings.ts';
 import { defaultIndex } from './pypi.ts';
 import { isMap, isScalar, type Node } from 'yaml';
 
@@ -98,6 +102,13 @@ export interface UnreadSetting {
    * may turn workspaces off (CheckRequest.workspacesOption).
    */
   skippedByNpm?: true;
+  /** The variable of the environment that sets it, as written; `file` is then "environment" and `line` 0 (decision D-168). */
+  variable?: string;
+  /**
+   * A setting of the machine (the environment, a user or global file), not of the repository (decision D-168): a
+   * package it points at another registry or index is not looked up at all.
+   */
+  machine?: true;
 }
 
 /**
@@ -145,6 +156,8 @@ export interface NpmrcSettings {
   registry: WrittenSetting | undefined;
   /** Registries assigned to scopes (@scope:registry=). */
   scopes: Map<string, string>;
+  /** Where each of them is set, for messages (decision D-168). */
+  scopeSettings: Map<string, WrittenSetting>;
   /** The dist-tag npm prefers (tag=). */
   tag: WrittenSetting | undefined;
   unread: UnreadSetting[];
@@ -413,6 +426,8 @@ export interface NpmrcOptions {
   base: string;
   /** The local prefix given with npm --prefix, which npm takes as it is instead of looking for package.json. */
   prefix?: string | undefined;
+  /** The environment, platform and Node.js executable of the process (decision D-168); those of this process when left out. */
+  machine?: MachineEnvironment | undefined;
 }
 
 /**
@@ -421,48 +436,88 @@ export interface NpmrcOptions {
  */
 export function npmrcSettings(start: string, options: NpmrcOptions): NpmrcSettings {
   const { config, tagKey, prefix: prefixFact } = npmFacts();
-  const result: NpmrcSettings = { registry: undefined, scopes: new Map(), tag: undefined, unread: [], skipped: [] };
-  const userPath = join(options.home, config.userFile.replace(/^~[/\\]/u, ''));
+  const machine = options.machine ?? currentMachine();
+  const layers = npmGlobalFacts();
+  const result: NpmrcSettings = { registry: undefined, scopes: new Map(), scopeSettings: new Map(), tag: undefined, unread: [], skipped: [] };
+  const scopeOf = (key: string) => (key.startsWith('@') && key.endsWith(config.scopeKeySuffix) ? key.slice(0, -config.scopeKeySuffix.length) : undefined);
+  const isRegistryKey = (key: string) => key === config.key || (tagKey !== undefined && key === tagKey) || scopeOf(key) !== undefined;
+  /** The keys of registry settings that a source npm reads before its global npmrc sets (extra.globalConfig.order). */
+  const setAbove = new Set<string>();
   const apply = (text: string, file: string) => {
     for (const { key, value, line } of iniEntries(text)) {
       const where = `${key}= in ${file}, line ${line}`;
+      if (isRegistryKey(key)) setAbove.add(key);
+      const scope = scopeOf(key);
       // A user name and password in a registry URL are neither sent (fetch refuses them anyway) nor shown.
       if (key === config.key) result.registry = { value: withoutCredentials(value), where, file, line };
       else if (tagKey !== undefined && key === tagKey) result.tag = { value, where, file, line };
-      else if (key.startsWith('@') && key.endsWith(config.scopeKeySuffix)) result.scopes.set(key.slice(0, -config.scopeKeySuffix.length), withoutCredentials(value));
+      else if (scope !== undefined) {
+        result.scopes.set(scope, withoutCredentials(value));
+        result.scopeSettings.set(scope, { value: withoutCredentials(value), where, file, line });
+      }
     }
   };
+  /** A registry setting depcurfew does not take, from a key and its value; undefined for another key. */
+  const reported = (key: string, value: string, place: Pick<UnreadSetting, 'file' | 'line'> & Partial<UnreadSetting>): UnreadSetting | undefined => {
+    const url = urlValue(value);
+    const named = url === undefined ? {} : { value: url };
+    const scope = scopeOf(key);
+    if (key === config.key) return { tool: 'npm', applies: 'all', effect: 'replaces', ...named, ...place };
+    if (tagKey !== undefined && key === tagKey) return { tool: 'npm', applies: 'tag', effect: 'replaces', ...(value.includes('$') ? {} : { value: value.trim() }), ...place };
+    if (scope !== undefined) return { tool: 'npm', applies: 'scope', scope, effect: 'replaces', ...named, ...place };
+    return undefined;
+  };
+  const reportedIn = (text: string, file: string, extra: Partial<UnreadSetting>, keep: (key: string) => boolean = () => true): UnreadSetting[] =>
+    iniEntries(text).flatMap(({ key, value, line }) => {
+      const setting = keep(key) ? reported(key, value, { file, line, ...extra }) : undefined;
+      return setting === undefined ? [] : [setting];
+    });
+  // The environment wins over every file (decision D-168): npm_config_registry, npm_config_@scope:registry and
+  // npm_config_tag in any case.
+  const environment = npmEnvironment(machine);
+  const fromEnvironment: UnreadSetting[] = [];
+  for (const [key, { variable, value }] of environment) {
+    const setting = reported(key, value, { file: 'environment', line: 0, variable, machine: true });
+    if (setting === undefined) continue;
+    setAbove.add(key);
+    fromEnvironment.push(setting);
+  }
+  // The user file: ~/.npmrc, which depcurfew takes, or the file npm_config_userconfig names in its place, which it
+  // reports (decision D-168); npm exports the path of ~/.npmrc as npm_config_userconfig to the commands it runs.
+  const defaultUser = join(options.home, config.userFile.replace(/^~[/\\]/u, ''));
+  const userVariable = environment.get(layers.userKey);
+  const userPath = userVariable === undefined ? defaultUser : npmPath(userVariable.value, machine, options.home, start);
+  const ownUser = realPath(userPath) === realPath(defaultUser);
+  const userShown = ownUser ? config.userFile : machinePath(userPath, machine, options.home);
+  const fromUser: UnreadSetting[] = [];
+  let userText: string | undefined;
   const user = readConfig(userPath);
   if (user !== undefined) {
-    if ('text' in user) apply(user.text, config.userFile);
-    else result.skipped.push({ file: config.userFile, reason: user.skipped });
+    if ('text' in user) {
+      userText = user.text;
+      if (ownUser) apply(user.text, config.userFile);
+      else fromUser.push(...reportedIn(user.text, userShown, { machine: true }));
+    } else result.skipped.push({ file: userShown, reason: user.skipped });
   }
   const base = realPath(options.base);
   const trusted = new Set(options.trusted.map(realPath));
   const realUser = realPath(userPath);
   // npm --prefix names the local prefix itself (extra.localPrefix of npm, decision D-118).
   const { prefix, workspace, exact, unsure = [] } = options.prefix === undefined ? npmLocalPrefix(start) : { prefix: realPath(options.prefix), workspace: undefined, exact: undefined };
-  const unread = (directory: string, skippedByNpm = false) => {
+  const unread = (directory: string, skippedByNpm = false): string[] => {
     const path = join(directory, config.file);
     // npm does not read the user file a second time as the project's.
-    if (realPath(path) === realUser) return;
+    if (realPath(path) === realUser) return [];
     const read = readConfig(path);
     const file = shownFile(base, path);
-    if (read === undefined) return;
+    if (read === undefined) return [];
     if (!('text' in read)) {
       result.skipped.push({ file, reason: read.skipped });
-      return;
+      return [];
     }
-    const skipped = skippedByNpm ? { skippedByNpm: true as const } : {};
-    for (const { key, value, line } of iniEntries(read.text)) {
-      const url = urlValue(value);
-      const named = url === undefined ? {} : { value: url };
-      if (key === config.key) result.unread.push({ tool: 'npm', file, line, applies: 'all', effect: 'replaces', ...named, ...skipped });
-      else if (tagKey !== undefined && key === tagKey) result.unread.push({ tool: 'npm', file, line, applies: 'tag', effect: 'replaces', ...(value.includes('$') ? {} : { value: value.trim() }), ...skipped });
-      else if (key.startsWith('@') && key.endsWith(config.scopeKeySuffix)) {
-        result.unread.push({ tool: 'npm', file, line, applies: 'scope', scope: key.slice(0, -config.scopeKeySuffix.length), effect: 'replaces', ...named, ...skipped });
-      }
-    }
+    const found = reportedIn(read.text, file, skippedByNpm ? { skippedByNpm: true } : {});
+    result.unread.push(...found);
+    return iniEntries(read.text).map((entry) => entry.key);
   };
   if (trusted.has(prefix)) {
     const path = join(prefix, config.file);
@@ -473,7 +528,7 @@ export function npmrcSettings(start: string, options: NpmrcOptions): NpmrcSettin
       else if (read !== undefined) result.skipped.push({ file, reason: read.skipped });
     }
   } else {
-    unread(prefix);
+    for (const key of unread(prefix)) if (isRegistryKey(key)) setAbove.add(key);
   }
   // npm skips the .npmrc of a workspace; if depcurfew took a directory for a workspace that is none, its settings count.
   // Where depcurfew matched the workspace exactly as npm does, they count only where npm may read them (decision D-124).
@@ -492,7 +547,74 @@ export function npmrcSettings(start: string, options: NpmrcOptions): NpmrcSettin
     });
     if (doubt.root !== prefix && !trusted.has(doubt.root)) unread(doubt.root);
   }
+  // The global npmrc (decision D-168): the file globalconfig names, else etc/npmrc below the prefix, both from the
+  // environment or the user file; its settings count where no source npm reads before it sets the same key.
+  const userEntries = userText === undefined ? [] : iniEntries(userText);
+  if (userText !== undefined) for (const { key } of userEntries) if (isRegistryKey(key)) setAbove.add(key);
+  const fromUserFile = (key: string) => userEntries.filter((entry) => entry.key === key).at(-1)?.value;
+  const pathOf = (key: string) => {
+    const value = environment.get(key)?.value ?? fromUserFile(key);
+    return value === undefined ? undefined : npmPath(value, machine, options.home, start);
+  };
+  const modules = machine.platform === 'win32' ? win32 : posix;
+  const globalPath =
+    pathOf(layers.globalKey) ??
+    modules.resolve(start, pathOf(layers.prefixKey) ?? npmDefaultPrefix(machine, layers.execPathLevels, { prefix: layers.prefixVariable, destDir: layers.destDirVariable }), layers.file);
+  const fromGlobal: UnreadSetting[] = [];
+  if (realPath(globalPath) !== realUser) {
+    const read = readConfig(globalPath);
+    const file = machinePath(globalPath, machine, options.home);
+    if (read !== undefined && 'text' in read) fromGlobal.push(...reportedIn(read.text, file, { machine: true }, (key) => !setAbove.has(key)));
+    else if (read !== undefined) result.skipped.push({ file, reason: read.skipped });
+  }
+  // The first setting that applies to a package names it: the environment's before the files'.
+  result.unread = [...fromEnvironment, ...result.unread, ...fromUser, ...fromGlobal];
   return result;
+}
+
+/** npm's global npmrc and the order of its configuration files (extra.globalConfig). */
+function npmGlobalFacts(): NpmGlobalConfigKnowledge {
+  const npm = knowledgeBase.find((tool) => tool.id === 'npm');
+  if (npm === undefined) throw new Error('the knowledge base has no npm');
+  return extraOf(npm, 'globalConfig', (value): value is NpmGlobalConfigKnowledge => isRecord(value) && typeof value['file'] === 'string' && typeof value['userKey'] === 'string');
+}
+
+/**
+ * The registry or index settings of the machine for the packages `tool` installs (decision D-168): its variables of
+ * the environment and its user file, or the file a variable names in its place (machineSettings in
+ * src/check/machine-settings.ts). They count like the settings of files depcurfew does not take, and a package they
+ * point at another registry or index is not looked up.
+ */
+export function machineToolSettings(tool: ToolId, start: string, home: string, machine: MachineEnvironment): { unread: UnreadSetting[]; skipped: SkippedFile[] } {
+  const { settings, skipped } = machineSettings(tool, {
+    machine,
+    home,
+    cwd: start,
+    read: readConfig,
+    url: urlValue,
+    toml: (text, list) => {
+      let document: TomlDocument;
+      try {
+        document = parseToml(text);
+      } catch {
+        return undefined;
+      }
+      return list.flatMap((setting) => tomlPlaces(document, setting, new Map()));
+    },
+  });
+  return {
+    unread: settings.map((setting) => ({
+      tool,
+      file: setting.file ?? 'environment',
+      line: setting.line ?? 0,
+      applies: 'all',
+      effect: setting.effect,
+      machine: true,
+      ...(setting.variable === undefined ? {} : { variable: setting.variable }),
+      ...(setting.value === undefined ? {} : { value: setting.value }),
+    })),
+    skipped,
+  };
 }
 
 /** The registry settings of a tool's own configuration files, from the knowledge base; empty for a tool without any. */
@@ -763,7 +885,7 @@ function yamlPlaces(text: string, setting: RegistrySettingKnowledge): Place[] {
  * The places in a TOML file where the setting's path (with * for any key) is set; an array of index tables counts by
  * entry, as `entries` says, and an entry used only by pinned packages once for each package `pins` pins to it.
  */
-function tomlPlaces(document: TomlDocument, setting: RegistrySettingKnowledge, pins: ReadonlyMap<string, readonly Pin[]>): Place[] {
+export function tomlPlaces(document: TomlDocument, setting: RegistrySettingKnowledge, pins: ReadonlyMap<string, readonly Pin[]>): Place[] {
   const { path, entries, urlKey } = setting;
   const places: Place[] = [];
   const place = (line: number, key: string | undefined, raw: unknown, effect: Place['effect']): Place => {

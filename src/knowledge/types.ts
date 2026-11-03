@@ -65,9 +65,18 @@ export type ScriptPolicy =
   | 'deny-except-allowlist'
   | 'not-applicable';
 
+/** A config file that takes the release-age delay under another key or in another unit than the tool's setting. */
+export interface CooldownFileSetting {
+  file: string;
+  setting: string;
+  unit: DelayUnit;
+}
+
 export interface CooldownKnowledge {
   setting: Fact<string | null>;
   configFiles: Fact<readonly string[]>;
+  /** The config files whose key or unit for the delay differ from setting and unit (Deno's .npmrc). */
+  fileSettings?: Fact<readonly CooldownFileSetting[]>;
   cliFlag: Fact<string | null>;
   unit: Fact<DelayUnit | null>;
   availableSince: Fact<string | null>;
@@ -146,8 +155,11 @@ export interface UserDirectory {
   path: string;
   /** Use this directory only when it already exists (pip on macOS). */
   ifExists?: boolean;
-  /** Skip this directory while this environment variable is set and not empty (pip 26.2+ on macOS and XDG_DATA_HOME). */
-  unlessEnv?: string;
+  /**
+   * Skip this directory while this environment variable is set and not empty (pip 26.2 on macOS and XDG_DATA_HOME), or,
+   * with `absolute`, only while it is an absolute path (pip 26.3+, whose platformdirs ignores a relative value).
+   */
+  unlessEnv?: string | { env: string; absolute: true };
 }
 
 /** Where the user file is on some platforms: the first directory that applies is used. */
@@ -165,8 +177,16 @@ export interface UserFile {
   sections?: readonly string[];
   /** Other user-level files this version reads the same settings from, whose keys win over this file's. */
   overriddenBy?: readonly UserFile[];
-  /** INI only: the tool reads a key with underscores as the same key with dashes (pip: only_binary is only-binary). */
+  /**
+   * INI only: the tool reads a key without regard to case, with underscores as dashes and without a leading -- (pip:
+   * only_binary and --only-binary are only-binary).
+   */
   underscoresAsDashes?: boolean;
+  /**
+   * INI only: the tool stops on a file that has a section twice or a key twice in one section (Python's configparser in
+   * strict mode), comparing keys without regard to case, or as it reads them (`as-read`: underscoresAsDashes too).
+   */
+  duplicateKeys?: 'case-insensitive' | 'as-read';
   /** YAML only: the tool's loader applies merge keys (<<: *defaults), so merged keys count as keys of the map. */
   mergeKeys?: boolean;
 }
@@ -419,6 +439,22 @@ export interface CommandOptions {
   valueOptions: readonly string[];
   /** Options of this command whose value is a local path or VCS URL installed in editable mode. */
   editableOptions?: readonly string[];
+  /** Options of this command whose value is a file that names packages to install, which depcurfew does not read (pipx inject -r). */
+  packageFileOptions?: readonly string[];
+}
+
+/**
+ * A command that runs a command line of another tool (decision D-172): pipx runpip ENVIRONMENT ARGS runs pip ARGS in
+ * that environment. The tool's own options come before the operands; every word after them belongs to `runs`.
+ */
+export interface PassOnCommand {
+  command: readonly string[];
+  /** How many operands come before the words of the other tool. */
+  operands: number;
+  /** The executable whose command line the words are. */
+  runs: string;
+  /** One word with whitespace in it is split into words first, at spaces, tabs and line breaks (pipx's shlex.split). */
+  splitsOneWord?: boolean;
 }
 
 export interface CommandLineKnowledge {
@@ -457,6 +493,15 @@ export interface CommandLineKnowledge {
   interpreterNames?: readonly string[];
   /** Options that differ between the commands of the tool. */
   commandOptions?: readonly CommandOptions[];
+  /**
+   * Add commands whose first operands name something other than a package (pipx inject ENVIRONMENT PACKAGE …): the
+   * packages are the operands after them (decision D-172).
+   */
+  addOperands?: readonly { command: readonly string[]; operands: number }[];
+  /** Commands that run a command line of another tool (pipx runpip; decision D-172). */
+  passOn?: readonly PassOnCommand[];
+  /** Commands that install the packages a file names, which depcurfew does not read (pipx install-all; decision D-172). */
+  fileCommands?: readonly (readonly string[])[];
 }
 
 /** Forms of a package spec on the command line that do not name a registry package, by prefix. */
@@ -766,6 +811,58 @@ export interface RegistryOverridesKnowledge {
   /** Their value is another configuration file, which may set any registry. */
   configOptions: readonly string[];
   configVariables: readonly string[];
+}
+
+/**
+ * Where a tool takes its registry or index from on the machine, outside the repository (decision D-168): variables of
+ * the environment, each replacing the default registry or index or adding a place to install from, and the
+ * configuration file a variable names. The variables' names count as the tool's environmentNames say.
+ */
+export interface MachineSettingsKnowledge {
+  variables: readonly { name: string; effect: 'replaces' | 'adds'; list?: 'spaces' | 'commas' }[];
+  /** A variable whose value is the path of a configuration file, read in place of the user file when it exists. */
+  configFile?: { variable: string; format: 'ini' | 'toml'; whenMissing: 'user-file' | 'nothing' };
+  /** INI files (pip.conf): the sections that count for an install, and its keys with what they do (names lower case, _ as -). */
+  sections?: readonly string[];
+  keys?: readonly { key: string; effect: 'replaces' | 'adds' }[];
+  /** More user files read before the one of user.files, relative to the home directory, by platform family. */
+  legacyUserFiles?: Readonly<Partial<Record<'posix' | 'win32', string>>>;
+}
+
+/** npm's global npmrc: the file npm_config_globalconfig names, else etc/npmrc below its global prefix (decision D-168). */
+export interface NpmGlobalConfigKnowledge {
+  /** The settings that name the user file, the global file and the global prefix. */
+  userKey: string;
+  globalKey: string;
+  prefixKey: string;
+  /** The global file below the prefix. */
+  file: string;
+  /** Variables of the environment that set the default prefix (PREFIX) and are put before it on POSIX (DESTDIR). */
+  prefixVariable: string;
+  destDirVariable: string;
+  /** How many directories up from the Node.js executable the default prefix is: on Windows, elsewhere. */
+  execPathLevels: { win32: number; other: number };
+  /** The files npm reads, from the one that wins. */
+  order: readonly ('cli' | 'env' | 'project' | 'user' | 'global' | 'builtin')[];
+}
+
+/**
+ * When npm installs a tarball URL of package-lock.json as a registry package (decision D-168): every dependency on it
+ * is declared with a registry spec, and the URL has the origin of the registry npm uses for the package (its scope's,
+ * else registry) and a path below that registry's path.
+ */
+export interface NpmRegistryHostKnowledge {
+  dependencies: 'registry specs';
+  match: 'origin and path';
+}
+
+/**
+ * A layout of the tarball URLs of a registry (decision D-168): `path` with {scope}, {name}, {version} and {digest}; on
+ * `host` only, or at the end of any path (a registry mounted below the root) when there is none.
+ */
+export interface RegistryTarballLayoutKnowledge {
+  host?: string;
+  path: string;
 }
 
 /** Where a project sets the registry packages come from, for all packages or for a scope. */
@@ -1330,7 +1427,12 @@ export interface CheckRunsKnowledge {
   annotationTitleMaxLength: number;
   annotationMessageMaxBytes: number;
   /** Variables the runner sets: API URL, owner/name, commit and the event payload file. */
-  variables: { apiUrl: string; repository: string; sha: string; eventPath: string };
+  variables: { apiUrl: string; repository: string; sha: string; eventPath: string; eventName: string };
+  /**
+   * The events whose GITHUB_SHA is the merge commit of the pull request, so the check goes on its head commit from the
+   * payload. For other events (pull_request_target: the last commit of the base branch) it goes on GITHUB_SHA.
+   */
+  mergeCommitEvents: readonly string[];
   /** Path in the event payload of the commit a pull request check belongs to (GITHUB_SHA is the merge commit there). */
   pullRequestHeadSha: readonly string[];
 }
@@ -1426,6 +1528,34 @@ export interface SetupNodeVersionFileKnowledge {
   packageJsonOrder: readonly string[];
   /** Any other file: the first line that matches (multiline), group "version"; otherwise the whole text, trimmed. */
   textPattern: string;
+  /**
+   * A file that is no JSON but TOML (mise.toml, decision D-173): the key of `table`, a string, or a table whose
+   * `versionKey` is a string; any other value names no version. Tried before textPattern.
+   */
+  toml?: { table: string; key: string; versionKey: string };
+}
+
+/**
+ * mise (decision D-173): the files of a directory it reads its [tools] from, the one that wins first, and how a tool's
+ * request is written there (a string, a list whose first entry is the default, or a table with the request under
+ * versionKey); `tools` maps the names of [tools] to the runtimes depcurfew reads.
+ */
+export interface MiseConfigKnowledge {
+  files: readonly string[];
+  table: string;
+  versionKey: string;
+  tools: Readonly<Record<string, RuntimeOrTool>>;
+}
+
+/**
+ * jdx/mise-action (decision D-173): the step installs the tools of the mise configuration of its working directory
+ * (or of the TOML text of `inlineConfig`, which it writes to mise.toml) and puts them on PATH for the later steps,
+ * unless `install` is false.
+ */
+export interface MiseActionKnowledge {
+  action: string;
+  inputs: { install: string; inlineConfig: string; workingDirectory: string };
+  inlineFile: string;
 }
 
 /** How an image reference names the registry, the namespace and the tag when they are left out. */
@@ -1585,6 +1715,8 @@ export interface EnvironmentKnowledge {
     engines: Fact<{ key: string; runtimeKey: string }>;
     /** The Node.js version files that version managers also use in subdirectories of their directory. */
     inheritedVersionFiles: Fact<readonly string[]>;
+    /** How Node.js sends fetch() through the proxy of HTTPS_PROXY and HTTP_PROXY: only when this variable or option asks. */
+    environmentProxy: Fact<{ variable: string; value: string; option: string; since: readonly string[]; proxyVariables: readonly string[] }>;
   };
   docker: {
     imageReference: Fact<ImageReferenceKnowledge>;
@@ -1593,6 +1725,12 @@ export interface EnvironmentKnowledge {
     copySources: Fact<{ relativeTo: 'context'; parentNavigation: 'removed'; trailingSlash: 'ignored' }>;
     /** ENV: variables for the later instructions of the stage and the stages that start from it (decision D-115). */
     environment: Fact<{ instruction: string; inheritedByStages: boolean; spaceForm: boolean }>;
+    /**
+     * ARG: a variable of the later RUN instructions of the stage and of the stages that start from it, with its default
+     * when no --build-arg gives one; one declared before the first FROM only through an ARG without a value in a stage;
+     * an ENV of the same name wins (decision D-166).
+     */
+    buildArguments: Fact<{ instruction: string; runEnvironment: boolean; inheritedByStages: boolean; globalNeedsDeclaration: boolean; environmentWins: boolean }>;
     /** The default file name, and the suffix of other Dockerfiles (build.Dockerfile). */
     dockerfileNames: Fact<{ defaultName: string; suffix: string }>;
     /** Dockerfile.<name>: a common convention without an official source. */
@@ -1616,6 +1754,10 @@ export interface EnvironmentKnowledge {
     /** Plugin names mapped to the tools they install. */
     plugins: Fact<Readonly<Record<string, RuntimeOrTool>>>;
   };
+  /** mise.toml and the files beside it that pin tool versions (decision D-173). */
+  mise: {
+    config: Fact<MiseConfigKnowledge>;
+  };
   githubActions: {
     workflows: Fact<WorkflowsKnowledge>;
     /** The ids GitHub accepts as keys of jobs, as a regular expression (decision D-135). */
@@ -1631,6 +1773,11 @@ export interface EnvironmentKnowledge {
     jobContainer: Fact<{ key: string; imageKey: string; envKey: string }>;
     /** The env maps of a workflow, a job and a step; the most specific one wins (decision D-115). */
     environmentKeys: Fact<{ key: string; levels: readonly ('workflow' | 'job' | 'step')[] }>;
+    /**
+     * The GITHUB_ENV file: NAME=value lines a run step writes there are variables of the later steps of the job, over
+     * the env of the workflow and the job, under the env of a step (decision D-166).
+     */
+    environmentFile: Fact<{ variable: string; format: string; multilineMarker: string; laterSteps: boolean; stepEnvironmentWins: boolean }>;
     /** Whether workflows may use YAML anchors and aliases, which GitHub expands (decision D-141). */
     yamlAliases: Fact<{ accepted: boolean }>;
     pnpmActionSetup: Fact<SetupActionKnowledge>;
@@ -1639,6 +1786,10 @@ export interface EnvironmentKnowledge {
     setupDeno: Fact<SetupActionKnowledge>;
     setupPython: Fact<SetupActionKnowledge>;
     setupUv: Fact<SetupActionKnowledge>;
+    /** pdm-project/setup-pdm: the PDM of its version input (decision D-173). */
+    setupPdm: Fact<SetupActionKnowledge>;
+    /** jdx/mise-action: the tools of the mise configuration (decision D-173). */
+    miseAction: Fact<MiseActionKnowledge>;
     /** Third-party actions that install Poetry; Poetry has no official action. */
     installPoetry: Fact<SetupActionKnowledge>;
     actionsPoetry: Fact<SetupActionKnowledge>;
@@ -1655,6 +1806,11 @@ export interface EnvironmentKnowledge {
     notFoundStatus: Fact<number>;
     /** Search endpoint, its result limit and the field with weekly downloads. */
     search: Fact<{ path: string; maxSize: number; weeklyDownloadsField: string }>;
+    /** The tarball URLs of GitHub Packages, which name the package and the version but not as npm's layout does. */
+    githubPackagesTarballs: Fact<RegistryTarballLayoutKnowledge>;
+    /** The tarball URLs of GitLab's npm registry and of Artifactory, whose file name keeps the scope. */
+    gitlabTarballs: Fact<RegistryTarballLayoutKnowledge>;
+    artifactoryTarballs: Fact<RegistryTarballLayoutKnowledge>;
   };
   pypiIndex: {
     api: Fact<PypiIndexKnowledge>;
@@ -1718,4 +1874,56 @@ export interface EnvironmentKnowledge {
     /** Hatch, which has no supply-chain settings of its own: how a project shows it uses Hatch. */
     hatch: Fact<{ pyprojectTable: string; configFile: string }>;
   };
+}
+
+/**
+ * pnpm 12.15+: `include` in pnpm-workspace.yaml hands settings to local YAML files and to config dependencies, each
+ * setting with one owner (decision D-164).
+ */
+export interface PnpmIncludesKnowledge {
+  since: string;
+  /** The root manifest, the only file that may hold `key`. */
+  file: string;
+  key: string;
+  /** The delegation that lets a local file define any setting no other source owns. */
+  unrestricted: string;
+  /** How a local source starts; anything else is a config dependency named as in configDependencies. */
+  localPrefixes: readonly string[];
+  localExtensions: readonly string[];
+  /** Characters that make a local source a glob, which pnpm rejects. */
+  globCharacters: string;
+  /** Spellings of one setting, which share one owner: spelling -> canonical name. */
+  spellings: Readonly<Record<string, string>>;
+  /** Settings a config dependency can neither define nor be delegated. */
+  notForDependencies: readonly string[];
+  /** The setting that declares config dependencies, which a config dependency source must be listed in. */
+  dependencies: string;
+}
+
+/** The pnpmfiles pnpm loads and the settings that choose them (decision D-164). */
+export interface PnpmfilesKnowledge {
+  /** The first version whose pnpmfile can change settings with hooks.updateConfig. */
+  updateConfigSince: string;
+  /** The project pnpmfile pnpm looks for when `setting` is not set: the first of the names that exists. */
+  defaults: Versioned<readonly string[]>;
+  /** A path or a list of paths; when set (also to []), the defaults are not looked for. */
+  setting: string;
+  /** true: no pnpmfile is loaded at all, those of config-dependency plugins included. */
+  ignore: string;
+  /** A path of a pnpmfile loaded ahead of the others. */
+  global: string;
+}
+
+/** Config dependencies whose pnpmfile pnpm loads by their name alone (decision D-164). */
+export interface PnpmPluginsKnowledge {
+  setting: string;
+  /** Name patterns, `*` for any text. */
+  patterns: Versioned<readonly string[]>;
+}
+
+/** What a known config-dependency plugin sets with its updateConfig hook, from the version given on (decision D-164). */
+export interface PnpmKnownPlugin {
+  name: string;
+  since: string;
+  settings: Readonly<Record<string, unknown>>;
 }

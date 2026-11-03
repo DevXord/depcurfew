@@ -1,0 +1,92 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 7
+    },
+    "message": "job test in .github/workflows/ci.yml (line 7) runs composer config policy.cooldown false, which writes config.policy.cooldown: false into composer.json for the later Composer commands and turns off the cooldown",
+    "fix": "Remove that composer config command from .github/workflows/ci.yml, so that the settings depcurfew apply wrote into composer.json apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 8
+    },
+    "message": "job test in .github/workflows/ci.yml (line 8) runs composer config secure-http 0, which writes config.secure-http: false into composer.json for the later Composer commands and allows downloads over plain HTTP: a package or its metadata can be changed on the way",
+    "fix": "Remove that composer config command from .github/workflows/ci.yml, so that the settings depcurfew apply wrote into composer.json apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 9
+    },
+    "message": "job test in .github/workflows/ci.yml (line 9) runs composer config policy.cooldown.period 1 hour, which writes config.policy.cooldown.period: \"1 hour\" into composer.json for the later Composer commands and shortens the cooldown to 1 hour, shorter than the 3d of depcurfew.json",
+    "fix": "Remove that composer config command from .github/workflows/ci.yml, so that the settings depcurfew apply wrote into composer.json apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 10
+    },
+    "message": "job test in .github/workflows/ci.yml (line 10) runs composer config allow-plugins true, which writes config.allow-plugins: true into composer.json for the later Composer commands and lets every Composer plugin run its code, but installScripts in depcurfew.json denies dependency code by default",
+    "fix": "Remove that composer config command from .github/workflows/ci.yml, so that the settings depcurfew apply wrote into composer.json apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 11
+    },
+    "message": "COMPOSER_NO_BLOCKING=1 is written to $GITHUB_ENV in a run step of job test in .github/workflows/ci.yml, reaches every Composer command of the later steps of the job, and turns off all policy blocking, the cooldown and malware blocking included",
+    "fix": "Remove the line that writes COMPOSER_NO_BLOCKING to $GITHUB_ENV in .github/workflows/ci.yml, or set it only for a run that needs it after reviewing the packages"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 12
+    },
+    "message": "COMPOSER_POLICY=0 is set for composer in a run step of job test in .github/workflows/ci.yml, reaches the Composer commands it runs, and turns off every dependency policy, the cooldown included",
+    "fix": "Remove COMPOSER_POLICY from that command in .github/workflows/ci.yml, or set it only for a run that needs it after reviewing the packages"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 13
+    },
+    "message": "job test in .github/workflows/ci.yml (line 13) runs composer with --no-cooldown, which turns off the cooldown for that command",
+    "fix": "Remove --no-cooldown from that command in .github/workflows/ci.yml; for a package that cannot wait, run the command with it by hand after reviewing the package"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "Dockerfile",
+      "line": 2
+    },
+    "message": "COMPOSER_POLICY=0 is set with ENV in the stage at line 1 of Dockerfile, reaches every Composer command of the later RUN instructions there and of the stages built from it, and turns off every dependency policy, the cooldown included",
+    "fix": "Remove COMPOSER_POLICY from that ENV instruction in Dockerfile, or set it only for a run that needs it after reviewing the packages"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "Dockerfile",
+      "line": 3
+    },
+    "message": "COMPOSER_POLICY_COOLDOWN_PERIOD=1 day is the default of an ARG instruction in the stage at line 1 of Dockerfile, reaches every Composer command of the later RUN instructions there, which get build arguments as variables, and replaces the cooldown period with 1 day, shorter than the 3d of depcurfew.json",
+    "fix": "Remove the default of COMPOSER_POLICY_COOLDOWN_PERIOD from that ARG instruction in Dockerfile (or the ARG), or set it only for a run that needs it after reviewing the packages"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "Dockerfile",
+      "line": 4
+    },
+    "message": "the stage at line 1 in Dockerfile (line 4) runs composer with --no-blocking, which turns off all of Composer's policy blocking for the command, the cooldown and the blocking of versions flagged as malware included",
+    "fix": "Remove --no-blocking from that command in Dockerfile; for a package that cannot wait, run the command with it by hand after reviewing the package"
+  }
+]

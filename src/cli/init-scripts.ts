@@ -12,6 +12,7 @@ import type { Detection } from '../detect/types.ts';
 import { checkedOut, checkoutsByPreference, COMPOSER_MANIFEST, composerManifest, isComposerName, listedCheckouts, pluginDecision, preferenceChange, preferenceLine } from '../doctor/composer.ts';
 import { keepFix, knownPackageOf, knownPackages, versionNote, withoutScript } from '../doctor/install-script-packages.ts';
 import { allowEntries, type AllowEntry } from '../doctor/allow-lists.ts';
+import { evidenceOf } from '../knowledge/facts.ts';
 import { pinnedVersion } from '../apply/version.ts';
 import { COMPOSER_PREFIX } from '../policy/package-pattern.ts';
 import { readLockfiles, type Lockfile, type LockEntry } from '../doctor/lockfiles.ts';
@@ -61,9 +62,10 @@ function knownNote(known: InstallScriptPackageKnowledge, entry: LockEntry, lockf
 /**
  * The entries of the package managers' own allow-lists (onlyBuiltDependencies, allowBuilds, allowScripts...) of every
  * directory, by package: a known package one of them already lets run its install script is not denied, since
- * installScripts.deny would contradict the project's own decision (decision D-141).
+ * installScripts.deny would contradict the project's own decision (decision D-141), and init lists every one of them in
+ * installScripts.allow (decision D-167).
  */
-function ownAllowed(base: string, directories: readonly ScriptDirectory[]): Map<string, AllowEntry[]> {
+export function ownAllowed(base: string, directories: readonly ScriptDirectory[]): Map<string, AllowEntry[]> {
   const allowed = new Map<string, AllowEntry[]>();
   for (const { project, detection } of directories) {
     const repository = new Repository(project === undefined ? base : join(base, project));
@@ -80,23 +82,17 @@ function ownAllowed(base: string, directories: readonly ScriptDirectory[]): Map<
   return allowed;
 }
 
-/** A known package that a tool's own list allows, for the note: `esbuild (onlyBuiltDependencies in pnpm-workspace.yaml, line 2)`. */
-function allowedLabel(name: string, entries: readonly AllowEntry[]): string {
-  const places = entries.map((entry) => `${entry.setting} in ${entry.file}${entry.line === undefined ? '' : `, line ${entry.line}`}`);
-  return `${name} (${places.join('; ')})`;
-}
-
 /**
  * The packages to deny and the notes about install scripts, for the root and every listed project. A package of
  * several lockfiles is denied and noted once, at the first one; a known package that a package manager's own
- * allow-list already allows is not denied but listed for review (decision D-141).
+ * allow-list already allows is not denied (decision D-141) but goes into installScripts.allow with the others of those
+ * lists, which the note install-scripts-kept names (decision D-167).
  */
 export function installScriptHints(base: string, directories: readonly ScriptDirectory[]): ScriptHints {
   const deny = new Set<string>();
   const notes: InitMessage[] = [];
   const review: InitMessage[] = [];
   const allowedByProject = ownAllowed(base, directories);
-  const reviewed = new Set<string>();
   for (const { project, detection } of directories) {
     const repository = new Repository(project === undefined ? base : join(base, project));
     const shownFile = (file: string) => (project === undefined ? file : inProject(project, file));
@@ -117,7 +113,6 @@ export function installScriptHints(base: string, directories: readonly ScriptDir
         const { lockfile } = result;
         const shown = shownFile(lockfile.file);
         const others: string[] = [];
-        const keptAllowed: string[] = [];
         // Packages depcurfew does not know, whose scripts a lockfile without records cannot show.
         let unknown = 0;
         for (const entry of lockfile.entries) {
@@ -126,31 +121,22 @@ export function installScriptHints(base: string, directories: readonly ScriptDir
           const known = knownPackageOf(entry);
           if (known === undefined) {
             unknown += 1;
-            if (entry.installScript === true) others.push(entry.name);
+            // A package an allow-list of the project lets run its scripts goes into installScripts.allow (decision D-167).
+            if (entry.installScript === true && !allowedByProject.has(entry.name)) others.push(entry.name);
             continue;
           }
-          const allowedHere = allowedByProject.get(known.name);
-          if (allowedHere !== undefined) {
-            if (!reviewed.has(known.name)) keptAllowed.push(allowedLabel(known.name, allowedHere));
-            reviewed.add(known.name);
-            continue;
-          }
+          if (allowedByProject.has(known.name)) continue;
           if (deny.has(known.name)) continue;
           deny.add(known.name);
           notes.push(knownNote(known, entry, lockfile, shown, tool));
         }
-        if (keptAllowed.length > 0) {
-          const one = keptAllowed.length === 1;
-          review.push({
-            code: 'install-scripts-to-review',
-            level: 'note',
-            location: { file: shown },
-            message: `${shown} has ${one ? 'a package' : 'packages'} whose install script depcurfew knows and would add to installScripts.deny, but the package manager's own allow-list already lets ${one ? 'it' : 'them'} run, so init leaves ${one ? 'it' : 'them'} out of installScripts.deny: ${names(keptAllowed)}`,
-            fix: `Review each one before you run depcurfew apply: add it to installScripts.allow in ${POLICY_FILE} if the project needs its install script, or to installScripts.deny if it works without it and remove it from that allow-list; until ${POLICY_FILE} lists it, depcurfew apply and depcurfew doctor report the allow-list entry`,
-          });
-        }
+        // Bun records install scripts in bun.lock only since a version (extra.lockfileFormat.installScriptsSince), so a
+        // lockfile that marks none may be older, as doctor says too (decision D-167).
+        const since = tool.id === 'bun' ? scriptsSince(tool) : undefined;
         if (!lockfile.recordsScripts) {
           if (unknown > 0) review.push(notRecorded(shown, `${tool.name} does not record install scripts in it`, tool));
+        } else if (since !== undefined && lockfile.entries.some((entry) => entry.source !== 'workspace') && !lockfile.entries.some((entry) => entry.installScript === true)) {
+          review.push(notRecorded(shown, `it marks no package with install scripts, and ${tool.name} records them only since ${since}, so an older lockfile may hide some`, tool));
         } else if (others.length > 0) {
           review.push({
             code: 'install-scripts-to-review',
@@ -231,6 +217,14 @@ export function composerCheckoutNotes(base: string, directories: readonly Script
     }
   }
   return notes;
+}
+
+/** The version since which the tool records install scripts in its lockfile (extra.lockfileFormat), if it says. */
+function scriptsSince(tool: ToolKnowledge): string | undefined {
+  const fact = tool.extra?.['lockfileFormat'];
+  const format = fact === undefined ? undefined : evidenceOf(fact)[0]?.value;
+  const since = typeof format === 'object' && format !== null ? (format as Record<string, unknown>)['installScriptsSince'] : undefined;
+  return typeof since === 'string' ? since : undefined;
 }
 
 /** A lockfile from which init cannot tell which packages have install scripts. */

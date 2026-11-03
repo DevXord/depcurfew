@@ -8,6 +8,9 @@ const user = verifiedOn('2026-10-31');
 const leftovers = verifiedOn('2026-11-01');
 // The npm keys of deno.lock, whose versions doctor --osv reads (decision D-129).
 const osvFacts = verifiedOn('2026-11-02');
+// The key and unit of the delay in .npmrc, for the generated tables (decision D-170).
+const d170 = verifiedOn('2026-11-03');
+const d167 = verifiedOn('2026-11-03');
 const DENO_V2_9_8 = 'https://github.com/denoland/deno/blob/v2.9.8';
 const NPMRC_PARSER = `${DENO_V2_9_8}/libs/npmrc/lib.rs`;
 const X_VALUE_OPTIONS = [
@@ -40,6 +43,11 @@ export const deno: ToolKnowledge = {
       ['deno.json', '.npmrc'],
       SUPPLY_CHAIN,
       'min-release-age in .npmrc since 2.8; also NPM_CONFIG_MIN_RELEASE_AGE. This page does not state precedence; denoland/deno#35458 gives CLI flag, deno.json, .npmrc, environment, built-in default.',
+    ),
+    fileSettings: d170.verified(
+      [{ file: '.npmrc', setting: 'min-release-age', unit: 'days' }],
+      NPMRC_PARSER,
+      'NpmRc::parse reads min-release-age "in days" (min_release_age_days: Option<u64>; "npm interprets the value as a number of days"), the same in the .npmrc next to package.json or deno.json and in the home one (discover_npmrc in libs/resolver/npmrc.rs at v2.9.8); deno.json and --minimum-dependency-age take minutes (unit).',
     ),
     cliFlag: verified(
       '--minimum-dependency-age',
@@ -227,6 +235,11 @@ export const deno: ToolKnowledge = {
       { since: null, syntax: 'iso8601' },
       SCHEMA,
       'Strings are ISO-8601 durations (P3D, PT72H), an absolute date or an RFC3339 timestamp; the last two set a fixed cut-off instead of a delay.',
+    ),
+    cutoffDates: d167.verified(
+      { timestamps: true, offsetRequired: true, dates: 'start-utc' },
+      `${DENO_V2_9_8}/libs/config/util.rs`,
+      'parse_enabled_minutes_duration_or_date: a string of digits is minutes, then an RFC 3339 timestamp (DateTime::parse_from_rfc3339), a timestamp whose offset has no colon or that has no seconds (%Y-%m-%dT%H:%M:%S%z, %Y-%m-%dT%H:%M%z), a date YYYY-MM-DD ("treat as midnight UTC"), then an ISO 8601 duration; "0" turns the delay off. A timestamp or a date is a fixed cutoff (NewestDependencyDate::Enabled), in the age of the object form too (to_minimum_dependency_age_config in libs/config/deno_json/mod.rs); a time without an offset is none of these and an error. The schema names the same forms: "\'2025-09-16\' for cutoff date, \'2025-09-16T12:00:00+00:00\' for cutoff time" (cli/schemas/config-file.v1.json).',
     ),
     ageObjectKey: verified('age', SCHEMA, 'In the object form of minimumDependencyAge, age holds the delay and exclude the exemptions.'),
     excludeWildcards: verified(

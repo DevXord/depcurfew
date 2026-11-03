@@ -6,10 +6,11 @@
 // leaves the old data as it was. What it keeps is limited (OSV_DATA_LIMITS, decision D-156), and an export with fewer
 // than half of the records of the data it would replace is refused unless the user accepts it.
 import { randomBytes } from 'node:crypto';
-import { closeSync, lstatSync, mkdirSync, openSync, readdirSync, renameSync, rmSync, statSync, writeSync } from 'node:fs';
+import { closeSync, fchownSync, lstatSync, openSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeSync } from 'node:fs';
 import { open } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { values } from '../apply/facts.ts';
+import { makeDirectories, type Owner } from '../apply/workspace.ts';
 import { osvEcosystem } from '../check/osv.ts';
 import { requestSignal, type FetchLike } from '../check/registry.ts';
 import { osv as facts } from '../knowledge/osv.ts';
@@ -86,6 +87,12 @@ export interface OsvUpdateOptions {
   dataLimits?: Readonly<OsvDataLimits>;
   /** Replace the data also with an export that has fewer than half of its records (--accept-fewer, decision D-156). */
   acceptFewer?: boolean;
+  /**
+   * Who gets the directories and the data file osv update creates, by their real paths (ownerOfNewUnderHome): the owner
+   * of the home directory when root runs it there for another user (decision D-168); left out, they are the running
+   * user's.
+   */
+  ownerOfNew?: (path: string) => Owner | undefined;
 }
 
 function exportFact(): OsvExportKnowledge {
@@ -293,10 +300,14 @@ function buildData(path: string, ecosystem: OsvDataEcosystem, zipLimits: ZipLimi
   return built;
 }
 
-/** Writes the data file at `path` (created, never overwritten), line by line, without one string of the whole file. */
-function writeData(path: string, header: OsvDataHeader, packages: ReadonlyMap<string, KeptPackage>, names: readonly string[]): void {
+/**
+ * Writes the data file at `path` (created, never overwritten), line by line, without one string of the whole file; it
+ * is given to `owner` on the open file (decision D-168), so that a symlink put in its place cannot redirect the chown.
+ */
+function writeData(path: string, header: OsvDataHeader, packages: ReadonlyMap<string, KeptPackage>, names: readonly string[], owner?: Owner): void {
   const fd = openSync(path, 'wx', 0o644);
   try {
+    if (owner !== undefined) fchownSync(fd, owner.uid, owner.gid);
     let chunk: string[] = [];
     let length = 0;
     const flush = () => {
@@ -343,8 +354,9 @@ async function updateOne(ecosystem: OsvDataEcosystem, options: OsvUpdateOptions)
   const failure = (code: OsvUpdateCode, message: string, fix: string): OsvUpdateResult => ({ ecosystem, status: 'failed', file, url, code, message: `${message}; ${kept}`, fix });
   if (url === '') return failure('osv-export-unreadable', `depcurfew does not know where OSV.dev exports the data for ${name}`, 'Update depcurfew');
   try {
-    // Never writable by others, whatever the umask (decision D-156).
-    mkdirSync(options.directory, { recursive: true, mode: 0o755 });
+    // Never writable by others, whatever the umask (decision D-156); what root creates in another user's home
+    // directory is that user's, one level at a time (makeDirectories, decision D-168).
+    makeDirectories(options.directory, options.ownerOfNew, 0o755);
   } catch (error) {
     return failure('osv-data-not-written', `depcurfew cannot create the directory ${options.directory} for the local OSV.dev data: ${reasonOf(error)}`, notWrittenFix(options.directory));
   }
@@ -393,7 +405,7 @@ async function updateOne(ecosystem: OsvDataEcosystem, options: OsvUpdateOptions)
     const header: OsvDataHeader = { format: OSV_DATA_FORMAT, formatVersion: OSV_DATA_FORMAT_VERSION, ecosystem, osvEcosystem: name, url, downloadedAt, exportedAt, records, withdrawn, packages: names.length };
     if (Buffer.byteLength(JSON.stringify(header)) + 1 + built.body > limits.fileBytes) return tooLarge();
     try {
-      writeData(written, header, packages, names);
+      writeData(written, header, packages, names, options.ownerOfNew?.(join(realpathSync(options.directory), basename(file))));
       // The rename replaces the old data at once: a reader sees the old file or the new one, never a part.
       renameSync(written, file);
     } catch (error) {

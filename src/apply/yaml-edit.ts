@@ -3,8 +3,8 @@
 // "# managed by depcurfew" comment on the line above. The result is parsed again and has to hold exactly the old
 // data with the one value set; otherwise the edit is refused. For tools whose loader applies YAML merge keys (<<),
 // the data includes merged keys, and a key set where a merged one stands is written into the map itself, which wins.
-import { isMap, isScalar, isSeq, LineCounter, stringify, type Node, type Pair } from 'yaml';
-import { mergedPair, ownPair, parseYamlDocument, type YamlOptions } from '../yaml-parse.ts';
+import { Document, isMap, isScalar, isSeq, LineCounter, stringify, visit, type Node, type Pair } from 'yaml';
+import { mergedPair, ownPair, parseYamlDocument, psychReadsAsString, type YamlOptions } from '../yaml-parse.ts';
 import { sameData, withValue, withValues } from './expected.ts';
 
 type Path = readonly (string | number)[];
@@ -134,9 +134,22 @@ function indentUnit(text: string): number {
 /** The style of the last text rendered for: edits of one file in a batch all render for the same text. */
 let lastStyle: { text: string; indent: number; indentSeq: boolean } | undefined;
 
-function render(value: unknown, text: string): string {
+/**
+ * A value as YAML in the style of `text`. For a file Psych reads (Mode.psych), a string Psych would read as something
+ * else when written plain (yes, Off, nUll, 1_0, 2024-01-01: YAML 1.1 booleans, nulls, numbers and dates) is written in
+ * double quotes, so that Dependabot reads the name (decision D-171).
+ */
+function render(value: unknown, text: string, psych = false): string {
   if (lastStyle?.text !== text) lastStyle = { text, indent: indentUnit(text), indentSeq: indentsSequences(text) };
-  return stringify(value, { indent: lastStyle.indent, indentSeq: lastStyle.indentSeq, lineWidth: 0 });
+  const options = { indent: lastStyle.indent, indentSeq: lastStyle.indentSeq, lineWidth: 0 };
+  if (!psych) return stringify(value, options);
+  const document = new Document(value);
+  visit(document, {
+    Scalar(_key, node) {
+      if (typeof node.value === 'string' && !psychReadsAsString(node.value)) node.type = 'QUOTE_DOUBLE';
+    },
+  });
+  return document.toString(options);
 }
 
 function indentLines(block: string, indent: string): string {
@@ -173,12 +186,12 @@ function mark(text: string, keyStart: number, original = text): string {
  * ends with its last line of content: comments after it and the next line stay as they are, and so do a comment on
  * the key's line and comments before the first item of a block collection.
  */
-function replaceValue(text: string, keyRange: readonly number[], valueNode: Node | null, value: unknown, keyIndent: number): string {
+function replaceValue(text: string, keyRange: readonly number[], valueNode: Node | null, value: unknown, keyIndent: number, psych = false): string {
   const colon = text.indexOf(':', keyRange[1]);
   const keyLineEnd = lineEnd(text, colon);
   const block = value !== null && typeof value === 'object' && Object.keys(value).length > 0;
   const blockIndent = ' '.repeat(Array.isArray(value) && !indentsSequences(text) ? keyIndent : keyIndent + indentUnit(text));
-  const rendered = block ? indentLines(render(value, text), blockIndent).replace(/\n$/u, '') : render(value, text).trimEnd();
+  const rendered = block ? indentLines(render(value, text, psych), blockIndent).replace(/\n$/u, '') : render(value, text, psych).trimEnd();
   const valueStart = valueNode === null ? colon + 1 : (valueNode.range as [number, number, number])[0];
   if (valueNode === null || valueStart <= keyLineEnd) {
     // The old value starts on the key's line: a flow collection, a scalar or nothing.
@@ -400,7 +413,7 @@ function setValue(text: string, path: Path, value: unknown, mode: Mode = PLAIN):
 
   if (document.contents === null || (isScalar(document.contents) && document.contents.value === null)) {
     const prefix = text.trim() === '' ? '' : text.endsWith('\n') ? text : `${text}\n`;
-    return `${prefix}${YAML_MARKER}\n${render(nest(path, value), text)}`;
+    return `${prefix}${YAML_MARKER}\n${render(nest(path, value), text, mode.psych)}`;
   }
   let node = document.contents as Node;
   if (!isMap(node)) throw new Error('the YAML document is not a map');
@@ -436,7 +449,7 @@ function setValue(text: string, path: Path, value: unknown, mode: Mode = PLAIN):
       const first = node.items[0] as Pair<Node, Node | null> | undefined;
       const keyColumn = first === undefined || first.key.range === null || first.key.range === undefined ? 0 : column(first.key.range[0]);
       const at = nestedCommentsEnd(text, contentLineEnd(text, node), keyColumn);
-      const addition = indentLines(`${insideMarked ? '' : `${YAML_MARKER}\n`}${render({ [segment]: nest(path.slice(index + 1), value) }, text)}`, ' '.repeat(keyColumn));
+      const addition = indentLines(`${insideMarked ? '' : `${YAML_MARKER}\n`}${render({ [segment]: nest(path.slice(index + 1), value) }, text, mode.psych)}`, ' '.repeat(keyColumn));
       return at >= text.length ? `${text}\n${addition}` : `${text.slice(0, at + 1)}${addition}${text.slice(at + 1)}`;
     }
     if (index === path.length - 1) {
@@ -450,10 +463,10 @@ function setValue(text: string, path: Path, value: unknown, mode: Mode = PLAIN):
         // A key without a value has an empty node right after the colon or at its comment: keep them apart.
         const before = start > 0 && !/\s/u.test(text[start - 1] as string) ? ' ' : '';
         const after = text[end] === '#' ? ' ' : '';
-        replaced = `${text.slice(0, start)}${before}${render(value, text).trimEnd()}${after}${text.slice(end)}`;
+        replaced = `${text.slice(0, start)}${before}${render(value, text, mode.psych).trimEnd()}${after}${text.slice(end)}`;
       } else {
         if (isFlow(node)) refuseFlow(path, index, value);
-        replaced = replaceValue(text, keyRange, valueNode, value, column(keyRange[0]));
+        replaced = replaceValue(text, keyRange, valueNode, value, column(keyRange[0]), mode.psych);
       }
       return insideMarked ? replaced : mark(replaced, keyRange[0], text);
     }

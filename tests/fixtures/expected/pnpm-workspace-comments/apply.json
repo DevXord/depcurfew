@@ -2,6 +2,17 @@
   "changed": [
     "pnpm-workspace.yaml"
   ],
-  "warnings": [],
+  "warnings": [
+    {
+      "code": "exclusion-dropped",
+      "tool": "pnpm",
+      "location": {
+        "file": "pnpm-workspace.yaml",
+        "line": 4
+      },
+      "message": "pnpm: minimumReleaseAgeExclude in pnpm-workspace.yaml (line 4) exempts react from the release-age delay, but cooldown.exclude in depcurfew.json does not; depcurfew apply comments it out, so pnpm delays it like every other package",
+      "fix": "To keep the exception, add \"react\" to cooldown.exclude in depcurfew.json and run depcurfew apply again"
+    }
+  ],
   "snippets": []
 }

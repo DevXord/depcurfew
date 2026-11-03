@@ -1,0 +1,17 @@
+on: push
+env:
+  NPM_CONFIG_MIN_RELEASE_AGE: "0"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      npm_config_strict_allow_scripts: "false"
+    steps:
+      - uses: actions/checkout@v6
+      - run: |
+          export npm_config_allow_git=root
+          echo "npm_config_min_release_age=1" >> "$GITHUB_ENV"
+      - run: npm install --min-release-age=0 --allow-git=all --no-strict-allow-scripts left-pad
+        env:
+          NPM_CONFIG_BEFORE: ${{ vars.CUTOFF }}
+      - run: npm_config_dangerously_allow_all_scripts=true npm ci

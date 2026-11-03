@@ -2,6 +2,8 @@ import { verifiedOn } from './define.ts';
 import type { DirectoryOptionsKnowledge, EnvironmentNameRule, RunnerOptionsKnowledge, SourceKnowledge, ToolKnowledge, UserVariable } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
+// Facts whose sources D-170 pinned to a release tag or commit, checked again on 2026-11-03.
+const d170 = verifiedOn('2026-11-03');
 const checked = verifiedOn('2026-10-29');
 const rechecked = verifiedOn('2026-10-31');
 const user = verifiedOn('2026-10-31');
@@ -9,6 +11,8 @@ const leftovers = verifiedOn('2026-11-01');
 const novemberSecond = verifiedOn('2026-11-02');
 const release14 = verifiedOn('2026-11-02');
 const runners = verifiedOn('2026-11-03');
+const yarnPathPins = verifiedOn('2026-11-03');
+const d167 = verifiedOn('2026-11-03');
 const BERRY = 'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1';
 const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
 
@@ -21,7 +25,7 @@ const SCALAR_VARIABLES: readonly UserVariable[] = [
 const YARNRC = 'https://yarnpkg.com/configuration/yarnrc';
 const MANIFEST = 'https://yarnpkg.com/configuration/manifest';
 const SECURITY = 'https://yarnpkg.com/features/security';
-const SCHEMA = 'https://github.com/yarnpkg/berry/blob/master/packages/docusaurus/static/configuration/yarnrc.json';
+const SCHEMA = `${BERRY}/packages/docusaurus/static/configuration/yarnrc.json`;
 const release = (version: string) => `https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F${version}`;
 
 const noSetting = (source: string, note: string): SourceKnowledge => ({ setting: uncertain(null, source, note) });
@@ -42,10 +46,10 @@ export const yarn: ToolKnowledge = {
       'https://yarnpkg.com/cli/install',
       'No flag sets the gate. --no-time-gate on yarn add and yarn up (4.15.0+) disables it for one command; yarn install has no such flag.',
     ),
-    unit: verified(
+    unit: d170.verified(
       'minutes',
-      'https://github.com/yarnpkg/berry/pull/6942',
-      'Bare numbers are minutes. Since 4.11.0 duration strings with ms, s, m, h, d or w (e.g. 3d, 1w) also work; on 4.10.x a string such as 7d silently had no effect.',
+      `${BERRY}/packages/plugin-npm/sources/index.ts`,
+      'npmMinimalAgeGate is a DURATION setting with unit: DurationUnit.MINUTES, and parseDuration (yarnpkg-core miscUtils.ts) takes a number without a unit in that unit, so bare numbers are minutes. Since 4.11.0 duration strings with ms, s, m, h, d or w (e.g. 3d, 1w) also work; on 4.10.x a string such as 7d silently had no effect.',
     ),
     availableSince: checked.verified(
       '4.10.2',
@@ -96,9 +100,9 @@ export const yarn: ToolKnowledge = {
     allowList: {
       setting: verified('dependenciesMeta.<package>.built', `${MANIFEST}#dependenciesMeta.built`),
       file: verified('package.json', `${MANIFEST}#dependenciesMeta`, 'Root package.json only; ignored inside workspaces.'),
-      availableSince: uncertain(
+      availableSince: d170.uncertain(
         '2.0.0',
-        'https://github.com/yarnpkg/berry/blob/master/CHANGELOG.md',
+        `${BERRY}/CHANGELOG.md`,
         'dependenciesMeta is documented in the changelog from the 2.x line; the exact first version was not pinned down.',
       ),
       format: verified(
@@ -120,7 +124,7 @@ export const yarn: ToolKnowledge = {
         `${YARNRC}#approvedGitRepositories`,
       ),
       availableSince: verified('4.14.0', release('4.14.0')),
-      default: verified(
+      default: d170.verified(
         [{ since: '4.14.0', value: '[] (every git dependency is blocked)' }],
         SCHEMA,
         'Upgraded projects with an old lockfile get ["**"] written to .yarnrc.yml.',
@@ -140,16 +144,16 @@ export const yarn: ToolKnowledge = {
     ),
   },
   project: {
-    lockfiles: verified(
+    lockfiles: d170.verified(
       [{ since: '0.0.0', value: ['yarn.lock'] }],
-      'https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-fslib/sources/path.ts',
+      `${BERRY}/packages/yarnpkg-fslib/sources/path.ts`,
       'Yarn Classic uses the same name; see berryLockfileMarker and classicLockfileHeader to tell them apart.',
     ),
     manifests: verified(['package.json'], MANIFEST),
     workspaces: verified({ files: ['package.json'], key: 'workspaces' }, `${MANIFEST}#workspaces`, 'Array of folder glob patterns.'),
-    workspacesObjectKey: uncertain(
+    workspacesObjectKey: d170.uncertain(
       'packages',
-      'https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Manifest.ts',
+      `${BERRY}/packages/yarnpkg-core/sources/Manifest.ts`,
       'Not documented; the manifest parser also accepts { "packages": [...] }.',
     ),
   },
@@ -255,7 +259,26 @@ export const yarn: ToolKnowledge = {
     yarnPathRuns: novemberSecond.verified(
       { file: '.yarnrc.yml', key: 'yarnPath', classicSince: '1.18.0' },
       'https://github.com/yarnpkg/yarn/blob/v1.22.22/src/cli/index.js',
-      'Yarn Classic 1.18.0 and later read yarnPath from .yarnrc.yml (CHANGELOG 1.18.0: "Adds support for reading yarnPath from v2-produced .yarnrc.yml files", #7350): getRcPaths in src/util/rc.js looks for .yarnrc and .yarnrc.yml in the folder and its parents, loadRcFile in src/rc.js keeps only yarnPath of a .yml file, resolved against its folder, and start() in src/cli/index.js runs node <yarnPath> before anything else, also before the check that packageManager names Yarn 1 (which only main() does). Yarn 2 and later do the same (run and runYarnPath in packages/yarnpkg-cli/sources/lib.ts at @yarnpkg/cli/4.18.1), unless YARN_IGNORE_PATH is set. So a release committed under yarnPath is the Yarn that runs, whichever Yarn starts, with or without Corepack.',
+      'Yarn Classic 1.18.0 and later read yarnPath from .yarnrc.yml (CHANGELOG 1.18.0: "Adds support for reading yarnPath from v2-produced .yarnrc.yml files", #7350): getRcPaths in src/util/rc.js looks for .yarnrc and .yarnrc.yml in the folder and its parents, loadRcFile in src/rc.js keeps only yarnPath of a .yml file, resolved against its folder, and start() in src/cli/index.js runs node <yarnPath> before anything else, also before the check that packageManager names Yarn 1 (which only main() does). Yarn 2 and later do the same (run and runYarnPath in packages/yarnpkg-cli/sources/lib.ts at @yarnpkg/cli/4.18.1), unless YARN_IGNORE_PATH is set. So a release committed under yarnPath is the Yarn that runs, whichever Yarn starts, with or without Corepack, and its version (from the file name, extra.yarnPath) is the version of the project (decision D-165).',
+    ),
+    setVersion: yarnPathPins.verified(
+      { command: 'yarn set version', releases: '.yarn/releases', sets: ['yarnPath', 'packageManager'] },
+      `${BERRY}/packages/plugin-essentials/sources/commands/set/version.ts`,
+      'setVersion saves the release as .yarn/releases/yarn-<version>.cjs, points yarnPath of the project .yarnrc.yml to it (a path relative to the project) and sets packageManager of package.json to yarn@<version>. In 4.18.1 it keeps yarnPath when the project already has one, when the release cannot be represented by Corepack, with --yarn-path or without Corepack enabled; otherwise it removes yarnPath and sets only packageManager. 3.6.4 always writes both (the same file at https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/3.6.4/packages/plugin-essentials/sources/commands/set/version.ts). The command runs in the Yarn yarnPath names, which is the one to upgrade.',
+    ),
+    classicLockfile: yarnPathPins.verified(
+      {
+        lockfileVersion: 1,
+        versionComment: '^yarn lockfile v(\\d+)$',
+        version: 'version',
+        resolved: 'resolved',
+        hash: '#',
+        alias: 'npm:',
+        gitResolved: '^git(\\+[a-z0-9]+)?://',
+        local: ['file:', 'link:', './', '../', '/'],
+      },
+      'https://github.com/yarnpkg/yarn/blob/v1.22.22/src/lockfile/parse.js',
+      'Yarn Classic (1.22.22) reads yarn.lock with its own parser: a comment that says yarn lockfile v<N> with N above LOCKFILE_VERSION 1 (src/constants.js) makes it throw "Can\'t install from a lockfile of version N"; indentation is two spaces per level (an odd count throws), keys and values are JSON strings in double quotes or words, several keys separated by commas share one value, key: value and key value both set a value, and a later key replaces an earlier one. A file with git conflict markers is read as its two sides, the second side winning per key (parseWithConflict). When the parser fails Yarn retries the file as YAML (FAILSAFE_SCHEMA), and a file with __metadata (Yarn 2 and later) is ignored (src/lockfile/index.js). Each top-level key is a pattern name@range (normalizePattern), an npm: range names another package (registry-resolver.js: npm:<name>@<range>), and its value is an entry, or a string naming another pattern that Yarn follows (Lockfile.getLocked). Lockfile.getLockfile writes version, resolved and integrity of an entry, and its name only when it differs from the name of the pattern, which it never does. An entry with resolved is fetched from that URL without the part after # (explodeHashedUrl in src/util/version.js; getLocked in src/package-request.js), with git (git+<protocol>:// or git://) for URLs that match gitResolved and from the disk for file: and relative paths (src/fetchers/tarball-fetcher.js), whatever its version field says; an entry without resolved is resolved again from its pattern. file:, link:, ./, ../ and absolute paths are local (file-resolver.js, link-resolver.js), whose entries have no resolved. depcurfew reads the name and version of a registry tarball URL as for package-lock.json (npm extra.tarballIdentity and lockfileFormat.registryTarball).',
     ),
     denyList: user.verified(
       { file: 'package.json', setting: 'dependenciesMeta.<package>.built', value: false, since: '2.0.0' },
@@ -267,7 +290,7 @@ export const yarn: ToolKnowledge = {
       `${BERRY}/packages/plugin-essentials/sources/commands/install.ts`,
       'The install command ("install the project dependencies") has the paths [`install`] and Command.Default, so yarn without a command installs too. yarn add (commandLine.add) adds packages.',
     ),
-    commandLine: checked.verified(
+    commandLine: d170.verified(
       {
         add: [['yarn', 'add']],
         run: [{ command: ['yarn', 'dlx'], packageOptions: ['-p', '--package'] }],
@@ -276,7 +299,7 @@ export const yarn: ToolKnowledge = {
         workspaceCommands: [{ command: ['yarn', 'workspace'], operands: 1 }],
         valueOptions: ['--mode'],
       },
-      'https://github.com/yarnpkg/berry/tree/master/packages/plugin-dlx/sources/commands',
+      'https://github.com/yarnpkg/berry/tree/%40yarnpkg/cli/4.18.1/packages/plugin-dlx/sources/commands',
       'dlx.ts (documented at https://yarnpkg.com/cli/dlx) downloads the package named by the command, or the ones given with -p/--package, into a temporary environment and runs it. create.ts (yarn create, not on yarnpkg.com) takes -p/--package as well and runs create-<name>: @foo becomes @foo/create, @foo/app becomes @foo/create-app, foo becomes create-foo, and a name that already matches ^create(-|$) is kept (so is create alone). yarn add (https://yarnpkg.com/cli/add) takes packages as arguments; of its options only --mode takes a value. yarn workspace <workspaceName> <commandName> … runs a command within that workspace, e.g. yarn workspace components add -D react (https://yarnpkg.com/cli/workspace).',
     ),
     runnerOptions: runners.verified<RunnerOptionsKnowledge>(
@@ -294,9 +317,9 @@ export const yarn: ToolKnowledge = {
       'https://yarnpkg.com/protocols',
       'Protocols besides npm: and git: exec:, file:, jsr:, link:, patch:, portal: and workspace:. link: connects an external directory (https://yarnpkg.com/protocol/link), portal: a relative path to a package folder (https://yarnpkg.com/protocol/portal) and file: copies a folder or tarball.',
     ),
-    registryOverrides: checked.verified(
+    registryOverrides: d170.verified(
       { registryOptions: [], registryVariables: ['YARN_NPM_REGISTRY_SERVER'], configOptions: [], configVariables: ['YARN_RC_FILENAME'] },
-      'https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Configuration.ts',
+      CONFIGURATION,
       'Environment variables that start with yarn_ (any case) set the setting named by the camel-cased rest, so YARN_NPM_REGISTRY_SERVER sets npmRegistryServer, the registry packages are fetched from (https://yarnpkg.com/configuration/yarnrc#npmRegistryServer). getRcFilename reads yarn_rc_filename (any case) as the name of the configuration file instead of .yarnrc.yml. npmScopes, an object, cannot be set this way.',
     ),
     registryFetch: release14.verified(
@@ -318,25 +341,29 @@ export const yarn: ToolKnowledge = {
       'https://github.com/yarnpkg/berry/blob/@yarnpkg/cli/4.18.1/packages/yarnpkg-core/sources/Project.ts',
       'Each entry has resolution: name@<locator>: npm:<version> for the registry, <repository>#commit=<sha> for git (GitHub shortcuts become https://github.com/<owner>/<repo>.git), an http(s) URL for tarballs, file:<path> (a .tgz or .tar.gz path is a tarball, anything else a directory), portal: and link: for directories, workspace: for workspace packages, and patch: around the URL-encoded original locator. No field records install scripts; dependenciesMeta.built: false is a user opt-out.',
     ),
-    durationStrings: verified(
+    durationStrings: d170.verified(
       { since: '4.11.0', syntax: 'compact', before: 'no effect' },
-      'https://github.com/yarnpkg/berry/pull/6942',
-      'npmMinimalAgeGate accepts a number followed by ms, s, m, h, d or w (e.g. 3d, 1w) since 4.11.0; on 4.10.x such a string silently had no effect.',
+      release('4.11.0'),
+      'The 4.11.0 release notes list "Core: Create DURATION settings type" (#6942): npmMinimalAgeGate accepts a number followed by ms, s, m, h, d or w (e.g. 3d, 1w) since 4.11.0 (the pattern ^(\\d*\\.?\\d+)(ms|s|m|h|d|w)?$ in the settings schema at 4.18.1); on 4.10.x such a string silently had no effect.',
     ),
-    scriptsSwitch: verified({ setting: 'enableScripts', allow: true, deny: false }, `${YARNRC}#enableScripts`),
+    scriptsSwitch: d167.verified(
+      { setting: 'enableScripts', allow: true, deny: false, off: [false, 0, 'false', '0'] },
+      `${BERRY}/packages/yarnpkg-core/sources/miscUtils.ts`,
+      'off: the values Yarn reads as false. Configuration.ts reads a BOOLEAN setting with parseBoolean of miscUtils.ts, which takes true, 1, "true" and "1" as true and false, 0, "false" and "0" as false and throws on anything else, so enableScripts: 1 or "true" runs dependency build scripts like true (yarnrc docs: enableScripts, default true); depcurfew counts every value but the off ones as on, as for YARN_ENABLE_SCRIPTS (decision D-092).',
+    ),
     excludeWildcards: verified(
       { since: '4.10.0', trailingOnly: false },
       `${YARNRC}#npmPreapprovedPackages`,
       'Name globs such as @scope/* or package* in npmPreapprovedPackages.',
     ),
-    berryLockfileMarker: uncertain(
+    berryLockfileMarker: d170.uncertain(
       '__metadata',
-      'https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Project.ts',
+      `${BERRY}/packages/yarnpkg-core/sources/Project.ts`,
       'Read from code: Yarn 2+ writes a __metadata key into yarn.lock and treats a lockfile without it but with "yarn lockfile v1" as Yarn Classic.',
     ),
-    classicLockfileHeader: verified(
+    classicLockfileHeader: d170.verified(
       '# yarn lockfile v1',
-      'https://github.com/yarnpkg/yarn/blob/master/src/lockfile/stringify.js',
+      'https://github.com/yarnpkg/yarn/blob/v1.22.22/src/lockfile/stringify.js',
       'Written as # yarn lockfile v${LOCKFILE_VERSION} with LOCKFILE_VERSION = 1 (src/constants.js).',
     ),
     latestVersion: verified('4.18.1', release('4.18.1'), 'Yarn 6 is still in preview.'),
@@ -374,19 +401,20 @@ export const yarn: ToolKnowledge = {
       'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1/packages/plugin-npm/sources/npmConfigUtils.ts',
       'getMinimalAgeGate: for a scoped package, a number in npmScopes.<scope>.npmMinimalAgeGate (the scope name without @) replaces the global gate, longer or shorter, and 0 turns the gate off for that scope (acceptance tests "npmScopes override" in features/npmMinimalAgeGate.test.ts at 4.18.1; the code is the same in 4.17.0 and absent in 4.16.0). Each npmScopes entry is a shape whose unset properties get their defaults (parseShape and getDefaultValue in yarnpkg-core Configuration.ts), so a scope listed only for its registry gets the default of 1d (scopablePackageGateSettings in plugin-npm index.ts) instead of the global gate; read from the code, no test covers that case.',
     ),
-    upgradeMigration: verified(
+    upgradeMigration: d170.verified(
       'When the lockfile predates the new defaults and the key is unset, yarn install writes enableScripts: true, approvedGitRepositories: ["**"] and npmMinimalAgeGate: 0 into .yarnrc.yml',
-      'https://github.com/yarnpkg/berry/pull/7135',
-      'Explicit values written by depcurfew prevent the migration.',
+      `${BERRY}/packages/plugin-essentials/sources/commands/install.ts`,
+      'LOCKFILE_MIGRATION_RULES: a lockfile of version below 9 gets approvedGitRepositories ["**"] and enableScripts true, below 10 npmMinimalAgeGate 0, each only when no configuration source sets the key (configuration.sources.get(rule.name) === undefined), saved with Configuration.updateConfiguration ("Migrated your project to the latest Yarn version"). Explicit values written by depcurfew prevent the migration.',
     ),
-    missingPublishTime: verified(
+    missingPublishTime: d170.verified(
       'Versions without a publish time are quarantined while the gate is on',
-      'https://github.com/yarnpkg/berry/pull/6907',
+      `${BERRY}/packages/plugin-npm/sources/npmConfigUtils.ts`,
+      'shouldBeQuarantined: with a gate, a version whose publish time is missing from the registry document (publishTimes?.[version] undefined) is quarantined; since 4.10.2 ("fix: support registries without publish times using minimalAgeGate", #6907).',
     ),
-    unknownSettings: uncertain(
+    unknownSettings: d170.uncertain(
       'Unknown keys in the project .yarnrc.yml throw (unless enableStrictSettings is false), so settings newer than the pinned Yarn break installs',
-      'https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Configuration.ts',
-      'Read from the current source code; older releases were not checked.',
+      CONFIGURATION,
+      'Read from the code at 4.18.1; older releases were not checked.',
     ),
   },
 };

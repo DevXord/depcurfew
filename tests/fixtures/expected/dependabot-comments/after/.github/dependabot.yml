@@ -32,6 +32,7 @@ updates:
     cooldown:
       # managed by depcurfew
       default-days: 3
+      # depcurfew: superseded by the managed block: exclude: ["react"]
       # managed by depcurfew
       exclude:
         - "@acme/*"

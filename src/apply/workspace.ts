@@ -3,7 +3,7 @@
 // writeChanges, which writes all changes or none.
 import { closeSync, fchmodSync, fchownSync, lchownSync, lstatSync, mkdirSync, openSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, sep } from 'node:path';
-import { MAX_FILE_SIZE } from '../detect/repository.ts';
+import { readLimitFor } from '../detect/repository.ts';
 import { readLimited } from '../read-limited.ts';
 import { isInside } from '../paths.ts';
 import { detectStyle, restoreStyle, toLf, type TextStyle } from './text.ts';
@@ -50,6 +50,11 @@ export function fileSystemReason(error: unknown): string {
   return code ?? (error instanceof Error ? error.message : String(error));
 }
 
+/** A limit in MiB, as messages give it: 1 MiB, 64 MiB. */
+function mebibytes(bytes: number): string {
+  return `${bytes / (1024 * 1024)} MiB`;
+}
+
 /** Decodes UTF-8 strictly: a byte sequence that is not UTF-8 would otherwise become U+FFFD and be written back so. */
 const UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 
@@ -63,7 +68,7 @@ export interface WorkspaceOptions {
  * not a directory, named as messages name files; `code` the error code of a file that cannot be read.
  */
 export type FileProblem =
-  | { kind: 'symlink' | 'too-large' | 'not-utf8' | 'directory' | 'not-a-file' | 'outside' }
+  | { kind: 'symlink' | 'too-large' | 'result-too-large' | 'not-utf8' | 'directory' | 'not-a-file' | 'outside' }
   | { kind: 'unreadable'; code: string | undefined }
   | { kind: 'not-a-directory'; part: string };
 
@@ -142,12 +147,14 @@ export class Workspace {
       const blocked = this.#notADirectory(file);
       if (blocked !== undefined) throw blocked;
     } else {
-      // The same limit as for reading configuration (Repository): a huge file would take as much memory several times
-      // over. readLimited also refuses a FIFO or a device instead of waiting on it, and a symlink put in place meanwhile.
-      const read = readLimited(path, MAX_FILE_SIZE, { noFollow: true });
+      // The same limit as for reading the file in detection and doctor (Repository: that of lockfiles for a lockfile,
+      // decision D-166): a huge file would take as much memory several times over. readLimited also refuses a FIFO or a
+      // device instead of waiting on it, and a symlink put in place meanwhile.
+      const limit = readLimitFor(file);
+      const read = readLimited(path, limit, { noFollow: true });
       if (read.ok) bytes = read.bytes;
       else if (read.problem === 'symlink') throw symlink();
-      else if (read.problem === 'too-large') throw this.#fail(file, { kind: 'too-large' }, `${name} is larger than 1 MiB, so depcurfew does not edit it`);
+      else if (read.problem === 'too-large') throw this.#fail(file, { kind: 'too-large' }, `${name} is larger than ${mebibytes(limit)}, so depcurfew does not edit it`);
       else if (read.problem === 'not-a-file') {
         const directory = stats.isDirectory();
         throw this.#fail(file, { kind: directory ? 'directory' : 'not-a-file' }, `${name} cannot be read: ${directory ? 'it is a directory' : 'it is not a regular file'}`);
@@ -201,10 +208,29 @@ export class Workspace {
     return this.#load(file).body;
   }
 
-  /** Applies an edit to the file's text (LF line endings); a missing file starts empty. */
+  /**
+   * Applies an edit to the file's text (LF line endings); a missing file starts empty. An edit after which the file would
+   * be larger than the limit of reading it is refused (decision D-166): neither the next apply nor doctor could read the
+   * file it wrote, so apply would not be idempotent and doctor would report the file as unreadable.
+   */
   edit(file: string, change: (body: string) => string): void {
     const entry = this.#load(file);
-    entry.body = change(entry.body);
+    const body = change(entry.body);
+    const limit = readLimitFor(file);
+    // UTF-8 takes at most 3 bytes for each UTF-16 unit, and the line endings restored at most one more per line; with LF
+    // endings the restored text is the body with at most a byte order mark more.
+    const over = () => {
+      const bytes = Buffer.byteLength(body);
+      if (entry.style.eol === '\n' && bytes + 3 <= limit) return false;
+      return Buffer.byteLength(restoreStyle(body, entry.style, entry.original ?? undefined)) > limit;
+    };
+    if (body.length > limit / 4 && over()) {
+      const name = this.#name(file);
+      throw Object.assign(this.#fail(file, { kind: 'result-too-large' }, `${name} would be larger than ${mebibytes(limit)} after this change, more than depcurfew reads, so depcurfew does not edit it`), {
+        fix: `Make ${name} smaller (for example by removing entries or comments it no longer needs), so that it stays under ${mebibytes(limit)} with the settings depcurfew adds, then run depcurfew apply again`,
+      });
+    }
+    entry.body = body;
   }
 
   changes(): FileChange[] {
@@ -458,11 +484,12 @@ function unchanged(realRoot: string, entry: Staged): boolean {
  * creates to the owner `ownerOfNew` names for its real path, so that a directory a symlink led elsewhere (out of the
  * home directory) is not given away. Each is checked with lstat after mkdir: a directory that root just made, not a
  * symlink that the owner of the parent put there meanwhile; lchown does not follow a symlink either, so a swap between
- * the check and lchown gives away the link at most, never what it points to. Without an owner it is mkdir -p.
+ * the check and lchown gives away the link at most, never what it points to. Without an owner it is mkdir -p. `mode`
+ * is the mode of each directory it creates, which the umask narrows (osv update, decision D-168).
  */
-function makeDirectories(directory: string, ownerOfNew: WriteOptions['ownerOfNew']): void {
+export function makeDirectories(directory: string, ownerOfNew: WriteOptions['ownerOfNew'], mode?: number): void {
   if (ownerOfNew === undefined) {
-    mkdirSync(directory, { recursive: true });
+    mkdirSync(directory, { recursive: true, ...(mode === undefined ? {} : { mode }) });
     return;
   }
   const missing: string[] = [];
@@ -473,7 +500,7 @@ function makeDirectories(directory: string, ownerOfNew: WriteOptions['ownerOfNew
   const changed = (level: string) => Object.assign(new Error(`${level} changed while it was created`), { code: 'EEXIST' });
   for (const level of missing) {
     try {
-      mkdirSync(level);
+      mkdirSync(level, mode === undefined ? undefined : { mode });
     } catch (error) {
       // Made by another program meanwhile: used as mkdir -p would, but not given away, as it is not ours.
       if (codeOf(error) === 'EEXIST' && lstatSync(level).isDirectory()) continue;

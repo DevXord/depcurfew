@@ -7,6 +7,8 @@ import { osv } from './osv.ts';
 import { botOnlyEcosystems } from './bot-ecosystems.ts';
 
 const { verified } = verifiedOn('2026-10-28');
+// Facts whose sources D-170 pinned to a release tag or commit, checked again on 2026-11-03.
+const d170 = verifiedOn('2026-11-03');
 const checked = verifiedOn('2026-10-29');
 const python = verifiedOn('2026-10-30');
 const gitFacts = verifiedOn('2026-10-30');
@@ -20,9 +22,14 @@ const recheck = verifiedOn('2026-11-01');
 const finalReview = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
 const ruby = verifiedOn('2026-11-03');
+const ciOverrides = verifiedOn('2026-11-03');
+const secrets = verifiedOn('2026-11-03');
+// Tool versions of CI steps, Dockerfiles and mise (decision D-173).
+const d173 = verifiedOn('2026-11-03');
+const MISE = 'https://github.com/jdx/mise/blob/v2026.11.0/docs';
 
-const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
-const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
+const COREPACK_README = 'https://github.com/nodejs/corepack/blob/v0.36.0/README.md';
+const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/v0.36.0/CHANGELOG.md';
 const COREPACK_V0_36_0 = 'https://github.com/nodejs/corepack/blob/v0.36.0';
 /** The variables Corepack's code reads for its home folder, in order; a variable counts when it is set, even empty (??). */
 const COREPACK_VARIABLES: readonly UserDirectory[] = [
@@ -56,28 +63,28 @@ const FSEVENTS = 'https://github.com/fsevents/fsevents/blob/v2.3.3';
 export const environment: EnvironmentKnowledge = {
   botOnlyEcosystems,
   corepack: {
-    packageManagerField: verified(
+    packageManagerField: d170.verified(
       { key: 'packageManager', managers: ['npm', 'pnpm', 'yarn'] },
       COREPACK_README,
       'Format name@x.y.z, optionally followed by +<hash algorithm>.<hash>; a URL to a .js or .tgz file is also allowed. setup-bun also reads bun@x from this key.',
     ),
-    devEnginesSince: verified(
+    devEnginesSince: d170.verified(
       '0.32.0',
       COREPACK_CHANGELOG,
       'Limited support at first; since 0.36.0 Corepack uses the devEngines.packageManager range when packageManager is missing.',
     ),
-    envFileSince: verified(
+    envFileSince: d170.verified(
       '0.32.0',
       COREPACK_CHANGELOG,
       'Corepack reads COREPACK_* keys from .corepack.env; since 0.36.0 only the closest file. COREPACK_ENV_FILE=0 turns it off.',
     ),
-    bundledWithNode: verified(
+    bundledWithNode: d170.verified(
       [
         { since: '0.0.0', value: false },
         { since: '14.19.0', value: true },
         { since: '25.0.0', value: false },
       ],
-      'https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V25.md',
+      'https://github.com/nodejs/node/blob/v25.9.0/doc/changelogs/CHANGELOG_V25.md',
       'Node.js 25.0.0 stopped distributing Corepack; the Corepack README says it ships with Node.js from 14.19.0 up to (but not including) 25.0.0.',
     ),
     package: leftovers.verified(
@@ -123,7 +130,7 @@ export const environment: EnvironmentKnowledge = {
         '"COREPACK_HOME can be set in order to define where Corepack should install the package managers. By default it is set to %LOCALAPPDATA%\\node\\corepack on Windows, and to $HOME/.cache/node/corepack everywhere else."',
       ),
     ),
-    enableNpm: runtimes.verified(
+    enableNpm: d170.verified(
       { command: 'enable', npmOnlyWhenNamed: true },
       COREPACK_README,
       'corepack enable [... name] creates shims for the package managers it is given, or for all of them without parameters: "Note that the npm shims will not be installed unless explicitly requested, as npm is currently distributed with Node.js through other means". So corepack enable npm makes npm the version Corepack picks (packageManager), while a bare corepack enable leaves the bundled npm.',
@@ -264,6 +271,11 @@ export const environment: EnvironmentKnowledge = {
       'https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/README.md',
       'nvm: "nvm use et. al. will traverse directory structure upwards from the current directory looking for the .nvmrc file". nodenv: find_local_version_file in libexec/nodenv-version-file checks the directory for .node-version and then each parent up to the root (https://github.com/nodenv/nodenv/blob/5083e9819756c1a127a626a874703349f4ddb2e4/libexec/nodenv-version-file). asdf: the tool versions a .tool-versions file declares "will be used in that directory and any subdirectories" (https://github.com/asdf-vm/asdf/blob/master/docs/manage/configuration.md). Volta is not one of them: for_dir in crates/volta-core/src/project/mod.rs "will search ancestors to find a package.json and use that as the root of the project" and reads a parent package.json only through extends (https://github.com/volta-cli/volta/blob/main/crates/volta-core/src/project/mod.rs), so the volta key of the root package.json does not reach a project with a package.json of its own.',
     ),
+    environmentProxy: secrets.verified(
+      { variable: 'NODE_USE_ENV_PROXY', value: '1', option: '--use-env-proxy', since: ['22.21.0', '24.0.0'], proxyVariables: ['HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY'] },
+      'https://github.com/nodejs/node/blob/v26.13.0/doc/api/cli.md',
+      'NODE_USE_ENV_PROXY=1 (added in v24.0.0 and v22.21.0, "Stability: 1.1 - Active Development"): "When enabled, Node.js parses the HTTP_PROXY, HTTPS_PROXY and NO_PROXY environment variables during startup, and routes requests through the specified proxy"; --use-env-proxy does the same and wins over it. doc/api/http.md at the same tag (Built-in Proxy Support, http.setGlobalProxyFromEnv) names fetch() among the requests it covers, and the lower-case spellings win over the upper-case ones. Without it, fetch connects directly, whatever the proxy variables say; Node.js before 22.21.0 has no such switch.',
+    ),
   },
   docker: {
     imageReference: runtimes.verified(
@@ -285,6 +297,11 @@ export const environment: EnvironmentKnowledge = {
       { instruction: 'ENV', inheritedByStages: true, spaceForm: true },
       `${DOCKERFILE_REFERENCE}#env`,
       'ENV <key>=<value> [<key>=<value>...]: "This value will be in the environment for all subsequent instructions in the build stage", and "A stage inherits any environment variables that were set using ENV by its parent stage or any ancestor". "Like command line parsing, quotes and backslashes can be used to include spaces within values". The alternative "ENV <key> <value>, omitting the =" sets one variable, and is discouraged. RUN commands see these variables, and ENV wins over an ARG of the same name.',
+    ),
+    buildArguments: ciOverrides.verified(
+      { instruction: 'ARG', runEnvironment: true, inheritedByStages: true, globalNeedsDeclaration: true, environmentWins: true },
+      `${DOCKERFILE_REFERENCE}#arg`,
+      'ARG <name>[=<default value>]: the variable "is also passed to all subsequent RUN instructions as a build-time environment variable"; "If an ARG instruction has a default value and if there is no value passed at build-time, the builder uses the default" (--build-arg can give another). "An ARG variable declared within a build stage is automatically inherited by other stages based on that stage. Unrelated build stages do not have access to the variable." "An ARG declared before a FROM is outside of a build stage, so it can\'t be used in any instruction after a FROM. To use the default value of an ARG declared before the first FROM use an ARG instruction without a value inside of a build stage." "Environment variables defined using the ENV instruction always override an ARG instruction of the same name." (Using ARG variables; Impact on build caching: "all RUN instructions following an ARG instruction use the ARG variable implicitly (as an environment variable)".)',
     ),
     dockerfileNames: runtimes.verified(
       { defaultName: 'Dockerfile', suffix: '.Dockerfile' },
@@ -329,23 +346,30 @@ export const environment: EnvironmentKnowledge = {
   ),
   devEnginesSince: verified('10.9.0', 'https://github.com/npm/cli/blob/v10.9.0/CHANGELOG.md', 'npm version that introduced devEngines.'),
   volta: {
-    manifest: verified(
+    manifest: d170.verified(
       { key: 'volta', tools: ['node', 'npm', 'pnpm', 'yarn'] },
-      'https://github.com/volta-cli/volta/blob/main/crates/volta-core/src/project/serial.rs',
+      'https://github.com/volta-cli/volta/blob/v2.0.2/crates/volta-core/src/project/serial.rs',
       'Also extends: a path to another JSON file with a volta key. pnpm support is experimental and needs VOLTA_FEATURE_PNPM=1.',
     ),
-    maintained: verified(false, 'https://github.com/volta-cli/volta/blob/main/README.md', 'The README says Volta is unmaintained and recommends migrating to mise.'),
+    maintained: d170.verified(false, 'https://github.com/volta-cli/volta/blob/5eedd5fb2f682baceb47a242289111fcd79435a5/README.md', 'The README says Volta is unmaintained and recommends migrating to mise.'),
   },
   asdf: {
-    toolVersionsFile: verified(
+    toolVersionsFile: d170.verified(
       '.tool-versions',
-      'https://github.com/asdf-vm/asdf/blob/master/docs/manage/configuration.md',
+      'https://github.com/asdf-vm/asdf/blob/v0.20.2/docs/manage/configuration.md',
       'One tool per line followed by one or more versions separated by spaces (fallbacks); # starts a comment.',
     ),
     plugins: verified(
       { nodejs: 'node', pnpm: 'pnpm', yarn: 'yarn', bun: 'bun', deno: 'deno', python: 'python', uv: 'uv', poetry: 'poetry' },
       'https://github.com/asdf-vm/asdf-plugins/tree/master/plugins',
       'Short names in the asdf plugin index; there is no plugin named node. python, uv and poetry checked on 2026-10-30 (danhper/asdf-python, asdf-community/asdf-uv, asdf-community/asdf-poetry).',
+    ),
+  },
+  mise: {
+    config: d173.verified(
+      { files: ['.mise.toml', 'mise.toml', 'mise/config.toml', '.mise/config.toml', '.config/mise.toml', '.config/mise/mise.toml', '.config/mise/config.toml'], table: 'tools', versionKey: 'version', tools: { node: 'node', python: 'python' } },
+      `${MISE}/configuration.md`,
+      'Config file locations: in each directory "a file higher in the table overrides one lower down": mise.local.toml (personal overrides, kept out of version control), mise.toml, mise/config.toml, mise/conf.d/*.toml, .mise/config.toml, .config/mise.toml, .config/mise/mise.toml, .config/mise/config.toml, then .tool-versions; ".mise.toml overrides mise.toml". [tools] merges per tool: "The nearest file\'s entry replaces that tool\'s whole entry". Requests (dev-tools/versions.md at the same tag): node = "24" is "a 24.x release", python = "3.14.8" exactly that release, a table names the request kind (node = { path = ... }, a version key in the examples of dev-tools/index.md), and python = ["3.14", "3.13"] installs both, "the first one provides the unversioned command". "mise does not accept npm-style ranges such as ^24 or >=20 outside package.json". MISE_NODE_VERSION overrides every file.',
     ),
   },
   githubActions: {
@@ -358,7 +382,7 @@ export const environment: EnvironmentKnowledge = {
       'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id',
       'Read from the page source in github/docs (data/reusables/actions/jobs/section-using-jobs-in-a-workflow-id.md, main on 2026-11-02): "You must replace <job_id> with a string that is unique to the jobs object. The <job_id> must start with a letter or _ and contain only alphanumeric characters, -, or _." The runner checks names the same way with ASCII letters and digits (NameValidation.IsValid in src/Sdk/DTPipelines/Pipelines/Validation/NameValidation.cs of actions/runner, main on 2026-11-02: a-z, A-Z, _ anywhere, digits and, with hyphens allowed, - after the first character).',
     ),
-    setupNode: verified(
+    setupNode: d170.verified(
       {
         action: 'actions/setup-node',
         installs: ['node'],
@@ -367,7 +391,7 @@ export const environment: EnvironmentKnowledge = {
           { name: 'node-version-file', kind: 'version-file', tool: 'node' },
         ],
       },
-      'https://github.com/actions/setup-node/blob/main/action.yml',
+      'https://github.com/actions/setup-node/blob/v7.1.0/action.yml',
       'Current major v7. node-version-file reads package.json, .nvmrc, .node-version, .tool-versions or mise.toml; node-version wins when both are set.',
     ),
     setupNodeVersions: runtimes.verified(
@@ -375,10 +399,15 @@ export const environment: EnvironmentKnowledge = {
       `${SETUP_NODE}/README.md`,
       "Tag v7.1.0. node-version takes semver (22, 24.8.0, >=10.15.0, 12.x), the NVM LTS syntax (lts/jod, lts/*, lts/-n) and latest, current, node or * for the latest release. A matching version in the runner's tool cache is used first, so a major version such as 24 may give an older release of the line unless check-latest is set.",
     ),
-    setupNodeVersionFile: runtimes.verified(
-      { packageJson: 'package.json', packageJsonOrder: ['volta.node', 'devEngines.runtime', 'engines.node'], textPattern: '^(?:node(js)?\\s+)?v?(?<version>[^\\s]+)$' },
-      `${SETUP_NODE}/docs/advanced-usage.md`,
-      'node-version-file accepts .nvmrc, .node-version, .tool-versions, mise.toml or package.json, relative to GITHUB_WORKSPACE. In package.json it checks volta.node, then the devEngines.runtime entry named node, then engines.node, then volta.extends. getNodeVersionFromFile in src/util.ts tries JSON, then TOML tools.node, then the first line that matches the pattern, then the whole text trimmed.',
+    setupNodeVersionFile: d173.verified(
+      {
+        packageJson: 'package.json',
+        packageJsonOrder: ['volta.node', 'devEngines.runtime', 'engines.node'],
+        textPattern: '^(?:node(js)?\\s+)?v?(?<version>[^\\s]+)$',
+        toml: { table: 'tools', key: 'node', versionKey: 'version' },
+      },
+      `${SETUP_NODE}/src/util.ts`,
+      'node-version-file accepts .nvmrc, .node-version, .tool-versions, mise.toml or package.json, relative to GITHUB_WORKSPACE (docs/advanced-usage.md at the same commit). In package.json it checks volta.node, then the devEngines.runtime entry named node, then engines.node, then volta.extends. getNodeVersionFromFile tries JSON, then parses the file as TOML ("Try parsing the file as a mise `mise.toml` file") and returns tools.node when it is a string, or tools.node.version when it is a table with one, and null for any other tools.node (a list included), then the first line that matches the pattern, then the whole text trimmed.',
     ),
     jobContainer: finalReview.verified(
       { key: 'container', imageKey: 'image', envKey: 'env' },
@@ -390,17 +419,22 @@ export const environment: EnvironmentKnowledge = {
       'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env',
       'Read from the page source in github/docs (content/actions/reference/workflows-and-actions/workflow-syntax.md and data/reusables/repositories/actions-env-var-note.md, main on 2026-11-01): env is "A map of variables that are available to the steps of all jobs in the workflow", jobs.<job_id>.env "A map of variables that are available to all steps in the job", and jobs.<job_id>.steps[*].env "Sets variables for steps to use in the runner environment"; for the same name GitHub "uses the most specific variable": the step\'s over the job\'s over the workflow\'s.',
     ),
+    environmentFile: ciOverrides.verified(
+      { variable: 'GITHUB_ENV', format: 'NAME=value', multilineMarker: '<<', laterSteps: true, stepEnvironmentWins: true },
+      'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable',
+      'Read from the page source in github/docs (content/actions/reference/workflows-and-actions/workflow-commands.md, commit 9e46fa1 of main on 2026-11-03): echo "{environment_variable_name}={value}" >> "$GITHUB_ENV"; "You can make an environment variable available to any subsequent steps in a workflow job by defining or updating the environment variable and writing this to the GITHUB_ENV environment file. The step that creates or updates the environment variable does not have access to the new value, but all subsequent steps in a job will have access." Multiline values use {name}<<{delimiter}. In actions/runner v2.338.2, SetEnvFileCommand writes each pair into Global.EnvironmentVariables (src/Runner.Worker/FileCommandManager.cs), which holds the env of the workflow and the job, and StepsRunner merges that global env first and the env of the step over it ("Merge global env", then "Evaluate and merge step env" in src/Runner.Worker/StepsRunner.cs), so a value written there replaces the env of the workflow and the job for the later steps, and the env of a step still wins.',
+    ),
     yamlAliases: release14.verified(
       { accepted: true },
       'https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations#yaml-anchors-and-aliases',
       'Read from the page source in github/docs (content/actions/reference/workflows-and-actions/reusing-workflow-configurations.md, commit 23809bf of main on 2026-11-02), for GitHub.com and GitHub Enterprise Cloud: "You can use YAML anchors and aliases to reduce repetition in your workflows. An anchor (marked with &) identifies a piece of content that you want to reuse, while an alias (marked with *) repeats that content in another location." Its examples reuse the env map of a job (env: *env_vars) and a whole job (alt-test: *base_job), and say that this "is equivalent to writing the following YAML without anchors and aliases". The page does not mention merge keys (<<), so depcurfew does not apply them in workflows.',
     ),
-    pnpmActionSetup: verified(
+    pnpmActionSetup: d170.verified(
       { action: 'pnpm/action-setup', installs: ['pnpm'], inputs: [{ name: 'version', kind: 'version', tool: 'pnpm' }] },
-      'https://github.com/pnpm/action-setup/blob/master/action.yml',
+      'https://github.com/pnpm/action-setup/blob/v6.1.1/action.yml',
       'Current major v6. Without version the action reads devEngines.packageManager or packageManager from package.json (package_json_file).',
     ),
-    pnpmSetup: verified(
+    pnpmSetup: d170.verified(
       {
         action: 'pnpm/setup',
         installs: ['pnpm'],
@@ -410,10 +444,10 @@ export const environment: EnvironmentKnowledge = {
           { name: 'node-version-file', kind: 'version-file', tool: 'node' },
         ],
       },
-      'https://github.com/pnpm/setup/blob/main/action.yml',
+      'https://github.com/pnpm/setup/blob/v3.1.2/action.yml',
       'For pnpm 11 and later. Without version it reads devEngines.packageManager or packageManager; runtime takes <name>@<version> for node, bun or deno.',
     ),
-    setupBun: verified(
+    setupBun: d170.verified(
       {
         action: 'oven-sh/setup-bun',
         installs: ['bun'],
@@ -422,10 +456,10 @@ export const environment: EnvironmentKnowledge = {
           { name: 'bun-version-file', kind: 'version-file', tool: 'bun' },
         ],
       },
-      'https://github.com/oven-sh/setup-bun/blob/main/action.yml',
+      'https://github.com/oven-sh/setup-bun/blob/v2.2.0/action.yml',
       'Current major v2. Without bun-version it reads packageManager (bun@x), then engines.bun, then installs latest.',
     ),
-    setupDeno: verified(
+    setupDeno: d170.verified(
       {
         action: 'denoland/setup-deno',
         installs: ['deno'],
@@ -434,7 +468,7 @@ export const environment: EnvironmentKnowledge = {
           { name: 'deno-version-file', kind: 'version-file', tool: 'deno' },
         ],
       },
-      'https://github.com/denoland/setup-deno/blob/main/action.yml',
+      'https://github.com/denoland/setup-deno/blob/v2.0.5/action.yml',
       'Current major v2. deno-version defaults to 2.x; deno-version-file reads .dvmrc or .tool-versions.',
     ),
     setupPython: python.verified(
@@ -461,6 +495,24 @@ export const environment: EnvironmentKnowledge = {
       },
       'https://github.com/astral-sh/setup-uv/blob/v10.3.3/action.yml',
       'Current version v10.3.3, with no moving v10 tag. Without version or version-file it reads required-version from uv.toml, then pyproject.toml, in the working directory, and installs the latest uv when neither has one.',
+    ),
+    setupPdm: d173.verified(
+      {
+        action: 'pdm-project/setup-pdm',
+        installs: ['pdm'],
+        inputs: [
+          { name: 'version', kind: 'version', tool: 'pdm', keywords: ['head'] },
+          { name: 'python-version', kind: 'version', tool: 'python' },
+          { name: 'python-version-file', kind: 'version-file', tool: 'python' },
+        ],
+      },
+      'https://github.com/pdm-project/setup-pdm/blob/v4.6/action.yml',
+      'Current version v4.6 (the moving tag v4 is the same commit). version: "The version of PDM to install, or \'head\' to install from the main branch"; without it the installer installs the latest PDM. src/setup-pdm.ts passes it as --version to the installer script (cmdArgs.push(\'--version\', pdmVersion)). python-version and python-version-file choose the Python it sets up.',
+    ),
+    miseAction: d173.verified(
+      { action: 'jdx/mise-action', inputs: { install: 'install', inlineConfig: 'mise_toml', workingDirectory: 'working_directory' }, inlineFile: 'mise.toml' },
+      'https://github.com/jdx/mise-action/blob/v5.2.6/action.yml',
+      'Current version v5.2.6 (the moving tag v5 is the same commit). install (default "true"): "if false, will not run `mise install` or `mise bootstrap`"; mise_toml: "If present, this value will be written to the mise.toml file"; working_directory: "The directory that mise runs in"; add_shims_to_path (default "true") puts the shims of the installed tools on PATH, so the later steps of the job run the Node.js and Python of the mise configuration.',
     ),
     installPoetry: python.verified(
       { action: 'snok/install-poetry', installs: ['poetry'], inputs: [{ name: 'version', kind: 'version', tool: 'poetry' }] },
@@ -495,7 +547,7 @@ export const environment: EnvironmentKnowledge = {
       'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#stopping-and-starting-workflow-commands',
       'Lines between the two are logged without being processed as workflow commands. The token must be randomly generated and unique for each run. Read from the page source in github/docs.',
     ),
-    annotations: checked.verified(
+    annotations: d170.verified(
       {
         commands: { error: 'error', warning: 'warning', note: 'notice' },
         properties: { file: 'file', line: 'line', title: 'title' },
@@ -509,12 +561,12 @@ export const environment: EnvironmentKnowledge = {
           [',', '%2C'],
         ],
       },
-      'https://github.com/actions/toolkit/blob/main/packages/core/src/command.ts',
+      'https://github.com/actions/toolkit/blob/0c3a9c332b678ff1e776f93d728a4ad279803abe/packages/core/src/command.ts',
       'escapeData and escapeProperty in @actions/core: the message and property values replace %, CR and LF; property values also replace : and , because properties are separated by commas. The commands and their file, line and title parameters are on https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands (line counts from 1).',
     ),
-    annotationLimits: checked.verified(
+    annotationLimits: d170.verified(
       { perLevelPerStep: 10, perJob: 50 },
-      'https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations',
+      'https://github.com/actions/toolkit/blob/0c3a9c332b678ff1e776f93d728a4ad279803abe/docs/problem-matchers.md#limitations',
       '10 error, 10 warning and 10 notice annotations per step; 50 annotations per job, summed over all steps. Annotations over the limit are not shown.',
     ),
     checkRuns: actionChecks.verified(
@@ -532,11 +584,12 @@ export const environment: EnvironmentKnowledge = {
         annotationLevels: { error: 'failure', warning: 'warning', note: 'notice' },
         annotationTitleMaxLength: 255,
         annotationMessageMaxBytes: 64_000,
-        variables: { apiUrl: 'GITHUB_API_URL', repository: 'GITHUB_REPOSITORY', sha: 'GITHUB_SHA', eventPath: 'GITHUB_EVENT_PATH' },
+        variables: { apiUrl: 'GITHUB_API_URL', repository: 'GITHUB_REPOSITORY', sha: 'GITHUB_SHA', eventPath: 'GITHUB_EVENT_PATH', eventName: 'GITHUB_EVENT_NAME' },
         pullRequestHeadSha: ['pull_request', 'head', 'sha'],
+        mergeCommitEvents: ['pull_request', 'pull_request_review', 'pull_request_review_comment'],
       },
       'https://docs.github.com/en/rest/checks/runs',
-      'Read from the sources of this page (#create-a-check-run, #update-a-check-run, #list-check-runs-for-a-git-reference), the REST description github/rest-api-description (descriptions/api.github.com/api.github.com.json, commit f9ed74230d54847b5ca00a1343e8e349e858b8fb) and github/docs (commit 33b1f4a6fec2d9b6fd3d374afa56bcd9f0875b57); content/rest/checks/runs.md is generated from the REST description. POST /repos/{owner}/{repo}/check-runs ("Create a check run") needs name and head_sha and takes external_id, "A reference for the run on the integrator\'s system"; PATCH /repos/{owner}/{repo}/check-runs/{check_run_id} ("Update a check run") takes the same fields but head_sha, with only summary required in output, and "OAuth apps and personal access tokens (classic) cannot use this endpoint"; GET /repos/{owner}/{repo}/commits/{ref}/check-runs ("List check runs for a Git reference", ref a SHA, heads/BRANCH or tags/TAG) takes check_name ("Returns check runs with the specified name"), filter (latest, the default, or all: "latest returns the most recent check runs"), per_page (at most 100) and app_id, and answers {total_count, check_runs}, each with id, name, external_id (nullable), app (with slug, not required) and output.annotations_count. Fine-grained permissions (src/github-apps/data/fpt-2022-11-28/server-to-server-permissions.json in github/docs): the list needs Checks read, update and create need Checks write; "write includes read" (github-token-scope-descriptions.md). output.annotations: "maxItems": 50 per request, "To create more than 50 annotations, you have to make multiple requests to the Update a check run endpoint. Each time you update the check run, annotations are appended"; each annotation requires path, start_line, end_line (lines start at 1), annotation_level (notice, warning or failure) and message ("The maximum size is 64 KB"), with an optional title ("The maximum size is 255 characters"). No total per check run is documented; the same description says "GitHub Actions are limited to 10 warning annotations and 10 error annotations per step" without saying whether that binds check runs created through the API (uncertain). Not documented either: whether only the app that created a run may update it, and the app slug of runs created with the workflow token. A check suite holds the runs of one GitHub App for one commit (using-the-rest-api-to-interact-with-checks.md), and GitHub keeps at most 1000 runs of the same name per suite. status completed needs a conclusion (success, neutral, failure and others); output.title and output.summary (Markdown, maxLength 65535) show in the Checks tab; only GitHub Apps can create check runs, which the workflow token is. checks: write "permits an action to create a check run" (data/reusables/actions/github-token-scope-descriptions.md in github/docs, which links the permissions with apiVersion=2022-11-28); a pull request from a fork gets a read-only token unless the repository sends write tokens to such workflows (workflow-syntax.md, How permissions are calculated). For pull_request, GITHUB_SHA is the "Last merge commit on the GITHUB_REF branch" (events-that-trigger-workflows.md), so the check goes on pull_request.head.sha from the payload file GITHUB_EVENT_PATH names (webhook-pull-request-opened schema; variables.md for GITHUB_API_URL, GITHUB_REPOSITORY and GITHUB_EVENT_PATH).',
+      'Read from the sources of this page (#create-a-check-run, #update-a-check-run, #list-check-runs-for-a-git-reference), the REST description github/rest-api-description (descriptions/api.github.com/api.github.com.json, commit f9ed74230d54847b5ca00a1343e8e349e858b8fb) and github/docs (commit 33b1f4a6fec2d9b6fd3d374afa56bcd9f0875b57); content/rest/checks/runs.md is generated from the REST description. POST /repos/{owner}/{repo}/check-runs ("Create a check run") needs name and head_sha and takes external_id, "A reference for the run on the integrator\'s system"; PATCH /repos/{owner}/{repo}/check-runs/{check_run_id} ("Update a check run") takes the same fields but head_sha, with only summary required in output, and "OAuth apps and personal access tokens (classic) cannot use this endpoint"; GET /repos/{owner}/{repo}/commits/{ref}/check-runs ("List check runs for a Git reference", ref a SHA, heads/BRANCH or tags/TAG) takes check_name ("Returns check runs with the specified name"), filter (latest, the default, or all: "latest returns the most recent check runs"), per_page (at most 100) and app_id, and answers {total_count, check_runs}, each with id, name, external_id (nullable), app (with slug, not required) and output.annotations_count. Fine-grained permissions (src/github-apps/data/fpt-2022-11-28/server-to-server-permissions.json in github/docs): the list needs Checks read, update and create need Checks write; "write includes read" (github-token-scope-descriptions.md). output.annotations: "maxItems": 50 per request, "To create more than 50 annotations, you have to make multiple requests to the Update a check run endpoint. Each time you update the check run, annotations are appended"; each annotation requires path, start_line, end_line (lines start at 1), annotation_level (notice, warning or failure) and message ("The maximum size is 64 KB"), with an optional title ("The maximum size is 255 characters"). No total per check run is documented; the same description says "GitHub Actions are limited to 10 warning annotations and 10 error annotations per step" without saying whether that binds check runs created through the API (uncertain). Not documented either: whether only the app that created a run may update it, and the app slug of runs created with the workflow token. A check suite holds the runs of one GitHub App for one commit (using-the-rest-api-to-interact-with-checks.md), and GitHub keeps at most 1000 runs of the same name per suite. status completed needs a conclusion (success, neutral, failure and others); output.title and output.summary (Markdown, maxLength 65535) show in the Checks tab; only GitHub Apps can create check runs, which the workflow token is. checks: write "permits an action to create a check run" (data/reusables/actions/github-token-scope-descriptions.md in github/docs, which links the permissions with apiVersion=2022-11-28); a pull request from a fork gets a read-only token unless the repository sends write tokens to such workflows (workflow-syntax.md, How permissions are calculated). For pull_request, pull_request_review and pull_request_review_comment, GITHUB_SHA is the "Last merge commit on the GITHUB_REF branch" (events-that-trigger-workflows.md), so the check goes on pull_request.head.sha from the payload file GITHUB_EVENT_PATH names; for pull_request_target it is the "Last commit on the PR base branch", which actions/checkout checks out by default, so the check goes on GITHUB_SHA there (GITHUB_EVENT_NAME names the event, variables.md) (webhook-pull-request-opened schema; variables.md for GITHUB_API_URL, GITHUB_REPOSITORY and GITHUB_EVENT_PATH).',
     ),
     stepSummary: checked.verified(
       { variable: 'GITHUB_STEP_SUMMARY', maxBytes: 1024 * 1024 },
@@ -569,6 +622,21 @@ export const environment: EnvironmentKnowledge = {
       { path: '/-/v1/search', maxSize: 250, weeklyDownloadsField: 'downloads.weekly' },
       'https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md',
       'The description documents text, size (at most 250) and from. Results carried downloads.weekly on 2026-10-29, which the description does not list, and from was ignored, so one query returns at most 250 packages.',
+    ),
+    githubPackagesTarballs: secrets.verified(
+      { host: 'npm.pkg.github.com', path: '/download/{scope}/{name}/{version}/{digest}' },
+      'https://github.com/pnpm/pnpm/blob/v11.28.9/pnpm11/core/types/src/misc.ts',
+      'RegistryServerType: "A registry that serves tarballs from a content-derived path (GitHub Packages /download/<scope>/<name>/<version>/<sha256>) has no value: the digest is a fact about the bytes rather than about the package\'s identity, so its URLs are kept in the lockfile instead"; the test "keeps GitHub Packages /download/ tarball URLs" of pnpm11/lockfile/utils/test/toLockfileResolution.ts at the same tag uses https://npm.pkg.github.com/download/@example/private/1.2.3/<40 hex digits>. npm.pkg.github.com is the npm registry of GitHub Packages on github.com; GitHub Enterprise uses npm.SUBDOMAIN.ghe.com or npm.HOSTNAME (content/packages/working-with-a-github-packages-registry/working-with-the-npm-registry.md in github/docs), which depcurfew recognizes only through the .npmrc of the project (npm extra.registryHostTarballs).',
+    ),
+    gitlabTarballs: secrets.verified(
+      { path: '{scope}/{name}/-/{scope}/{name}-{version}.tgz' },
+      'https://gitlab.com/gitlab-org/gitlab/-/blob/v18.5.0-ee/doc/api/packages/npm.md',
+      'GET projects/:id/packages/npm/:package_name/-/:file_name downloads a package file; the metadata names the tarball https://gitlab.example.com/api/v4/projects/1/packages/npm/@myscope/my-pkg/-/@myscope/my-pkg-1.3.7.tgz, so the file name keeps the scope, and the registry is mounted below /api/v4/projects/<id>/packages/npm (or the group and instance endpoints).',
+    ),
+    artifactoryTarballs: secrets.verified(
+      { path: '{scope}/{name}/-/{scope}/{name}-{version}.tgz' },
+      'https://github.com/pnpm/pnpm/blob/v11.28.9/pnpm11/resolving/tarball-url/src/index.ts',
+      'getNpmTarballUrl: "Artifactory keeps the scope in the filename of a scoped package\'s tarball (@acme/widget/-/@acme/widget-1.0.0.tgz); the npm layout strips it". npm\'s versionFromTgz reads no name and version from such a URL (the part after /-/ is not the file name alone), so npm 12 cannot match it in allowScripts by version.',
     ),
   },
   pypiIndex: {

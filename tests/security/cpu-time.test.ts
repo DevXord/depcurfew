@@ -135,7 +135,7 @@ describe('many continued lines in requirements.txt', () => {
     };
     const format = { comment: '#', continuation: '\\' };
     for (const input of ['a \\\n  b # note\nc \\\n   \nd\n\\\ne\nf \\\\\n\n', 'x \\\\\\\n\n\n\ny\n', '-r a.txt \\\r\n --hash=sha256:x \\\r\n', ' \\\n\\\n', 'a\\']) {
-      expect(requirementsLines(input, format), JSON.stringify(input)).toEqual(before(input));
+      expect(requirementsLines(input, format).map(({ text, line }) => ({ text, line })), JSON.stringify(input)).toEqual(before(input));
     }
   });
 });

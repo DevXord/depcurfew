@@ -1,0 +1,16 @@
+on: push
+env:
+  NPM_CONFIG_MIN_RELEASE_AGE: "7"
+  npm_config_ignore_scripts: "false"
+  npm_config_allow_file: all
+  npm_config_strict_allow_scripts: "1"
+  PNPM_CONFIG_MINIMUM_RELEASE_AGE: "0"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          npm ci --min-release-age=5 --allow-git=none --strict-allow-scripts
+          echo "npm_config_min_release_age=0" >> other.env
+          npm run build -- --min-release-age=0
+          node --min-release-age=0 script.js

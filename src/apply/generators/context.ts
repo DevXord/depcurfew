@@ -9,7 +9,7 @@ import type { ToolId, ToolKnowledge } from '../../knowledge/types.ts';
 import { blockStart } from '../block.ts';
 import { isRecord, mergesYamlKeys, readsYamlLikePsych, values } from '../facts.ts';
 import { writeIniBlock } from '../ini.ts';
-import { invalidJson, jsonArrayAppend, jsonArrayRemove, jsonArrayReplace, jsonGet, jsonObjectRemove, jsonSet } from '../json-edit.ts';
+import { invalidJson, jsonArrayAppend, jsonArrayInsert, jsonArrayRemove, jsonArrayReplace, jsonGet, jsonObjectRemove, jsonSet } from '../json-edit.ts';
 import { writeRequirementsBlock } from '../pip-requirements.ts';
 import { requirementsLongOptions } from '../../doctor/python.ts';
 import { requirementsFormatOf } from '../../doctor/python-lockfiles.ts';
@@ -39,6 +39,17 @@ export interface WrittenSetting {
   setting: string;
   file: string;
   table?: string;
+}
+
+/**
+ * Where the pinned version is written, for version-too-old: BUNDLED WITH of a lockfile (decision D-159) or yarnPath of
+ * .yarnrc.yml (decision D-165), with what to say after the version ("yarnPath in .yarnrc.yml") and the fix for the
+ * version that is needed, when they differ from the general ones.
+ */
+export interface VersionPin {
+  at: { file: string; line?: number };
+  note?: string;
+  fix?: (needed: string) => string | undefined;
 }
 
 /** A setting the version is too old for, as `supports` found it; the warning version-too-old names it. */
@@ -171,6 +182,8 @@ export interface JsonFile {
   get(path: readonly (string | number)[]): unknown;
   set(path: readonly (string | number)[], value: unknown): void;
   append(path: readonly (string | number)[], value: unknown): void;
+  /** Inserts an element before element `index` of the array at `path` (appends when there is none). */
+  insert(path: readonly (string | number)[], index: number, value: unknown): void;
   replace(path: readonly (string | number)[], index: number, value: unknown): void;
   remove(path: readonly (string | number)[], index: number): void;
   /** Removes a key of the object at `path`. */
@@ -216,8 +229,8 @@ export function createContext(options: {
   user?: { versionText?: string };
   /** cooldown.exclude of the whole policy; `policy` may be one registry's view of it. */
   policyExclusions?: readonly string[];
-  /** Where the pinned version is written, for version-too-old: BUNDLED WITH of a lockfile (decision D-159). */
-  versionAt?: { file: string; line?: number };
+  /** Where the pinned version is written, for version-too-old: BUNDLED WITH of a lockfile (D-159), yarnPath (D-165). */
+  pin?: VersionPin;
 }): Context {
   const { tool, workspace, warnings, failures } = options;
   const user = options.user !== undefined;
@@ -243,7 +256,9 @@ export function createContext(options: {
       if (error instanceof EditFailed) throw error;
       // Parsers put a code frame after the first line; the first line says what is wrong.
       const message = (error instanceof Error ? error.message : String(error)).split('\n', 1)[0]?.replace(/:$/u, '') ?? '';
-      failures.push({ tool: tool.id, file, message, ...(error instanceof RefusedEdit ? { fix: error.fix } : {}) });
+      // A refused edit says what to do (RefusedEdit, and the workspace for a result over the limit of reading it).
+      const fix = error instanceof RefusedEdit ? error.fix : (error as { fix?: unknown } | undefined)?.fix;
+      failures.push({ tool: tool.id, file, message, ...(typeof fix === 'string' ? { fix } : {}) });
       throw new EditFailed(message);
     }
   };
@@ -285,15 +300,19 @@ export function createContext(options: {
       // One warning for every setting the version is too old for, grouped by the version that added them.
       if (unsupported.length === 0) return;
       const needed = unsupported.map((item) => item.since).reduce((a, b) => (compareVersions(parseVersion(a) ?? [0, 0, 0], parseVersion(b) ?? [0, 0, 0]) >= 0 ? a : b));
+      const pinFix = options.pin?.fix?.(needed);
       warn({
         code: 'version-too-old',
-        ...(options.versionAt === undefined ? {} : { location: options.versionAt }),
-        message: `${tool.name} ${versionLabel} does not support ${describeRequirements(unsupported)}; not written`,
+        ...(options.pin === undefined ? {} : { location: options.pin.at }),
+        message: `${tool.name} ${versionLabel}${options.pin?.note === undefined ? '' : ` (${options.pin.note})`} does not support ${describeRequirements(unsupported)}; not written`,
         // A project pins the version; on this machine the installed tool is what has to change. A version a lockfile
-        // records changes with the tool's own command (BUNDLED WITH, bundle update --bundler; decision D-152).
+        // records changes with the tool's own command (BUNDLED WITH, bundle update --bundler; decision D-152), and the
+        // release yarnPath names with yarn set version (decision D-165).
         fix: user
           ? `Update ${tool.name} to ${needed} or later, then run depcurfew apply --user again`
-          : locked === undefined
+          : pinFix !== undefined
+            ? pinFix
+            : locked === undefined
             ? `Require ${tool.name} ${needed} or later where the version is pinned`
             : `Require ${tool.name} ${needed} or later where the version is pinned (${locked.section} of the lockfile changes with ${locked.update}), then run depcurfew apply again`,
       });
@@ -319,6 +338,7 @@ export function createContext(options: {
           }),
         set: (path, value) => edit((body) => jsonSet(body === '' ? '{}\n' : body, path, value)),
         append: (path, value) => edit((body) => jsonArrayAppend(body, path, value)),
+        insert: (path, index, value) => edit((body) => jsonArrayInsert(body, path, index, value)),
         replace: (path, index, value) => edit((body) => jsonArrayReplace(body, path, index, value)),
         remove: (path, index) => edit((body) => jsonArrayRemove(body, path, index)),
         removeKey: (path, key) => edit((body) => jsonObjectRemove(body, path, key)),

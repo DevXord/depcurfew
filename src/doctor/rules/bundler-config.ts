@@ -3,6 +3,7 @@
 // take the place of the cooldown: of every Gemfile source, so a 0 there turns the delay off: in .bundle/config of the
 // project, in the env of a CI workflow, and on a bundle command or before it in a run step or a Dockerfile RUN.
 import { extraOf, isRecord } from '../../apply/facts.ts';
+import { programName } from '../../detect/commands.ts';
 import { jobLabel } from '../../detect/workflows.ts';
 import type { ToolCommand } from '../../detect/types.ts';
 import { environment } from '../../knowledge/environment.ts';
@@ -14,6 +15,7 @@ import type { YamlOptions } from '../../yaml-parse.ts';
 import { usesManager } from '../applies.ts';
 import { yamlAliasProblem, yamlSetting } from '../settings.ts';
 import { bundleConfigValue, rubyToI } from '../bundle-config.ts';
+import { ciSettings } from '../ci-settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
 
 const RULE = 'bundler-config-weakens';
@@ -189,12 +191,63 @@ function reportCommand(context: RuleContext, facts: SettingFacts, wanted: number
 
 const isBundle = (command: ToolCommand) => command.tool === 'bundler' && command.kind === 'install';
 
+interface ConfigCommandFacts {
+  command: string[];
+  set: string;
+  scopes: string[];
+  legacyArguments: number;
+}
+
+const isConfigCommandFacts = (value: unknown): value is ConfigCommandFacts =>
+  isRecord(value) && Array.isArray(value['command']) && typeof value['set'] === 'string' && Array.isArray(value['scopes']) && typeof value['legacyArguments'] === 'number';
+
+/**
+ * The setting and value of a bundle config command that sets one (bundle config set [--local|--global] NAME VALUE, and
+ * the older bundle config NAME VALUE; extra.configCommand), with the scope option given; undefined for another command.
+ */
+function configSetting(words: readonly string[], facts: ConfigCommandFacts, executables: readonly string[]): { name: string; value: string; scope?: string } | undefined {
+  const [program, subcommand, ...rest] = words;
+  if (program === undefined || !executables.includes(programName(program)) || subcommand !== facts.command[1]) return undefined;
+  const scope = rest.find((word) => facts.scopes.includes(word));
+  const args = rest.filter((word) => !word.startsWith('-'));
+  if (rest.includes('--delete')) return undefined;
+  const [first, ...more] = args;
+  if (first === facts.set) {
+    const [name, ...value] = more;
+    return name === undefined || value.length === 0 ? undefined : { name, value: value.join(' '), ...(scope === undefined ? {} : { scope }) };
+  }
+  // bundle config NAME VALUE: the Bundler 1 interface, which sets with two arguments, or with --local or --global.
+  if (first === undefined || ['get', 'unset', 'list'].includes(first) || (args.length !== facts.legacyArguments && scope === undefined) || more.length === 0) return undefined;
+  return { name: first, value: more.join(' '), ...(scope === undefined ? {} : { scope }) };
+}
+
+/** bundle config set cooldown N in run steps and RUN instructions: it writes the setting for the later bundle commands (decision D-166). */
+function checkConfigCommands(context: RuleContext, tool: ToolKnowledge, facts: SettingFacts, wanted: number): void {
+  if (tool.extra?.['configCommand'] === undefined) return;
+  const config = extraOf(tool, 'configCommand', isConfigCommandFacts);
+  const resolve = tool.extra['resolveCommands'] === undefined ? undefined : extraOf(tool, 'resolveCommands', isRecord);
+  const executables = Array.isArray(resolve?.['executables']) ? resolve['executables'].filter((item): item is string => typeof item === 'string') : ['bundle'];
+  for (const command of ciSettings(context.repository, context.detection).commands) {
+    const setting = configSetting(command.words, config, executables);
+    if (setting === undefined || setting.name.toLowerCase() !== facts.key) continue;
+    const days = settingDays(setting.value);
+    const what = effect(context, days, wanted, 'for the later bundle commands');
+    if (what === undefined || days === 'unset') continue;
+    const target = setting.scope === '--global' ? '~/.bundle/config' : setting.scope === '--local' ? facts.localFile : `${facts.localFile} (or ~/.bundle/config outside a project)`;
+    context.report({
+      location: { file: command.file, line: command.line },
+      message: `${command.where} in ${command.file} (line ${command.line}) runs ${command.words.join(' ')}, which writes ${facts.key} ${setting.value} into ${target}${readAs(setting.value, days)} and ${what}`,
+      fix: `Remove that bundle config command from ${command.file}, so that the cooldown: of the Gemfile applies; for a gem that cannot wait, run bundle update GEM --cooldown 0 by hand after reviewing it`,
+    });
+  }
+}
+
 export const bundlerConfigWeakens: Rule = {
   id: RULE,
-  checks: '.bundle/config, the env of CI workflows and the bundle commands of CI jobs and Dockerfiles keep the cooldown of Bundler',
+  checks: '.bundle/config, the env of CI workflows and the bundle commands and bundle config of CI jobs and Dockerfiles keep the cooldown of Bundler',
   summary: '.bundle/config, the env of a CI workflow or a bundle command in a CI job or a Dockerfile turns the cooldown of Bundler off or makes it shorter than the policy.',
   description:
-    'Bundler 4.0.13 and later hold back gem versions younger than the cooldown: of the Gemfile source, but the cooldown setting and the --cooldown option take its place for every source. BUNDLE_COOLDOWN in .bundle/config (which Bundler reads first, line by line and not as YAML: quotes stay unless they enclose the whole value, and # starts a comment), in the env of a CI workflow, before a bundle command or in a Dockerfile ENV, and --cooldown on bundle install, update, lock, add or cache (also bundle i, bundle package and bundle _VERSION_ install), with fewer days than depcurfew.json or 0, turn the delay off or shorten it while the Gemfile still looks configured. Bundler reads the value with to_i: one that does not start with a digit counts as 0, and 1e3 as 1. A value with a ${{ }} expression gives a warning.',
+    'Bundler 4.0.13 and later hold back gem versions younger than the cooldown: of the Gemfile source, but the cooldown setting and the --cooldown option take its place for every source. BUNDLE_COOLDOWN with fewer days than depcurfew.json, or 0, in .bundle/config (read line by line as Bundler reads it, not as YAML: quotes stay unless they enclose the whole value, and # starts a comment), in a CI workflow (env, $GITHUB_ENV, before a bundle command) or a Dockerfile (ENV, ARG), bundle config set cooldown N in a run step or a RUN instruction, and a shorter --cooldown on bundle install, update, lock, add or cache (also bundle i, bundle package and bundle _VERSION_ install) turn the delay off or shorten it while the Gemfile still looks configured. Bundler reads the value with to_i: one that does not start with a digit counts as 0, and 1e3 as 1. A value with a ${{ }} expression gives a warning.',
   help: 'Remove the setting, the variable or the option, or give it at least the days of the policy; take a newer version of one gem by hand with bundle update GEM --cooldown 0 after reviewing it.',
   level: 'error',
   requiresPolicy: true,
@@ -212,6 +265,7 @@ export const bundlerConfigWeakens: Rule = {
     const commands = context.detection.jobs.some((job) => job.commands.some(isBundle)) || context.detection.dockerfiles.some((file) => file.stages.some((stage) => stage.commands.some(isBundle)));
     if (!used && !commands) return;
     if (used) checkLocalConfig(context, facts, wanted);
+    checkConfigCommands(context, tool, facts, wanted);
     const reported = checkWorkflowEnv(context, facts, wanted);
     for (const job of context.detection.jobs) {
       const fromEnv = reported.get(`${job.file}\u0000${job.id}`) ?? new Set<string>();

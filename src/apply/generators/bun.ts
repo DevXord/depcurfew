@@ -1,7 +1,7 @@
 // Bun: [install] keys in a managed block in bunfig.toml; trustedDependencies in package.json.
 import { hasManagedLines } from '../block.ts';
 import { firstFile, settingOf, sinceOf } from '../facts.ts';
-import { allowedNames, cooldownValue, eachSource, exclusions, sameList, splitDotted } from './common.ts';
+import { allowedNames, cooldownValue, eachSource, exclusions, sameList, splitDotted, wrongListType } from './common.ts';
 import type { ManagerGenerator } from './context.ts';
 
 export const bun: ManagerGenerator = (context) => {
@@ -45,18 +45,21 @@ export const bun: ManagerGenerator = (context) => {
         const names = policy.installScripts.allow.length > 0 ? allowedNames(context, setting) : [];
         context.writes('installScripts', setting, listFile);
         const current = context.json(listFile).get([setting]);
-        // Without package.json nothing is written (apply does not create manifests), so nothing is replaced either.
-        if (current === undefined && context.exists(listFile)) {
-          context.warn({
-            code: 'built-in-list-replaced',
-            message: `${context.name}: ${setting} replaces Bun's built-in list of trusted packages, so packages on that list no longer run install scripts unless listed`,
-            fix: 'Add the ones that need their scripts to installScripts.allow',
-          });
+        // trustedDependencies is a list of names; one of another type is left as it is (decision D-167).
+        if (!wrongListType(context, listFile, [setting], current, 'list', names, JSON.stringify(names.length > 0 ? names : ['esbuild']))) {
+          // Without package.json nothing is written (apply does not create manifests), so nothing is replaced either.
+          if (current === undefined && context.exists(listFile)) {
+            context.warn({
+              code: 'built-in-list-replaced',
+              message: `${context.name}: ${setting} replaces Bun's built-in list of trusted packages, so packages on that list no longer run install scripts unless listed`,
+              fix: 'Add the ones that need their scripts to installScripts.allow',
+            });
+          }
+          // Even an empty list is written: without one, the packages on Bun's built-in list still run their scripts.
+          const list = Array.isArray(current) ? [...(current as unknown[])] : [];
+          const merged = [...list, ...names.filter((name) => !list.includes(name))];
+          if (current === undefined || !sameList(current, merged)) context.json(listFile).set([setting], merged);
         }
-        // Even an empty list is written: without one, the packages on Bun's built-in list still run their scripts.
-        const list = Array.isArray(current) ? [...(current as unknown[])] : [];
-        const merged = [...list, ...names.filter((name) => !list.includes(name))];
-        if (current === undefined || !sameList(current, merged)) context.json(listFile).set([setting], merged);
       }
     }
   }

@@ -1,8 +1,11 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, EnvironmentNameRule, IndexEntriesKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, IndexEntriesKnowledge, MachineSettingsKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
+// Versions that CI jobs and Dockerfiles install (decision D-173).
+const d173 = verifiedOn('2026-11-03');
 const guard = verifiedOn('2026-11-01');
+const secrets = verifiedOn('2026-11-03');
 
 // docs.astral.sh is built from docs/ in the repository; the settings and CLI references are generated from the code.
 const UV = 'https://github.com/astral-sh/uv/blob/0.13.6';
@@ -19,6 +22,7 @@ const user = verifiedOn('2026-10-31');
 const release13 = verifiedOn('2026-11-01');
 const final = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
+const d167 = verifiedOn('2026-11-03');
 /** The values clap's BoolishValueParser reads as true, compared without regard to case (user.variables). */
 const TRUE_VALUES = ['1', 'true', 't', 'yes', 'y', 'on'];
 
@@ -218,6 +222,30 @@ export const uv: ToolKnowledge = {
     ),
   },
   extra: {
+    machineSettings: secrets.verified<MachineSettingsKnowledge>(
+      {
+        variables: [
+          { name: 'UV_DEFAULT_INDEX', effect: 'replaces' },
+          { name: 'UV_INDEX_URL', effect: 'replaces' },
+          { name: 'UV_INDEX', effect: 'adds', list: 'spaces' },
+          { name: 'UV_EXTRA_INDEX_URL', effect: 'adds', list: 'spaces' },
+          { name: 'UV_FIND_LINKS', effect: 'adds', list: 'commas' },
+        ],
+        configFile: { variable: 'UV_CONFIG_FILE', format: 'toml', whenMissing: 'nothing' },
+      },
+      `${UV}/crates/uv-static/src/env_vars.rs`,
+      'UV_DEFAULT_INDEX ("uv will use this index as the default index") and UV_INDEX_URL (the same, deprecated) replace PyPI; UV_INDEX ("this space-separated list of additional indexes", entries may be name=url), UV_EXTRA_INDEX_URL (space-separated, deprecated) and UV_FIND_LINKS ("this comma-separated list of additional locations") add places to install from; UV_CONFIG_FILE "Expects a path to a local uv.toml file to use as the configuration file", which "will be used in place of any discovered configuration files (e.g., user-level configuration will be ignored)" (docs/concepts/configuration-files.md at the same tag, which also says that variables win over configuration files and that the user uv.toml is merged under the project\'s, arrays concatenated). uv reads none of pip\'s variables or files (docs/pip/compatibility.md).',
+    ),
+    dockerImage: d173.verified(
+      { image: 'ghcr.io/astral-sh/uv', versionTag: '^(\\d+\\.\\d+(?:\\.\\d+)?)(?:-.+)?$' },
+      `${UV}/docs/guides/integration/docker.md`,
+      'The distroless image is published as ghcr.io/astral-sh/uv:latest, :{major}.{minor}.{patch} and :{major}.{minor} ("the latest patch version"), and each derived image (uv on a base such as python3.12-bookworm-slim, alpine or debian) "is published with uv version tags as ghcr.io/astral-sh/uv:{major}.{minor}.{patch}-{base} and ghcr.io/astral-sh/uv:{major}.{minor}-{base}"; tags of a base alone (debian, alpine) and latest name no version. "Use one of the above images with uv pre-installed or install uv by copying the binary from the official distroless Docker image": COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /uvx /bin/, which it calls best practice to pin. COPY --from takes an image, a build stage or a named context (frontend/dockerfile/docs/reference.md of moby/buildkit at c1cfdbd30b79b4a4908cdccc3c0f9849c30e34e5).',
+    ),
+    installedPackage: d173.verified(
+      { name: 'uv', commands: [['pipx', 'install'], ['pip', 'install']] },
+      `${UV}/docs/getting-started/installation.md`,
+      'Besides the standalone installer, the installation page installs uv from PyPI with pipx install uv or pip install uv. So uv==<version> in such a command of a CI job or a Dockerfile is the uv the later commands run (decision D-173).',
+    ),
     environmentNames: release14.verified<EnvironmentNameRule[]>(
       [{ prefix: '', match: 'exact' }],
       CLI,
@@ -284,6 +312,11 @@ export const uv: ToolKnowledge = {
       'Either a "friendly" duration (24 hours, 1 week, 30 days) or an ISO 8601 duration (PT24H, P7D, P30D).',
     ),
     durationUnits: verified(['hours', 'days', 'weeks'], RESOLUTION, 'Units in the documented examples: 24 hours, 1 week, 30 days.'),
+    cutoffDates: d167.verified(
+      { timestamps: true, offsetRequired: true, dates: 'next-day-system-time-zone' },
+      `${UV}/crates/uv-distribution-types/src/exclude_newer.rs`,
+      'FromStr of ExcludeNewerValue tries an RFC 3339 timestamp (jiff Timestamp, which needs an offset), then a date, which counts from the start of the next day in the system time zone (date.checked_add(1.day()) and to_zoned(TimeZone::system())), then a span. A timestamp or a date is a fixed cutoff: uv uses no file uploaded after it (docs/concepts/resolution.md, "Reproducible resolutions"), so it holds back more every day.',
+    ),
     excludeWildcards: verified({ since: null, trailingOnly: false }, SETTINGS, 'exclude-newer-package keys are exact package names.'),
     excludeValue: verified(false, changelog('0.9', '0.9.25'), 'exclude-newer-package = { name = false } exempts the package from the delay.'),
     missingUploadTime: verified(

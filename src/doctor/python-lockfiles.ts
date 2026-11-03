@@ -2,7 +2,9 @@
 // Each package gets its source (registry, git, URL, local archive or directory, workspace) and whether installing it
 // builds it from source, which runs its build code (decision D-065: the Python counterpart of install scripts). Key
 // names come from the knowledge base (extra.lockfileFormat, extra.requirementsFormat).
+import { posix } from 'node:path';
 import { isRecord, values } from '../apply/facts.ts';
+import { isAbsoluteAnywhere } from '../paths.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
@@ -224,14 +226,17 @@ export function pylockEntries(input: string, format: Format, workspaces: readonl
   });
 }
 
-/** The logical lines of a requirements file: continuations joined, comments removed, with the line each starts on. */
-export function requirementsLines(input: string, format: Format): { text: string; line: number }[] {
+/**
+ * The logical lines of a requirements file: continuations joined, comments removed, with the line each starts on and
+ * the line it ends on.
+ */
+export function requirementsLines(input: string, format: Format): { text: string; line: number; end: number }[] {
   const comment = String(format['comment']);
   const continuation = String(format['continuation']);
   // A comment starts at # preceded by whitespace (or at the start of the line).
   const commentPattern = new RegExp(`(^|\\s)${comment.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}.*$`, 'u');
   const lines = input.split(/\r?\n/u);
-  const result: { text: string; line: number }[] = [];
+  const result: { text: string; line: number; end: number }[] = [];
   for (let index = 0; index < lines.length; index++) {
     const start = index;
     // The logical line in parts, joined once at the end: joining a growing text for every continuation line takes
@@ -256,7 +261,7 @@ export function requirementsLines(input: string, format: Format): { text: string
       trimEnd();
     }
     const text = parts.join('').trim();
-    if (text !== '') result.push({ text, line: start + 1 });
+    if (text !== '') result.push({ text, line: start + 1, end: index + 1 });
   }
   return result;
 }
@@ -289,6 +294,18 @@ export function requirementsIncludes(input: string, format: Format): { path: str
     const path = pattern.exec(body)?.[1];
     return path === undefined ? [] : [{ path, line }];
   });
+}
+
+const URL_LIKE = /^[a-z][a-z0-9+.-]+:/iu;
+
+/**
+ * The file an include (-r, -c) names, relative to the directory of the file that includes it, as pip joins them
+ * (_parse_and_recurse); `url` when pip downloads it, `outside` when it leaves the directory checked.
+ */
+export function includedFile(includer: string, path: string): { target: string; url: boolean; outside: boolean } {
+  const target = posix.normalize(posix.join(posix.dirname(includer), path.replaceAll('\\', '/')));
+  const url = URL_LIKE.test(path);
+  return { target, url, outside: !url && (isAbsoluteAnywhere(path) || target === '..' || target.startsWith('../')) };
 }
 
 /** Where one requirement comes from, as pip reads it. */

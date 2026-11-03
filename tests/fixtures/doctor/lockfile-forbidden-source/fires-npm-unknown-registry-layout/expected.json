@@ -1,0 +1,29 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "package-lock.json",
+      "line": 16
+    },
+    "message": "package-lock.json installs @corp/tool from a tarball URL (https://cdn.corp.example/blobs/sha256/7f3a9c0d), which depcurfew.json denies",
+    "fix": "package.json asks for @corp/tool by version, not by URL: if it comes from a private registry, set @corp:registry= to the URL of that registry in the .npmrc next to package-lock.json, as npm installs the tarballs of the registry it is set to use as registry packages; otherwise lock @corp/tool again from the registry with npm install"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "package-lock.json",
+      "line": 21
+    },
+    "message": "package-lock.json installs plain from a tarball URL (https://downloads.example.com/plain/2.0.1), which depcurfew.json denies",
+    "fix": "package.json asks for plain by version, not by URL: if it comes from a private registry, set registry= to the URL of that registry in the .npmrc next to package-lock.json, as npm installs the tarballs of the registry it is set to use as registry packages; otherwise lock plain again from the registry with npm install"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "package-lock.json",
+      "line": 26
+    },
+    "message": "package-lock.json installs url-dep from a tarball URL (https://cdn.example.com/url-dep/1.0.0), which depcurfew.json denies",
+    "fix": "Use a registry version of url-dep, or set sources.remoteTarball to \"allow\" in depcurfew.json"
+  }
+]

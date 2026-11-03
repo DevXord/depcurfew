@@ -95,7 +95,11 @@ type Directory = { path: string } | { relative: Omit<RelativeDirectory, 'file' |
 
 function directoryOf(directory: UserDirectory, environment: UserEnvironment): Directory {
   const path = paths(environment.platform);
-  if (directory.unlessEnv !== undefined && (environment.env[directory.unlessEnv]?.trim() ?? '') !== '') return undefined;
+  if (directory.unlessEnv !== undefined) {
+    const unless = typeof directory.unlessEnv === 'string' ? { env: directory.unlessEnv, absolute: false } : directory.unlessEnv;
+    const value = environment.env[unless.env]?.trim() ?? '';
+    if (value !== '' && (!unless.absolute || path.isAbsolute(value))) return undefined;
+  }
   let base: string | undefined;
   if (directory.from === 'home') {
     base = environment.home;

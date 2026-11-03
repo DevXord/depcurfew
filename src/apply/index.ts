@@ -4,9 +4,10 @@
 import { join } from 'node:path';
 import { detectProject } from '../detect/index.ts';
 import { Repository } from '../detect/repository.ts';
-import { denyConflictText, outsideConflictText, remainingConflicts } from '../doctor/allow-lists.ts';
-import { UNREADABLE_WARNINGS } from '../doctor/unreadable-warnings.ts';
+import { denyConflictText, outsideConflictText, remainingConflicts, unreadAllowList } from '../doctor/allow-lists.ts';
+import { UNREADABLE_WARNINGS, yarnClassicFix } from '../doctor/unreadable-warnings.ts';
 import type { Detection, PackageManagerInfo, VersionDeclaration, WorkflowJob } from '../detect/types.ts';
+import { projectOf } from '../detect/workflows.ts';
 import { jobsInProject, npmInUse, rootPlaces, type NpmInUse, type RootPlaces } from '../doctor/rules/bundled-versions.ts';
 import { SOURCE_LABEL } from '../doctor/rules/manager-version.ts';
 import { environment as environmentKnowledge } from '../knowledge/environment.ts';
@@ -20,13 +21,14 @@ import { readPolicyFile } from '../policy/file.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { formatIssue, parsePolicy } from '../policy/validate.ts';
 import { shortenedDelays } from './delays.ts';
+import { droppedExclusions } from './exclusions.ts';
 import { isRecord, sinceOf, values } from './facts.ts';
 import { foldCase, ignoredByGit, ignoresCase, trackedFiles } from './gitignore.ts';
 import { bun } from './generators/bun.ts';
 import { bundler } from './generators/bundler.ts';
 import { composer } from './generators/composer.ts';
 import { workspaceText } from './generators/common.ts';
-import { createContext, EditFailed, type BotGenerator, type EditFailure, type ManagerGenerator, type Snippet } from './generators/context.ts';
+import { createContext, EditFailed, type BotGenerator, type EditFailure, type ManagerGenerator, type Snippet, type VersionPin } from './generators/context.ts';
 import { deno } from './generators/deno.ts';
 import { dependabot } from './generators/dependabot.ts';
 import { npm } from './generators/npm.ts';
@@ -43,6 +45,7 @@ import { inProject, projectProblems, relocateText } from './projects.ts';
 import { listing } from './requirements.ts';
 import { directoryTargets } from './targets.ts';
 import { parseVersion, pinnedVersion, type Version } from './version.ts';
+import { pinnedDeclaration, setVersionText, yarnPathNote } from './yarn-path.ts';
 import { warningText, type ApplyErrorCode, type ApplyWarning } from './warnings.ts';
 import { CHANGED, OUTSIDE, WriteFailed, writeChanges, type FileChange } from './workspace.ts';
 import { policyIssueLine } from '../doctor/policy-lines.ts';
@@ -95,6 +98,28 @@ export interface PlanOptions {
    * of its own, and the stages of root Dockerfiles that build it; rootPlaces gives them.
    */
   root?: RootPlaces;
+  /**
+   * The versions root CI jobs set up for a package manager of the project: the setup steps of jobs whose run steps all
+   * work in its directory (working-directory: backend, decision D-173); rootCiVersions gives them. They count after the
+   * project's own declarations.
+   */
+  pins?: Readonly<Partial<Record<ToolId, readonly VersionDeclaration[]>>>;
+}
+
+/**
+ * The versions root CI jobs declare for the package managers of a project (decision D-173): the declarations of setup
+ * steps (source github-actions) of a job of the root whose run steps all work in the project's directory, from the
+ * root's package managers and those its CI sets up for the projects (ciForProjects).
+ */
+export function rootCiVersions(rootDetection: Detection, project: string): Partial<Record<ToolId, VersionDeclaration[]>> {
+  const found: Partial<Record<ToolId, VersionDeclaration[]>> = {};
+  const inProject = (job: WorkflowJob | undefined) =>
+    job?.directories !== undefined && job.directories.length > 0 && job.directories.every((directory) => directory !== '' && projectOf({ directory }, [project]) === project);
+  for (const manager of [...rootDetection.packageManagers, ...(rootDetection.ciForProjects ?? [])]) {
+    const declarations = manager.versions.filter((declaration) => declaration.source === 'github-actions' && inProject(rootDetection.jobs.find((job) => job.file === declaration.file && job.id === declaration.job)));
+    if (declarations.length > 0) found[manager.id] = [...(found[manager.id] ?? []), ...declarations];
+  }
+  return found;
 }
 
 /** What a plan configured, for the plan of the root in a repository with projects (and doctor's). */
@@ -122,13 +147,21 @@ function latestVersion(tool: ToolKnowledge): string | undefined {
 }
 
 /**
- * Where the pinned version is written when a lockfile records it (BUNDLED WITH of Gemfile.lock), so that
- * version-too-old points there (decision D-159); the pinned version is the first exact one, as pinnedVersion takes it.
+ * Where the pinned version is written when a lockfile records it (BUNDLED WITH of Gemfile.lock, decision D-159) or the
+ * release yarnPath names gives it (decision D-165), so that version-too-old points there and says how to change it; the
+ * pinned version is the first exact one, as pinnedVersion takes it.
  */
-function lockfileVersionAt(manager: PackageManagerInfo): { file: string; line?: number } | undefined {
-  const declaration = manager.versions.find((entry) => 'version' in entry && parseVersion(entry.version) !== undefined);
-  if (declaration?.source !== 'lockfile') return undefined;
-  return declaration.line === undefined ? { file: declaration.file } : { file: declaration.file, line: declaration.line };
+function pinOf(manager: PackageManagerInfo, tool: ToolKnowledge): VersionPin | undefined {
+  const declaration = pinnedDeclaration(manager);
+  if (declaration?.source !== 'lockfile' && declaration?.source !== 'yarnPath') return undefined;
+  const at = declaration.line === undefined ? { file: declaration.file } : { file: declaration.file, line: declaration.line };
+  if (declaration.source === 'lockfile') return { at };
+  const note = yarnPathNote(manager, declaration);
+  const fix = (needed: string) => {
+    const command = setVersionText(tool, needed, 'or a later release', declaration.file);
+    return command === undefined ? undefined : `${command}, then run depcurfew apply again`;
+  };
+  return { at, ...(note === undefined ? {} : { note }), fix };
 }
 
 /** Detection warnings about a file it could not read or parse (the codes of unreadable-config for single files). */
@@ -183,16 +216,18 @@ function allowListWarnings(root: string, workspace: ManifestGuard, policy: Resol
       const scripts = policyFor(policy, tool === undefined ? 'npm' : ecosystemOfTool(tool)).installScripts ?? { allow: [], deny: [] };
       const version = pinnedVersion(manager) ?? (tool === undefined ? undefined : parseVersion(latestVersion(tool) ?? ''));
       const options = { ...(tool === undefined ? {} : { tool }), ...(version === undefined ? {} : { version }) };
+      // A version that does not read the allow-list yet runs no script an entry names (Deno before 2.6.0, decision D-173).
+      const unread = unreadAllowList(tool, version);
       return remainingConflicts(repository, planned, manager.id, manager.configFiles, options, scripts).map((conflict): ApplyWarning => {
         const { entry } = conflict;
         const location = { file: entry.file, ...(entry.line === undefined ? {} : { line: entry.line }) };
         // The tool's name first, as in the other warnings of apply (decision D-141).
         const name = `${tool?.name ?? manager.id}: `;
         if (conflict.kind === 'outside') {
-          const text = outsideConflictText(entry, true);
+          const text = outsideConflictText(entry, true, unread);
           return { code: 'allow-list-entry-outside-policy', tool: manager.id, location, message: `${name}${text.message}; depcurfew apply does not remove entries it did not write`, fix: text.fix };
         }
-        const text = denyConflictText({ kind: conflict.kind, entry }, true);
+        const text = denyConflictText({ kind: conflict.kind, entry }, true, unread);
         return { code: 'deny-conflicts-with-file', tool: manager.id, location, message: `${name}${text.message}; depcurfew apply does not change entries it did not write`, fix: text.fix };
       });
     });
@@ -290,11 +325,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   for (const manager of detection.packageManagers) {
     if (!manager.supported && (policy.targets === 'auto' || targets.has(manager.id))) {
       const berry = tools.find((tool) => tool.id === manager.id);
-      const since = berry === undefined ? undefined : sinceOf(berry.cooldown.availableSince);
-      const advice =
-        manager.variant === 'classic' && berry !== undefined
-          ? `Move to ${berry.name}${since === undefined ? '' : ` ${since} or later`}, or to another package manager depcurfew configures`
-          : `Configure ${manager.id} by hand, or move to a package manager depcurfew configures`;
+      const advice = manager.variant === 'classic' && berry !== undefined ? yarnClassicFix(berry) : `Configure ${manager.id} by hand, or move to a package manager depcurfew configures`;
       warnings.push({
         code: 'tool-not-supported',
         tool: manager.id,
@@ -352,7 +383,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
     version: Version | undefined,
     action: (context: ReturnType<typeof createContext>) => void,
     inUse?: readonly NpmInUse[],
-    versionAt?: { file: string; line?: number },
+    pin?: VersionPin,
   ) => {
     const view = tool.kind === 'package-manager' ? policyFor(policy, ecosystemOfTool(tool)) : policy;
     const context = createContext({
@@ -368,7 +399,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
       failures,
       ...(inUse === undefined ? {} : { inUse }),
       ...(options.project === undefined ? {} : { project: options.project }),
-      ...(versionAt === undefined ? {} : { versionAt }),
+      ...(pin === undefined ? {} : { pin }),
     });
     workspace.startTool(tool.id);
     try {
@@ -396,7 +427,10 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   for (const tool of tools) {
     const generator = MANAGERS[tool.id];
     if (generator === undefined || !targets.has(tool.id)) continue;
-    const manager = detection.packageManagers.find((entry) => entry.id === tool.id);
+    const own = detection.packageManagers.find((entry) => entry.id === tool.id);
+    // A project also takes the version a root CI job sets up for it (decision D-173).
+    const inherited = options.pins?.[tool.id] ?? [];
+    const manager = own === undefined || inherited.length === 0 ? own : { ...own, versions: [...own.versions, ...inherited] };
     const version = manager === undefined ? undefined : pinnedVersion(manager);
     if (version === undefined) {
       const latest = latestVersion(tool);
@@ -415,7 +449,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
         if (minutes !== undefined) managerMinutes.push(minutes);
       },
       tool.id === 'npm' && manager !== undefined ? npmVersionsInUse(root, detection, policy, options) : undefined,
-      manager === undefined ? undefined : lockfileVersionAt(manager),
+      manager === undefined ? undefined : pinOf(manager, tool),
     );
   }
 
@@ -430,6 +464,8 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   warnings.push(...optionalDependencyWarnings(root, policy, detection, targets, tools));
   const changes = workspace.changes();
   if (policy.cooldown !== undefined) warnings.push(...shortenedDelays(root, changes, detection, tools, targets, policy.cooldown.minimum.text));
+  // Exceptions written by hand that the change removes (decision D-167).
+  if (policy.cooldown !== undefined) warnings.push(...droppedExclusions(root, changes, detection, tools, targets));
   // A project's files may match a .gitignore of the root, which planRepository reads for all of them.
   if (options.project === undefined) warnings.push(...ignoredFileWarnings(root, changes));
   const errors = failures.map((failure) => `${tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool}: cannot edit ${failure.file}: ${failure.message}`);
@@ -460,7 +496,13 @@ function npmVersionsInUse(root: string, detection: Detection, policy: ResolvedPo
 export function projectPlanOptions(rootDetection: Detection, project: string, detection?: Detection): PlanOptions {
   const ci = jobsInProject(rootDetection, project);
   const root = rootPlaces(rootDetection, project, detection);
-  return { project, ...(ci.jobs.length === 0 ? {} : { ci }), ...(root.versions.length === 0 && root.dockerfiles.length === 0 ? {} : { root }) };
+  const pins = rootCiVersions(rootDetection, project);
+  return {
+    project,
+    ...(ci.jobs.length === 0 ? {} : { ci }),
+    ...(root.versions.length === 0 && root.dockerfiles.length === 0 ? {} : { root }),
+    ...(Object.keys(pins).length === 0 ? {} : { pins }),
+  };
 }
 
 /** The files a message about a project may name, relative to the project: what detection found and what the plan touched. */

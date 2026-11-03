@@ -1,10 +1,12 @@
 // manager-version-too-old: a setting only works from some version on. Every version the repository declares for a
-// package manager (packageManager, devEngines, Volta, .tool-versions, CI, Dockerfiles) must have every setting in use:
-// the ones depcurfew.json needs and the ones already written in the manager's configuration. So must the npm that
-// comes with a declared Node.js and the pip of a python image, where nothing replaces them (bundled-versions.ts).
+// package manager (yarnPath, packageManager, devEngines, Volta, .tool-versions, CI, Dockerfiles) must have every
+// setting in use: the ones depcurfew.json needs and the ones already written in the manager's configuration. So must
+// the npm that comes with a declared Node.js and the pip of a python image, where nothing replaces them
+// (bundled-versions.ts).
 import { compareVersions, formatVersion, parseVersion, type Version } from '../../apply/version.ts';
 import { extraOf, isRecord, isSwitch, settingOf, sinceOf, values } from '../../apply/facts.ts';
-import { describeRequirements } from '../../apply/requirements.ts';
+import { describeRequirements, listing } from '../../apply/requirements.ts';
+import { insteadText, setVersionText } from '../../apply/yarn-path.ts';
 import type { PackageManagerInfo, VersionDeclaration } from '../../detect/types.ts';
 import { SOURCE_KINDS } from '../../knowledge/schema.ts';
 import type { Fact, ToolKnowledge } from '../../knowledge/types.ts';
@@ -12,8 +14,10 @@ import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
 import type { ResolvedPolicy } from '../../policy/schema.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { COMPOSER_MANIFEST, lockedPluginApi } from '../composer.ts';
+import { yarnClassicFix } from '../unreadable-warnings.ts';
 import { readPythonSetting } from '../python.ts';
 import { lineOf, readSetting } from '../settings.ts';
+import { readRuleSetting } from '../pnpm-config.ts';
 import type { Rule, RuleContext } from '../types.ts';
 import { belowVersion, formatBound, lowestVersion } from '../version-range.ts';
 import { checkBundledVersions, SOURCE_LABEL, strictAdvice, type StrictAdvice } from './bundled-versions.ts';
@@ -126,7 +130,7 @@ function configuredFeatures(context: RuleContext, tool: ToolKnowledge): Feature[
   const configured = (setting: string) =>
     ecosystemOfTool(tool) === 'pypi'
       ? readPythonSetting(context.repository, tool, setting) !== undefined
-      : files.some((name) => readSetting(context.repository, name, setting) !== undefined);
+      : files.some((name) => readRuleSetting(context, tool, name, setting) !== undefined);
   return candidates
     .filter(([setting]) => setting !== null && configured(setting))
     .map(([setting, since, kind]) => (kind === undefined ? feature(setting, since) : kinded(kind, feature(setting, since))))
@@ -223,8 +227,10 @@ function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: T
     if (tool.id === 'npm' && (declaration.source === 'github-actions' || declaration.source === 'dockerfile')) continue;
     const lowest = lowestVersion(declaration.version);
     const label = sourceLabel(tool, declaration);
-    // "Dockerfile" or ".tool-versions" at the root is both the label and the file: named once.
-    const where = label === declaration.file ? label : `${label} (${declaration.file})`;
+    // "Dockerfile" or ".tool-versions" at the root is both the label and the file: named once. The release yarnPath
+    // names runs instead of a packageManager pin of another release, which the message names too (decision D-165).
+    const instead = declaration.source === 'yarnPath' ? insteadText(manager, declaration) : '';
+    const where = `${label === declaration.file ? label : `${label} (${declaration.file})`}${instead === '' ? '' : `${instead},`}`;
     if (lowest.kind === 'unknown') {
       context.notice(`manager-version-too-old cannot evaluate ${tool.name} version "${declaration.version}" in ${declaration.file}`, declaration.file);
       continue;
@@ -243,20 +249,37 @@ function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: T
     // Against the default policy, a setting depcurfew apply writes for this repository settles it, and config-drift
     // already lists that setting (decision D-154).
     if (settled && context.defaultPolicy === true) continue;
-    // The version of a lockfile changes with the tool's own command (bundle update --bundler, decision D-152).
+    // The version of a lockfile changes with the tool's own command (bundle update --bundler, decision D-152), and the
+    // release yarnPath names with yarn set version (decision D-165).
     const locked = declaration.source === 'lockfile' ? lockfileVersionOf(tool) : undefined;
+    const release = declaration.source === 'yarnPath' ? yarnPathFix(context, tool, declaration.file, missing, formatVersion(needed)) : undefined;
     context.report({
       level: lowest.kind === 'exact' ? 'error' : 'warning',
       location: line === undefined ? { file: declaration.file } : { file: declaration.file, line },
       message: subject,
       fix:
-        locked !== undefined
+        release !== undefined
+          ? release
+          : locked !== undefined
           ? `Run ${locked.update}, which locks the latest ${tool.name} release (${formatVersion(needed)} or later is needed), and commit ${declaration.file}`
           : alternative !== undefined && lowest.kind === 'exact' && compareVersions(lowest.version, alternative.version) >= 0
           ? `${alternative.set.charAt(0).toUpperCase()}${alternative.set.slice(1)}, or require ${tool.name} ${formatVersion(needed)} or later in ${label}`
           : `Require ${tool.name} ${formatVersion(needed)} or later in ${label}${alternative === undefined ? '' : `, or ${alternative.text}`}`,
     });
   }
+}
+
+/**
+ * The fix for a release yarnPath names that lacks settings (decision D-165): yarn set version replaces it. Settings of
+ * the file the release does not know are removed first: Yarn stops at a setting of the project .yarnrc.yml it does not
+ * know (Configuration.use with enableStrictSettings, read at 3.6.4 and 4.18.1), and yarn set version runs in that Yarn.
+ */
+function yarnPathFix(context: RuleContext, tool: ToolKnowledge, file: string, missing: readonly Feature[], needed: string): string | undefined {
+  const command = setVersionText(tool, needed, 'or a later release', file);
+  if (command === undefined) return undefined;
+  const written = missing.filter((item) => readSetting(context.repository, file, item.setting) !== undefined).map((item) => item.setting);
+  const then = 'then run depcurfew apply again and commit the changes';
+  return written.length === 0 ? `${command}, ${then}` : `Remove ${listing(written)} from ${file}, ${command.charAt(0).toLowerCase()}${command.slice(1)}, ${then}`;
 }
 
 /**
@@ -300,7 +323,7 @@ export const managerVersionTooOld: Rule = {
   checks: 'The declared package manager versions, and the npm and pip that come with the declared Node.js and Python versions, support the settings the repository relies on',
   summary: 'A declared package manager version, or the npm or pip that comes with a declared Node.js or Python version, is older than a setting the repository relies on.',
   description:
-    'Package managers ignore settings they do not know yet; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, a CI step or a Dockerfile pins an older version, the setting is silently not applied there. The same holds for the npm that comes with the Node.js a CI job, a Dockerfile stage or a version file (.nvmrc, .node-version) chooses, and for the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age. Composer cannot pin its own version: a composer.lock whose plugin-api-version shows that a Composer older than 2.11 wrote it gives a warning, and otherwise a note says that the cooldown needs Composer 2.11. Bundler switches to the version of BUNDLED WITH in Gemfile.lock, which counts as a pin (the cooldown: of a Gemfile source needs 4.0.14 once Gemfile.lock exists), as do the bundler input of ruby/setup-ruby and gem install bundler -v.',
+    'Package managers ignore settings they do not know; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, mise.toml, a CI step or a Dockerfile (pipx install poetry==X, the uv image) pins an older version, the setting is silently not applied there, and so for the npm of the Node.js a CI job, a Dockerfile stage or a version file chooses and the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age. npm install -g npm@<range> counts as the newest release of it depcurfew knows. Composer pins no version: a composer.lock whose plugin-api-version shows a Composer older than 2.11 gives a warning, otherwise a note says the cooldown needs 2.11. Bundler switches to the version of BUNDLED WITH in Gemfile.lock, which counts as a pin (cooldown: in a Gemfile needs 4.0.14 once Gemfile.lock exists), as do the bundler input of ruby/setup-ruby and gem install bundler -v. So is the release yarnPath in .yarnrc.yml names (yarn-<version>.cjs), which every Yarn from 1.18 runs.',
   help: 'Raise the declared version to at least the version that introduced the setting, everywhere it is declared, or install a newer npm or pip before installing packages.',
   level: 'error',
   requiresPolicy: false,
@@ -327,15 +350,15 @@ export const managerVersionTooOld: Rule = {
     for (const manager of context.detection.packageManagers.filter((entry) => !entry.supported && entry.variant === 'classic')) {
       const berry = context.tools.find((entry) => entry.id === manager.id);
       if (context.policy === undefined || berry === undefined) continue;
-      const declaration = manager.versions.find((entry) => entry.source === 'packageManager');
+      // The release yarnPath names runs instead of packageManager's (decision D-165).
+      const declaration = manager.versions.find((entry) => entry.source === 'yarnPath' || entry.source === 'packageManager');
       const file = declaration?.file ?? manager.evidence[0]?.file ?? 'package.json';
       const line = declaration === undefined ? undefined : declarationLine(context, declaration);
-      const since = sinceOf(berry.cooldown.availableSince);
       context.report({
         level: 'error',
         location: line === undefined ? { file } : { file, line },
         message: `Yarn Classic (1.x) has none of the settings ${POLICY_FILE} needs (release-age delay, install-script allow-list, dependency sources), so the policy does not apply to it`,
-        fix: `Move to ${berry.name}${since === undefined ? '' : ` ${since} or later`}, or to another package manager depcurfew configures`,
+        fix: yarnClassicFix(berry),
       });
     }
   },

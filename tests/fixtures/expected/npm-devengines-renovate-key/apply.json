@@ -35,6 +35,24 @@
       "fix": "List the package names in installScripts.allow"
     },
     {
+      "code": "version-in-use-too-old",
+      "tool": "npm",
+      "location": {
+        "file": "package.json"
+      },
+      "message": "npm 11.6.0 (the lowest version devEngines in package.json allows) does not support min-release-age and allow-git (added in 11.10.0), allow-remote, allow-file and allow-directory (added in 11.15.0), min-release-age-exclude (added in 11.17.0), which depcurfew apply writes for the repository, so they have no effect there; where official sources disagree on the version, depcurfew assumes the later one",
+      "fix": "Require npm 11.17.0 or later in devEngines; depcurfew doctor reports each place (manager-version-too-old)"
+    },
+    {
+      "code": "version-in-use-too-old",
+      "tool": "npm",
+      "location": {
+        "file": "package.json"
+      },
+      "message": "npm 10.5.1 to 11.20.0 (with Node.js >=22 in devEngines in package.json) includes npm releases that do not support min-release-age and allow-git (added in 11.10.0), allow-remote, allow-file and allow-directory (added in 11.15.0), min-release-age-exclude (added in 11.17.0), which depcurfew apply writes for the repository, so they have no effect there; where official sources disagree on the version, depcurfew assumes the later one",
+      "fix": "Install npm 11.17.0 or later before packages are installed there (npm install -g npm@11.17.0; npm 11.17.0 runs on Node.js ^20.17.0 || >=22.9.0 only), or move to a Node.js release that comes with it; depcurfew doctor reports each place (manager-version-too-old)"
+    },
+    {
       "code": "bot-config-not-edited",
       "tool": "renovate",
       "location": {
@@ -48,7 +66,7 @@
     {
       "tool": "renovate",
       "file": "package.json",
-      "text": "{\n  \"minimumReleaseAge\": \"3 days\",\n  \"packageRules\": [\n    {\n      \"description\": \"depcurfew: packages excluded from minimumReleaseAge\",\n      \"matchPackageNames\": [\n        \"@acme/*\",\n        \"left-pad\"\n      ],\n      \"minimumReleaseAge\": null\n    }\n  ],\n  \"vulnerabilityAlerts\": {\n    \"minimumReleaseAge\": null\n  }\n}"
+      "text": "{\n  \"minimumReleaseAge\": \"3 days\",\n  \"packageRules\": [\n    {\n      \"description\": \"depcurfew: packages excluded from minimumReleaseAge\",\n      \"matchDatasources\": [\n        \"npm\"\n      ],\n      \"matchPackageNames\": [\n        \"@acme/*\",\n        \"left-pad\"\n      ],\n      \"minimumReleaseAge\": null\n    }\n  ],\n  \"vulnerabilityAlerts\": {\n    \"minimumReleaseAge\": null\n  }\n}"
     }
   ]
 }

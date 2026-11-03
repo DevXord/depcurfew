@@ -10,10 +10,11 @@ import { formatMinutes } from '../doctor/durations.ts';
 import { environment } from '../knowledge/environment.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import { policyFor } from '../policy/ecosystem.ts';
-import { CHECK_BY_HAND, describeAge, insecureFinding, quoted, sourceFindings, type CheckFinding, type CheckOptions, type CheckRequest, type PackageReport } from './findings.ts';
+import { CHECK_BY_HAND, describeAge, insecureFinding, lookupOptionPlaces, quoted, sourceFindings, UNREAD_REGISTRY_FIX_START, type CheckFinding, type CheckOptions, type CheckRequest, type PackageReport } from './findings.ts';
 import { checkComposerSpec, isComposerSpec } from './composer.ts';
 import { checkPythonSpec, isPythonSpec } from './python.ts';
 import { cachedLookup, fetchPackument, type Packument } from './registry.ts';
+import { sameRegistry } from './registry-settings.ts';
 import { compareSemver, maxSatisfying, parseRange, parseSemver, satisfies } from './semver.ts';
 import { parseSpec } from './spec.ts';
 
@@ -85,12 +86,14 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
   const add = (finding: CheckFinding) => report.findings.push(finding);
   const scope = name.startsWith('@') ? name.slice(0, name.indexOf('/')) : undefined;
   const scopeRegistry = scope === undefined ? undefined : options.scopeRegistries?.get(scope);
-  if (scopeRegistry !== undefined) {
+  // A scope of the .npmrc depcurfew takes is looked up only when depcurfew asks that registry anyway (--registry
+  // naming it, decision D-168): a private name does not go to another one, which may not even have the package.
+  if (scope !== undefined && scopeRegistry !== undefined && !sameRegistry(scopeRegistry, options.registry)) {
     add({
       level: 'error',
       code: 'unverified',
-      message: `${scope} packages come from ${scopeRegistry} (.npmrc); depcurfew looks up the public registry only`,
-      fix: `Check the package in ${scopeRegistry} yourself before installing it`,
+      message: `${scope} packages come from ${scopeRegistry} (${options.scopeWhere?.get(scope) ?? '.npmrc'}); depcurfew asks ${options.registry}, so it did not look the package up there`,
+      fix: `${UNREAD_REGISTRY_FIX_START} the package in ${scopeRegistry} yourself; if you trust that registry, pass --registry ${scopeRegistry} ${lookupOptionPlaces()}, and depcurfew looks the package up there`,
     });
     return;
   }
@@ -118,6 +121,17 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
         code: 'unverified',
         message: `${name} is not in ${options.registry}; either ${scope} packages come from another registry, which ${scope}:registry in .npmrc names, or the name is mistyped or made up`,
         fix: `Set ${scope}:registry in .npmrc if ${scope} packages come from another registry; otherwise check the spelling of the name`,
+      });
+      return;
+    }
+    if (request.linked === true) {
+      // npm link takes a package of the global space first and installs from the registry only a name it lacks, which
+      // fails for a name the registry does not have (decision D-172).
+      add({
+        level: 'warning',
+        code: 'not-found',
+        message: `${name} is not in the registry, so npm link installs nothing from it: it links the package of that name that is linked globally (npm link in its folder) or fails`,
+        fix: `Nothing to do if ${name} is your own package linked with npm link in its folder; otherwise check the spelling of the name`,
       });
       return;
     }
