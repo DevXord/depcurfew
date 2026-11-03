@@ -162,13 +162,14 @@ describe('variables set in ways depcurfew does not read (decision D-143)', () =>
     expect(elapsed(() => requestedSpecs(line, 'posix', false))).toBeLessThan(5000);
   });
 
-  // Each start of an offset without a } after it scanned up to 4096 characters: 5.5 s for 1 MiB (decision D-146).
+  // Each start of an offset without a } after it scanned up to 4096 characters: 3.8 to 5.5 s for 1 MiB on an idle
+  // machine (decision D-146). One pass takes about 0.3 s; 2.5 s leaves room for a loaded machine and still tells the two.
   it.each([
     ['many offsets without a closing brace, in quotes', `echo '${filled('${a:', ' COMPOSER_NO_BLOCKING')}'; npm ci`],
     ['many offsets without a closing brace', `echo ${filled('${a:', ' COMPOSER_NO_BLOCKING')}; npm ci`],
     ['many offsets before one closing brace', `echo '${filled('${a:x', '} COMPOSER_NO_BLOCKING')}'; npm ci`],
   ])('reads %s in linear time', (_label, line) => {
-    expect(elapsed(() => requestedSpecs(line, 'posix', false))).toBeLessThan(1000);
+    expect(elapsed(() => requestedSpecs(line, 'posix', false))).toBeLessThan(2500);
   });
 
   it.each([
