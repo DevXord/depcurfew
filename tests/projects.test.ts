@@ -406,6 +406,22 @@ describe('init with projects', () => {
     expect(apply.code).toBe(EXIT_OK);
   });
 
+  // Two directories whose names differ only in case exist only on a file system that tells case apart (decision D-154).
+  it.skipIf(process.platform === 'darwin' || process.platform === 'win32')('lists one of two directories whose names differ only in case, so that the policy stays valid, and doctor without a policy still works', async () => {
+    mkdirSync(join(directory, 'Frontend'));
+    writeFileSync(join(directory, 'Frontend', 'package.json'), '{ "name": "frontend-two", "private": true }\n');
+    const doctor = await exec('doctor', '--json', directory);
+    expect(doctor.code).toBe(EXIT_OK);
+    expect(JSON.parse(doctor.stdout)).toMatchObject({ policySource: 'default' });
+    const result = await exec('init', directory);
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stdout).toContain(
+      'warning: frontend is not in projects: its name differs from "Frontend" only in case, so both name the same directory on Windows and macOS, and projects in depcurfew.json cannot list both (project-left-out)\n' +
+        '  fix: Rename one of the two directories so that their names differ in more than case, then run depcurfew init --force to list both\n',
+    );
+    expect(parsePolicy(read('depcurfew.json'))).toMatchObject({ ok: true, policy: { projects: ['Frontend', 'backend'] } });
+  });
+
   it('adds no projects when the root has a manifest', async () => {
     writeFileSync(join(directory, 'package.json'), '{ "name": "root", "private": true }\n');
     const result = await exec('init', directory);

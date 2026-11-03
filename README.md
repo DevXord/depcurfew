@@ -230,7 +230,7 @@ Install scripts: `init` reads the lockfiles (`package-lock.json`, `pnpm-lock.yam
 <!-- BEGIN GENERATED: init-codes -->
 Warnings:
 
-- `project-left-out`: A direct subdirectory with a manifest or lockfile is left out of projects, because depcurfew apply would refuse it (it has a depcurfew.json of its own, or it is a separate git repository).
+- `project-left-out`: A direct subdirectory with a manifest or lockfile is left out of projects, because depcurfew apply would refuse it (it has a depcurfew.json of its own, it is a separate git repository, or its name differs from that of a listed directory only in case).
 
 Notes:
 

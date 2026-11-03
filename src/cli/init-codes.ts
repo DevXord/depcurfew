@@ -3,7 +3,7 @@
 // the JSON document; the errors that keep init from writing are those of apply (src/apply/warnings.ts).
 
 export const INIT_WARNINGS = {
-  'project-left-out': 'A direct subdirectory with a manifest or lockfile is left out of projects, because depcurfew apply would refuse it (it has a depcurfew.json of its own, or it is a separate git repository).',
+  'project-left-out': 'A direct subdirectory with a manifest or lockfile is left out of projects, because depcurfew apply would refuse it (it has a depcurfew.json of its own, it is a separate git repository, or its name differs from that of a listed directory only in case).',
 } as const satisfies Record<string, string>;
 
 export const INIT_NOTES = {

@@ -40,6 +40,18 @@ function exitCode(report: Pick<DoctorReport, 'findings'>, setting: FailOnSetting
   return fails(countLevels(report.findings), setting.failOn) ? EXIT_FAILURE : EXIT_OK;
 }
 
+/**
+ * Without depcurfew.json: the policy init would write, which the rules that need one compare with (decision D-149).
+ * When init could not write a valid one, those rules do not run, as before D-149 (decision D-154).
+ */
+function withDefaultPolicy(directory: string): { policy: null; defaultPolicy?: ResolvedPolicy } {
+  try {
+    return { policy: null, defaultPolicy: initialResolvedPolicy(directory) };
+  } catch {
+    return { policy: null };
+  }
+}
+
 export interface DoctorFormat {
   json: boolean;
   sarif: boolean;
@@ -127,7 +139,7 @@ export async function doctor(
     policy === 'invalid'
       ? { invalidPolicy: 'report' as const }
       : policy === undefined
-        ? { policy: null, defaultPolicy: initialResolvedPolicy(target.directory) }
+        ? withDefaultPolicy(target.directory)
         : { policy };
   // --osv: the locked versions go to OSV.dev before the rules run; nothing is sent without it. Without --osv they are
   // looked up in the local OSV.dev data, when there is any (decision D-150); with --osv that answers only for the
