@@ -2,7 +2,7 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
-## 2026-11-03 · 1.5.0: doctor przed init, lokalne dane OSV.dev, Bundler, boty dla Cargo, Go, Mavena, Gradle'a i NuGet (D-149–D-163)
+## 2026-11-03 · 1.5.0: doctor przed init, lokalne dane OSV.dev, Bundler, boty dla Cargo, Go, Mavena, Gradle'a i NuGet (D-149–D-173)
 
 - Wersja 1.5.0 w `package.json` i `package-lock.json`, sekcja 1.5.0 w `CHANGELOG.md`.
 - `doctor` bez `depcurfew.json` porównuje repozytorium z polityką, którą zapisałby `init`, i pokazuje różnice jako notatki w osobnym bloku (D-149); `manager-version-too-old` i `unreadable-config` także wobec tej polityki (D-154); najwyżej 20 projektów i jedno wykrycie katalogu na uruchomienie (D-157); lockfile'i tych projektów w `known-malicious` (D-161).
@@ -11,6 +11,7 @@ Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/
 - Bundler: `cooldown:` źródła rubygems.org w Gemfile, wersja z `BUNDLED WITH` i CI, reguła `bundler-config-weakens`, boty dla gemów, strona startowa Ruby (D-152); Gemfile czytany jak w Ruby, `.bundle/config` jak w Bundlerze, czas liniowy (D-159); tylko wywołania `source` na najwyższym poziomie, różnice Prism i parse.y, powtórzony klucz, CR LF i ukryte polecenia Thora (D-163).
 - README i strona: lista tego, co depcurfew zatrzymuje, poradnik krok po kroku, praca obok innych narzędzi, sprawdzanie wydań i workflow „Verify release” (D-153).
 - Hook: opcje `--package` przed `dlx`/`exec`/`x` w pnpm, npm, Yarn i Bun (D-160); wykrywanie bez pętli symlinków w workspace'ach i granica repozytorium sprawdzana przed każdym odczytem (D-161); katalogi projektów różniące się wielkością liter w `init` (D-158); skróty i camelCase podpoleceń npm oraz aliasy `bun a` i `bun c` w hooku (D-162).
+- Poprawki z pełnego sprawdzenia wydania: pnpm `include`, pnpmfile i wtyczki (D-164); Yarn z `yarnPath` i `yarn.lock` Yarn Classic (D-165); lockfile'y do 64 MiB i reguła `ci-weakens-policy` (D-166); `apply` i `init` wobec surowszego repozytorium, pliki dołączane w pip, stałe daty (D-167); dane logowania nigdzie na wyjściu, rejestry ze środowiska, dokumenty npm do 256 MiB, tarballe rejestrów prywatnych (D-168); sprawdzenie Action pod `pull_request_target` (D-169); fakty pip 26.3, Bun i dokumentacja (D-170); presety Renovate, `include`/`exclude` Dependabota i wyjątki według ekosystemu (D-171); `npm link`, heredoc, `hash -p` i `pipx inject` w hooku (D-172); wersje narzędzi w CI, Dockerfile'ach i `mise.toml` (D-173).
 
 ## 2026-11-02 · Dependabot pomija TypeScript 7 (D-148)
 
