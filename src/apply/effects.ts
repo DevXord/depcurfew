@@ -78,9 +78,12 @@ export function policyEffects(root: string, policy: ResolvedPolicy, detection: D
   const settings = written.map((entry) => ({ ...entry, file: entry.project === undefined ? entry.file : inProject(entry.project, entry.file) }));
   const cooldownNotWritten = (tool: ToolId): string | undefined => {
     const reasons = report.warningDetails.filter((warning) => warning.code === 'cooldown-not-written' && warning.tool === tool).map((warning) => warning.message.replace(/^.*?cooldown not written: /u, ''));
-    // A version too old for the delay setting itself gets none either: its version-too-old says why (decision D-173).
+    // A version too old for the delay setting itself, or for a part of it apply needs to write it at all (Bundler's
+    // "cooldown once Gemfile.lock exists"), gets none either: its version-too-old says why (decision D-173). A version
+    // that lacks only the exceptions still gets the delay.
     const setting = settingOf(tools.find((entry) => entry.id === tool)?.cooldown.setting);
-    if (setting !== null && missing.some((entry) => entry.tool === tool && entry.project === undefined && entry.setting === setting)) {
+    const delayPart = (name: string) => setting !== null && (name === setting || name.startsWith(`${setting} `));
+    if (missing.some((entry) => entry.tool === tool && entry.project === undefined && delayPart(entry.setting))) {
       reasons.push(...report.warningDetails.filter((warning) => warning.code === 'version-too-old' && warning.tool === tool && warning.project === undefined).map((warning) => warning.message));
     }
     return reasons.length === 0 ? undefined : [...new Set(reasons)].join('; ');
