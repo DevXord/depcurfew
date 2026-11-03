@@ -467,6 +467,8 @@ const bundler$1 = {
 				"0d": 10,
 				"0": 8
 			},
+			numberSuffixes: ["r", "i"],
+			lineEnding: "\r\n",
 			keywords: {
 				end: [
 					"__ENCODING__",
@@ -524,9 +526,51 @@ const bundler$1 = {
 					"unless",
 					"until",
 					"while"
-				]
+				],
+				opening: [
+					"begin",
+					"case",
+					"class",
+					"def",
+					"do",
+					"for",
+					"if",
+					"module",
+					"unless",
+					"until",
+					"while"
+				],
+				loops: [
+					"for",
+					"until",
+					"while"
+				],
+				closing: ["end"]
 			}
-		}, `${RUBY}/parse.y`, "How Ruby's lexer (parse.y) reads what decides where code ends. parser_yylex ends the script at NUL, ^D (\\004) or ^Z (\\032) where a token starts, and at a line that is exactly __END__ (whole_match_p, with \\r\\n allowed); =begin at the start of a line starts a comment that ends with a line starting with =end (word_match_p: followed by whitespace, the end of the line, NUL, ^D or ^Z); # starts a comment to the end of the line. parse_percent: % starts a literal where an expression begins (IS_BEG), or after a method name with a space before % and none after it (IS_SPCARG), otherwise it is an operator; its type letter is one of Q, q, W, w, I, i, x, r, s (none means Q), the delimiter is any ASCII character that is no letter or digit, and ( [ { < pair with ) ] } > and nest (tokadd_string). heredoc_identifier: << with - or ~ and an identifier of letters, digits, _ or non-ASCII characters, or any text in ', \" or ` quotes on that line; not after a value (IS_END), after . or class, or after a method name without a space; here_document: the body starts on the line after the one with <<, after the bodies of earlier heredocs of that line, and ends at a line that is exactly the identifier (with - and ~ after leading whitespace, never with trailing spaces); in a heredoc with escapes a line after one that ends with a backslash is no terminator. Strings in double quotes, `, %Q, %W, %I, %x, %r, /, :\" and heredocs without ' interpolate #{...}, #@var and #$var (parser_peek_variable_name, is_global_name_punct). parse_qmark: ? starts a character literal unless a value comes before it, a space follows or two identifier characters follow. The keywords set the lexer state as defs/keywords lists them (EXPR_END, EXPR_BEG, EXPR_VALUE, EXPR_MID, EXPR_ARG, EXPR_FNAME, EXPR_CLASS); if, unless, while, until and rescue after a value are modifiers. parse_ident: a lower-case name lexes as a local variable (EXPR_END) when one of that name was assigned before (lvar_defined) and as a method call otherwise, so %, /, <<, ? and : after such a name and a space can be read two ways. parse_numeric: 0x, 0b, 0o and 0d prefixes, a leading 0 alone means octal (010 is 8), and single underscores between digits. Prism, the default parser of Ruby 3.4, ends the script, reads __END__ and reads heredoc identifiers and terminators the same way (prism/prism.c at the same tag)."),
+		}, `${RUBY}/parse.y`, "How Ruby's lexer (parse.y) reads what decides where code ends. nextc reads \\r\\n as one newline everywhere (parser_cr), also inside a literal delimited by \\r, which only a \\r alone ends; a \\r alone between tokens is a space. parser_yylex ends the script at NUL, ^D (\\004) or ^Z (\\032) where a token starts, and at a line that is exactly __END__ (whole_match_p, with \\r\\n allowed); =begin at the start of a line starts a comment that ends with a line starting with =end (word_match_p: followed by whitespace, the end of the line, NUL, ^D or ^Z); # starts a comment to the end of the line. parse_percent: % starts a literal where an expression begins (IS_BEG), or after a method name with a space before % and none after it (IS_SPCARG), otherwise it is an operator; its type letter is one of Q, q, W, w, I, i, x, r, s (none means Q), the delimiter is any ASCII character that is no letter or digit, and ( [ { < pair with ) ] } > and nest (tokadd_string). heredoc_identifier: << with - or ~ and an identifier of letters, digits, _ or non-ASCII characters, or any text in ', \" or ` quotes on that line; not after a value (IS_END), after . or class, or after a method name without a space; here_document: the body starts on the line after the one with <<, after the bodies of earlier heredocs of that line, and ends at a line that is exactly the identifier (with - and ~ after leading whitespace, never with trailing spaces); in a heredoc with escapes a line after one that ends with a backslash is no terminator. Strings in double quotes, `, %Q, %W, %I, %x, %r, /, :\" and heredocs without ' interpolate #{...}, #@var and #$var (parser_peek_variable_name, is_global_name_punct). parse_qmark: ? starts a character literal unless a value comes before it, a space follows or two identifier characters follow; \\u{...} holds hex digits and spaces. The keywords set the lexer state as defs/keywords lists them (EXPR_END, EXPR_BEG, EXPR_VALUE, EXPR_MID, EXPR_ARG, EXPR_FNAME, EXPR_CLASS); if, unless, while, until and rescue are modifiers unless an expression begins there (EXPR_BEG, after a label or after class: parse_ident), so also after return, break, next and rescue (EXPR_MID). The grammar closes with end what begin, case, class, def, do, for, if, module, unless, until and while open when they are no modifiers, except a method defined with = after its name or its parameters (endless def); the do after the condition of while, until and for belongs to the loop (keyword_do_cond, COND_P, which ( [ { reset); ( [ { are closed by ) ] }. parse_ident: a lower-case name lexes as a local variable (EXPR_END) when one of that name was assigned before (lvar_defined) and as a method call otherwise, so %, /, <<, ? and : after such a name and a space can be read two ways. parse_numeric: 0x, 0b, 0o and 0d prefixes, a leading 0 alone means octal (010 is 8), single underscores between digits, a fraction and an exponent only before a digit, and the suffixes r and i only when no letter, digit or _ follows (number_literal_suffix), so the number of 1end and 1do ends before the keyword. Prism, the default parser of Ruby 3.4, ends the script, reads __END__, \\r\\n, numbers, keywords and heredoc identifiers and terminators the same way (prism/prism.c at the same tag); where it reads otherwise, extra.rubyParsers says."),
+		rubyParsers: verified$15({
+			defaults: [{
+				since: "0.0.0",
+				value: "parse.y"
+			}, {
+				since: "3.4.0",
+				value: "prism"
+			}],
+			option: "--parser",
+			differences: {
+				characterBeyondAscii: true,
+				embeddedDocumentAfter: ["", ""],
+				globalZeroWithName: true
+			}
+		}, `${RUBY}/NEWS.md`, "NEWS for Ruby 3.4.0: \"The default parser is now Prism. To use the conventional parser, use the command-line argument `--parser=parse.y`\" [Feature #20564]; Ruby 3.3 has parse.y as the default and --parser=prism \"for debugging only\" (NEWS.md at v3_3_0), and Ruby 4.0 still sets RB_DEFAULT_PARSER_PRISM (iseq.c at v4.0.9). eval_make_iseq in vm_eval.c compiles a string to eval with Prism when it is the default (rb_ruby_prism_p), so the instance_eval that runs the Gemfile uses it too. Where the two read the same text differently (prism/prism.c and parse.y at v3_4_7; prism.c at v4.0.9 the same): lex_question_mark reads ? before a character that is not a letter or digit of Unicode (alnum_char) as a character literal even when an identifier character follows, where parse_qmark reads a ternary for any character beyond ASCII before an identifier character (?€or is a ternary for parse.y, ?€ and the name or for Prism), and with an encoding magic comment the two count the bytes of such a character differently; =begin starts a comment for Prism only before whitespace or NUL, for parse.y also before ^D and ^Z (word_match_p); $0 followed by identifier characters is one global name for parse.y and an error for Prism 3.4 (lex_global_variable)."),
+		lineContinuation: verified$15({
+			calls: [".", "&."],
+			logical: {
+				since: "4.0.0",
+				operators: ["&&", "||"],
+				words: ["and", "or"]
+			}
+		}, "https://github.com/ruby/ruby/blob/v4.0.9/NEWS.md", "NEWS for Ruby 4.0.0: \"Logical binary operators (`||`, `&&`, `and` and `or`) at the beginning of a line continue the previous line, like fluent dot\" [Feature #20925]. parse.y (leading_logical; and and or only as whole words, peek_word_at) and prism/prism.c (PM_OPTIONS_VERSION_CRUBY_4_0) at v4.0.9 look for them where they look for a leading . or &.: after the newline that ends a statement, past spaces and comment lines, not past a blank line; .. there is a range, no call. So in Ruby 4.0 source \"https://rubygems.org\", cooldown: 7 followed by a line && 0 gives the source cooldown: 0; Ruby 3.4 reports a syntax error for such a line."),
 		stringToInteger: verified$15({
 			whitespace: [
 				" ",
@@ -595,8 +639,15 @@ const bundler$1 = {
 				"-D": "help"
 			},
 			prefixes: true,
-			defaultCommand: "install"
-		}, CLI$2, "The commands of Bundler::CLI (desc, without the hidden cli_help, install_or_cli_help, viz and inject) and Thor's help, with COMMAND_ALIASES (map aliases_for: i for install, package and pack for cache) and Thor's HELP_MAPPINGS. Thor (lib/bundler/vendor/thor/lib/thor.rb) reads the first argument as the command: normalize_command_name takes a command or alias, or an unambiguous prefix of one (find_command_possibilities: bundle inst, bundle upd); a first argument that starts with - and is no alias is no command name (retrieve_command_name), and with no command name normalize_command_name runs default_command, which is the default_cli_command setting or install, with every argument parsed as its options: a bare bundle installs, and so does bundle --cooldown 0."),
+			defaultCommand: "install",
+			hidden: {
+				cli_help: "cli_help",
+				install_or_cli_help: "install",
+				inject: "inject",
+				viz: "viz"
+			},
+			dashesAsUnderscores: true
+		}, CLI$2, "The commands of Bundler::CLI (desc) and Thor's help, with COMMAND_ALIASES (map aliases_for: i for install, package and pack for cache) and Thor's HELP_MAPPINGS. Thor (lib/bundler/vendor/thor/lib/thor.rb) reads the first argument as the command: normalize_command_name takes a command or alias, or an unambiguous prefix of one (find_command_possibilities: bundle inst, bundle upd); a first argument that starts with - and is no alias is no command name (retrieve_command_name), and with no command name normalize_command_name runs default_command, which is the default_cli_command setting or install, with every argument parsed as its options: a bare bundle installs, and so does bundle --cooldown 0. The commands desc declares with hide: true (cli_help, install_or_cli_help, viz, inject) are Thor::HiddenCommand, which find_command_possibilities leaves out, so no prefix names them; a name that matches no command, alias or prefix is read with - as _ (normalize_command_name: meth.to_s.tr(\"-\", \"_\")) and runs the command of exactly that name, a hidden one too: bundle install_or_cli_help and bundle install-or-cli-help run install (\"Deprecated alias of install\", invoke_other_command(\"install\"))."),
 		versionSelector: verified$15({
 			form: "_VERSION_",
 			variable: "BUNDLER_VERSION"
@@ -9082,7 +9133,9 @@ function detectionFacts(tools, environment) {
 				commands: strings(bundlerCli["commands"]),
 				aliases: bundlerCli["aliases"],
 				prefixes: bundlerCli["prefixes"] === true,
-				defaultCommand: bundlerCli["defaultCommand"]
+				defaultCommand: bundlerCli["defaultCommand"],
+				hidden: isStringMap(bundlerCli["hidden"]) ? bundlerCli["hidden"] : {},
+				dashesAsUnderscores: bundlerCli["dashesAsUnderscores"] === true
 			} } : {},
 			...isRecord(versionSelector) && versionSelector["form"] === "_VERSION_" ? { versionSelector: true } : {}
 		} } : {}
@@ -17217,17 +17270,23 @@ function pipCommand(args, at, facts, environment) {
 }
 /**
 * The command Bundler's CLI runs for its first argument (Thor, extra.cliCommands): a command, an alias (i, package), or
-* an unambiguous prefix of one (inst); a bare bundle runs the default command; an option first is no command.
+* an unambiguous prefix of one (inst); a bare bundle runs the default command; an option first is no command. A name
+* that matches none of them is read with - as _ and runs the command of exactly that name, a hidden one too
+* (install_or_cli_help runs install; decision D-163).
 */
 function bundlerCliCommand(name, cli) {
 	if (name === void 0) return cli.defaultCommand;
 	if (cli.commands.includes(name)) return name;
-	const alias = cli.aliases[name];
-	if (alias !== void 0) return alias;
+	if (Object.hasOwn(cli.aliases, name)) return cli.aliases[name];
 	if (name.startsWith("-")) return cli.defaultCommand;
-	if (!cli.prefixes || name === "") return void 0;
-	const found = new Set([...cli.commands, ...Object.keys(cli.aliases)].filter((candidate) => candidate.startsWith(name)).map((candidate) => cli.aliases[candidate] ?? candidate));
-	return found.size === 1 ? [...found][0] : void 0;
+	if (name === "") return void 0;
+	if (cli.prefixes) {
+		const found = new Set([...cli.commands, ...Object.keys(cli.aliases)].filter((candidate) => candidate.startsWith(name)).map((candidate) => cli.aliases[candidate] ?? candidate));
+		if (found.size > 0) return found.size === 1 ? [...found][0] : void 0;
+	}
+	const exact = cli.dashesAsUnderscores === true ? name.replaceAll("-", "_") : name;
+	if (cli.hidden !== void 0 && Object.hasOwn(cli.hidden, exact)) return cli.hidden[exact];
+	return cli.commands.includes(exact) ? exact : void 0;
 }
 /** A version Gem::Version.correct? accepts (VERSION_PATTERN of RubyGems), for bundle _VERSION_. */
 const GEM_VERSION = /^\s*([0-9]+(?:\.[0-9a-zA-Z]+)*(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)?\s*$/u;
@@ -17550,7 +17609,7 @@ const HEREDOC_INSTRUCTIONS = /* @__PURE__ */ new Set([
 /** Words kept of the command a here-document marker is in; a shell with its options needs few. */
 const MAX_COMMAND_WORDS = 16;
 /** Words that end a simple command. */
-const OPERATORS = /* @__PURE__ */ new Set([
+const OPERATORS$1 = /* @__PURE__ */ new Set([
 	"&&",
 	"||",
 	";",
@@ -17612,7 +17671,7 @@ function heredocMarkers(text) {
 			};
 			markers.push(marker);
 			pending.push(marker);
-		} else if (OPERATORS.has(word)) endCommand();
+		} else if (OPERATORS$1.has(word)) endCommand();
 		else {
 			const last = word.endsWith(";") && !word.endsWith("\\;");
 			count += 1;
@@ -19181,9 +19240,15 @@ function insertBlock(lines, at, entries, separate, marker = BLOCK_START) {
 }
 
 // src/apply/gemfile-scan.ts
-const isStrings$6 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-const isSyntax = (value) => isRecord(value) && isRecord(value["endOfScript"]) && typeof value["endOfScript"]["marker"] === "string" && isStrings$6(value["endOfScript"]["characters"]) && isStrings$6(value["embeddedDocument"]) && value["embeddedDocument"].length === 2 && isRecord(value["percentLiterals"]) && isStrings$6(value["percentLiterals"]["expanding"]) && isStrings$6(value["percentLiterals"]["plain"]) && isRecord(value["pairedDelimiters"]) && isStrings$6(value["heredocIndent"]) && typeof value["globalPunctuation"] === "string" && isRecord(value["keywords"]) && Object.values(value["keywords"]).every(isStrings$6);
+const isStrings$7 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isSyntax = (value) => isRecord(value) && isRecord(value["endOfScript"]) && typeof value["endOfScript"]["marker"] === "string" && isStrings$7(value["endOfScript"]["characters"]) && isStrings$7(value["embeddedDocument"]) && value["embeddedDocument"].length === 2 && isRecord(value["percentLiterals"]) && isStrings$7(value["percentLiterals"]["expanding"]) && isStrings$7(value["percentLiterals"]["plain"]) && isRecord(value["pairedDelimiters"]) && isStrings$7(value["heredocIndent"]) && typeof value["globalPunctuation"] === "string" && isStrings$7(value["numberSuffixes"]) && typeof value["lineEnding"] === "string" && isRecord(value["keywords"]) && Object.values(value["keywords"]).every(isStrings$7) && [
+	"opening",
+	"loops",
+	"closing"
+].every((key) => isRecord(value["keywords"]) && isStrings$7(value["keywords"][key])) && value["keywords"]["closing"].length === 1;
+const isParsers = (value) => isRecord(value) && isRecord(value["differences"]) && typeof value["differences"]["characterBeyondAscii"] === "boolean" && isStrings$7(value["differences"]["embeddedDocumentAfter"]) && typeof value["differences"]["globalZeroWithName"] === "boolean";
 const SYNTAX$1 = extraOf(bundler$1, "rubySyntax", isSyntax);
+const DIFFERENCES = extraOf(bundler$1, "rubyParsers", isParsers).differences;
 const [EMBEDDED_BEGIN, EMBEDDED_END] = SYNTAX$1.embeddedDocument;
 const END_CHARACTERS = new Set(SYNTAX$1.endOfScript.characters);
 const PAIRS = new Map(Object.entries(SYNTAX$1.pairedDelimiters).filter((entry) => typeof entry[1] === "string"));
@@ -19191,6 +19256,15 @@ const EXPANDING = new Set(SYNTAX$1.percentLiterals.expanding);
 const PERCENT_TYPES = /* @__PURE__ */ new Set([...SYNTAX$1.percentLiterals.expanding, ...SYNTAX$1.percentLiterals.plain]);
 const HEREDOC_INDENT = new Set(SYNTAX$1.heredocIndent);
 const GLOBAL_PUNCTUATION = new Set(SYNTAX$1.globalPunctuation);
+/** The characters after =begin that start a comment for parse.y only (extra.rubyParsers). */
+const EMBEDDED_PARSE_Y_ONLY = new Set(DIFFERENCES.embeddedDocumentAfter);
+/** Keywords whose code end closes, the loops whose condition may end with do, and end. */
+const OPENING = new Set(SYNTAX$1.keywords.opening);
+const LOOPS = new Set(SYNTAX$1.keywords.loops);
+const CLOSING = new Set(SYNTAX$1.keywords.closing);
+const END_KEYWORD = SYNTAX$1.keywords.closing.join(" ");
+/** The brackets that nest code: ( [ { and what closes them (pairedDelimiters without <). */
+const BRACKETS = new Map([...PAIRS].filter(([open]) => open !== "<"));
 const KEYWORD_STATES = new Map([
 	...SYNTAX$1.keywords.end.map((word) => [word, "end"]),
 	...SYNTAX$1.keywords.statement.map((word) => [word, "stmt"]),
@@ -19210,6 +19284,13 @@ const BEGINS = /* @__PURE__ */ new Set([
 	"mid",
 	"class"
 ]);
+/** Where if, unless, while, until and rescue are no modifiers (EXPR_BEG, after a label, after class; not after return). */
+const KEYWORD_BEGINS = /* @__PURE__ */ new Set([
+	"stmt",
+	"beg",
+	"begLabel",
+	"class"
+]);
 /** States in which Ruby ignores a newline (EXPR_BEG, EXPR_CLASS, EXPR_FNAME, EXPR_DOT, and a label). */
 const IGNORES_NEWLINE = /* @__PURE__ */ new Set([
 	"stmt",
@@ -19225,6 +19306,61 @@ const LABEL_POSSIBLE = /* @__PURE__ */ new Set([
 	"arg",
 	"ident"
 ]);
+/** The operators of code, longest first. */
+const OPERATORS = [
+	"**=",
+	"<=>",
+	"===",
+	"...",
+	"&&=",
+	"||=",
+	"<<=",
+	">>=",
+	"**",
+	"==",
+	"=~",
+	"=>",
+	"!=",
+	"!~",
+	">=",
+	"<=",
+	">>",
+	"&&",
+	"||",
+	"&.",
+	"..",
+	"::",
+	"->",
+	"+=",
+	"-=",
+	"*=",
+	"/=",
+	"%=",
+	"|=",
+	"&=",
+	"^=",
+	"=",
+	"!",
+	">",
+	"&",
+	"|",
+	"+",
+	"-",
+	"*",
+	"%",
+	"^",
+	"~",
+	"(",
+	")",
+	"[",
+	"]",
+	",",
+	";",
+	"."
+];
+/** The operators by their first character, longest first, so that each token tries a few. */
+const OPERATORS_BY_FIRST = /* @__PURE__ */ new Map();
+for (const operator of OPERATORS) OPERATORS_BY_FIRST.set(operator[0] ?? "", [...OPERATORS_BY_FIRST.get(operator[0] ?? "") ?? [], operator]);
 /** The operators a symbol can name (:<=>, :[]=), longest first. */
 const SYMBOL_OPERATORS = [
 	"<=>",
@@ -19307,13 +19443,85 @@ var Scanner = class {
 		return {
 			kind: "code",
 			state: "stmt",
-			braces: 0,
+			opened: [],
 			ternary: 0,
 			params: 0,
 			space: false,
 			interpolation,
 			line: this.#line
 		};
+	}
+	/** Opens code that `close` closes. */
+	#open(frame, open, close, extra) {
+		const opened = {
+			open,
+			close,
+			line: this.#line
+		};
+		if (extra?.condition !== void 0) opened.condition = extra.condition;
+		if (extra?.header !== void 0) opened.header = extra.header;
+		frame.opened.push(opened);
+	}
+	/** Closes the innermost open code with `close` (end, }, ), ]); Ruby reports a syntax error for any other. */
+	#close(frame, close) {
+		const innermost = frame.opened.at(-1);
+		if (innermost === void 0) this.#syntaxError(close === "end" ? "an end without anything to close" : `a ${close} without ${[...BRACKETS].find(([, end]) => end === close)?.[0] ?? "its opening"}`);
+		if (innermost.close !== close) this.#syntaxError(`a ${close} where the ${innermost.open} that starts on line ${innermost.line + 1} needs ${innermost.close}`);
+		frame.opened.pop();
+		const outer = frame.opened.at(-1);
+		if (close === ")" && outer?.header === "parameters") outer.header = "afterParameters";
+	}
+	/** The name of the method a def defines has been read. */
+	#named(frame) {
+		const innermost = frame.opened.at(-1);
+		if (innermost?.header === "name") innermost.header = "named";
+	}
+	/**
+	* The token after the name of a def, or after its parameters in parentheses: = makes it an endless method (def
+	* name = value, def name(a) = value), which end does not close; ( starts its parameters; any other starts its body.
+	*/
+	#methodHeader(frame, c, next) {
+		const innermost = frame.opened.at(-1);
+		if (innermost === void 0 || innermost.header !== "named" && innermost.header !== "afterParameters") return;
+		if (c === "=" && next !== "=" && next !== "~" && next !== ">") frame.opened.pop();
+		else if (c === "(" && innermost.header === "named") innermost.header = "parameters";
+		else delete innermost.header;
+	}
+	/**
+	* The end of the number that starts at `at`, as parse_numeric reads it: a prefix and its digits, a fraction and an
+	* exponent only before a digit, the suffixes r and i only when no name character follows, so 1end and 1do end
+	* before the keyword. A name right after a number that is no keyword is a syntax error in Ruby.
+	*/
+	#numberEnd(at) {
+		const text = this.#text;
+		const run = (from, digit) => {
+			let j = from;
+			while (digit(text[j]) || text[j] === "_") j++;
+			return j;
+		};
+		const prefix = text[at] === "0" ? text[at + 1]?.toLowerCase() : void 0;
+		let j;
+		if (prefix === "x") j = run(at + 2, (c) => c !== void 0 && /^[0-9a-fA-F]$/u.test(c));
+		else if (prefix === "b" || prefix === "o" || prefix === "d") j = run(at + 2, isDigit);
+		else {
+			j = run(at, isDigit);
+			if (text[j] === "." && isDigit(text[j + 1])) j = run(j + 1, isDigit);
+			if ((text[j] === "e" || text[j] === "E") && (isDigit(text[j + 1]) || (text[j + 1] === "+" || text[j + 1] === "-") && isDigit(text[j + 2]))) j = run(text[j + 1] === "+" || text[j + 1] === "-" ? j + 2 : j + 1, isDigit);
+		}
+		let k = j;
+		for (const suffix of SYNTAX$1.numberSuffixes) if (text[k] === suffix) k++;
+		if (!isIdentChar(text[k])) return k;
+		let end = j;
+		while (isIdentChar(text[end])) end++;
+		const word = text.slice(j, end);
+		if (!KEYWORD_STATES.has(word)) this.#syntaxError(`the number ${text.slice(at, j)} followed by the name ${word}`);
+		return j;
+	}
+	/** The statement ends: a while, until or for condition can no longer end with do. */
+	#endStatement(frame) {
+		frame.ternary = 0;
+		const innermost = frame.opened.at(-1);
+		if (innermost?.condition === true) innermost.condition = false;
 	}
 	run() {
 		try {
@@ -19336,6 +19544,7 @@ var Scanner = class {
 		}
 		this.#closeLine(false);
 		return {
+			text: this.#text,
 			lines: this.#lines,
 			...this.#unknown === void 0 ? {} : { unknown: this.#unknown }
 		};
@@ -19360,6 +19569,9 @@ var Scanner = class {
 	}
 	/** Ruby stops reading the script here; nothing after it is code. */
 	#endOfScript() {
+		const frame = this.#stack[0];
+		const open = frame?.kind === "code" ? frame.opened.at(-1) : void 0;
+		if (open !== void 0) this.#syntaxError(`the script ends before the end of the ${open.open} that starts on line ${open.line + 1}`);
 		this.#closeLine(false);
 		this.#done = true;
 		throw new Stop();
@@ -19371,6 +19583,8 @@ var Scanner = class {
 		if (frame.kind === "heredoc") this.#fail(`the heredoc that starts there has no line ${frame.id} that ends it`, `end the heredoc with a line ${frame.id}`, frame.line);
 		if (frame.kind === "string") this.#fail("the string or literal that starts there does not end", "end the string", frame.line);
 		if (frame.interpolation) this.#fail("the interpolation #{ that starts there does not end", "close the interpolation with }", frame.line);
+		const open = frame.opened.at(-1);
+		if (open !== void 0) this.#syntaxError(`the ${open.open} that starts there has no ${open.close}`, open.line);
 		this.#closeLine(true);
 		this.#done = true;
 	}
@@ -19401,11 +19615,9 @@ var Scanner = class {
 		const end = this.#text.indexOf("\n", from);
 		return end === -1 ? this.#text.length : end;
 	}
-	/** The text of the line that starts at `from`, without \n or \r\n. */
+	/** The text of the line that starts at `from`, without its \n. */
 	#lineText(from) {
-		const end = this.#lineEnd(from);
-		const text = this.#text.slice(from, end);
-		return text.endsWith("\r") && end < this.#text.length ? text.slice(0, -1) : text;
+		return this.#text.slice(from, this.#lineEnd(from));
 	}
 	/** Line start: a heredoc terminator, =begin, __END__, and the start of a source line. True when it moved on. */
 	#startLine() {
@@ -19428,6 +19640,8 @@ var Scanner = class {
 		if (frame.kind !== "code") return false;
 		const text = this.#text;
 		if (text.startsWith(EMBEDDED_BEGIN, this.#i) && this.#endsWord(this.#i + EMBEDDED_BEGIN.length)) {
+			const after = text.charCodeAt(this.#i + EMBEDDED_BEGIN.length);
+			if (EMBEDDED_PARSE_Y_ONLY.has(String.fromCharCode(after))) this.#fail(`Ruby 3.3 and older (parse.y) read ${EMBEDDED_BEGIN} followed by ^${String.fromCharCode(after + 64)} as the start of a comment, and Ruby 3.4 and newer (Prism) do not`, `put a space or the end of the line right after ${EMBEDDED_BEGIN}`);
 			const start = this.#line;
 			for (;;) {
 				const end = this.#lineEnd();
@@ -19470,6 +19684,7 @@ var Scanner = class {
 			line: this.#line + 1,
 			start: this.#lineStart,
 			statement: frame.state === "stmt",
+			topLevel: frame.opened.length === 0,
 			tokens: [],
 			complete: false,
 			block: false,
@@ -19544,10 +19759,11 @@ var Scanner = class {
 			this.#i = i + 1;
 			return;
 		}
+		this.#methodHeader(frame, c, next);
 		if (c === "\n") {
 			if (!IGNORES_NEWLINE.has(state)) {
 				frame.state = "stmt";
-				frame.ternary = 0;
+				this.#endStatement(frame);
 			}
 			if (frame.params === 1) frame.params = 0;
 			frame.space = true;
@@ -19555,10 +19771,10 @@ var Scanner = class {
 			return;
 		}
 		if (c === "\\") {
-			if (next === "\n" || next === "\r" && text[i + 2] === "\n") {
+			if (next === "\n") {
 				if (this.#recording !== void 0) this.#recording.full = true;
 				frame.space = true;
-				this.#newline(next === "\n" ? i + 1 : i + 2);
+				this.#newline(i + 1);
 				return;
 			}
 			this.#syntaxError("a backslash outside a string");
@@ -19575,19 +19791,7 @@ var Scanner = class {
 			return;
 		}
 		if (isDigit(c)) {
-			let j = i;
-			for (;;) {
-				while (isAlnum(text[j]) || text[j] === "_") j++;
-				if (text[j] === "." && isDigit(text[j + 1])) {
-					j++;
-					continue;
-				}
-				if ((text[j - 1] === "e" || text[j - 1] === "E") && (text[j] === "+" || text[j] === "-") && isDigit(text[j + 1])) {
-					j++;
-					continue;
-				}
-				break;
-			}
+			const j = this.#numberEnd(i);
 			this.#token({
 				kind: "number",
 				text: text.slice(i, j),
@@ -19624,6 +19828,7 @@ var Scanner = class {
 						end: i + 1
 					}, frame);
 					this.#i = i + 1;
+					if (state === "fname") this.#named(frame);
 					this.#after(frame, state === "dot" ? "arg" : "end");
 					return;
 				}
@@ -19674,7 +19879,7 @@ var Scanner = class {
 				return;
 			case "{": {
 				const block = state === "end" || state === "arg" || state === "ident";
-				frame.braces += 1;
+				this.#open(frame, c, BRACKETS.get(c) ?? "}");
 				this.#token({
 					kind: "op",
 					text: block ? "{" : "{hash",
@@ -19688,13 +19893,12 @@ var Scanner = class {
 				return;
 			}
 			case "}":
-				if (frame.braces === 0) {
-					if (!frame.interpolation) this.#syntaxError("a } without {");
+				if (frame.opened.length === 0 && frame.interpolation) {
 					this.#stack.pop();
 					this.#i = i + 1;
 					return;
 				}
-				frame.braces -= 1;
+				this.#close(frame, c);
 				this.#token({
 					kind: "op",
 					text: "}",
@@ -19712,57 +19916,7 @@ var Scanner = class {
 		const i = this.#i;
 		const state = frame.state;
 		const c = text[i] ?? "";
-		const op = [
-			"**=",
-			"<=>",
-			"===",
-			"...",
-			"&&=",
-			"||=",
-			"<<=",
-			">>=",
-			"**",
-			"==",
-			"=~",
-			"=>",
-			"!=",
-			"!~",
-			">=",
-			"<=",
-			">>",
-			"&&",
-			"||",
-			"&.",
-			"..",
-			"::",
-			"->",
-			"+=",
-			"-=",
-			"*=",
-			"/=",
-			"%=",
-			"|=",
-			"&=",
-			"^=",
-			"=",
-			"!",
-			">",
-			"&",
-			"|",
-			"+",
-			"-",
-			"*",
-			"%",
-			"^",
-			"~",
-			"(",
-			")",
-			"[",
-			"]",
-			",",
-			";",
-			"."
-		].find((candidate) => text.startsWith(candidate, i));
+		const op = OPERATORS_BY_FIRST.get(c)?.find((candidate) => text.startsWith(candidate, i));
 		if (op === void 0) this.#syntaxError(`the character ${JSON.stringify(c)} where Ruby expects code`);
 		if ((state === "dot" || state === "fname") && op !== "(" && op !== "::") this.#fail("it calls or defines a method named by an operator, which depcurfew does not read", "give the method a name of letters, or call the operator without a dot");
 		this.#token({
@@ -19772,6 +19926,9 @@ var Scanner = class {
 			end: i + op.length
 		}, frame);
 		this.#i = i + op.length;
+		const close = BRACKETS.get(op);
+		if (close !== void 0) this.#open(frame, op, close);
+		else if (op === ")" || op === "]") this.#close(frame, op);
 		let next;
 		switch (op) {
 			case ")":
@@ -19787,7 +19944,7 @@ var Scanner = class {
 				break;
 			case ";":
 				next = "stmt";
-				frame.ternary = 0;
+				this.#endStatement(frame);
 				break;
 			case ".":
 			case "&.":
@@ -19824,6 +19981,7 @@ var Scanner = class {
 				frame.space = false;
 				return;
 			}
+			this.#named(frame);
 			this.#after(frame, "end");
 			return;
 		}
@@ -19858,19 +20016,29 @@ var Scanner = class {
 			}, frame);
 			if (keyword === "names") this.#fail(`it uses ${word}, which depcurfew does not read`, `rewrite it without ${word} (alias_method or remove_method), or move it out of the Gemfile`);
 			if (keyword === "def") {
+				this.#open(frame, word, END_KEYWORD, { header: "name" });
 				this.#after(frame, "fname");
 				return;
 			}
-			if (MODIFIERS.has(word) && !BEGINS.has(state)) {
+			if (MODIFIERS.has(word) && !KEYWORD_BEGINS.has(state)) {
 				this.#after(frame, "begLabel");
 				return;
 			}
 			if (word === "do") {
+				const innermost = frame.opened.at(-1);
+				if (innermost?.condition === true) {
+					innermost.condition = false;
+					this.#after(frame, "stmt");
+					return;
+				}
+				this.#open(frame, word, END_KEYWORD);
 				if (this.#recording !== void 0 && this.#stack.length === 1) this.#recording.block = true;
 				this.#after(frame, "stmt");
 				frame.params = 1;
 				return;
 			}
+			if (CLOSING.has(word)) this.#close(frame, word);
+			else if (OPENING.has(word)) this.#open(frame, word, END_KEYWORD, LOOPS.has(word) ? { condition: true } : void 0);
 			this.#after(frame, keyword === "stmt" ? "stmt" : keyword);
 			return;
 		}
@@ -19948,10 +20116,6 @@ var Scanner = class {
 		const text = this.#text;
 		const i = this.#i;
 		const c = text[i];
-		if (frame.term === "\n" && c === "\r" && text[i + 1] === "\n") {
-			this.#i = i + 1;
-			return;
-		}
 		if (frame.paren !== "" && c === frame.paren) {
 			frame.nest += 1;
 			this.#i = i + 1;
@@ -20013,10 +20177,6 @@ var Scanner = class {
 		if (next === void 0) this.#syntaxError("a backslash at the end of the file");
 		if (next === "\n") {
 			this.#newline(i + 1);
-			return "newline";
-		}
-		if (next === "\r" && text[i + 2] === "\n") {
-			this.#newline(i + 2);
 			return "newline";
 		}
 		if (expand && (next === "c" || next === "C" || next === "M")) this.#fail("it uses a control or meta escape (\\c, \\C-, \\M-), which depcurfew does not read", "write the character another way, such as \\x01");
@@ -20083,6 +20243,7 @@ var Scanner = class {
 		if (c === "0" || isIdentStart(c)) {
 			let j = at + 1;
 			while (isIdentChar(text[j])) j++;
+			if (c === "0" && j > at + 2 && DIFFERENCES.globalZeroWithName) this.#fail(`Ruby 3.3 and older (parse.y) read ${text.slice(at, j)} as one global variable, and Ruby 3.4 and newer (Prism) report a syntax error`, "write $0 apart from the name after it");
 			return j;
 		}
 	}
@@ -20117,6 +20278,10 @@ var Scanner = class {
 		if (isRubySpace(next)) return ternary();
 		if (state === "ident") this.#ambiguous(this.#lastName(), "?");
 		const width = this.#width(i + 1);
+		if (DIFFERENCES.characterBeyondAscii && isNonAscii(next)) {
+			const character = text.slice(i + 1, i + 1 + width);
+			this.#fail("Ruby 3.4 and newer (Prism) and Ruby 3.3 and older (parse.y) read ? before a character beyond ASCII differently, as a character literal or as the ? of a ternary", `write the character as a string ("${character}" in place of ?${character}), or put a space after the ? of a ternary`);
+		}
 		if (isIdentChar(next) && isIdentChar(text[i + 1 + width])) return ternary();
 		let end;
 		if (next === "\\") {
@@ -20125,9 +20290,14 @@ var Scanner = class {
 			if (escaped === "c" || escaped === "C" || escaped === "M") this.#fail("it uses a control or meta escape (?\\c, ?\\C-, ?\\M-), which depcurfew does not read", "write the character another way, such as ?\\x01");
 			if (escaped === "u") {
 				if (text[i + 3] === "{") {
-					const close = text.indexOf("}", i + 4);
-					if (close === -1 || close > this.#lineEnd(i)) this.#syntaxError("an unterminated \\u{ escape");
-					end = close + 1;
+					let k = i + 4;
+					while (isInlineSpace(text[k])) k++;
+					const digits = k;
+					while (/^[0-9a-fA-F]$/u.test(text[k] ?? "")) k++;
+					const none = k === digits;
+					while (isInlineSpace(text[k])) k++;
+					if (none || text[k] !== "}") this.#syntaxError("a \\u{ escape that is not one code point in hex digits closed by }");
+					end = k + 1;
 				} else end = i + 7;
 			} else if (escaped === "x") {
 				end = i + 3;
@@ -20184,10 +20354,6 @@ var Scanner = class {
 			term = text[i + 2];
 			if (term === void 0 || isAlnum(term) || isNonAscii(term) || !PERCENT_TYPES.has(type)) this.#syntaxError("an unknown type of %string");
 			content = i + 3;
-		}
-		if (term === "\r" && text[content] === "\n") {
-			term = "\n";
-			content += 1;
 		}
 		const close = PAIRS.get(term);
 		this.#stack.push({
@@ -20388,11 +20554,37 @@ var Scanner = class {
 	}
 };
 /** Reads a Gemfile as Ruby's lexer does (see the comment at the top). */
-function scanRuby(text) {
-	return new Scanner(text).run();
+function scanRuby(text, options = {}) {
+	const read = options.newlinesRead === true || !text.includes(SYNTAX$1.lineEnding) ? text : text.replaceAll(SYNTAX$1.lineEnding, "\n");
+	return new Scanner(read).run();
+}
+/**
+* The position in `original` of the position `at` of the text scanRuby read, which has \n in place of each \r\n of
+* `original`; `crs` are the positions of those \n in the text read, in order.
+*/
+function originalPosition(crs, at) {
+	let low = 0;
+	let high = crs.length;
+	while (low < high) {
+		const middle = low + high >> 1;
+		if ((crs[middle] ?? 0) < at) low = middle + 1;
+		else high = middle;
+	}
+	return at + low;
+}
+/** The positions in the text scanRuby reads of the \n that stand for a \r\n of `original`. */
+function lineEndingPositions(original) {
+	const positions = [];
+	let removed = 0;
+	for (let at = original.indexOf(SYNTAX$1.lineEnding); at !== -1; at = original.indexOf(SYNTAX$1.lineEnding, at + SYNTAX$1.lineEnding.length)) {
+		positions.push(at - removed);
+		removed += SYNTAX$1.lineEnding.length - 1;
+	}
+	return positions;
 }
 
 // src/apply/gemfile.ts
+const isStrings$6 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 /** The second token of a source line that makes it no call of source: an assignment, a method of it, a comparison. */
 const NOT_A_CALL = /* @__PURE__ */ new Set([
 	"=",
@@ -20455,18 +20647,29 @@ function rubyInteger(text) {
 	return Number.parseInt(body.replaceAll("_", ""), base);
 }
 const isOp = (token, text) => token?.kind === "op" && token.text === text;
-/** The index of the value of a cooldown key at tokens[k] (cooldown:, "cooldown":, :cooldown =>, "cooldown" =>). */
+/** The symbols that name the cooldown key before =>. */
+const COOLDOWN_SYMBOLS = /* @__PURE__ */ new Set([
+	":cooldown",
+	":\"cooldown\"",
+	":'cooldown'"
+]);
+/** The index of the value of a cooldown key at tokens[k] (cooldown:, "cooldown":, :cooldown =>, :"cooldown" =>, "cooldown" =>). */
 function cooldownKey(tokens, k) {
 	const token = tokens[k];
 	if (token === void 0) return void 0;
 	if (token.kind === "label" && token.text === "cooldown") return k + 1;
-	if (token.kind === "symbol" && token.text === ":cooldown" || token.kind === "string" && token.value === "cooldown") return isOp(tokens[k + 1], "=>") ? k + 2 : void 0;
+	if (token.kind === "symbol" && COOLDOWN_SYMBOLS.has(token.text) || token.kind === "string" && token.value === "cooldown") return isOp(tokens[k + 1], "=>") ? k + 2 : void 0;
 }
 /** Whitespace Ruby skips at the start of the next line while it looks for a leading .method. */
 const isLeadingSpace = (c) => c === " " || c === "	" || c === "\f" || c === "\r" || c === "\v";
+const isContinuation = (value) => isRecord(value) && isStrings$6(value["calls"]) && isRecord(value["logical"]) && isStrings$6(value["logical"]["operators"]) && isStrings$6(value["logical"]["words"]);
+/** What continues a statement at the start of the next line: .method and &.method, and since Ruby 4.0 && || and or. */
+const CONTINUATION = extraOf(bundler$1, "lineContinuation", isContinuation);
+const CONTINUING = [...CONTINUATION.calls, ...CONTINUATION.logical.operators];
 /**
 * Whether the line after the one ending at `end` continues the statement: Ruby skips comment lines and joins a next
-* line that starts with .method or &.method (a blank line does not join).
+* line that starts with .method or &.method, and Ruby 4.0 also one that starts with &&, ||, and or or (a blank line
+* does not join; .. starts a range). Ruby 3.4 refuses the logical ones, so a call before them is no plain call either.
 */
 function continuedBelow(text, end) {
 	let at = end + 1;
@@ -20480,15 +20683,19 @@ function continuedBelow(text, end) {
 			at = next + 1;
 			continue;
 		}
-		if (c === ".") return text[p + 1] !== ".";
-		if (c === "&") return text[p + 1] === ".";
-		return false;
+		if (c === "." && text[p + 1] === ".") return false;
+		if (CONTINUING.some((operator) => text.startsWith(operator, p))) return true;
+		return CONTINUATION.logical.words.some((word) => text.startsWith(word, p) && !isNameCharacter(text[p + word.length]));
 	}
 	return false;
 }
+/** A letter, a digit, _, a character beyond ASCII, or the ? and ! that end a method name. */
+function isNameCharacter(c) {
+	return c !== void 0 && (/^[A-Za-z0-9_?!]$/u.test(c) || c.charCodeAt(0) >= 128);
+}
 /** A plain source call on the line, or undefined. */
 function plainCall(text, line) {
-	if (!line.statement || !line.complete || line.block) return void 0;
+	if (!line.statement || !line.topLevel || !line.complete || line.block) return void 0;
 	const tokens = line.tokens;
 	const open = tokens[1];
 	const paren = isOp(open, "(") && open?.space === false;
@@ -20525,6 +20732,26 @@ function plainCall(text, line) {
 		insertAt: url.end
 	};
 }
+/** The tokens after which a value of a call's argument has ended: , ) } ; and the keywords below. */
+const VALUE_ENDS = /* @__PURE__ */ new Set([
+	",",
+	")",
+	"}",
+	";"
+]);
+/** do, end, the modifiers (extra.rubySyntax) and and or (extra.lineContinuation) end the arguments of a call. */
+const ARGUMENTS_END = /* @__PURE__ */ new Set([
+	"do",
+	"end",
+	...extraOf(bundler$1, "rubySyntax", (value) => isRecord(value) && isRecord(value["keywords"]) && isStrings$6(value["keywords"]["modifiers"])).keywords.modifiers,
+	...CONTINUATION.logical.words
+]);
+/** Whether the value before `next` ends there; at the end of the line when the statement ends there. */
+function valueEnds(next, statementEnds) {
+	if (next === void 0 || next.kind === "comment") return statementEnds;
+	if (next.kind === "op") return VALUE_ENDS.has(next.text);
+	return next.kind === "keyword" && ARGUMENTS_END.has(next.text);
+}
 /** The source call of a line that starts with source, or undefined when it is no call (source = x, source.foo). */
 function sourceOf(text, line) {
 	const tokens = line.tokens;
@@ -20543,25 +20770,40 @@ function sourceOf(text, line) {
 	const first = isOp(second, "(") ? tokens[2] : second;
 	const url = first?.kind === "string" ? first.value : void 0;
 	let cooldown;
-	for (let k = 1; k < tokens.length && cooldown === void 0; k++) {
+	let repeated = false;
+	const last = tokens.at(-1);
+	const statementEnds = line.complete && last !== void 0 && !continuedBelow(text, text.indexOf("\n", last.end));
+	for (let k = 1; k < tokens.length; k++) {
+		const token = tokens[k];
+		if (token?.kind === "keyword" && token.text === "do" || isOp(token, "{") || isOp(token, ";")) break;
 		const at = cooldownKey(tokens, k);
 		if (at === void 0) continue;
+		if (cooldown !== void 0) {
+			repeated = true;
+			break;
+		}
 		const value = tokens[at];
-		cooldown = value?.kind === "number" ? rubyInteger(value.text) ?? "other" : "other";
+		cooldown = value?.kind === "number" && valueEnds(tokens[at + 1], statementEnds) ? rubyInteger(value.text) ?? "other" : "other";
 	}
+	if (repeated) cooldown = "other";
 	return {
 		line: line.line,
 		...url === void 0 ? {} : { url },
 		...cooldown === void 0 ? {} : { cooldown },
+		...repeated ? { repeated: true } : {},
 		plain: false,
+		...line.topLevel ? {} : { nested: true },
 		block: line.block
 	};
 }
-/** The source calls of the text as Ruby reads it, up to where depcurfew cannot read it with certainty. */
-function readGemfile(text) {
-	const scan = scanRuby(text);
+/**
+* The source calls of the text as Ruby reads it, up to where depcurfew cannot read it with certainty. The text of a
+* file as it is on disk, or, with newlinesRead, the text apply edits (with \r\n as \n already).
+*/
+function readGemfile(text, options = {}) {
+	const scan = scanRuby(text, options);
 	return {
-		sources: scan.lines.flatMap((line) => sourceOf(text, line) ?? []),
+		sources: scan.lines.flatMap((line) => sourceOf(scan.text, line) ?? []),
 		...scan.unknown === void 0 ? {} : { unknown: scan.unknown }
 	};
 }
@@ -20581,14 +20823,14 @@ function sameServer(url, server) {
 * The text with the cooldown of the plain source call on each of `lines` set to `days`; everything else stays as it
 * is. A text depcurfew does not read with certainty comes back unchanged.
 */
-function setSourceCooldown(text, lines, days) {
-	const scan = scanRuby(text);
+function setSourceCooldown(text, lines, days, options = {}) {
+	const scan = scanRuby(text, options);
 	if (scan.unknown !== void 0) return text;
 	const wanted = new Set(lines);
 	const edits = [];
 	for (const line of scan.lines) {
 		if (!wanted.has(line.line)) continue;
-		const call = plainCall(text, line);
+		const call = plainCall(scan.text, line);
 		if (call === void 0) continue;
 		edits.push(call.cooldown === void 0 ? {
 			start: call.insertAt,
@@ -20600,11 +20842,13 @@ function setSourceCooldown(text, lines, days) {
 			text: String(days)
 		});
 	}
+	const crs = scan.text === text ? [] : lineEndingPositions(text);
+	const position = (at) => crs.length === 0 ? at : originalPosition(crs, at);
 	let result = "";
 	let at = 0;
 	for (const edit of edits) {
-		result += text.slice(at, edit.start) + edit.text;
-		at = edit.end;
+		result += text.slice(at, position(edit.start)) + edit.text;
+		at = position(edit.end);
 	}
 	return result + text.slice(at);
 }
@@ -20930,8 +21174,9 @@ const GEMFILES$1 = /* @__PURE__ */ new Set(["Gemfile", "gems.rb"]);
 /**
 * A keyword of the source call of rubygems.org in a Gemfile (Bundler extra.rubygemsSource): the cooldown: of the first
 * plain such call, as a number of days, with its line. Only a cooldown depcurfew is sure Ruby runs counts (decision
-* D-159): none in a Gemfile it does not read with certainty, and none of a call with a block, a modifier or another
-* form apply does not edit; apply and doctor report those places instead.
+* D-159): none in a Gemfile it does not read with certainty, and none of a call with a block, a modifier, a place
+* inside other code or another form apply does not edit (decision D-163); apply and doctor report those places
+* instead. The text comes from disk, so readGemfile reads its \r\n as one newline, as apply does.
 */
 function gemfileSetting(text, setting) {
 	if (setting !== "cooldown") return void 0;
@@ -28330,18 +28575,22 @@ function plannedGemfile(context) {
 	return gemfileIn((file) => context.isFile(file), names);
 }
 /** Why apply does not edit a source call, for messages. */
-function whyNotPlain(source) {
+function whyNotPlain(source, file, setting) {
+	if (source.nested === true) return `it is not at the top level of ${file} (it is inside a block, a method, a class, a condition, a loop, begin or brackets), so Ruby runs it only when that code runs`;
+	if (source.repeated === true) return `it gives ${setting}: more than once, and which value Bundler takes depends on how Ruby merges the keys`;
 	if (source.block) return "it has a block, so it is the source of the gems in the block only";
-	if (source.cooldown === "other") return "its cooldown: is not a whole number written as a Ruby integer";
+	if (source.cooldown === "other") return `its ${setting}: is not a whole number written as a Ruby integer`;
 	return "it is not written as a plain source \"<URL>\" call on a line of its own";
 }
 /**
 * What to do about a source call apply does not edit. Never a shorter cooldown than the call has: one that already
 * waits as long as the policy needs is left as it is (decision D-159).
 */
-function fixFor$1(source, server, setting, days) {
-	const plainly = "or write it as a plain call on a line of its own and run depcurfew apply again";
-	if (typeof source.cooldown === "number" && source.cooldown >= days) return `No change is needed as long as Ruby runs that call: its ${setting}: ${source.cooldown} is not shorter than the ${days} days of ${POLICY_FILE}. To let depcurfew check it, write it as a plain call on a line of its own and set cooldown.minimum in ${POLICY_FILE} to "${source.cooldown}d", so that depcurfew apply keeps ${source.cooldown}`;
+function fixFor$1(source, server, setting, days, file) {
+	const plain = source.nested === true ? `move it to the top level of ${file} as a plain call on a line of its own` : "write it as a plain call on a line of its own";
+	const plainly = `or ${plain} and run depcurfew apply again`;
+	if (source.repeated === true) return `Keep a single ${setting}: ${days} in that call by hand in place of its ${setting}: keys, ${plainly}`;
+	if (typeof source.cooldown === "number" && source.cooldown >= days) return `No change is needed as long as Ruby runs that call: its ${setting}: ${source.cooldown} is not shorter than the ${days} days of ${POLICY_FILE}. To let depcurfew check it, ${plain} and set cooldown.minimum in ${POLICY_FILE} to "${source.cooldown}d", so that depcurfew apply keeps ${source.cooldown}`;
 	if (typeof source.cooldown === "number") return `Change ${setting}: ${source.cooldown} to ${setting}: ${days} in that call by hand, ${plainly}`;
 	if (source.cooldown === "other") return `Write ${setting}: ${days} in that call by hand in place of its value, ${plainly}`;
 	return `Add ${setting}: ${days} to that call by hand (source "${server}", ${setting}: ${days}${source.block ? " do" : ""}), ${plainly}`;
@@ -28388,7 +28637,7 @@ function cooldownMayHold(text, line, days, server = "https://rubygems.org") {
 function writeCooldown$1(context, file, days, server) {
 	const setting = settingOf(context.tool.cooldown.setting) ?? "cooldown";
 	const text = context.read(file);
-	const reading = readGemfile(text);
+	const reading = readGemfile(text, { newlinesRead: true });
 	if (reading.unknown !== void 0) {
 		notUnderstood(context, file, reading.unknown, reading.sources, days, server, setting);
 		return false;
@@ -28402,13 +28651,9 @@ function writeCooldown$1(context, file, days, server) {
 			file,
 			line: source.line
 		},
-		message: `${context.name}: cooldown not written: the source "${server}" call on line ${source.line} of ${file} is not edited, because ${whyNotPlain(source)}; depcurfew apply edits only a plain source "${server}" call on a line of its own`,
-		fix: fixFor$1(source, server, setting, days)
+		message: `${context.name}: cooldown not written: the source "${server}" call on line ${source.line} of ${file} is not edited, because ${whyNotPlain(source, file, setting)}; depcurfew apply edits only a plain source "${server}" call on a line of its own`,
+		fix: fixFor$1(source, server, setting, days, file)
 	});
-	if (plain.length > 0) {
-		if (plain.some((source) => source.cooldown !== days)) context.text(file, (body) => setSourceCooldown(body, plain.map((source) => source.line), days));
-		return true;
-	}
 	const unread = sources.filter((source) => source.url === void 0);
 	for (const source of unread) context.warn({
 		code: "cooldown-not-written",
@@ -28419,6 +28664,10 @@ function writeCooldown$1(context, file, days, server) {
 		message: `${context.name}: cooldown not written: the URL of the source call on line ${source.line} of ${file} is not a literal string, so depcurfew cannot tell whether it is "${server}"`,
 		fix: typeof source.cooldown === "number" && source.cooldown >= days ? `No change is needed if it names rubygems.org and Ruby runs it: its ${setting}: ${source.cooldown} is not shorter than the ${days} days of ${POLICY_FILE}; to let depcurfew check it, write it as source "${server}" on a line of its own` : `If it names rubygems.org, write it as source "${server}" on a line of its own and run depcurfew apply again, or add ${setting}: ${days} to that call by hand`
 	});
+	if (plain.length > 0) {
+		if (plain.some((source) => source.cooldown !== days)) context.text(file, (body) => setSourceCooldown(body, plain.map((source) => source.line), days, { newlinesRead: true }));
+		return true;
+	}
 	if (ours.length > 0 || unread.length > 0) return false;
 	context.warn({
 		code: "cooldown-not-written",
@@ -34729,7 +34978,8 @@ function lineChanges(before, after) {
 }
 /**
 * A Gemfile: the cooldown: apply sets on its source calls, as `cooldown: 7`, never the line it rewrites, which would
-* read as removing the source (decision D-159).
+* read as removing the source (decision D-159). Both texts are as on disk, so readGemfile reads \r\n as one newline in
+* them, as apply reads the file (decision D-163).
 */
 function gemfileChanges(before, after) {
 	const old = new Map(readGemfile(before).sources.map((source) => [source.line, source.cooldown]));
@@ -35034,7 +35284,9 @@ function checkComposerExclusions(context, plan) {
 * another form apply does not edit, its URL comes from ENV, the Gemfile has no such source, or depcurfew does not read
 * the Gemfile as Ruby does), the plan has no change and Bundler has no delay. Each cooldown-not-written of the plan is
 * reported where it points, with apply's text (decision D-159): as an error, or as a warning when the call there already
-* waits at least the policy's days and depcurfew only cannot be sure that Ruby runs it.
+* waits at least the policy's days and depcurfew only cannot be sure that Ruby runs it. A source inside a block or with
+* a URL from ENV is reported also next to a plain call, and the Gemfile is read from disk with \r\n as one newline, as
+* apply reads it (decision D-163).
 */
 function checkBundlerCooldown(context, plan) {
 	const tool = context.tools.find((entry) => entry.id === "bundler");
@@ -35113,7 +35365,7 @@ const configDrift = {
 	id: "config-drift",
 	checks: "Configuration files match what depcurfew apply writes for depcurfew.json",
 	summary: "A configuration file does not match what depcurfew apply writes for depcurfew.json.",
-	description: "A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool's own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning. So is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, which apply keeps unless it wrote the entry itself. A Gemfile apply cannot write the cooldown of Bundler into (a source with a block or a modifier, a URL from ENV, no rubygems.org source, a Gemfile depcurfew cannot read as Ruby does) is an error where apply says so, or a warning when that call already waits as long as the policy.",
+	description: "A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool's own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning. So is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, which apply keeps unless it wrote the entry itself. A Gemfile apply cannot write the cooldown of Bundler into (a source with a block or a modifier or inside other code, a cooldown: given twice, a URL from ENV, no rubygems.org source, a Gemfile depcurfew cannot read as Ruby does) is an error where apply says so, or a warning when that call already waits as long as the policy.",
 	help: "Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.",
 	level: "error",
 	requiresPolicy: true,

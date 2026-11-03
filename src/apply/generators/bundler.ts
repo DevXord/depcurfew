@@ -25,9 +25,11 @@ export function plannedGemfile(context: Pick<Context, 'tool' | 'isFile'>): strin
 }
 
 /** Why apply does not edit a source call, for messages. */
-function whyNotPlain(source: GemfileSource): string {
+function whyNotPlain(source: GemfileSource, file: string, setting: string): string {
+  if (source.nested === true) return `it is not at the top level of ${file} (it is inside a block, a method, a class, a condition, a loop, begin or brackets), so Ruby runs it only when that code runs`;
+  if (source.repeated === true) return `it gives ${setting}: more than once, and which value Bundler takes depends on how Ruby merges the keys`;
   if (source.block) return 'it has a block, so it is the source of the gems in the block only';
-  if (source.cooldown === 'other') return 'its cooldown: is not a whole number written as a Ruby integer';
+  if (source.cooldown === 'other') return `its ${setting}: is not a whole number written as a Ruby integer`;
   return 'it is not written as a plain source "<URL>" call on a line of its own';
 }
 
@@ -35,10 +37,12 @@ function whyNotPlain(source: GemfileSource): string {
  * What to do about a source call apply does not edit. Never a shorter cooldown than the call has: one that already
  * waits as long as the policy needs is left as it is (decision D-159).
  */
-function fixFor(source: GemfileSource, server: string, setting: string, days: number): string {
-  const plainly = 'or write it as a plain call on a line of its own and run depcurfew apply again';
+function fixFor(source: GemfileSource, server: string, setting: string, days: number, file: string): string {
+  const plain = source.nested === true ? `move it to the top level of ${file} as a plain call on a line of its own` : 'write it as a plain call on a line of its own';
+  const plainly = `or ${plain} and run depcurfew apply again`;
+  if (source.repeated === true) return `Keep a single ${setting}: ${days} in that call by hand in place of its ${setting}: keys, ${plainly}`;
   if (typeof source.cooldown === 'number' && source.cooldown >= days) {
-    return `No change is needed as long as Ruby runs that call: its ${setting}: ${source.cooldown} is not shorter than the ${days} days of ${POLICY_FILE}. To let depcurfew check it, write it as a plain call on a line of its own and set cooldown.minimum in ${POLICY_FILE} to "${source.cooldown}d", so that depcurfew apply keeps ${source.cooldown}`;
+    return `No change is needed as long as Ruby runs that call: its ${setting}: ${source.cooldown} is not shorter than the ${days} days of ${POLICY_FILE}. To let depcurfew check it, ${plain} and set cooldown.minimum in ${POLICY_FILE} to "${source.cooldown}d", so that depcurfew apply keeps ${source.cooldown}`;
   }
   if (typeof source.cooldown === 'number') return `Change ${setting}: ${source.cooldown} to ${setting}: ${days} in that call by hand, ${plainly}`;
   if (source.cooldown === 'other') return `Write ${setting}: ${days} in that call by hand in place of its value, ${plainly}`;
@@ -89,8 +93,9 @@ export function cooldownMayHold(text: string, line: number | undefined, days: nu
 
 function writeCooldown(context: Context, file: string, days: number, server: string): boolean {
   const setting = settingOf(context.tool.cooldown.setting) ?? 'cooldown';
+  // The text apply edits has \r\n as \n already (decision D-163).
   const text = context.read(file);
-  const reading = readGemfile(text);
+  const reading = readGemfile(text, { newlinesRead: true });
   if (reading.unknown !== undefined) {
     notUnderstood(context, file, reading.unknown, reading.sources, days, server, setting);
     return false;
@@ -102,15 +107,13 @@ function writeCooldown(context: Context, file: string, days: number, server: str
     context.warn({
       code: 'cooldown-not-written',
       location: { file, line: source.line },
-      message: `${context.name}: cooldown not written: the source "${server}" call on line ${source.line} of ${file} is not edited, because ${whyNotPlain(source)}; depcurfew apply edits only a plain source "${server}" call on a line of its own`,
-      fix: fixFor(source, server, setting, days),
+      message: `${context.name}: cooldown not written: the source "${server}" call on line ${source.line} of ${file} is not edited, because ${whyNotPlain(source, file, setting)}; depcurfew apply edits only a plain source "${server}" call on a line of its own`,
+      fix: fixFor(source, server, setting, days, file),
     });
   }
-  if (plain.length > 0) {
-    if (plain.some((source) => source.cooldown !== days)) context.text(file, (body) => setSourceCooldown(body, plain.map((source) => source.line), days));
-    return true;
-  }
-  // A source call whose URL depcurfew cannot read (a variable, an interpolated string) may name rubygems.org.
+  // A source call whose URL depcurfew cannot read (a variable, an interpolated string) may name rubygems.org, and Ruby
+  // may run it in place of a plain call, which may sit in code that never runs: it is reported also next to a plain
+  // call (decision D-163).
   const unread = sources.filter((source) => source.url === undefined);
   for (const source of unread) {
     context.warn({
@@ -122,6 +125,10 @@ function writeCooldown(context: Context, file: string, days: number, server: str
           ? `No change is needed if it names rubygems.org and Ruby runs it: its ${setting}: ${source.cooldown} is not shorter than the ${days} days of ${POLICY_FILE}; to let depcurfew check it, write it as source "${server}" on a line of its own`
           : `If it names rubygems.org, write it as source "${server}" on a line of its own and run depcurfew apply again, or add ${setting}: ${days} to that call by hand`,
     });
+  }
+  if (plain.length > 0) {
+    if (plain.some((source) => source.cooldown !== days)) context.text(file, (body) => setSourceCooldown(body, plain.map((source) => source.line), days, { newlinesRead: true }));
+    return true;
   }
   if (ours.length > 0 || unread.length > 0) return false;
   context.warn({

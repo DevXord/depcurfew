@@ -271,7 +271,16 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
             variable: bundlerSetting['variable'],
             gem: { install: strings(gemInstall['command']), name: gemInstall['name'], versionOptions: strings(gemInstall['versionOptions']), separator: gemInstall['separator'] },
             ...(isRecord(bundlerCli) && isStringMap(bundlerCli['aliases']) && typeof bundlerCli['defaultCommand'] === 'string'
-              ? { cli: { commands: strings(bundlerCli['commands']), aliases: bundlerCli['aliases'], prefixes: bundlerCli['prefixes'] === true, defaultCommand: bundlerCli['defaultCommand'] } }
+              ? {
+                  cli: {
+                    commands: strings(bundlerCli['commands']),
+                    aliases: bundlerCli['aliases'],
+                    prefixes: bundlerCli['prefixes'] === true,
+                    defaultCommand: bundlerCli['defaultCommand'],
+                    hidden: isStringMap(bundlerCli['hidden']) ? bundlerCli['hidden'] : {},
+                    dashesAsUnderscores: bundlerCli['dashesAsUnderscores'] === true,
+                  },
+                }
               : {}),
             ...(isRecord(versionSelector) && versionSelector['form'] === '_VERSION_' ? { versionSelector: true } : {}),
           },

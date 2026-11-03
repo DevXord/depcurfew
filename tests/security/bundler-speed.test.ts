@@ -1,8 +1,9 @@
 // A Gemfile just under the 1 MiB that apply and doctor read takes linear time (decision D-159). Before, regular
 // expressions of src/apply/gemfile.ts backtracked quadratically on long runs of spaces after the URL, on many #{ and on
 // a URL of slashes, and the queue of heredocs moved every entry for each one that ended: apply --dry-run took over
-// 120 s on such a Gemfile and doctor over 60 s. Each shape now takes a fraction of a second; the limit leaves a wide
-// margin for slow CI machines.
+// 120 s on such a Gemfile and doctor over 60 s. A line of ?\u{41} character literals looked for the end of the line
+// again at each one (decision D-163): 1 MiB took doctor 4.5 s and apply 3.2 s. Each shape now takes a fraction of a
+// second; the limit leaves a wide margin for slow CI machines.
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -37,6 +38,13 @@ const SHAPES: [string, string][] = [
   ['many source lines', fill('', 'source "https://rubygems.org"\n', '')],
   ['many ? and :', fill('X = ', 'a ? b : ', '1\n')],
   ['many =begin lines', fill('=begin\n', '=begin\n', '=end\n')],
+  ['many ?\\u{41} character literals on one line', fill('x = ', '?\\u{41}+', '1\n')],
+  ['many ?\\u{ without } on one line', fill('x = ', '?\\u{', '\n')],
+  ['many blocks', fill('', 'x do\nend\n', '')],
+  ['many nested blocks', `${'x do\n'.repeat(Math.floor((MAX_FILE_SIZE - 64) / 9))}${'end\n'.repeat(Math.floor((MAX_FILE_SIZE - 64) / 9))}`],
+  ['many ( without )', fill('X = ', '(', '\n')],
+  ['many endless methods', fill('', 'def x = 1\n', '')],
+  ['many CR LF line endings', fill('', 'source "https://rubygems.org"\r\n', '')],
 ];
 
 describe('a Gemfile of 1 MiB', () => {

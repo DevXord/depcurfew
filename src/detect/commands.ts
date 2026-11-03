@@ -54,8 +54,19 @@ export interface CommandFacts {
     option: string;
     variable: string;
     gem: { install: readonly string[]; name: string; versionOptions: readonly string[]; separator: string };
-    /** The commands and aliases of Bundler's CLI, whether an unambiguous prefix names one, and the command of a bare bundle (decision D-159). */
-    cli?: { commands: readonly string[]; aliases: Readonly<Record<string, string>>; prefixes: boolean; defaultCommand: string };
+    /**
+     * The commands and aliases of Bundler's CLI, whether an unambiguous prefix names one, and the command of a bare
+     * bundle (decision D-159); the hidden commands, named only exactly, with the command each runs, and whether a name
+     * is read with - as _ (decision D-163).
+     */
+    cli?: {
+      commands: readonly string[];
+      aliases: Readonly<Record<string, string>>;
+      prefixes: boolean;
+      defaultCommand: string;
+      hidden?: Readonly<Record<string, string>>;
+      dashesAsUnderscores?: boolean;
+    };
     /** bundle _4.0.23_ install runs that version (the executables RubyGems writes). */
     versionSelector?: boolean;
   };
@@ -548,19 +559,26 @@ function pipCommand(args: readonly Word[], at: number, facts: CommandFacts, envi
 
 /**
  * The command Bundler's CLI runs for its first argument (Thor, extra.cliCommands): a command, an alias (i, package), or
- * an unambiguous prefix of one (inst); a bare bundle runs the default command; an option first is no command.
+ * an unambiguous prefix of one (inst); a bare bundle runs the default command; an option first is no command. A name
+ * that matches none of them is read with - as _ and runs the command of exactly that name, a hidden one too
+ * (install_or_cli_help runs install; decision D-163).
  */
 function bundlerCliCommand(name: string | undefined, cli: NonNullable<NonNullable<CommandFacts['bundler']>['cli']>): string | undefined {
   if (name === undefined) return cli.defaultCommand;
   if (cli.commands.includes(name)) return name;
-  const alias = cli.aliases[name];
-  if (alias !== undefined) return alias;
+  if (Object.hasOwn(cli.aliases, name)) return cli.aliases[name];
   // A first argument that starts with - and is no alias is no command name: Thor runs the default command with every
   // argument as its options, so bundle --cooldown 0 installs without the cooldown (decision D-159).
   if (name.startsWith('-')) return cli.defaultCommand;
-  if (!cli.prefixes || name === '') return undefined;
-  const found = new Set([...cli.commands, ...Object.keys(cli.aliases)].filter((candidate) => candidate.startsWith(name)).map((candidate) => cli.aliases[candidate] ?? candidate));
-  return found.size === 1 ? [...found][0] : undefined;
+  if (name === '') return undefined;
+  if (cli.prefixes) {
+    const found = new Set([...cli.commands, ...Object.keys(cli.aliases)].filter((candidate) => candidate.startsWith(name)).map((candidate) => cli.aliases[candidate] ?? candidate));
+    // More than one: Thor stops with "Ambiguous command".
+    if (found.size > 0) return found.size === 1 ? [...found][0] : undefined;
+  }
+  const exact = cli.dashesAsUnderscores === true ? name.replaceAll('-', '_') : name;
+  if (cli.hidden !== undefined && Object.hasOwn(cli.hidden, exact)) return cli.hidden[exact];
+  return cli.commands.includes(exact) ? exact : undefined;
 }
 
 /** A version Gem::Version.correct? accepts (VERSION_PATTERN of RubyGems), for bundle _VERSION_. */

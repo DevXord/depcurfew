@@ -362,8 +362,9 @@ const GEMFILES: ReadonlySet<string> = new Set(['Gemfile', 'gems.rb']);
 /**
  * A keyword of the source call of rubygems.org in a Gemfile (Bundler extra.rubygemsSource): the cooldown: of the first
  * plain such call, as a number of days, with its line. Only a cooldown depcurfew is sure Ruby runs counts (decision
- * D-159): none in a Gemfile it does not read with certainty, and none of a call with a block, a modifier or another
- * form apply does not edit; apply and doctor report those places instead.
+ * D-159): none in a Gemfile it does not read with certainty, and none of a call with a block, a modifier, a place
+ * inside other code or another form apply does not edit (decision D-163); apply and doctor report those places
+ * instead. The text comes from disk, so readGemfile reads its \r\n as one newline, as apply does.
  */
 function gemfileSetting(text: string, setting: string): { value: unknown; line: number } | undefined {
   if (setting !== 'cooldown') return undefined;

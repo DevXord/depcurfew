@@ -91,24 +91,35 @@ export function proposedProjects(root: string): { projects: string[]; leftOut: L
     // The fix of apply speaks of an entry of projects, which init did not write: what to do here instead.
     return { project, file: project, reason: `${problem.message}; depcurfew apply would refuse it`, fix: `Fix what the message describes, then run depcurfew init --force to list ${project}` };
   });
-  // Directories whose names differ only in case are one directory on Windows and macOS, and the policy refuses both
-  // (decision D-158): of the directories init can list, the first in sort order is listed and the others are left out
-  // with the reason. One left out above does not count, so that its twin is listed (decision D-161).
-  const listable = candidates.filter((name) => !problems.some((problem) => problem.project === name));
+  const { listed, twins } = caseTwins(candidates, new Set(problems.map((problem) => problem.project)));
+  return { projects: listed, leftOut: [...leftOut, ...twins].sort((a, b) => (a.project < b.project ? -1 : a.project > b.project ? 1 : 0)) };
+}
+
+/**
+ * Directories whose names differ only in case are one directory on Windows and macOS, and the policy refuses both
+ * (decision D-158): of the sorted `candidates` init can list (those not `refused`, decision D-161), the first in sort
+ * order of each name in any case is listed and the others are left out with the reason. A set and a map keep this
+ * linear for tens of thousands of directories (decision D-163).
+ */
+export function caseTwins(candidates: readonly string[], refused: ReadonlySet<string>): { listed: string[]; twins: LeftOutProject[] } {
   const firsts = new Map<string, string>();
-  const twins = listable.flatMap((name): LeftOutProject[] => {
-    const first = firsts.get(name.toLowerCase());
-    if (first === undefined) firsts.set(name.toLowerCase(), name);
-    return first === undefined
-      ? []
-      : [
-          {
-            project: name,
-            file: name,
-            reason: `its name differs from "${first}" only in case, so both name the same directory on Windows and macOS, and projects in ${POLICY_FILE} cannot list both`,
-            fix: `Rename one of the two directories so that their names differ in more than case, then run depcurfew init --force to list both`,
-          },
-        ];
-  });
-  return { projects: listable.filter((name) => !twins.some((twin) => twin.project === name)), leftOut: [...leftOut, ...twins].sort((a, b) => (a.project < b.project ? -1 : a.project > b.project ? 1 : 0)) };
+  const listed: string[] = [];
+  const twins: LeftOutProject[] = [];
+  for (const name of candidates) {
+    if (refused.has(name)) continue;
+    const key = name.toLowerCase();
+    const first = firsts.get(key);
+    if (first === undefined) {
+      firsts.set(key, name);
+      listed.push(name);
+      continue;
+    }
+    twins.push({
+      project: name,
+      file: name,
+      reason: `its name differs from "${first}" only in case, so both name the same directory on Windows and macOS, and projects in ${POLICY_FILE} cannot list both`,
+      fix: `Rename one of the two directories so that their names differ in more than case, then run depcurfew init --force to list both`,
+    });
+  }
+  return { listed, twins };
 }

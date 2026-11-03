@@ -114,7 +114,8 @@ function lineChanges(before: string, after: string): SettingChanges {
 
 /**
  * A Gemfile: the cooldown: apply sets on its source calls, as `cooldown: 7`, never the line it rewrites, which would
- * read as removing the source (decision D-159).
+ * read as removing the source (decision D-159). Both texts are as on disk, so readGemfile reads \r\n as one newline in
+ * them, as apply reads the file (decision D-163).
  */
 function gemfileChanges(before: string, after: string): SettingChanges {
   const old = new Map(readGemfile(before).sources.map((source) => [source.line, source.cooldown]));

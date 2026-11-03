@@ -87,8 +87,9 @@ describe('lines Ruby runs after literals that look like more', () => {
     ['class << self', `class << self\nend\n${RUBYGEMS}\n`],
     ['a ternary', `X = ENV["A"] ? "b" : 'c'\n${RUBYGEMS}\n`],
     ['a closed heredoc', `NOTE = <<~TEXT\n  text\n  TEXT\n${RUBYGEMS}\n`],
-    ['a block after do with parameters', `group :test do |g|\n  ${RUBYGEMS}\nend\n`],
-    ['a regexp after =~', `install_if -> { RUBY_PLATFORM =~ /darwin/ } do\n  ${RUBYGEMS}\nend\n`],
+    // A source call inside the block is not at the top level (decision D-163): the one after the block is plain.
+    ['a block after do with parameters', `group :test do |g|\n  gem "rspec", "~> 3.13"\nend\n${RUBYGEMS}\n`],
+    ['a regexp after =~', `install_if -> { RUBY_PLATFORM =~ /darwin/ } do\n  gem "x", "/"\nend\n${RUBYGEMS}\n`],
     ['%i after a label', `gem "tzinfo-data", platforms: %i[ windows jruby ]\n${RUBYGEMS}\n`],
   ])('%s', (_, gemfile) => {
     const reading = readGemfile(gemfile);

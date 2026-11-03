@@ -2,10 +2,12 @@
 // instance_eval (extra.gemfileEvaluation), so Ruby's parser decides which lines are code: comments, =begin ... =end,
 // the end of the script (__END__, and NUL, ^D or ^Z where a token starts), string and %-literals with any delimiter
 // (paired ones nest), and heredocs, whose bodies Ruby reads from the line after the one that starts them. The scanner
-// follows parse.y (extra.rubySyntax) as far as it needs to know where each literal ends and which lines start a
-// statement, in one pass over the text. Where Ruby's reading depends on something a lexer cannot see (whether a name is
-// a local variable) or on a construct the scanner does not follow, it stops and says where: the file is then not
-// understood, and depcurfew neither edits it nor counts a cooldown in it.
+// follows parse.y (extra.rubySyntax) as far as it needs to know where each literal ends, which lines start a statement
+// and which code is nested in a block, method, class, condition, loop or begin (decision D-163), in one pass over the
+// text, with \r\n read as one newline as Ruby reads it. Where Ruby's reading depends on something a lexer cannot see
+// (whether a name is a local variable), where Prism, the default parser since Ruby 3.4, reads the text otherwise than
+// parse.y (extra.rubyParsers), or on a construct the scanner does not follow, it stops and says where: the file is
+// then not understood, and depcurfew neither edits it nor counts a cooldown in it.
 import { bundler } from '../knowledge/bundler.ts';
 import { extraOf, isRecord } from './facts.ts';
 
@@ -16,7 +18,16 @@ interface RubySyntax {
   pairedDelimiters: Record<string, string>;
   heredocIndent: string[];
   globalPunctuation: string;
-  keywords: Record<'end' | 'statement' | 'value' | 'mid' | 'argument' | 'methodName' | 'className' | 'names' | 'modifiers', string[]>;
+  numberSuffixes: string[];
+  lineEnding: string;
+  keywords: Record<
+    'end' | 'statement' | 'value' | 'mid' | 'argument' | 'methodName' | 'className' | 'names' | 'modifiers' | 'opening' | 'loops' | 'closing',
+    string[]
+  >;
+}
+
+interface RubyParsers {
+  differences: { characterBeyondAscii: boolean; embeddedDocumentAfter: string[]; globalZeroWithName: boolean };
 }
 
 const isStrings = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string');
@@ -33,10 +44,22 @@ const isSyntax = (value: unknown): value is RubySyntax =>
   isRecord(value['pairedDelimiters']) &&
   isStrings(value['heredocIndent']) &&
   typeof value['globalPunctuation'] === 'string' &&
+  isStrings(value['numberSuffixes']) &&
+  typeof value['lineEnding'] === 'string' &&
   isRecord(value['keywords']) &&
-  Object.values(value['keywords']).every(isStrings);
+  Object.values(value['keywords']).every(isStrings) &&
+  ['opening', 'loops', 'closing'].every((key) => isRecord(value['keywords']) && isStrings(value['keywords'][key])) &&
+  (value['keywords']['closing'] as string[]).length === 1;
+
+const isParsers = (value: unknown): value is RubyParsers =>
+  isRecord(value) &&
+  isRecord(value['differences']) &&
+  typeof value['differences']['characterBeyondAscii'] === 'boolean' &&
+  isStrings(value['differences']['embeddedDocumentAfter']) &&
+  typeof value['differences']['globalZeroWithName'] === 'boolean';
 
 const SYNTAX = extraOf(bundler, 'rubySyntax', isSyntax);
+const DIFFERENCES = extraOf(bundler, 'rubyParsers', isParsers).differences;
 const [EMBEDDED_BEGIN, EMBEDDED_END] = SYNTAX.embeddedDocument;
 const END_CHARACTERS = new Set(SYNTAX.endOfScript.characters);
 const PAIRS = new Map(Object.entries(SYNTAX.pairedDelimiters).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
@@ -44,6 +67,15 @@ const EXPANDING = new Set(SYNTAX.percentLiterals.expanding);
 const PERCENT_TYPES = new Set([...SYNTAX.percentLiterals.expanding, ...SYNTAX.percentLiterals.plain]);
 const HEREDOC_INDENT = new Set(SYNTAX.heredocIndent);
 const GLOBAL_PUNCTUATION = new Set(SYNTAX.globalPunctuation);
+/** The characters after =begin that start a comment for parse.y only (extra.rubyParsers). */
+const EMBEDDED_PARSE_Y_ONLY = new Set(DIFFERENCES.embeddedDocumentAfter);
+/** Keywords whose code end closes, the loops whose condition may end with do, and end. */
+const OPENING = new Set(SYNTAX.keywords.opening);
+const LOOPS = new Set(SYNTAX.keywords.loops);
+const CLOSING = new Set(SYNTAX.keywords.closing);
+const END_KEYWORD = SYNTAX.keywords.closing.join(' ');
+/** The brackets that nest code: ( [ { and what closes them (pairedDelimiters without <). */
+const BRACKETS = new Map([...PAIRS].filter(([open]) => open !== '<'));
 
 /**
  * The lexer state as far as it matters here (parse.y EXPR_*): stmt, a statement begins (after a line that ended one,
@@ -69,10 +101,17 @@ const MODIFIERS = new Set(SYNTAX.keywords.modifiers);
 
 /** Where an expression begins: %, / and << start literals there, ? a character literal. */
 const BEGINS = new Set<State>(['stmt', 'beg', 'begLabel', 'mid', 'class']);
+/** Where if, unless, while, until and rescue are no modifiers (EXPR_BEG, after a label, after class; not after return). */
+const KEYWORD_BEGINS = new Set<State>(['stmt', 'beg', 'begLabel', 'class']);
 /** States in which Ruby ignores a newline (EXPR_BEG, EXPR_CLASS, EXPR_FNAME, EXPR_DOT, and a label). */
 const IGNORES_NEWLINE = new Set<State>(['stmt', 'beg', 'begLabel', 'class', 'fname', 'dot']);
 /** States after which a name followed by : is a label (IS_LABEL_POSSIBLE). */
 const LABEL_POSSIBLE = new Set<State>(['begLabel', 'arg', 'ident']);
+/** The operators of code, longest first. */
+const OPERATORS = ['**=', '<=>', '===', '...', '&&=', '||=', '<<=', '>>=', '**', '==', '=~', '=>', '!=', '!~', '>=', '<=', '>>', '&&', '||', '&.', '..', '::', '->', '+=', '-=', '*=', '/=', '%=', '|=', '&=', '^=', '=', '!', '>', '&', '|', '+', '-', '*', '%', '^', '~', '(', ')', '[', ']', ',', ';', '.'];
+/** The operators by their first character, longest first, so that each token tries a few. */
+const OPERATORS_BY_FIRST = new Map<string, string[]>();
+for (const operator of OPERATORS) OPERATORS_BY_FIRST.set(operator[0] ?? '', [...(OPERATORS_BY_FIRST.get(operator[0] ?? '') ?? []), operator]);
 /** The operators a symbol can name (:<=>, :[]=), longest first. */
 const SYMBOL_OPERATORS = ['<=>', '===', '[]=', '==', '=~', '!=', '!~', '[]', '**', '>=', '>>', '<=', '<<', '+@', '-@', '!', '<', '>', '+', '-', '*', '/', '%', '&', '|', '^', '~', '`'];
 
@@ -96,6 +135,8 @@ export interface ScannedLine {
   start: number;
   /** It starts a statement: the line before ended one (or ;, do, then, else, begin, ensure). */
   statement: boolean;
+  /** It starts outside any block, method, class, condition, loop, begin or bracket: Ruby runs it with the file. */
+  topLevel: boolean;
   tokens: ScanToken[];
   /** The line ended in the top-level code with nothing left open: no string, heredoc or interpolation. */
   complete: boolean;
@@ -111,15 +152,34 @@ export interface ScanUnknown {
 }
 
 export interface RubyScan {
+  /** The text as Ruby reads it, \r\n as \n: the positions of the tokens are in it. */
+  text: string;
   lines: ScannedLine[];
   unknown?: ScanUnknown;
+}
+
+/** Code that a keyword or a bracket opened and is not closed yet. */
+interface Opened {
+  /** What opened it (do, if, def, {, ( …), for messages. */
+  open: string;
+  /** What closes it: end, }, ) or ]. */
+  close: string;
+  /** 0-based line where it opened. */
+  line: number;
+  /** while, until, for: the do that ends the condition may still come (keyword_do_cond). */
+  condition?: boolean;
+  /**
+   * def until its body starts: before its name, after it, in the parentheses of its parameters, after them. = after the
+   * name or the parameters makes it an endless method, which end does not close.
+   */
+  header?: 'name' | 'named' | 'parameters' | 'afterParameters';
 }
 
 interface CodeFrame {
   kind: 'code';
   state: State;
-  /** { minus } inside this frame; an interpolation ends at a } with none open. */
-  braces: number;
+  /** The code open inside this frame, innermost last; an interpolation ends at a } with nothing open. */
+  opened: Opened[];
   /** ? of a ternary without its : yet, in this statement. */
   ternary: number;
   /** Block parameters: 1 right after do or a block {, 2 inside | ... |. */
@@ -226,7 +286,83 @@ class Scanner {
   }
 
   #code(interpolation: boolean): CodeFrame {
-    return { kind: 'code', state: 'stmt', braces: 0, ternary: 0, params: 0, space: false, interpolation, line: this.#line };
+    return { kind: 'code', state: 'stmt', opened: [], ternary: 0, params: 0, space: false, interpolation, line: this.#line };
+  }
+
+  /** Opens code that `close` closes. */
+  #open(frame: CodeFrame, open: string, close: string, extra?: Pick<Opened, 'condition' | 'header'>): void {
+    const opened: Opened = { open, close, line: this.#line };
+    if (extra?.condition !== undefined) opened.condition = extra.condition;
+    if (extra?.header !== undefined) opened.header = extra.header;
+    frame.opened.push(opened);
+  }
+
+  /** Closes the innermost open code with `close` (end, }, ), ]); Ruby reports a syntax error for any other. */
+  #close(frame: CodeFrame, close: string): void {
+    const innermost = frame.opened.at(-1);
+    if (innermost === undefined) this.#syntaxError(close === 'end' ? 'an end without anything to close' : `a ${close} without ${[...BRACKETS].find(([, end]) => end === close)?.[0] ?? 'its opening'}`);
+    if (innermost.close !== close) this.#syntaxError(`a ${close} where the ${innermost.open} that starts on line ${innermost.line + 1} needs ${innermost.close}`);
+    frame.opened.pop();
+    const outer = frame.opened.at(-1);
+    if (close === ')' && outer?.header === 'parameters') outer.header = 'afterParameters';
+  }
+
+  /** The name of the method a def defines has been read. */
+  #named(frame: CodeFrame): void {
+    const innermost = frame.opened.at(-1);
+    if (innermost?.header === 'name') innermost.header = 'named';
+  }
+
+  /**
+   * The token after the name of a def, or after its parameters in parentheses: = makes it an endless method (def
+   * name = value, def name(a) = value), which end does not close; ( starts its parameters; any other starts its body.
+   */
+  #methodHeader(frame: CodeFrame, c: string, next: string | undefined): void {
+    const innermost = frame.opened.at(-1);
+    if (innermost === undefined || (innermost.header !== 'named' && innermost.header !== 'afterParameters')) return;
+    if (c === '=' && next !== '=' && next !== '~' && next !== '>') frame.opened.pop();
+    else if (c === '(' && innermost.header === 'named') innermost.header = 'parameters';
+    else delete innermost.header;
+  }
+
+  /**
+   * The end of the number that starts at `at`, as parse_numeric reads it: a prefix and its digits, a fraction and an
+   * exponent only before a digit, the suffixes r and i only when no name character follows, so 1end and 1do end
+   * before the keyword. A name right after a number that is no keyword is a syntax error in Ruby.
+   */
+  #numberEnd(at: number): number {
+    const text = this.#text;
+    const run = (from: number, digit: (c: string | undefined) => boolean): number => {
+      let j = from;
+      while (digit(text[j]) || text[j] === '_') j++;
+      return j;
+    };
+    const prefix = text[at] === '0' ? text[at + 1]?.toLowerCase() : undefined;
+    let j: number;
+    if (prefix === 'x') j = run(at + 2, (c) => c !== undefined && /^[0-9a-fA-F]$/u.test(c));
+    else if (prefix === 'b' || prefix === 'o' || prefix === 'd') j = run(at + 2, isDigit);
+    else {
+      j = run(at, isDigit);
+      if (text[j] === '.' && isDigit(text[j + 1])) j = run(j + 1, isDigit);
+      if ((text[j] === 'e' || text[j] === 'E') && (isDigit(text[j + 1]) || ((text[j + 1] === '+' || text[j + 1] === '-') && isDigit(text[j + 2])))) {
+        j = run(text[j + 1] === '+' || text[j + 1] === '-' ? j + 2 : j + 1, isDigit);
+      }
+    }
+    let k = j;
+    for (const suffix of SYNTAX.numberSuffixes) if (text[k] === suffix) k++;
+    if (!isIdentChar(text[k])) return k;
+    let end = j;
+    while (isIdentChar(text[end])) end++;
+    const word = text.slice(j, end);
+    if (!KEYWORD_STATES.has(word)) this.#syntaxError(`the number ${text.slice(at, j)} followed by the name ${word}`);
+    return j;
+  }
+
+  /** The statement ends: a while, until or for condition can no longer end with do. */
+  #endStatement(frame: CodeFrame): void {
+    frame.ternary = 0;
+    const innermost = frame.opened.at(-1);
+    if (innermost?.condition === true) innermost.condition = false;
   }
 
   run(): RubyScan {
@@ -249,7 +385,7 @@ class Scanner {
       if (!(error instanceof Stop)) throw error;
     }
     this.#closeLine(false);
-    return { lines: this.#lines, ...(this.#unknown === undefined ? {} : { unknown: this.#unknown }) };
+    return { text: this.#text, lines: this.#lines, ...(this.#unknown === undefined ? {} : { unknown: this.#unknown }) };
   }
 
   #top(): Frame {
@@ -271,6 +407,9 @@ class Scanner {
 
   /** Ruby stops reading the script here; nothing after it is code. */
   #endOfScript(): void {
+    const frame = this.#stack[0];
+    const open = frame?.kind === 'code' ? frame.opened.at(-1) : undefined;
+    if (open !== undefined) this.#syntaxError(`the script ends before the end of the ${open.open} that starts on line ${open.line + 1}`);
     this.#closeLine(false);
     this.#done = true;
     throw new Stop();
@@ -283,6 +422,8 @@ class Scanner {
     if (frame.kind === 'heredoc') this.#fail(`the heredoc that starts there has no line ${frame.id} that ends it`, `end the heredoc with a line ${frame.id}`, frame.line);
     if (frame.kind === 'string') this.#fail('the string or literal that starts there does not end', 'end the string', frame.line);
     if (frame.interpolation) this.#fail('the interpolation #{ that starts there does not end', 'close the interpolation with }', frame.line);
+    const open = frame.opened.at(-1);
+    if (open !== undefined) this.#syntaxError(`the ${open.open} that starts there has no ${open.close}`, open.line);
     this.#closeLine(true);
     this.#done = true;
   }
@@ -309,11 +450,9 @@ class Scanner {
     return end === -1 ? this.#text.length : end;
   }
 
-  /** The text of the line that starts at `from`, without \n or \r\n. */
+  /** The text of the line that starts at `from`, without its \n. */
   #lineText(from: number): string {
-    const end = this.#lineEnd(from);
-    const text = this.#text.slice(from, end);
-    return text.endsWith('\r') && end < this.#text.length ? text.slice(0, -1) : text;
+    return this.#text.slice(from, this.#lineEnd(from));
   }
 
   /** Line start: a heredoc terminator, =begin, __END__, and the start of a source line. True when it moved on. */
@@ -337,6 +476,13 @@ class Scanner {
     if (frame.kind !== 'code') return false;
     const text = this.#text;
     if (text.startsWith(EMBEDDED_BEGIN, this.#i) && this.#endsWord(this.#i + EMBEDDED_BEGIN.length)) {
+      const after = text.charCodeAt(this.#i + EMBEDDED_BEGIN.length);
+      if (EMBEDDED_PARSE_Y_ONLY.has(String.fromCharCode(after))) {
+        this.#fail(
+          `Ruby 3.3 and older (parse.y) read ${EMBEDDED_BEGIN} followed by ^${String.fromCharCode(after + 64)} as the start of a comment, and Ruby 3.4 and newer (Prism) do not`,
+          `put a space or the end of the line right after ${EMBEDDED_BEGIN}`,
+        );
+      }
       const start = this.#line;
       for (;;) {
         const end = this.#lineEnd();
@@ -377,7 +523,7 @@ class Scanner {
     if (!text.startsWith('source', at)) return;
     const after = text[at + 6];
     if (isIdentChar(after) || ((after === '?' || after === '!') && text[at + 7] !== '=')) return;
-    this.#recording = { line: this.#line + 1, start: this.#lineStart, statement: frame.state === 'stmt', tokens: [], complete: false, block: false, full: false };
+    this.#recording = { line: this.#line + 1, start: this.#lineStart, statement: frame.state === 'stmt', topLevel: frame.opened.length === 0, tokens: [], complete: false, block: false, full: false };
   }
 
   #closeLine(complete: boolean): void {
@@ -456,10 +602,11 @@ class Scanner {
       this.#i = i + 1;
       return;
     }
+    this.#methodHeader(frame, c, next);
     if (c === '\n') {
       if (!IGNORES_NEWLINE.has(state)) {
         frame.state = 'stmt';
-        frame.ternary = 0;
+        this.#endStatement(frame);
       }
       if (frame.params === 1) frame.params = 0;
       frame.space = true;
@@ -468,10 +615,10 @@ class Scanner {
     }
     if (c === '\\') {
       // A backslash joins the next line to this statement, so a source call on this line goes on there.
-      if (next === '\n' || (next === '\r' && text[i + 2] === '\n')) {
+      if (next === '\n') {
         if (this.#recording !== undefined) this.#recording.full = true;
         frame.space = true;
-        this.#newline(next === '\n' ? i + 1 : i + 2);
+        this.#newline(i + 1);
         return;
       }
       this.#syntaxError('a backslash outside a string');
@@ -483,19 +630,7 @@ class Scanner {
       return;
     }
     if (isDigit(c)) {
-      let j = i;
-      for (;;) {
-        while (isAlnum(text[j]) || text[j] === '_') j++;
-        if (text[j] === '.' && isDigit(text[j + 1])) {
-          j++;
-          continue;
-        }
-        if ((text[j - 1] === 'e' || text[j - 1] === 'E') && (text[j] === '+' || text[j] === '-') && isDigit(text[j + 1])) {
-          j++;
-          continue;
-        }
-        break;
-      }
+      const j = this.#numberEnd(i);
       this.#token({ kind: 'number', text: text.slice(i, j), start: i, end: j }, frame);
       this.#i = j;
       this.#after(frame, 'end');
@@ -514,6 +649,7 @@ class Scanner {
         if (state === 'dot' || state === 'fname') {
           this.#token({ kind: 'op', text: c, start: i, end: i + 1 }, frame);
           this.#i = i + 1;
+          if (state === 'fname') this.#named(frame);
           this.#after(frame, state === 'dot' ? 'arg' : 'end');
           return;
         }
@@ -546,7 +682,7 @@ class Scanner {
         return;
       case '{': {
         const block = state === 'end' || state === 'arg' || state === 'ident';
-        frame.braces += 1;
+        this.#open(frame, c, BRACKETS.get(c) ?? '}');
         this.#token({ kind: 'op', text: block ? '{' : '{hash', start: i, end: i + 1 }, frame);
         if (block && this.#recording !== undefined && this.#stack.length === 1) this.#recording.block = true;
         this.#i = i + 1;
@@ -555,13 +691,12 @@ class Scanner {
         return;
       }
       case '}':
-        if (frame.braces === 0) {
-          if (!frame.interpolation) this.#syntaxError('a } without {');
+        if (frame.opened.length === 0 && frame.interpolation) {
           this.#stack.pop();
           this.#i = i + 1;
           return;
         }
-        frame.braces -= 1;
+        this.#close(frame, c);
         this.#token({ kind: 'op', text: '}', start: i, end: i + 1 }, frame);
         this.#i = i + 1;
         this.#after(frame, 'end');
@@ -576,14 +711,16 @@ class Scanner {
     const i = this.#i;
     const state = frame.state;
     const c = text[i] ?? '';
-    const operators = ['**=', '<=>', '===', '...', '&&=', '||=', '<<=', '>>=', '**', '==', '=~', '=>', '!=', '!~', '>=', '<=', '>>', '&&', '||', '&.', '..', '::', '->', '+=', '-=', '*=', '/=', '%=', '|=', '&=', '^=', '=', '!', '>', '&', '|', '+', '-', '*', '%', '^', '~', '(', ')', '[', ']', ',', ';', '.'];
-    const op = operators.find((candidate) => text.startsWith(candidate, i));
+    const op = OPERATORS_BY_FIRST.get(c)?.find((candidate) => text.startsWith(candidate, i));
     if (op === undefined) this.#syntaxError(`the character ${JSON.stringify(c)} where Ruby expects code`);
     if ((state === 'dot' || state === 'fname') && op !== '(' && op !== '::') {
       this.#fail('it calls or defines a method named by an operator, which depcurfew does not read', 'give the method a name of letters, or call the operator without a dot');
     }
     this.#token({ kind: 'op', text: op, start: i, end: i + op.length }, frame);
     this.#i = i + op.length;
+    const close = BRACKETS.get(op);
+    if (close !== undefined) this.#open(frame, op, close);
+    else if (op === ')' || op === ']') this.#close(frame, op);
     let next: State;
     switch (op) {
       case ')':
@@ -599,7 +736,7 @@ class Scanner {
         break;
       case ';':
         next = 'stmt';
-        frame.ternary = 0;
+        this.#endStatement(frame);
         break;
       case '.':
       case '&.':
@@ -636,6 +773,7 @@ class Scanner {
         frame.space = false;
         return;
       }
+      this.#named(frame);
       this.#after(frame, 'end');
       return;
     }
@@ -655,19 +793,30 @@ class Scanner {
       this.#token({ kind: 'keyword', text: word, start: i, end: j }, frame);
       if (keyword === 'names') this.#fail(`it uses ${word}, which depcurfew does not read`, `rewrite it without ${word} (alias_method or remove_method), or move it out of the Gemfile`);
       if (keyword === 'def') {
+        this.#open(frame, word, END_KEYWORD, { header: 'name' });
         this.#after(frame, 'fname');
         return;
       }
-      if (MODIFIERS.has(word) && !BEGINS.has(state)) {
+      if (MODIFIERS.has(word) && !KEYWORD_BEGINS.has(state)) {
         this.#after(frame, 'begLabel');
         return;
       }
       if (word === 'do') {
+        const innermost = frame.opened.at(-1);
+        if (innermost?.condition === true) {
+          // The do that ends the condition of while, until or for (keyword_do_cond) opens nothing of its own.
+          innermost.condition = false;
+          this.#after(frame, 'stmt');
+          return;
+        }
+        this.#open(frame, word, END_KEYWORD);
         if (this.#recording !== undefined && this.#stack.length === 1) this.#recording.block = true;
         this.#after(frame, 'stmt');
         frame.params = 1;
         return;
       }
+      if (CLOSING.has(word)) this.#close(frame, word);
+      else if (OPENING.has(word)) this.#open(frame, word, END_KEYWORD, LOOPS.has(word) ? { condition: true } : undefined);
       this.#after(frame, keyword === 'stmt' ? 'stmt' : keyword);
       return;
     }
@@ -727,10 +876,6 @@ class Scanner {
     const text = this.#text;
     const i = this.#i;
     const c = text[i];
-    if (frame.term === '\n' && c === '\r' && text[i + 1] === '\n') {
-      this.#i = i + 1;
-      return;
-    }
     if (frame.paren !== '' && c === frame.paren) {
       frame.nest += 1;
       this.#i = i + 1;
@@ -794,10 +939,6 @@ class Scanner {
     if (next === undefined) this.#syntaxError('a backslash at the end of the file');
     if (next === '\n') {
       this.#newline(i + 1);
-      return 'newline';
-    }
-    if (next === '\r' && text[i + 2] === '\n') {
-      this.#newline(i + 2);
       return 'newline';
     }
     if (expand && (next === 'c' || next === 'C' || next === 'M')) {
@@ -870,6 +1011,12 @@ class Scanner {
     if (c === '0' || isIdentStart(c)) {
       let j = at + 1;
       while (isIdentChar(text[j])) j++;
+      if (c === '0' && j > at + 2 && DIFFERENCES.globalZeroWithName) {
+        this.#fail(
+          `Ruby 3.3 and older (parse.y) read ${text.slice(at, j)} as one global variable, and Ruby 3.4 and newer (Prism) report a syntax error`,
+          'write $0 apart from the name after it',
+        );
+      }
       return j;
     }
     return undefined;
@@ -902,6 +1049,13 @@ class Scanner {
     if (isRubySpace(next)) return ternary();
     if (state === 'ident') this.#ambiguous(this.#lastName(), '?');
     const width = this.#width(i + 1);
+    if (DIFFERENCES.characterBeyondAscii && isNonAscii(next)) {
+      const character = text.slice(i + 1, i + 1 + width);
+      this.#fail(
+        'Ruby 3.4 and newer (Prism) and Ruby 3.3 and older (parse.y) read ? before a character beyond ASCII differently, as a character literal or as the ? of a ternary',
+        `write the character as a string ("${character}" in place of ?${character}), or put a space after the ? of a ternary`,
+      );
+    }
     if (isIdentChar(next) && isIdentChar(text[i + 1 + width])) return ternary();
     let end: number;
     if (next === '\\') {
@@ -910,9 +1064,15 @@ class Scanner {
       if (escaped === 'c' || escaped === 'C' || escaped === 'M') this.#fail('it uses a control or meta escape (?\\c, ?\\C-, ?\\M-), which depcurfew does not read', 'write the character another way, such as ?\\x01');
       if (escaped === 'u') {
         if (text[i + 3] === '{') {
-          const close = text.indexOf('}', i + 4);
-          if (close === -1 || close > this.#lineEnd(i)) this.#syntaxError('an unterminated \\u{ escape');
-          end = close + 1;
+          // One code point in hex digits between spaces (tokadd_utf8), read once: no search to the end of the line.
+          let k = i + 4;
+          while (isInlineSpace(text[k])) k++;
+          const digits = k;
+          while (/^[0-9a-fA-F]$/u.test(text[k] ?? '')) k++;
+          const none = k === digits;
+          while (isInlineSpace(text[k])) k++;
+          if (none || text[k] !== '}') this.#syntaxError('a \\u{ escape that is not one code point in hex digits closed by }');
+          end = k + 1;
         } else {
           end = i + 7;
         }
@@ -967,10 +1127,6 @@ class Scanner {
       term = text[i + 2];
       if (term === undefined || isAlnum(term) || isNonAscii(term) || !PERCENT_TYPES.has(type)) this.#syntaxError('an unknown type of %string');
       content = i + 3;
-    }
-    if (term === '\r' && text[content] === '\n') {
-      term = '\n';
-      content += 1;
     }
     const close = PAIRS.get(term);
     this.#stack.push({
@@ -1113,6 +1269,44 @@ class Scanner {
 }
 
 /** Reads a Gemfile as Ruby's lexer does (see the comment at the top). */
-export function scanRuby(text: string): RubyScan {
-  return new Scanner(text).run();
+export function scanRuby(text: string, options: ScanOptions = {}): RubyScan {
+  // Ruby reads \r\n as one newline everywhere, also in a literal delimited by \r (extra.rubySyntax lineEnding), so the
+  // scanner reads the text with \n in its place, and every reader of a Gemfile, apply and doctor, gets the same reading.
+  // Once only: a second pass would take the \r alone of \r\r\n, which apply's text (toLf) holds as \r\n.
+  const read = options.newlinesRead === true || !text.includes(SYNTAX.lineEnding) ? text : text.replaceAll(SYNTAX.lineEnding, '\n');
+  return new Scanner(read).run();
+}
+
+export interface ScanOptions {
+  /**
+   * The text has \r\n read as \n already, as the text apply edits (toLf in src/apply/text.ts, the same replacement):
+   * it is read as it is. Otherwise, as for a file read from disk, \r\n is read as \n first.
+   */
+  newlinesRead?: boolean;
+}
+
+/**
+ * The position in `original` of the position `at` of the text scanRuby read, which has \n in place of each \r\n of
+ * `original`; `crs` are the positions of those \n in the text read, in order.
+ */
+export function originalPosition(crs: readonly number[], at: number): number {
+  let low = 0;
+  let high = crs.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if ((crs[middle] ?? 0) < at) low = middle + 1;
+    else high = middle;
+  }
+  return at + low;
+}
+
+/** The positions in the text scanRuby reads of the \n that stand for a \r\n of `original`. */
+export function lineEndingPositions(original: string): number[] {
+  const positions: number[] = [];
+  let removed = 0;
+  for (let at = original.indexOf(SYNTAX.lineEnding); at !== -1; at = original.indexOf(SYNTAX.lineEnding, at + SYNTAX.lineEnding.length)) {
+    positions.push(at - removed);
+    removed += SYNTAX.lineEnding.length - 1;
+  }
+  return positions;
 }

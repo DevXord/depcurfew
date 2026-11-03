@@ -18,7 +18,8 @@ const SETTINGS = `${LIB}/settings.rb`;
 const RESOLVER = `${LIB}/resolver.rb`;
 const SHARED_HELPERS = `${LIB}/shared_helpers.rb`;
 const CLI = `${LIB}/cli.rb`;
-// Ruby's parser reads the Gemfile (Dsl#eval_gemfile runs it with instance_eval); Ruby 3.4.7 is the latest release.
+// Ruby's parser reads the Gemfile (Dsl#eval_gemfile runs it with instance_eval). The facts of its syntax are read at
+// v3_4_7; Ruby 4.0 (tags v4.0.x, 4.0.9 of 2026-10-23 the latest) keeps Prism as the default parser (extra.rubyParsers).
 const RUBY = 'https://github.com/ruby/ruby/blob/v3_4_7';
 // The announcement on the RubyGems blog, read in its source repository (rubygems/rubygems.github.io, commit 40cef7c).
 const BLOG = 'https://blog.rubygems.org/2026/06/03/cooldown-let-new-gems-be-vetted.html';
@@ -137,6 +138,8 @@ export const bundler: ToolKnowledge = {
         heredocIndent: ['-', '~'],
         globalPunctuation: '~*$?!@/\\;,.=:<>"&`\'+',
         integerPrefixes: { '0x': 16, '0b': 2, '0o': 8, '0d': 10, '0': 8 },
+        numberSuffixes: ['r', 'i'],
+        lineEnding: '\r\n',
         keywords: {
           end: ['__ENCODING__', '__LINE__', '__FILE__', 'BEGIN', 'END', 'end', 'false', 'nil', 'redo', 'retry', 'self', 'true'],
           statement: ['begin', 'do', 'else', 'ensure', 'then'],
@@ -147,10 +150,30 @@ export const bundler: ToolKnowledge = {
           className: ['class'],
           names: ['alias', 'undef'],
           modifiers: ['if', 'rescue', 'unless', 'until', 'while'],
+          opening: ['begin', 'case', 'class', 'def', 'do', 'for', 'if', 'module', 'unless', 'until', 'while'],
+          loops: ['for', 'until', 'while'],
+          closing: ['end'],
         },
       },
       `${RUBY}/parse.y`,
-      "How Ruby's lexer (parse.y) reads what decides where code ends. parser_yylex ends the script at NUL, ^D (\\004) or ^Z (\\032) where a token starts, and at a line that is exactly __END__ (whole_match_p, with \\r\\n allowed); =begin at the start of a line starts a comment that ends with a line starting with =end (word_match_p: followed by whitespace, the end of the line, NUL, ^D or ^Z); # starts a comment to the end of the line. parse_percent: % starts a literal where an expression begins (IS_BEG), or after a method name with a space before % and none after it (IS_SPCARG), otherwise it is an operator; its type letter is one of Q, q, W, w, I, i, x, r, s (none means Q), the delimiter is any ASCII character that is no letter or digit, and ( [ { < pair with ) ] } > and nest (tokadd_string). heredoc_identifier: << with - or ~ and an identifier of letters, digits, _ or non-ASCII characters, or any text in ', \" or ` quotes on that line; not after a value (IS_END), after . or class, or after a method name without a space; here_document: the body starts on the line after the one with <<, after the bodies of earlier heredocs of that line, and ends at a line that is exactly the identifier (with - and ~ after leading whitespace, never with trailing spaces); in a heredoc with escapes a line after one that ends with a backslash is no terminator. Strings in double quotes, `, %Q, %W, %I, %x, %r, /, :\" and heredocs without ' interpolate #{...}, #@var and #$var (parser_peek_variable_name, is_global_name_punct). parse_qmark: ? starts a character literal unless a value comes before it, a space follows or two identifier characters follow. The keywords set the lexer state as defs/keywords lists them (EXPR_END, EXPR_BEG, EXPR_VALUE, EXPR_MID, EXPR_ARG, EXPR_FNAME, EXPR_CLASS); if, unless, while, until and rescue after a value are modifiers. parse_ident: a lower-case name lexes as a local variable (EXPR_END) when one of that name was assigned before (lvar_defined) and as a method call otherwise, so %, /, <<, ? and : after such a name and a space can be read two ways. parse_numeric: 0x, 0b, 0o and 0d prefixes, a leading 0 alone means octal (010 is 8), and single underscores between digits. Prism, the default parser of Ruby 3.4, ends the script, reads __END__ and reads heredoc identifiers and terminators the same way (prism/prism.c at the same tag).",
+      "How Ruby's lexer (parse.y) reads what decides where code ends. nextc reads \\r\\n as one newline everywhere (parser_cr), also inside a literal delimited by \\r, which only a \\r alone ends; a \\r alone between tokens is a space. parser_yylex ends the script at NUL, ^D (\\004) or ^Z (\\032) where a token starts, and at a line that is exactly __END__ (whole_match_p, with \\r\\n allowed); =begin at the start of a line starts a comment that ends with a line starting with =end (word_match_p: followed by whitespace, the end of the line, NUL, ^D or ^Z); # starts a comment to the end of the line. parse_percent: % starts a literal where an expression begins (IS_BEG), or after a method name with a space before % and none after it (IS_SPCARG), otherwise it is an operator; its type letter is one of Q, q, W, w, I, i, x, r, s (none means Q), the delimiter is any ASCII character that is no letter or digit, and ( [ { < pair with ) ] } > and nest (tokadd_string). heredoc_identifier: << with - or ~ and an identifier of letters, digits, _ or non-ASCII characters, or any text in ', \" or ` quotes on that line; not after a value (IS_END), after . or class, or after a method name without a space; here_document: the body starts on the line after the one with <<, after the bodies of earlier heredocs of that line, and ends at a line that is exactly the identifier (with - and ~ after leading whitespace, never with trailing spaces); in a heredoc with escapes a line after one that ends with a backslash is no terminator. Strings in double quotes, `, %Q, %W, %I, %x, %r, /, :\" and heredocs without ' interpolate #{...}, #@var and #$var (parser_peek_variable_name, is_global_name_punct). parse_qmark: ? starts a character literal unless a value comes before it, a space follows or two identifier characters follow; \\u{...} holds hex digits and spaces. The keywords set the lexer state as defs/keywords lists them (EXPR_END, EXPR_BEG, EXPR_VALUE, EXPR_MID, EXPR_ARG, EXPR_FNAME, EXPR_CLASS); if, unless, while, until and rescue are modifiers unless an expression begins there (EXPR_BEG, after a label or after class: parse_ident), so also after return, break, next and rescue (EXPR_MID). The grammar closes with end what begin, case, class, def, do, for, if, module, unless, until and while open when they are no modifiers, except a method defined with = after its name or its parameters (endless def); the do after the condition of while, until and for belongs to the loop (keyword_do_cond, COND_P, which ( [ { reset); ( [ { are closed by ) ] }. parse_ident: a lower-case name lexes as a local variable (EXPR_END) when one of that name was assigned before (lvar_defined) and as a method call otherwise, so %, /, <<, ? and : after such a name and a space can be read two ways. parse_numeric: 0x, 0b, 0o and 0d prefixes, a leading 0 alone means octal (010 is 8), single underscores between digits, a fraction and an exponent only before a digit, and the suffixes r and i only when no letter, digit or _ follows (number_literal_suffix), so the number of 1end and 1do ends before the keyword. Prism, the default parser of Ruby 3.4, ends the script, reads __END__, \\r\\n, numbers, keywords and heredoc identifiers and terminators the same way (prism/prism.c at the same tag); where it reads otherwise, extra.rubyParsers says.",
+    ),
+    rubyParsers: verified(
+      {
+        defaults: [
+          { since: '0.0.0', value: 'parse.y' },
+          { since: '3.4.0', value: 'prism' },
+        ],
+        option: '--parser',
+        differences: { characterBeyondAscii: true, embeddedDocumentAfter: ['\u0004', '\u001a'], globalZeroWithName: true },
+      },
+      `${RUBY}/NEWS.md`,
+      'NEWS for Ruby 3.4.0: "The default parser is now Prism. To use the conventional parser, use the command-line argument `--parser=parse.y`" [Feature #20564]; Ruby 3.3 has parse.y as the default and --parser=prism "for debugging only" (NEWS.md at v3_3_0), and Ruby 4.0 still sets RB_DEFAULT_PARSER_PRISM (iseq.c at v4.0.9). eval_make_iseq in vm_eval.c compiles a string to eval with Prism when it is the default (rb_ruby_prism_p), so the instance_eval that runs the Gemfile uses it too. Where the two read the same text differently (prism/prism.c and parse.y at v3_4_7; prism.c at v4.0.9 the same): lex_question_mark reads ? before a character that is not a letter or digit of Unicode (alnum_char) as a character literal even when an identifier character follows, where parse_qmark reads a ternary for any character beyond ASCII before an identifier character (?€or is a ternary for parse.y, ?€ and the name or for Prism), and with an encoding magic comment the two count the bytes of such a character differently; =begin starts a comment for Prism only before whitespace or NUL, for parse.y also before ^D and ^Z (word_match_p); $0 followed by identifier characters is one global name for parse.y and an error for Prism 3.4 (lex_global_variable).',
+    ),
+    lineContinuation: verified(
+      { calls: ['.', '&.'], logical: { since: '4.0.0', operators: ['&&', '||'], words: ['and', 'or'] } },
+      'https://github.com/ruby/ruby/blob/v4.0.9/NEWS.md',
+      'NEWS for Ruby 4.0.0: "Logical binary operators (`||`, `&&`, `and` and `or`) at the beginning of a line continue the previous line, like fluent dot" [Feature #20925]. parse.y (leading_logical; and and or only as whole words, peek_word_at) and prism/prism.c (PM_OPTIONS_VERSION_CRUBY_4_0) at v4.0.9 look for them where they look for a leading . or &.: after the newline that ends a statement, past spaces and comment lines, not past a blank line; .. there is a range, no call. So in Ruby 4.0 source "https://rubygems.org", cooldown: 7 followed by a line && 0 gives the source cooldown: 0; Ruby 3.4 reports a syntax error for such a line.',
     ),
     stringToInteger: verified(
       { whitespace: [' ', '\t', '\n', '\u000b', '\f', '\r'], signs: ['+', '-'], prefix: '0d', separator: '_' },
@@ -168,9 +191,11 @@ export const bundler: ToolKnowledge = {
         aliases: { c: 'check', i: 'install', ls: 'list', e: 'exec', ex: 'exec', exe: 'exec', package: 'cache', pack: 'cache', '-v': 'version', '--version': 'version', '-h': 'help', '-?': 'help', '--help': 'help', '-D': 'help' },
         prefixes: true,
         defaultCommand: 'install',
+        hidden: { cli_help: 'cli_help', install_or_cli_help: 'install', inject: 'inject', viz: 'viz' },
+        dashesAsUnderscores: true,
       },
       CLI,
-      "The commands of Bundler::CLI (desc, without the hidden cli_help, install_or_cli_help, viz and inject) and Thor's help, with COMMAND_ALIASES (map aliases_for: i for install, package and pack for cache) and Thor's HELP_MAPPINGS. Thor (lib/bundler/vendor/thor/lib/thor.rb) reads the first argument as the command: normalize_command_name takes a command or alias, or an unambiguous prefix of one (find_command_possibilities: bundle inst, bundle upd); a first argument that starts with - and is no alias is no command name (retrieve_command_name), and with no command name normalize_command_name runs default_command, which is the default_cli_command setting or install, with every argument parsed as its options: a bare bundle installs, and so does bundle --cooldown 0.",
+      "The commands of Bundler::CLI (desc) and Thor's help, with COMMAND_ALIASES (map aliases_for: i for install, package and pack for cache) and Thor's HELP_MAPPINGS. Thor (lib/bundler/vendor/thor/lib/thor.rb) reads the first argument as the command: normalize_command_name takes a command or alias, or an unambiguous prefix of one (find_command_possibilities: bundle inst, bundle upd); a first argument that starts with - and is no alias is no command name (retrieve_command_name), and with no command name normalize_command_name runs default_command, which is the default_cli_command setting or install, with every argument parsed as its options: a bare bundle installs, and so does bundle --cooldown 0. The commands desc declares with hide: true (cli_help, install_or_cli_help, viz, inject) are Thor::HiddenCommand, which find_command_possibilities leaves out, so no prefix names them; a name that matches no command, alias or prefix is read with - as _ (normalize_command_name: meth.to_s.tr(\"-\", \"_\")) and runs the command of exactly that name, a hidden one too: bundle install_or_cli_help and bundle install-or-cli-help run install (\"Deprecated alias of install\", invoke_other_command(\"install\")).",
     ),
     versionSelector: verified(
       { form: '_VERSION_', variable: 'BUNDLER_VERSION' },
