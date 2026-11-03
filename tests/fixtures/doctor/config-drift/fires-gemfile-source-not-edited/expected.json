@@ -1,0 +1,20 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "Gemfile",
+      "line": 1
+    },
+    "message": "Bundler: cooldown not written: the URL of the source call on line 1 of Gemfile is not a literal string, so depcurfew cannot tell whether it is \"https://rubygems.org\"",
+    "fix": "If it names rubygems.org, write it as source \"https://rubygems.org\" on a line of its own and run depcurfew apply again, or add cooldown: 3 to that call by hand"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "Gemfile",
+      "line": 3
+    },
+    "message": "Bundler: cooldown not written: the source \"https://rubygems.org\" call on line 3 of Gemfile is not edited, because it has a block, so it is the source of the gems in the block only; depcurfew apply edits only a plain source \"https://rubygems.org\" call on a line of its own",
+    "fix": "Add cooldown: 3 to that call by hand (source \"https://rubygems.org\", cooldown: 3 do), or write it as a plain call on a line of its own and run depcurfew apply again"
+  }
+]

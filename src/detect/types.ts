@@ -73,7 +73,10 @@ export interface ToolCommand {
    * D-152).
    */
   tool: 'npm' | 'pip' | 'pnpm' | 'yarn' | 'bun' | 'poetry' | 'bundler';
-  /** upgrade: the version asked for as written, latest when none is; absent when the command does not say (corepack enable npm). */
+  /**
+   * upgrade: the version asked for as written, latest when none is; absent when the command does not say (corepack
+   * enable npm). A bundler install: the version bundle _4.0.12_ install runs (decision D-159).
+   */
   version?: string;
   /** npm ci and its aliases, which install exactly the versions of package-lock.json (decision D-115). */
   lockfile?: true;

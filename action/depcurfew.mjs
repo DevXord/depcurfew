@@ -319,6 +319,8 @@ const DSL = `${LIB}/dsl.rb`;
 const SETTINGS$1 = `${LIB}/settings.rb`;
 const RESOLVER = `${LIB}/resolver.rb`;
 const SHARED_HELPERS = `${LIB}/shared_helpers.rb`;
+const CLI$2 = `${LIB}/cli.rb`;
+const RUBY = "https://github.com/ruby/ruby/blob/v3_4_7";
 const BLOG = "https://blog.rubygems.org/2026/06/03/cooldown-let-new-gems-be-vetted.html";
 const noSourceSetting = (kind) => ({ setting: uncertain$13(null, CONFIG$4, `No setting of bundle-config(1) allows or forbids ${kind} (concluded from the documented settings and the keys of settings.rb).`) });
 const noSourceKind = (kind) => ({ setting: uncertain$13(null, GEMFILE, `Bundler has no ${kind} source: a gem comes from a gem server (source), a git repository (git:, github: and the other git sources) or a directory (path:, which "must point to a directory containing the gem's unpacked source code, not to a packaged .gem file"); plugin sources are not covered.`) });
@@ -365,7 +367,183 @@ const bundler$1 = {
 	},
 	extra: {
 		latestVersion: verified$15("4.0.23", "https://rubygems.org/api/v1/versions/bundler/latest.json", "{\"version\":\"4.0.23\"} on 2026-11-03; 4.0.23 / 2026-10-14 in bundler/CHANGELOG.md. 4.1.0.beta3 (2026-10-28) is a pre-release."),
-		gemfileNames: verified$15(["gems.rb", "Gemfile"], SHARED_HELPERS, "SharedHelpers#find_gemfile looks for gems.rb, then Gemfile, from the current directory up; with both in one directory Bundler warns (\"Multiple gemfiles (gems.rb and Gemfile) detected\") and reads gems.rb."),
+		gemfileNames: verified$15(["gems.rb", "Gemfile"], SHARED_HELPERS, "SharedHelpers#find_gemfile looks for gems.rb, then Gemfile, from the current directory up; with both in one directory Bundler warns (\"Multiple gemfiles (gems.rb and Gemfile) detected\") and reads gems.rb. find_file takes a name only when File.file? is true, so a directory (or another entry that is not a file) of that name is skipped; a symlink to a file counts."),
+		lockfileExists: verified$15({ test: "File.exist?" }, `${LIB}/definition.rb`, "Definition#lockfile_exists? is lockfile && File.exist?(lockfile): any entry of that name counts, and a symlink is followed. Bundler reads the lockfile from there; depcurfew only tests whether it is there and never reads or edits it for the cooldown."),
+		gemfileEvaluation: verified$15("instance_eval", DSL, "Dsl#eval_gemfile reads the Gemfile with Bundler.read_file (File.open(file, \"r:UTF-8\"), lib/bundler.rb) and runs it with instance_eval(contents, gemfile, 1), so Ruby's parser decides what in it is code (extra.rubySyntax)."),
+		rubySyntax: verified$15({
+			endOfScript: {
+				marker: "__END__",
+				characters: [
+					"\0",
+					"",
+					""
+				]
+			},
+			embeddedDocument: ["=begin", "=end"],
+			percentLiterals: {
+				expanding: [
+					"Q",
+					"W",
+					"I",
+					"x",
+					"r"
+				],
+				plain: [
+					"q",
+					"w",
+					"i",
+					"s"
+				]
+			},
+			pairedDelimiters: {
+				"(": ")",
+				"[": "]",
+				"{": "}",
+				"<": ">"
+			},
+			heredocIndent: ["-", "~"],
+			globalPunctuation: "~*$?!@/\\;,.=:<>\"&`'+",
+			integerPrefixes: {
+				"0x": 16,
+				"0b": 2,
+				"0o": 8,
+				"0d": 10,
+				"0": 8
+			},
+			keywords: {
+				end: [
+					"__ENCODING__",
+					"__LINE__",
+					"__FILE__",
+					"BEGIN",
+					"END",
+					"end",
+					"false",
+					"nil",
+					"redo",
+					"retry",
+					"self",
+					"true"
+				],
+				statement: [
+					"begin",
+					"do",
+					"else",
+					"ensure",
+					"then"
+				],
+				value: [
+					"and",
+					"case",
+					"elsif",
+					"for",
+					"if",
+					"in",
+					"module",
+					"or",
+					"unless",
+					"until",
+					"when",
+					"while"
+				],
+				mid: [
+					"break",
+					"next",
+					"rescue",
+					"return"
+				],
+				argument: [
+					"defined?",
+					"not",
+					"super",
+					"yield"
+				],
+				methodName: ["def"],
+				className: ["class"],
+				names: ["alias", "undef"],
+				modifiers: [
+					"if",
+					"rescue",
+					"unless",
+					"until",
+					"while"
+				]
+			}
+		}, `${RUBY}/parse.y`, "How Ruby's lexer (parse.y) reads what decides where code ends. parser_yylex ends the script at NUL, ^D (\\004) or ^Z (\\032) where a token starts, and at a line that is exactly __END__ (whole_match_p, with \\r\\n allowed); =begin at the start of a line starts a comment that ends with a line starting with =end (word_match_p: followed by whitespace, the end of the line, NUL, ^D or ^Z); # starts a comment to the end of the line. parse_percent: % starts a literal where an expression begins (IS_BEG), or after a method name with a space before % and none after it (IS_SPCARG), otherwise it is an operator; its type letter is one of Q, q, W, w, I, i, x, r, s (none means Q), the delimiter is any ASCII character that is no letter or digit, and ( [ { < pair with ) ] } > and nest (tokadd_string). heredoc_identifier: << with - or ~ and an identifier of letters, digits, _ or non-ASCII characters, or any text in ', \" or ` quotes on that line; not after a value (IS_END), after . or class, or after a method name without a space; here_document: the body starts on the line after the one with <<, after the bodies of earlier heredocs of that line, and ends at a line that is exactly the identifier (with - and ~ after leading whitespace, never with trailing spaces); in a heredoc with escapes a line after one that ends with a backslash is no terminator. Strings in double quotes, `, %Q, %W, %I, %x, %r, /, :\" and heredocs without ' interpolate #{...}, #@var and #$var (parser_peek_variable_name, is_global_name_punct). parse_qmark: ? starts a character literal unless a value comes before it, a space follows or two identifier characters follow. The keywords set the lexer state as defs/keywords lists them (EXPR_END, EXPR_BEG, EXPR_VALUE, EXPR_MID, EXPR_ARG, EXPR_FNAME, EXPR_CLASS); if, unless, while, until and rescue after a value are modifiers. parse_ident: a lower-case name lexes as a local variable (EXPR_END) when one of that name was assigned before (lvar_defined) and as a method call otherwise, so %, /, <<, ? and : after such a name and a space can be read two ways. parse_numeric: 0x, 0b, 0o and 0d prefixes, a leading 0 alone means octal (010 is 8), and single underscores between digits. Prism, the default parser of Ruby 3.4, ends the script, reads __END__ and reads heredoc identifiers and terminators the same way (prism/prism.c at the same tag)."),
+		stringToInteger: verified$15({
+			whitespace: [
+				" ",
+				"	",
+				"\n",
+				"\v",
+				"\f",
+				"\r"
+			],
+			signs: ["+", "-"],
+			prefix: "0d",
+			separator: "_"
+		}, `${RUBY}/bignum.c`, "String#to_i (rb_str_to_inum, base 10) calls rb_int_parse_cstr with RB_INT_PARSE_DEFAULT: it skips leading whitespace (ISSPACE), takes one + or -, skips a 0d or 0D prefix, then reads decimal digits with single underscores between them and stops at anything else (a second underscore, a letter, a dot, a quote); with no digit the result is 0. So \"0x10\", \"0o14\", \"true\", \"~\" and \"[0]\" read as 0, \"1e3\" and \"1e400\" as 1, \"0d14\" and \"1_4\" as 14."),
+		configFormat: verified$15({
+			comment: "#",
+			quotes: ["\"", "'"],
+			indentPerLevel: 2,
+			duplicates: "last"
+		}, `${RUBYGEMS}/lib/rubygems/yaml_serializer.rb`, "Settings#load_config reads .bundle/config with Gem::YAMLSerializer.load (Settings#serializer_class in lib/bundler/settings.rb; Bundler's own lib/bundler/yaml_serializer.rb is the same), a line reader, not YAML. HASH_REGEX takes as the key the text before the last colon that is followed by whitespace or the end of the line and comes before the first #, and as the value the rest after one optional space, without its quotes only when it starts and ends with the same quote; strip_comment then cuts the value at its first # and strips it, unless the value starts with #. A key with an empty value starts a nested map, the number of leading spaces / 2 is the depth, a later line of a key replaces an earlier one, and [] is an empty list. load_config replaces . in keys with __, so only a key spelled exactly BUNDLE_COOLDOWN at the top level is the setting; Settings#converted_value reads its text with to_i (extra.stringToInteger), and a map or a list there makes Bundler stop with an error."),
+		cliCommands: verified$15({
+			commands: [
+				"add",
+				"binstubs",
+				"cache",
+				"check",
+				"clean",
+				"config",
+				"console",
+				"doctor",
+				"env",
+				"exec",
+				"fund",
+				"gem",
+				"help",
+				"info",
+				"init",
+				"install",
+				"issue",
+				"licenses",
+				"list",
+				"lock",
+				"open",
+				"outdated",
+				"platform",
+				"plugin",
+				"pristine",
+				"remove",
+				"show",
+				"update",
+				"version"
+			],
+			aliases: {
+				c: "check",
+				i: "install",
+				ls: "list",
+				e: "exec",
+				ex: "exec",
+				exe: "exec",
+				package: "cache",
+				pack: "cache",
+				"-v": "version",
+				"--version": "version",
+				"-h": "help",
+				"-?": "help",
+				"--help": "help",
+				"-D": "help"
+			},
+			prefixes: true,
+			defaultCommand: "install"
+		}, CLI$2, "The commands of Bundler::CLI (desc, without the hidden cli_help, install_or_cli_help, viz and inject) and Thor's help, with COMMAND_ALIASES (map aliases_for: i for install, package and pack for cache) and Thor's HELP_MAPPINGS. Thor (lib/bundler/vendor/thor/lib/thor.rb) reads the first argument as the command: normalize_command_name takes a command or alias, or an unambiguous prefix of one (find_command_possibilities: bundle inst, bundle upd); a first argument that starts with - and is no alias is no command name (retrieve_command_name), and with no command name normalize_command_name runs default_command, which is the default_cli_command setting or install, with every argument parsed as its options: a bare bundle installs, and so does bundle --cooldown 0."),
+		versionSelector: verified$15({
+			form: "_VERSION_",
+			variable: "BUNDLER_VERSION"
+		}, `${RUBYGEMS}/lib/rubygems/installer.rb`, "The executables RubyGems writes for a gem (Gem::Installer#app_script_text) take a first argument _VERSION_ when Gem::Version.correct? accepts VERSION (ANCHORED_VERSION_PATTERN in lib/rubygems/version.rb), activate that version and drop the argument; for bundler they also set ENV[\"BUNDLER_VERSION\"] to it, so bundle _4.0.12_ install runs Bundler 4.0.12 and does not switch to the version of BUNDLED WITH."),
 		rubygemsSource: verified$15({
 			url: "https://rubygems.org",
 			method: "source"
@@ -411,13 +589,13 @@ const bundler$1 = {
 				"cache"
 			],
 			option: "--cooldown"
-		}, INSTALL$1, "The gem installs the executables bundle and bundler (s.executables in bundler.gemspec). bundle install, update, lock (bundle-lock(1)), add (which runs bundle install) and cache resolve the Gemfile and take --cooldown (cli.rb); bundle outdated only reads versions."),
+		}, INSTALL$1, "The gem installs the executables bundle and bundler (s.executables in bundler.gemspec). bundle install, update, lock (bundle-lock(1)), add (which runs bundle install) and cache resolve the Gemfile and take --cooldown (cli.rb); bundle outdated only reads versions. Aliases, prefixes and a bare bundle are read as Bundler reads them (extra.cliCommands), and so is a first argument _VERSION_ (extra.versionSelector)."),
 		gemInstall: verified$15({
 			command: ["gem", "install"],
 			name: "bundler",
 			versionOptions: ["-v", "--version"],
 			separator: ":"
-		}, `${RUBYGEMS}/lib/rubygems/command.rb`, "gem install bundler -v 4.0.23 (or --version, Gem::VersionOption#add_version_option in lib/rubygems/version_option.rb) and gem install bundler:4.0.23 (Gem::Command#extract_gem_name_and_version) install that Bundler."),
+		}, `${RUBYGEMS}/lib/rubygems/command.rb`, "gem install bundler -v 4.0.23 (or --version, Gem::VersionOption#add_version_option in lib/rubygems/version_option.rb) and gem install bundler:4.0.23 (Gem::Command#extract_gem_name_and_version) install that Bundler. The options are read with Gem::OptionParser, so the value may also be attached: -v4.0.23 and --version=4.0.23."),
 		configLocal: verified$15({
 			file: ".bundle/config",
 			ignoredBy: "bundle gem"
@@ -8763,6 +8941,9 @@ function detectionFacts(tools, environment) {
 	const resolve = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "resolveCommands");
 	const bundlerSetting = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "cooldownSetting");
 	const gemInstall = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "gemInstall");
+	const bundlerCli = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "cliCommands");
+	const versionSelector = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "versionSelector");
+	const isStringMap = (value) => isRecord(value) && Object.values(value).every((item) => typeof item === "string");
 	const strings = (value) => Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
 	const others = [
 		"pnpm",
@@ -8839,7 +9020,14 @@ function detectionFacts(tools, environment) {
 				name: gemInstall["name"],
 				versionOptions: strings(gemInstall["versionOptions"]),
 				separator: gemInstall["separator"]
-			}
+			},
+			...isRecord(bundlerCli) && isStringMap(bundlerCli["aliases"]) && typeof bundlerCli["defaultCommand"] === "string" ? { cli: {
+				commands: strings(bundlerCli["commands"]),
+				aliases: bundlerCli["aliases"],
+				prefixes: bundlerCli["prefixes"] === true,
+				defaultCommand: bundlerCli["defaultCommand"]
+			} } : {},
+			...isRecord(versionSelector) && versionSelector["form"] === "_VERSION_" ? { versionSelector: true } : {}
 		} } : {}
 	};
 	const docker = environment.docker;
@@ -16218,12 +16406,12 @@ const PSYCH_BASE60_FLOAT = /^[-+]?[0-9][0-9_]*(?::[0-5]?[0-9]){1,2}\.[0-9_]*$/u;
 const PSYCH_FLOAT = /^[-+]?(?:[0-9][0-9_,]*)?\.[0-9]*(?:[eE][-+][0-9]+)?$/u;
 const PSYCH_INTEGER = /^(?:[-+]?0b[_,]*[0-1][0-1_,]*|[-+]?0[_,]*[0-7][0-7_,]*|[-+]?(?:0|[1-9](?:[0-9]|,[0-9]|_[0-9])*)|[-+]?0x[_,]*[0-9a-fA-F][0-9a-fA-F_,]*)$/u;
 /** Ruby's String#to_i: an optional sign and digits, single underscores between them, up to the first other character. */
-function rubyToI(text) {
+function rubyToI$1(text) {
 	const match = /^[-+]?\d+(?:_\d+)*/u.exec(text);
 	return match === null ? 0 : Number.parseInt(match[0].replaceAll("_", ""), 10);
 }
 /** Ruby's Integer() of a text INTEGER_LEGACY matched, after the commas and underscores are deleted. */
-function rubyInteger(text) {
+function rubyInteger$1(text) {
 	const digits = text.replace(/[,_]/gu, "");
 	const negative = digits.startsWith("-");
 	const unsigned = digits.replace(/^[-+]/u, "");
@@ -16241,7 +16429,7 @@ function psychScalar(text) {
 	if (/^\+?\.inf$/iu.test(text) || /^-\.inf$/iu.test(text) || /^\.nan$/iu.test(text) || /^:./u.test(text)) return { kind: "other" };
 	if (PSYCH_BASE60.test(text)) {
 		let total = 0;
-		for (const [index, part] of text.split(":").entries()) total += rubyToI(part) * 60 ** Math.abs(index - 2);
+		for (const [index, part] of text.split(":").entries()) total += rubyToI$1(part) * 60 ** Math.abs(index - 2);
 		return {
 			kind: "integer",
 			value: total
@@ -16250,7 +16438,7 @@ function psychScalar(text) {
 	if (PSYCH_BASE60_FLOAT.test(text) || PSYCH_FLOAT.test(text)) return { kind: "other" };
 	if (PSYCH_INTEGER.test(text)) return {
 		kind: "integer",
-		value: rubyInteger(text)
+		value: rubyInteger$1(text)
 	};
 	return {
 		kind: "string",
@@ -16971,44 +17159,80 @@ function pipCommand(args, at, facts, environment) {
 	}, ...poetryVersions(operands(rest, values), at, facts)];
 }
 /**
-* bundle install, update, lock, add and cache (decision D-152): an install with the release-age delay it gets, as written:
-* --cooldown N on the command line (delayOption), else BUNDLE_COOLDOWN; unknown when the value has a variable.
+* The command Bundler's CLI runs for its first argument (Thor, extra.cliCommands): a command, an alias (i, package), or
+* an unambiguous prefix of one (inst); a bare bundle runs the default command; an option first is no command.
+*/
+function bundlerCliCommand(name, cli) {
+	if (name === void 0) return cli.defaultCommand;
+	if (cli.commands.includes(name)) return name;
+	const alias = cli.aliases[name];
+	if (alias !== void 0) return alias;
+	if (name.startsWith("-")) return cli.defaultCommand;
+	if (!cli.prefixes || name === "") return void 0;
+	const found = new Set([...cli.commands, ...Object.keys(cli.aliases)].filter((candidate) => candidate.startsWith(name)).map((candidate) => cli.aliases[candidate] ?? candidate));
+	return found.size === 1 ? [...found][0] : void 0;
+}
+/** A version Gem::Version.correct? accepts (VERSION_PATTERN of RubyGems), for bundle _VERSION_. */
+const GEM_VERSION = /^\s*([0-9]+(?:\.[0-9a-zA-Z]+)*(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)?\s*$/u;
+/**
+* bundle install, update, lock, add and cache, also by alias or prefix (bundle i, bundle package) and a bare bundle
+* (decisions D-152 and D-159): an install with the release-age delay it gets, as written: --cooldown N on the command
+* line (delayOption), else BUNDLE_COOLDOWN; unknown when the value has a variable. bundle _4.0.12_ install runs Bundler
+* 4.0.12, which the install names as its version.
 */
 function bundlerCommand(args, at, facts, environment) {
 	const known = facts.bundler;
 	if (known === void 0) return void 0;
-	const command = args[firstOperand(args, setOf([]))]?.text;
+	let rest = args;
+	let version;
+	const selector = known.versionSelector === true ? /^_(.*)_$/su.exec(rest[0]?.text ?? "")?.[1] : void 0;
+	if (selector !== void 0 && GEM_VERSION.test(selector)) {
+		version = selector.trim();
+		rest = rest.slice(1);
+	}
+	const command = known.cli === void 0 ? rest[firstOperand(rest, setOf([]))]?.text : bundlerCliCommand(rest[0]?.text, known.cli);
 	if (command === void 0 || !known.commands.includes(command)) return void 0;
 	let value;
-	for (const [position, word] of args.entries()) if (word.text === known.option) value = args[position + 1]?.text;
+	for (const [position, word] of rest.entries()) if (word.text === known.option) value = rest[position + 1]?.text;
 	else if (word.text.startsWith(`${known.option}=`)) value = word.text.slice(known.option.length + 1);
 	const option = value !== void 0;
 	value ??= environment.get(known.variable);
+	const selected = version === void 0 || version === "" ? {} : { version };
 	if (value?.includes("$") === true || !option && environment.has(UNKNOWN_VARIABLES)) return {
 		kind: "install",
 		tool: "bundler",
+		...selected,
 		delayUnknown: true,
 		offset: at
 	};
 	return {
 		kind: "install",
 		tool: "bundler",
+		...selected,
 		...value === void 0 ? {} : { delay: value },
 		...option ? { delayOption: true } : {},
 		offset: at
 	};
 }
-/** gem install bundler -v 4.0.23, --version 4.0.23 or bundler:4.0.23: the Bundler it installs, as written (decision D-152). */
+/**
+* gem install bundler -v 4.0.23, -v4.0.23, --version 4.0.23, --version=4.0.23 or bundler:4.0.23: the Bundler it
+* installs, as written (decisions D-152 and D-159; Gem::OptionParser takes the value attached as well).
+*/
 function gemCommand(args, at, facts) {
 	const gem = facts.bundler?.gem;
 	if (gem === void 0 || args[0]?.text !== gem.install[1]) return [];
 	const rest = args.slice(1);
 	let version;
 	let named = false;
+	const long = gem.versionOptions.filter((option) => option.startsWith("--"));
+	const short = gem.versionOptions.filter((option) => /^-[^-]$/u.test(option));
 	for (const [position, word] of rest.entries()) {
 		const text = word.text;
+		const attachedLong = long.find((option) => text.startsWith(`${option}=`));
+		const attachedShort = short.find((option) => text.startsWith(option) && text.length > option.length);
 		if (gem.versionOptions.includes(text)) version = rest[position + 1]?.text;
-		else if (text.startsWith("--version=")) version = text.slice(10);
+		else if (attachedLong !== void 0) version = text.slice(attachedLong.length + 1);
+		else if (attachedShort !== void 0) version = text.slice(attachedShort.length);
 		else if (text === gem.name) named = true;
 		else if (text.startsWith(`${gem.name}${gem.separator}`)) {
 			named = true;
@@ -17872,7 +18096,7 @@ function readDockerStages(file, text, facts) {
 				...command,
 				afterCorepack: true
 			} : command);
-			if (command.kind === "upgrade" && command.version !== void 0 && (command.tool === "npm" || command.tool === "pip" || command.tool === "poetry" || command.tool === "bundler")) versions.push({
+			if ((command.kind === "upgrade" || command.tool === "bundler") && command.version !== void 0 && (command.tool === "npm" || command.tool === "pip" || command.tool === "poetry" || command.tool === "bundler")) versions.push({
 				tool: command.tool,
 				declaration: {
 					version: command.version,
@@ -17996,15 +18220,18 @@ function commandDirectory(step, cd) {
 }
 /**
 * The variables of an env map whose values are scalars, as text (a YAML true is "true"). `resolve` reads an alias
-* (*name) as the node of its anchor, as GitHub expands aliases in workflows (decision D-141).
+* (*name) as the node of its anchor, as GitHub expands aliases in workflows (decision D-141). The variables of
+* `asWritten` take a plain scalar as written (BUNDLE_COOLDOWN: 1e400 is "1e400", which Bundler reads with to_i as 1;
+* decision D-159).
 */
-function environmentOf(node, resolve = (item) => item) {
+function environmentOf(node, resolve = (item) => item, asWritten = /* @__PURE__ */ new Set()) {
 	const found = /* @__PURE__ */ new Map();
 	const map = resolve(node);
 	if (!(0, import_dist.isMap)(map)) return found;
 	for (const pair of map.items) {
 		const key = scalarText(pair.key);
-		const value = scalarText(resolve(pair.value));
+		const item = resolve(pair.value);
+		const value = (key !== void 0 && asWritten.has(key) && (0, import_dist.isScalar)(item) && item.type === "PLAIN" && typeof item.source === "string" ? item.source : void 0) ?? scalarText(item);
 		if (key !== void 0 && value !== void 0) found.set(key, value);
 	}
 	return found;
@@ -18046,6 +18273,7 @@ function readWorkflows(repository, facts) {
 		installs: [],
 		jobs: []
 	};
+	const asWritten = new Set(facts.commands.bundler === void 0 ? [] : [facts.commands.bundler.variable]);
 	for (const file of files) {
 		const text = repository.readText(file);
 		if (text === void 0) continue;
@@ -18062,7 +18290,7 @@ function readWorkflows(repository, facts) {
 		if (!(0, import_dist.isMap)(jobs)) continue;
 		const workflowDirectory = defaultDirectory(document.contents);
 		const { key: envKey } = facts.workflowEnvironment;
-		const workflowEnvironment = withVariables(facts.commands, environmentOf((0, import_dist.isMap)(document.contents) ? document.contents.get(envKey) : void 0, resolve));
+		const workflowEnvironment = withVariables(facts.commands, environmentOf((0, import_dist.isMap)(document.contents) ? document.contents.get(envKey) : void 0, resolve, asWritten));
 		for (const pair of jobs.items) {
 			const id = scalarText(pair.key);
 			const job = resolve(pair.value);
@@ -18156,7 +18384,7 @@ function readWorkflows(repository, facts) {
 					});
 				}
 			}
-			const jobEnvironment = withVariables(facts.commands, environmentOf((0, import_dist.isMap)(container) ? container.get(containerEnvKey) : void 0, resolve), workflowEnvironment, environmentOf(job.get(envKey), resolve));
+			const jobEnvironment = withVariables(facts.commands, environmentOf((0, import_dist.isMap)(container) ? container.get(containerEnvKey) : void 0, resolve, asWritten), workflowEnvironment, environmentOf(job.get(envKey), resolve, asWritten));
 			const steps = resolve(job.get("steps"));
 			if (!(0, import_dist.isSeq)(steps)) continue;
 			for (const item of steps.items) {
@@ -18186,7 +18414,7 @@ function readWorkflows(repository, facts) {
 				const run = resolve(step.get("run", true));
 				if ((0, import_dist.isScalar)(run) && typeof run.value === "string" && run.range !== void 0 && run.range !== null) {
 					const start = run.range[0];
-					const environment = withVariables(facts.commands, jobEnvironment, environmentOf(step.get(envKey), resolve));
+					const environment = withVariables(facts.commands, jobEnvironment, environmentOf(step.get(envKey), resolve, asWritten));
 					const found = findToolCommands(text.slice(start, run.range[1]), facts.commands, 0, environment);
 					const runLine = lineCounter.linePos(start).line;
 					for (const message of overLimitMessages(found.overLimit, `the run step of ${jobLabel(id, keyLine)} in ${file} (line ${runLine})`)) repository.warn("script-not-followed", message, [file], runLine);
@@ -18206,7 +18434,7 @@ function readWorkflows(repository, facts) {
 							...directory === void 0 ? {} : { directory },
 							...afterCorepack ? { afterCorepack: true } : {}
 						});
-						if ((command.tool === "npm" || command.tool === "poetry" || command.tool === "bundler") && command.kind === "upgrade" && command.version !== void 0) findings.versions.push({
+						if ((command.tool === "npm" || command.tool === "poetry" || command.tool === "bundler") && (command.kind === "upgrade" || command.tool === "bundler") && command.version !== void 0) findings.versions.push({
 							tool: command.tool,
 							declaration: {
 								version: command.version,
@@ -18895,121 +19123,1437 @@ function insertBlock(lines, at, entries, separate, marker = BLOCK_START) {
 	];
 }
 
-// src/apply/gemfile.ts
-const QUOTED = String.raw`"(?:[^"\\#]|\\.|#(?!\{))*"|'(?:[^'\\]|\\.)*'`;
-const KEY = String.raw`(?:cooldown:|:cooldown[ \t]*=>|"cooldown"[ \t]*(?::|=>)|'cooldown'[ \t]*=>)`;
-/** source "URL"[, cooldown: N] with or without parentheses, and an optional comment. */
-const PLAIN$2 = new RegExp(String.raw`^(?<head>[ \t]*source(?:\(|[ \t]+)[ \t]*)(?<url>${QUOTED})(?<option>[ \t]*,[ \t]*${KEY}[ \t]*(?<days>\d+))?(?<tail>[ \t]*(?<close>\))?[ \t]*(?:#.*)?)$`, "u");
-/** The start of a source call: source followed by a space or a parenthesis, not an assignment, a method or a hash key. */
-const CALL = /^[ \t]*source(?:\(|[ \t]+(?![ \t]*(?:=[^=~>]|\.|:[^:])))/u;
-const COOLDOWN = new RegExp(String.raw`${KEY}[ \t]*(?<value>[^,)\s#]*)`, "u");
-const HEREDOC = /<<[~-]?(["'`]?)([A-Za-z_][A-Za-z0-9_]*)\1/gu;
-/** The value of a Ruby string literal (only the escapes of quotes and backslashes matter for a URL). */
-function literal$1(text) {
-	return text.slice(1, -1).replace(/\\(.)/gu, "$1");
+// src/apply/gemfile-scan.ts
+const isStrings$6 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isSyntax = (value) => isRecord(value) && isRecord(value["endOfScript"]) && typeof value["endOfScript"]["marker"] === "string" && isStrings$6(value["endOfScript"]["characters"]) && isStrings$6(value["embeddedDocument"]) && value["embeddedDocument"].length === 2 && isRecord(value["percentLiterals"]) && isStrings$6(value["percentLiterals"]["expanding"]) && isStrings$6(value["percentLiterals"]["plain"]) && isRecord(value["pairedDelimiters"]) && isStrings$6(value["heredocIndent"]) && typeof value["globalPunctuation"] === "string" && isRecord(value["keywords"]) && Object.values(value["keywords"]).every(isStrings$6);
+const SYNTAX$1 = extraOf(bundler$1, "rubySyntax", isSyntax);
+const [EMBEDDED_BEGIN, EMBEDDED_END] = SYNTAX$1.embeddedDocument;
+const END_CHARACTERS = new Set(SYNTAX$1.endOfScript.characters);
+const PAIRS = new Map(Object.entries(SYNTAX$1.pairedDelimiters).filter((entry) => typeof entry[1] === "string"));
+const EXPANDING = new Set(SYNTAX$1.percentLiterals.expanding);
+const PERCENT_TYPES = /* @__PURE__ */ new Set([...SYNTAX$1.percentLiterals.expanding, ...SYNTAX$1.percentLiterals.plain]);
+const HEREDOC_INDENT = new Set(SYNTAX$1.heredocIndent);
+const GLOBAL_PUNCTUATION = new Set(SYNTAX$1.globalPunctuation);
+const KEYWORD_STATES = new Map([
+	...SYNTAX$1.keywords.end.map((word) => [word, "end"]),
+	...SYNTAX$1.keywords.statement.map((word) => [word, "stmt"]),
+	...SYNTAX$1.keywords.value.map((word) => [word, "beg"]),
+	...SYNTAX$1.keywords.mid.map((word) => [word, "mid"]),
+	...SYNTAX$1.keywords.argument.map((word) => [word, "arg"]),
+	...SYNTAX$1.keywords.methodName.map((word) => [word, "def"]),
+	...SYNTAX$1.keywords.className.map((word) => [word, "class"]),
+	...SYNTAX$1.keywords.names.map((word) => [word, "names"])
+]);
+const MODIFIERS = new Set(SYNTAX$1.keywords.modifiers);
+/** Where an expression begins: %, / and << start literals there, ? a character literal. */
+const BEGINS = /* @__PURE__ */ new Set([
+	"stmt",
+	"beg",
+	"begLabel",
+	"mid",
+	"class"
+]);
+/** States in which Ruby ignores a newline (EXPR_BEG, EXPR_CLASS, EXPR_FNAME, EXPR_DOT, and a label). */
+const IGNORES_NEWLINE = /* @__PURE__ */ new Set([
+	"stmt",
+	"beg",
+	"begLabel",
+	"class",
+	"fname",
+	"dot"
+]);
+/** States after which a name followed by : is a label (IS_LABEL_POSSIBLE). */
+const LABEL_POSSIBLE = /* @__PURE__ */ new Set([
+	"begLabel",
+	"arg",
+	"ident"
+]);
+/** The operators a symbol can name (:<=>, :[]=), longest first. */
+const SYMBOL_OPERATORS = [
+	"<=>",
+	"===",
+	"[]=",
+	"==",
+	"=~",
+	"!=",
+	"!~",
+	"[]",
+	"**",
+	">=",
+	">>",
+	"<=",
+	"<<",
+	"+@",
+	"-@",
+	"!",
+	"<",
+	">",
+	"+",
+	"-",
+	"*",
+	"/",
+	"%",
+	"&",
+	"|",
+	"^",
+	"~",
+	"`"
+];
+const MAX_TOKENS = 1e3;
+function isDigit(c) {
+	return c !== void 0 && c >= "0" && c <= "9";
 }
-/**
-* Which lines are Ruby code: not inside =begin … =end or the body of a heredoc (<<~ID … ID). A rough reading that errs
-* towards leaving a line alone: the start of a heredoc is looked for anywhere on its line.
-*/
-function codeLines(lines) {
-	const code = [];
-	let comment = false;
-	const heredocs = [];
-	for (const raw of lines) {
-		const line = raw.replace(/\r$/u, "");
-		if (comment) {
-			code.push(false);
-			if (/^=end(?:\s|$)/u.test(line)) comment = false;
-			continue;
+function isAlpha(c) {
+	return c !== void 0 && (c >= "a" && c <= "z" || c >= "A" && c <= "Z");
+}
+function isAlnum(c) {
+	return isDigit(c) || isAlpha(c);
+}
+function isNonAscii(c) {
+	return c !== void 0 && c.charCodeAt(0) >= 128;
+}
+/** parser_is_identchar: a letter, a digit, _ or a character beyond ASCII. */
+function isIdentChar(c) {
+	return isAlnum(c) || c === "_" || isNonAscii(c);
+}
+function isIdentStart(c) {
+	return isAlpha(c) || c === "_" || isNonAscii(c);
+}
+/** ISSPACE in parse.y. */
+function isRubySpace(c) {
+	return c === " " || c === "	" || c === "\n" || c === "\v" || c === "\f" || c === "\r";
+}
+/** Whitespace between tokens on a line (the newline is not). */
+function isInlineSpace(c) {
+	return c === " " || c === "	" || c === "\v" || c === "\f" || c === "\r";
+}
+var Stop = class extends Error {};
+var Scanner = class {
+	#text;
+	#i = 0;
+	/** 0-based line of #i. */
+	#line = 0;
+	#lineStart = 0;
+	#atLineStart = true;
+	#stack = [];
+	#pending = [];
+	#lines = [];
+	#recording;
+	#unknown;
+	#done = false;
+	constructor(text) {
+		this.#text = text;
+		if (text.charCodeAt(0) === 65279) this.#i = 1;
+		this.#stack.push(this.#code(false));
+	}
+	#code(interpolation) {
+		return {
+			kind: "code",
+			state: "stmt",
+			braces: 0,
+			ternary: 0,
+			params: 0,
+			space: false,
+			interpolation,
+			line: this.#line
+		};
+	}
+	run() {
+		try {
+			while (!this.#done) {
+				if (this.#i >= this.#text.length) {
+					this.#finish();
+					break;
+				}
+				if (this.#atLineStart) {
+					this.#atLineStart = false;
+					if (this.#startLine()) continue;
+				}
+				const frame = this.#top();
+				if (frame.kind === "code") this.#codeStep(frame);
+				else if (frame.kind === "string") this.#stringStep(frame);
+				else this.#heredocStep(frame);
+			}
+		} catch (error) {
+			if (!(error instanceof Stop)) throw error;
 		}
-		const open = heredocs[0];
-		if (open !== void 0) {
-			code.push(false);
-			if ((open.indented ? line.trim() : line) === open.id) heredocs.shift();
-			continue;
-		}
-		if (/^=begin(?:\s|$)/u.test(line)) {
-			comment = true;
-			code.push(false);
-			continue;
-		}
-		code.push(true);
-		for (const match of line.matchAll(HEREDOC)) {
-			const id = match[2];
-			if (id !== void 0) heredocs.push({
-				id,
-				indented: match[0].startsWith("<<~") || match[0].startsWith("<<-")
-			});
+		this.#closeLine(false);
+		return {
+			lines: this.#lines,
+			...this.#unknown === void 0 ? {} : { unknown: this.#unknown }
+		};
+	}
+	#top() {
+		const frame = this.#stack.at(-1);
+		if (frame === void 0) throw new Stop();
+		return frame;
+	}
+	/** Stops the scan: what follows cannot be read with certainty. */
+	#fail(reason, fix, line = this.#line) {
+		this.#unknown = {
+			line: line + 1,
+			reason,
+			fix
+		};
+		this.#done = true;
+		throw new Stop();
+	}
+	#syntaxError(what, line = this.#line) {
+		this.#fail(`Ruby reports a syntax error there (${what})`, "fix the syntax error (ruby -c shows it)", line);
+	}
+	/** Ruby stops reading the script here; nothing after it is code. */
+	#endOfScript() {
+		this.#closeLine(false);
+		this.#done = true;
+		throw new Stop();
+	}
+	#finish() {
+		const pending = this.#pending[0];
+		if (pending !== void 0) this.#fail(`the heredoc <<${pending.id} has no body before the end of the file`, `end the heredoc with a line ${pending.id}`, pending.line);
+		const frame = this.#top();
+		if (frame.kind === "heredoc") this.#fail(`the heredoc that starts there has no line ${frame.id} that ends it`, `end the heredoc with a line ${frame.id}`, frame.line);
+		if (frame.kind === "string") this.#fail("the string or literal that starts there does not end", "end the string", frame.line);
+		if (frame.interpolation) this.#fail("the interpolation #{ that starts there does not end", "close the interpolation with }", frame.line);
+		this.#closeLine(true);
+		this.#done = true;
+	}
+	/** Moves past the newline at `at` (\n): the next line starts, after the bodies of the heredocs started on this one. */
+	#newline(at) {
+		this.#closeLine(true);
+		this.#i = at + 1;
+		this.#line += 1;
+		this.#lineStart = this.#i;
+		this.#atLineStart = true;
+		if (this.#pending.length > 0) {
+			for (let index = this.#pending.length - 1; index >= 0; index--) {
+				const heredoc = this.#pending[index];
+				if (heredoc !== void 0) this.#stack.push({
+					kind: "heredoc",
+					id: heredoc.id,
+					indent: heredoc.indent,
+					expand: heredoc.expand,
+					continued: false,
+					line: heredoc.line
+				});
+			}
+			this.#pending = [];
 		}
 	}
-	return code;
-}
-/** Every source call of the text, in order. */
-function gemfileSources(text) {
-	const lines = text.split("\n");
-	const code = codeLines(lines);
-	const found = [];
-	lines.forEach((raw, index) => {
-		const line = raw.replace(/\r$/u, "");
-		if (code[index] !== true || !CALL.test(line)) return;
-		const plain = PLAIN$2.exec(line);
-		const opened = /^[ \t]*source\(/u.test(line);
-		if (plain?.groups !== void 0 && plain.groups["close"] !== void 0 === opened) {
-			const days = plain.groups["days"];
-			found.push({
-				line: index + 1,
-				url: literal$1(plain.groups["url"] ?? ""),
-				...days === void 0 ? {} : { cooldown: Number(days) },
-				plain: true,
-				block: false
-			});
+	/** The end of the current line (the index of its \n, or the end of the text). */
+	#lineEnd(from = this.#i) {
+		const end = this.#text.indexOf("\n", from);
+		return end === -1 ? this.#text.length : end;
+	}
+	/** The text of the line that starts at `from`, without \n or \r\n. */
+	#lineText(from) {
+		const end = this.#lineEnd(from);
+		const text = this.#text.slice(from, end);
+		return text.endsWith("\r") && end < this.#text.length ? text.slice(0, -1) : text;
+	}
+	/** Line start: a heredoc terminator, =begin, __END__, and the start of a source line. True when it moved on. */
+	#startLine() {
+		const frame = this.#top();
+		if (frame.kind === "heredoc") {
+			if (!frame.continued) {
+				let text = this.#lineText(this.#i);
+				if (frame.indent) text = text.replace(/^[ \t\v\f\r]+/u, "");
+				if (text === frame.id) {
+					this.#stack.pop();
+					const end = this.#lineEnd();
+					if (end >= this.#text.length) this.#i = end;
+					else this.#newline(end);
+					return true;
+				}
+			}
+			frame.continued = false;
+			return false;
+		}
+		if (frame.kind !== "code") return false;
+		const text = this.#text;
+		if (text.startsWith(EMBEDDED_BEGIN, this.#i) && this.#endsWord(this.#i + EMBEDDED_BEGIN.length)) {
+			const start = this.#line;
+			for (;;) {
+				const end = this.#lineEnd();
+				if (end >= text.length) this.#fail(`the ${EMBEDDED_BEGIN} comment that starts there has no ${EMBEDDED_END}`, `end the comment with a line ${EMBEDDED_END}`, start);
+				this.#i = end + 1;
+				this.#line += 1;
+				this.#lineStart = this.#i;
+				if (text.startsWith(EMBEDDED_END, this.#i) && this.#endsWord(this.#i + EMBEDDED_END.length)) break;
+			}
+			const end = this.#lineEnd();
+			if (end >= text.length) this.#i = end;
+			else {
+				this.#i = end + 1;
+				this.#line += 1;
+				this.#lineStart = this.#i;
+			}
+			this.#atLineStart = true;
+			return true;
+		}
+		if (text.startsWith(SYNTAX$1.endOfScript.marker, this.#i) && this.#lineText(this.#i) === SYNTAX$1.endOfScript.marker) {
+			if (this.#stack.length > 1) this.#syntaxError(`${SYNTAX$1.endOfScript.marker} inside an interpolation`);
+			this.#endOfScript();
+		}
+		if (this.#stack.length === 1) this.#maybeRecord(frame);
+		return false;
+	}
+	/** word_match_p: the word is followed by whitespace, the end of the text, NUL, ^D or ^Z. */
+	#endsWord(at) {
+		const c = this.#text[at];
+		return c === void 0 || isRubySpace(c) || END_CHARACTERS.has(c);
+	}
+	#maybeRecord(frame) {
+		const text = this.#text;
+		let at = this.#i;
+		while (isInlineSpace(text[at])) at++;
+		if (!text.startsWith("source", at)) return;
+		const after = text[at + 6];
+		if (isIdentChar(after) || (after === "?" || after === "!") && text[at + 7] !== "=") return;
+		this.#recording = {
+			line: this.#line + 1,
+			start: this.#lineStart,
+			statement: frame.state === "stmt",
+			tokens: [],
+			complete: false,
+			block: false,
+			full: false
+		};
+	}
+	#closeLine(complete) {
+		const recording = this.#recording;
+		if (recording === void 0) return;
+		this.#recording = void 0;
+		const { full: _full, ...line } = recording;
+		line.complete = complete && !recording.full && this.#stack.length === 1 && this.#pending.length === 0 && this.#top().kind === "code";
+		this.#lines.push(line);
+	}
+	/** Records a token of the top-level code on a source line. */
+	#token(token, frame) {
+		const recording = this.#recording;
+		if (recording === void 0 || this.#stack.length !== 1 || frame !== this.#stack[0]) return;
+		if (recording.tokens.length >= MAX_TOKENS) {
+			recording.full = true;
 			return;
 		}
-		const rest = line.replace(/^[ \t]*source\(?[ \t]*/u, "");
-		const url = new RegExp(`^(?:${QUOTED})`, "u").exec(rest)?.[0];
-		const value = COOLDOWN.exec(line)?.groups?.["value"];
-		const block = /\bdo(?:[ \t]*\|[^|]*\|)?[ \t]*(?:#.*)?$/u.test(line) || /\{[^}]*$/u.test(line.replace(/#\{[^}]*\}/gu, ""));
-		found.push({
-			line: index + 1,
-			...url === void 0 ? {} : { url: literal$1(url) },
-			...value === void 0 ? {} : { cooldown: /^\d+$/u.test(value) ? Number(value) : "other" },
-			plain: false,
-			block
+		recording.tokens.push({
+			...token,
+			space: frame.space
 		});
-	});
-	return found;
+	}
+	/** Sets the state after a token, with the block parameters of do |a| and { |a| (a statement begins after them). */
+	#after(frame, state, text = "") {
+		if (frame.params === 1) {
+			if (text === "|") {
+				frame.params = 2;
+				frame.state = "begLabel";
+			} else if (text === "||") {
+				frame.params = 0;
+				frame.state = "stmt";
+			} else {
+				frame.params = 0;
+				frame.state = state;
+			}
+		} else if (frame.params === 2 && text === "|") {
+			frame.params = 0;
+			frame.state = "stmt";
+		} else frame.state = state;
+		frame.space = false;
+	}
+	#ambiguous(name, what) {
+		this.#fail(`after the name ${name} and a space, Ruby reads ${what} one way when ${name} is a local variable and another way when it is a method, which depcurfew does not tell`, `write the arguments of ${name} in parentheses (${name}(...)), or put a space after the operator`);
+	}
+	#lastName() {
+		const recording = this.#recording?.tokens.at(-1);
+		if (recording !== void 0 && recording.kind === "ident") return recording.text;
+		let at = this.#i - 1;
+		while (at >= 0 && isInlineSpace(this.#text[at])) at--;
+		const end = at + 1;
+		while (at >= 0 && isIdentChar(this.#text[at])) at--;
+		return this.#text.slice(at + 1, end) || "the name before it";
+	}
+	#codeStep(frame) {
+		const text = this.#text;
+		const i = this.#i;
+		const c = text[i] ?? "";
+		const next = text[i + 1];
+		const state = frame.state;
+		if (END_CHARACTERS.has(c)) {
+			if (this.#stack.length > 1) this.#syntaxError("the script ends inside an interpolation");
+			if (this.#pending.length > 0) this.#fail("the script ends before the body of a heredoc started on that line", "move the end of the script to a line of its own");
+			this.#endOfScript();
+		}
+		if (isInlineSpace(c)) {
+			frame.space = true;
+			this.#i = i + 1;
+			return;
+		}
+		if (c === "\n") {
+			if (!IGNORES_NEWLINE.has(state)) {
+				frame.state = "stmt";
+				frame.ternary = 0;
+			}
+			if (frame.params === 1) frame.params = 0;
+			frame.space = true;
+			this.#newline(i);
+			return;
+		}
+		if (c === "\\") {
+			if (next === "\n" || next === "\r" && text[i + 2] === "\n") {
+				if (this.#recording !== void 0) this.#recording.full = true;
+				frame.space = true;
+				this.#newline(next === "\n" ? i + 1 : i + 2);
+				return;
+			}
+			this.#syntaxError("a backslash outside a string");
+		}
+		if (c === "#") {
+			const end = this.#lineEnd(i);
+			this.#token({
+				kind: "comment",
+				text: text.slice(i, end),
+				start: i,
+				end
+			}, frame);
+			this.#i = end;
+			return;
+		}
+		if (isDigit(c)) {
+			let j = i;
+			for (;;) {
+				while (isAlnum(text[j]) || text[j] === "_") j++;
+				if (text[j] === "." && isDigit(text[j + 1])) {
+					j++;
+					continue;
+				}
+				if ((text[j - 1] === "e" || text[j - 1] === "E") && (text[j] === "+" || text[j] === "-") && isDigit(text[j + 1])) {
+					j++;
+					continue;
+				}
+				break;
+			}
+			this.#token({
+				kind: "number",
+				text: text.slice(i, j),
+				start: i,
+				end: j
+			}, frame);
+			this.#i = j;
+			this.#after(frame, "end");
+			return;
+		}
+		if (isIdentStart(c)) {
+			this.#identifier(frame);
+			return;
+		}
+		switch (c) {
+			case "\"":
+			case "'":
+				this.#openString(frame, {
+					term: c,
+					paren: "",
+					expand: c === "\"",
+					regexp: false,
+					label: LABEL_POSSIBLE.has(state),
+					quote: c,
+					symbol: false
+				}, i + 1);
+				return;
+			case "`":
+				if (state === "dot" || state === "fname") {
+					this.#token({
+						kind: "op",
+						text: c,
+						start: i,
+						end: i + 1
+					}, frame);
+					this.#i = i + 1;
+					this.#after(frame, state === "dot" ? "arg" : "end");
+					return;
+				}
+				this.#openString(frame, {
+					term: "`",
+					paren: "",
+					expand: true,
+					regexp: false,
+					label: false,
+					quote: "",
+					symbol: false
+				}, i + 1);
+				return;
+			case "?":
+				this.#questionMark(frame);
+				return;
+			case "%":
+				this.#percent(frame);
+				return;
+			case "/":
+				this.#slash(frame);
+				return;
+			case "<":
+				this.#lessThan(frame);
+				return;
+			case ":":
+				this.#colon(frame);
+				return;
+			case "$":
+				this.#i = this.#globalEnd(i) ?? this.#syntaxError(`$${next ?? ""} is no global variable`);
+				this.#token({
+					kind: "other",
+					text: text.slice(i, this.#i),
+					start: i,
+					end: this.#i
+				}, frame);
+				this.#after(frame, "end");
+				return;
+			case "@":
+				this.#i = this.#instanceEnd(i) ?? this.#syntaxError(`@${next ?? ""} is no instance or class variable`);
+				this.#token({
+					kind: "other",
+					text: text.slice(i, this.#i),
+					start: i,
+					end: this.#i
+				}, frame);
+				this.#after(frame, "end");
+				return;
+			case "{": {
+				const block = state === "end" || state === "arg" || state === "ident";
+				frame.braces += 1;
+				this.#token({
+					kind: "op",
+					text: block ? "{" : "{hash",
+					start: i,
+					end: i + 1
+				}, frame);
+				if (block && this.#recording !== void 0 && this.#stack.length === 1) this.#recording.block = true;
+				this.#i = i + 1;
+				this.#after(frame, "begLabel");
+				if (block) frame.params = 1;
+				return;
+			}
+			case "}":
+				if (frame.braces === 0) {
+					if (!frame.interpolation) this.#syntaxError("a } without {");
+					this.#stack.pop();
+					this.#i = i + 1;
+					return;
+				}
+				frame.braces -= 1;
+				this.#token({
+					kind: "op",
+					text: "}",
+					start: i,
+					end: i + 1
+				}, frame);
+				this.#i = i + 1;
+				this.#after(frame, "end");
+				return;
+			default: this.#operator(frame);
+		}
+	}
+	#operator(frame) {
+		const text = this.#text;
+		const i = this.#i;
+		const state = frame.state;
+		const c = text[i] ?? "";
+		const op = [
+			"**=",
+			"<=>",
+			"===",
+			"...",
+			"&&=",
+			"||=",
+			"<<=",
+			">>=",
+			"**",
+			"==",
+			"=~",
+			"=>",
+			"!=",
+			"!~",
+			">=",
+			"<=",
+			">>",
+			"&&",
+			"||",
+			"&.",
+			"..",
+			"::",
+			"->",
+			"+=",
+			"-=",
+			"*=",
+			"/=",
+			"%=",
+			"|=",
+			"&=",
+			"^=",
+			"=",
+			"!",
+			">",
+			"&",
+			"|",
+			"+",
+			"-",
+			"*",
+			"%",
+			"^",
+			"~",
+			"(",
+			")",
+			"[",
+			"]",
+			",",
+			";",
+			"."
+		].find((candidate) => text.startsWith(candidate, i));
+		if (op === void 0) this.#syntaxError(`the character ${JSON.stringify(c)} where Ruby expects code`);
+		if ((state === "dot" || state === "fname") && op !== "(" && op !== "::") this.#fail("it calls or defines a method named by an operator, which depcurfew does not read", "give the method a name of letters, or call the operator without a dot");
+		this.#token({
+			kind: "op",
+			text: op,
+			start: i,
+			end: i + op.length
+		}, frame);
+		this.#i = i + op.length;
+		let next;
+		switch (op) {
+			case ")":
+			case "]":
+			case "->":
+				next = "end";
+				break;
+			case "(":
+			case "[":
+			case ",":
+			case "|":
+				next = "begLabel";
+				break;
+			case ";":
+				next = "stmt";
+				frame.ternary = 0;
+				break;
+			case ".":
+			case "&.":
+			case "::":
+				next = "dot";
+				break;
+			default: next = "beg";
+		}
+		this.#after(frame, next, op);
+	}
+	/** A name: a keyword, a label, a method or a local variable, a constant. */
+	#identifier(frame) {
+		const text = this.#text;
+		const i = this.#i;
+		const state = frame.state;
+		let j = i;
+		while (isIdentChar(text[j])) j++;
+		let fid = false;
+		if ((text[j] === "?" || text[j] === "!") && text[j + 1] !== "=") {
+			j++;
+			fid = true;
+		} else if (state === "fname" && text[j] === "=" && text[j + 1] !== "~" && text[j + 1] !== ">" && (text[j + 1] !== "=" || text[j + 2] === ">")) j++;
+		const word = text.slice(i, j);
+		this.#i = j;
+		if (state === "fname") {
+			this.#token({
+				kind: "ident",
+				text: word,
+				start: i,
+				end: j
+			}, frame);
+			if (text[j] === ".") {
+				this.#i = j + 1;
+				frame.space = false;
+				return;
+			}
+			this.#after(frame, "end");
+			return;
+		}
+		if (LABEL_POSSIBLE.has(state) && text[j] === ":" && text[j + 1] !== ":") {
+			this.#token({
+				kind: "label",
+				text: word,
+				start: i,
+				end: j + 1
+			}, frame);
+			this.#i = j + 1;
+			this.#after(frame, "begLabel");
+			return;
+		}
+		if (state === "dot") {
+			this.#token({
+				kind: "ident",
+				text: word,
+				start: i,
+				end: j
+			}, frame);
+			this.#after(frame, "arg");
+			return;
+		}
+		const keyword = KEYWORD_STATES.get(word);
+		if (keyword !== void 0 && !isNonAscii(word[0])) {
+			this.#token({
+				kind: "keyword",
+				text: word,
+				start: i,
+				end: j
+			}, frame);
+			if (keyword === "names") this.#fail(`it uses ${word}, which depcurfew does not read`, `rewrite it without ${word} (alias_method or remove_method), or move it out of the Gemfile`);
+			if (keyword === "def") {
+				this.#after(frame, "fname");
+				return;
+			}
+			if (MODIFIERS.has(word) && !BEGINS.has(state)) {
+				this.#after(frame, "begLabel");
+				return;
+			}
+			if (word === "do") {
+				if (this.#recording !== void 0 && this.#stack.length === 1) this.#recording.block = true;
+				this.#after(frame, "stmt");
+				frame.params = 1;
+				return;
+			}
+			this.#after(frame, keyword === "stmt" ? "stmt" : keyword);
+			return;
+		}
+		const constant = word[0] !== void 0 && word[0] >= "A" && word[0] <= "Z";
+		this.#token({
+			kind: constant ? "const" : "ident",
+			text: word,
+			start: i,
+			end: j
+		}, frame);
+		let next;
+		if (state === "end") next = "end";
+		else if (state === "ident") next = "ident";
+		else if (constant || fid) next = "arg";
+		else if (/^_[1-9]$/u.test(word)) next = "end";
+		else next = "ident";
+		this.#after(frame, next);
+	}
+	#openString(frame, literal, contentStart) {
+		this.#stack.push({
+			kind: "string",
+			...literal,
+			nest: 0,
+			start: this.#i,
+			line: this.#line,
+			changed: false
+		});
+		this.#i = contentStart;
+	}
+	/** The end of a literal: its token, the regexp options, a "key": label. */
+	#closeString(frame) {
+		const text = this.#text;
+		this.#stack.pop();
+		let end = this.#i + 1;
+		if (frame.regexp) while (isAlpha(text[end])) end++;
+		const code = this.#top();
+		if (code.kind !== "code") {
+			this.#i = end;
+			return;
+		}
+		const label = frame.label && text[end] === ":" && text[end + 1] !== ":";
+		const sameLine = frame.line === this.#line;
+		const value = frame.quote !== "" && sameLine && (frame.quote === "'" || !frame.changed) ? this.#decode(frame) : void 0;
+		if (label) {
+			this.#token({
+				kind: "label",
+				text: value ?? text.slice(frame.start, end),
+				start: frame.start,
+				end: end + 1,
+				...value === void 0 ? {} : { value }
+			}, code);
+			this.#i = end + 1;
+			this.#after(code, "begLabel");
+			return;
+		}
+		const kind = frame.quote !== "" && sameLine ? "string" : frame.symbol && sameLine ? "symbol" : "other";
+		this.#token({
+			kind,
+			text: text.slice(frame.start, end),
+			start: frame.start,
+			end,
+			...value === void 0 ? {} : { value }
+		}, code);
+		if (!sameLine && this.#recording !== void 0) this.#recording.full = true;
+		this.#i = end;
+		this.#after(code, "end");
+	}
+	/** The value of a plain ' or " string on one line: ' keeps every backslash but those of \\ and \'. */
+	#decode(frame) {
+		const body = this.#text.slice(frame.start + 1, this.#i);
+		if (frame.quote === "\"") return body;
+		return body.replace(/\\([\\'])/gu, "$1");
+	}
+	#stringStep(frame) {
+		const text = this.#text;
+		const i = this.#i;
+		const c = text[i];
+		if (frame.term === "\n" && c === "\r" && text[i + 1] === "\n") {
+			this.#i = i + 1;
+			return;
+		}
+		if (frame.paren !== "" && c === frame.paren) {
+			frame.nest += 1;
+			this.#i = i + 1;
+			return;
+		}
+		if (c === frame.term) {
+			if (frame.nest === 0) {
+				if (c === "\n") {
+					this.#stack.pop();
+					const code = this.#top();
+					if (code.kind === "code") this.#after(code, "end");
+					if (this.#recording !== void 0) this.#recording.full = true;
+					this.#newline(i);
+					return;
+				}
+				this.#closeString(frame);
+				return;
+			}
+			frame.nest -= 1;
+			if (c === "\n") this.#newline(i);
+			else this.#i = i + 1;
+			return;
+		}
+		if (c === "\n") {
+			this.#newline(i);
+			return;
+		}
+		if (frame.expand && c === "#") {
+			const next = text[i + 1];
+			if (next === "{") {
+				frame.changed = true;
+				this.#stack.push(this.#code(true));
+				this.#i = i + 2;
+				return;
+			}
+			if (next === "@" || next === "$") {
+				const end = next === "@" ? this.#instanceEnd(i + 1) : this.#globalEnd(i + 1, true);
+				if (end !== void 0) {
+					frame.changed = true;
+					this.#i = end;
+					return;
+				}
+			}
+			this.#i = i + 1;
+			return;
+		}
+		if (c === "\\") {
+			frame.changed = true;
+			this.#escape(frame.expand);
+			return;
+		}
+		this.#i = i + 1;
+	}
+	/** A backslash and what it escapes, in a literal; an escaped newline continues the line. */
+	#escape(expand) {
+		const text = this.#text;
+		const i = this.#i;
+		const next = text[i + 1];
+		if (next === void 0) this.#syntaxError("a backslash at the end of the file");
+		if (next === "\n") {
+			this.#newline(i + 1);
+			return "newline";
+		}
+		if (next === "\r" && text[i + 2] === "\n") {
+			this.#newline(i + 2);
+			return "newline";
+		}
+		if (expand && (next === "c" || next === "C" || next === "M")) this.#fail("it uses a control or meta escape (\\c, \\C-, \\M-), which depcurfew does not read", "write the character another way, such as \\x01");
+		this.#i = i + 1 + this.#width(i + 1);
+		return "other";
+	}
+	/** The number of UTF-16 units of the character at `at`. */
+	#width(at) {
+		const code = this.#text.charCodeAt(at);
+		return code >= 55296 && code <= 56319 ? 2 : 1;
+	}
+	#heredocStep(frame) {
+		const text = this.#text;
+		const i = this.#i;
+		if (!frame.expand) {
+			const end = this.#lineEnd(i);
+			if (end >= text.length) {
+				this.#i = end;
+				return;
+			}
+			this.#newline(end);
+			return;
+		}
+		const c = text[i];
+		if (c === "\n") {
+			this.#newline(i);
+			return;
+		}
+		if (c === "\\") {
+			if (this.#escape(true) === "newline") frame.continued = true;
+			return;
+		}
+		if (c === "#") {
+			const next = text[i + 1];
+			if (next === "{") {
+				this.#stack.push(this.#code(true));
+				this.#i = i + 2;
+				return;
+			}
+			if (next === "@" || next === "$") {
+				const end = next === "@" ? this.#instanceEnd(i + 1) : this.#globalEnd(i + 1, true);
+				if (end !== void 0) {
+					this.#i = end;
+					return;
+				}
+			}
+		}
+		this.#i = i + 1;
+	}
+	/** The end of a global variable at `at` ($): $foo, $1, $-w, $~ and the others of is_global_name_punct. */
+	#globalEnd(at, interpolation = false) {
+		const text = this.#text;
+		const c = text[at + 1];
+		if (c === "-") {
+			const name = text[at + 2];
+			return (interpolation ? isIdentStart(name) : isIdentChar(name)) ? at + 2 + this.#width(at + 2) : void 0;
+		}
+		if (c !== void 0 && GLOBAL_PUNCTUATION.has(c)) return at + 2;
+		if (isDigit(c) && c !== "0") {
+			let j = at + 1;
+			while (isDigit(text[j])) j++;
+			return j;
+		}
+		if (c === "0" || isIdentStart(c)) {
+			let j = at + 1;
+			while (isIdentChar(text[j])) j++;
+			return j;
+		}
+	}
+	/** The end of an instance or class variable at `at` (@): @foo, @@foo. */
+	#instanceEnd(at) {
+		const text = this.#text;
+		let j = at + 1;
+		if (text[j] === "@") j++;
+		if (!isIdentStart(text[j])) return void 0;
+		while (isIdentChar(text[j])) j++;
+		return j;
+	}
+	#questionMark(frame) {
+		const text = this.#text;
+		const i = this.#i;
+		const state = frame.state;
+		const next = text[i + 1];
+		const ternary = () => {
+			frame.ternary += 1;
+			this.#token({
+				kind: "op",
+				text: "?",
+				start: i,
+				end: i + 1
+			}, frame);
+			this.#i = i + 1;
+			this.#after(frame, "beg");
+		};
+		if (state === "end") return ternary();
+		if (state === "dot" || state === "fname") this.#fail("it calls or defines a method named ?, which depcurfew does not read", "give the method a name of letters");
+		if (next === void 0) this.#syntaxError("a ? at the end of the file");
+		if (isRubySpace(next)) return ternary();
+		if (state === "ident") this.#ambiguous(this.#lastName(), "?");
+		const width = this.#width(i + 1);
+		if (isIdentChar(next) && isIdentChar(text[i + 1 + width])) return ternary();
+		let end;
+		if (next === "\\") {
+			const escaped = text[i + 2];
+			if (escaped === void 0 || escaped === "\n") this.#syntaxError("an incomplete character literal");
+			if (escaped === "c" || escaped === "C" || escaped === "M") this.#fail("it uses a control or meta escape (?\\c, ?\\C-, ?\\M-), which depcurfew does not read", "write the character another way, such as ?\\x01");
+			if (escaped === "u") {
+				if (text[i + 3] === "{") {
+					const close = text.indexOf("}", i + 4);
+					if (close === -1 || close > this.#lineEnd(i)) this.#syntaxError("an unterminated \\u{ escape");
+					end = close + 1;
+				} else end = i + 7;
+			} else if (escaped === "x") {
+				end = i + 3;
+				while (end < i + 5 && /[0-9a-fA-F]/u.test(text[end] ?? "")) end++;
+			} else if (escaped >= "0" && escaped <= "7") {
+				end = i + 3;
+				while (end < i + 5 && (text[end] ?? "") >= "0" && (text[end] ?? "") <= "7") end++;
+			} else end = i + 2 + this.#width(i + 2);
+		} else end = i + 1 + width;
+		this.#token({
+			kind: "other",
+			text: text.slice(i, end),
+			start: i,
+			end
+		}, frame);
+		this.#i = end;
+		this.#after(frame, "end");
+	}
+	#percent(frame) {
+		const text = this.#text;
+		const i = this.#i;
+		const state = frame.state;
+		const next = text[i + 1];
+		if (BEGINS.has(state)) return this.#percentLiteral(frame);
+		if (next === "=") {
+			this.#token({
+				kind: "op",
+				text: "%=",
+				start: i,
+				end: i + 2
+			}, frame);
+			this.#i = i + 2;
+			this.#after(frame, "beg");
+			return;
+		}
+		const spaced = frame.space && next !== void 0 && !isRubySpace(next);
+		if (state === "arg" && spaced) return this.#percentLiteral(frame);
+		if (state === "ident" && spaced) this.#ambiguous(this.#lastName(), "%");
+		this.#operator(frame);
+	}
+	#percentLiteral(frame) {
+		const text = this.#text;
+		const i = this.#i;
+		let type = text[i + 1];
+		let term;
+		let content;
+		if (type === void 0) this.#syntaxError("a % at the end of the file");
+		if (!isAlnum(type)) {
+			if (isNonAscii(type)) this.#syntaxError("an unknown type of %string");
+			term = type;
+			type = "Q";
+			content = i + 2;
+		} else {
+			term = text[i + 2];
+			if (term === void 0 || isAlnum(term) || isNonAscii(term) || !PERCENT_TYPES.has(type)) this.#syntaxError("an unknown type of %string");
+			content = i + 3;
+		}
+		if (term === "\r" && text[content] === "\n") {
+			term = "\n";
+			content += 1;
+		}
+		const close = PAIRS.get(term);
+		this.#stack.push({
+			kind: "string",
+			term: close ?? term,
+			paren: close === void 0 ? "" : term,
+			nest: 0,
+			expand: EXPANDING.has(type),
+			regexp: type === "r",
+			label: false,
+			quote: "",
+			symbol: type === "s",
+			start: i,
+			line: this.#line,
+			changed: true
+		});
+		if (term === "\n") {
+			if (this.#recording !== void 0) this.#recording.full = true;
+			this.#newline(content - 1);
+			return;
+		}
+		this.#i = content;
+	}
+	#slash(frame) {
+		const text = this.#text;
+		const i = this.#i;
+		const state = frame.state;
+		const next = text[i + 1];
+		const regexp = () => this.#openString(frame, {
+			term: "/",
+			paren: "",
+			expand: true,
+			regexp: true,
+			label: false,
+			quote: "",
+			symbol: false
+		}, i + 1);
+		if (BEGINS.has(state)) return regexp();
+		if (next === "=") {
+			this.#token({
+				kind: "op",
+				text: "/=",
+				start: i,
+				end: i + 2
+			}, frame);
+			this.#i = i + 2;
+			this.#after(frame, "beg");
+			return;
+		}
+		const spaced = frame.space && next !== void 0 && !isRubySpace(next);
+		if (state === "arg" && spaced) return regexp();
+		if (state === "ident" && spaced) this.#ambiguous(this.#lastName(), "/");
+		if (state === "dot" || state === "fname") this.#fail("it calls or defines a method named /, which depcurfew does not read", "give the method a name of letters");
+		this.#token({
+			kind: "op",
+			text: "/",
+			start: i,
+			end: i + 1
+		}, frame);
+		this.#i = i + 1;
+		this.#after(frame, "beg");
+	}
+	/** The identifier of a heredoc that starts at `at` (after <<), or undefined when << is no heredoc there. */
+	#heredocIdentifier(at) {
+		const text = this.#text;
+		let j = at;
+		let indent = false;
+		if (HEREDOC_INDENT.has(text[j] ?? "")) {
+			indent = true;
+			j++;
+		}
+		const c = text[j];
+		if (c === "'" || c === "\"" || c === "`") {
+			let k = j + 1;
+			while (k < text.length && text[k] !== c) {
+				if (text[k] === "\r" || text[k] === "\n") this.#syntaxError("an unterminated here document identifier");
+				k++;
+			}
+			if (k >= text.length) this.#syntaxError("an unterminated here document identifier");
+			return {
+				id: text.slice(j + 1, k),
+				indent,
+				expand: c !== "'",
+				end: k + 1
+			};
+		}
+		if (!isIdentChar(c)) return void 0;
+		let k = j;
+		while (isIdentChar(text[k])) k++;
+		return {
+			id: text.slice(j, k),
+			indent,
+			expand: true,
+			end: k
+		};
+	}
+	#lessThan(frame) {
+		const text = this.#text;
+		const i = this.#i;
+		const state = frame.state;
+		if (text[i + 1] === "<" && state !== "dot" && state !== "class" && state !== "end") {
+			const heredoc = state !== "arg" && state !== "ident" || frame.space ? this.#heredocIdentifier(i + 2) : void 0;
+			if (heredoc !== void 0) {
+				if (state === "ident") this.#ambiguous(this.#lastName(), "<<");
+				if (state === "fname") this.#fail("it defines a method named <<, which depcurfew does not read", "give the method a name of letters");
+				this.#pending.push({
+					id: heredoc.id,
+					indent: heredoc.indent,
+					expand: heredoc.expand,
+					line: this.#line
+				});
+				this.#token({
+					kind: "other",
+					text: text.slice(i, heredoc.end),
+					start: i,
+					end: heredoc.end
+				}, frame);
+				if (this.#recording !== void 0) this.#recording.full = true;
+				this.#i = heredoc.end;
+				this.#after(frame, "end");
+				return;
+			}
+		}
+		if (state === "dot" || state === "fname") this.#fail("it calls or defines a method named by an operator, which depcurfew does not read", "give the method a name of letters, or call the operator without a dot");
+		const op = [
+			"<<=",
+			"<=>",
+			"<<",
+			"<=",
+			"<"
+		].find((candidate) => text.startsWith(candidate, i)) ?? "<";
+		this.#token({
+			kind: "op",
+			text: op,
+			start: i,
+			end: i + op.length
+		}, frame);
+		this.#i = i + op.length;
+		this.#after(frame, "beg");
+	}
+	#colon(frame) {
+		const text = this.#text;
+		const i = this.#i;
+		const state = frame.state;
+		const next = text[i + 1];
+		if (next === ":") {
+			this.#operator(frame);
+			return;
+		}
+		if (state === "end" || next === void 0 || isRubySpace(next) || next === "#") {
+			if (frame.ternary > 0) frame.ternary -= 1;
+			this.#token({
+				kind: "op",
+				text: ":",
+				start: i,
+				end: i + 1
+			}, frame);
+			this.#i = i + 1;
+			this.#after(frame, "beg");
+			return;
+		}
+		if (next === "\"" || next === "'") {
+			this.#openString(frame, {
+				term: next,
+				paren: "",
+				expand: next === "\"",
+				regexp: false,
+				label: false,
+				quote: "",
+				symbol: true
+			}, i + 2);
+			return;
+		}
+		if (state === "ident" && frame.ternary > 0) this.#ambiguous(this.#lastName(), ":");
+		let end;
+		if (isIdentStart(next)) {
+			end = i + 1;
+			while (isIdentChar(text[end])) end++;
+			if ((text[end] === "?" || text[end] === "!") && text[end + 1] !== "=") end++;
+			else if (text[end] === "=" && text[end + 1] !== "~" && text[end + 1] !== ">" && (text[end + 1] !== "=" || text[end + 2] === ">")) end++;
+		} else if (next === "@") end = this.#instanceEnd(i + 1);
+		else if (next === "$") end = this.#globalEnd(i + 1);
+		else {
+			const op = SYMBOL_OPERATORS.find((candidate) => text.startsWith(candidate, i + 1));
+			if (op === "<<" && this.#heredocIdentifier(i + 3) !== void 0) this.#fail("a :<< there may start a heredoc, which depcurfew does not read", "write the symbol as :\"<<\"");
+			if ((op === "%" || op === "/") && text[i + 2] === "=") this.#syntaxError(`:${op}= is no symbol`);
+			if (op !== void 0) end = i + 1 + op.length;
+		}
+		if (end === void 0) this.#syntaxError(`:${next} is no symbol`);
+		this.#token({
+			kind: "symbol",
+			text: text.slice(i, end),
+			start: i,
+			end
+		}, frame);
+		this.#i = end;
+		this.#after(frame, "end");
+	}
+};
+/** Reads a Gemfile as Ruby's lexer does (see the comment at the top). */
+function scanRuby(text) {
+	return new Scanner(text).run();
+}
+
+// src/apply/gemfile.ts
+/** The second token of a source line that makes it no call of source: an assignment, a method of it, a comparison. */
+const NOT_A_CALL = /* @__PURE__ */ new Set([
+	"=",
+	"+=",
+	"-=",
+	"*=",
+	"/=",
+	"%=",
+	"**=",
+	"||=",
+	"&&=",
+	"|=",
+	"&=",
+	"^=",
+	"<<=",
+	">>=",
+	".",
+	"&.",
+	"::",
+	"==",
+	"===",
+	"!=",
+	"=~",
+	"!~",
+	"<=>",
+	"?",
+	":"
+]);
+/** The digits of each base of a Ruby integer literal (parse_numeric, extra.rubySyntax). */
+const DIGITS = {
+	2: /^[01](?:_?[01])*$/u,
+	8: /^[0-7](?:_?[0-7])*$/u,
+	10: /^[0-9](?:_?[0-9])*$/u,
+	16: /^[0-9a-fA-F](?:_?[0-9a-fA-F])*$/u
+};
+const PREFIXES$1 = {
+	x: 16,
+	b: 2,
+	o: 8,
+	d: 10
+};
+/**
+* The value of a Ruby integer literal as Ruby reads it: 0x, 0b, 0o and 0d prefixes, a leading 0 alone for octal (010 is
+* 8), single underscores between digits; undefined for anything else (7.5, 7r, 08, 1__0), which is no Integer.
+*/
+function rubyInteger(text) {
+	let base = 10;
+	let body = text;
+	const prefix = PREFIXES$1[text[1]?.toLowerCase() ?? ""];
+	if (text[0] === "0" && prefix !== void 0) {
+		base = prefix;
+		body = text.slice(2);
+	} else if (text === "0") return 0;
+	else if (text[0] === "0") {
+		base = 8;
+		body = text.slice(text[1] === "_" ? 2 : 1);
+	}
+	const digits = DIGITS[base];
+	if (digits === void 0 || !digits.test(body)) return void 0;
+	return Number.parseInt(body.replaceAll("_", ""), base);
+}
+const isOp = (token, text) => token?.kind === "op" && token.text === text;
+/** The index of the value of a cooldown key at tokens[k] (cooldown:, "cooldown":, :cooldown =>, "cooldown" =>). */
+function cooldownKey(tokens, k) {
+	const token = tokens[k];
+	if (token === void 0) return void 0;
+	if (token.kind === "label" && token.text === "cooldown") return k + 1;
+	if (token.kind === "symbol" && token.text === ":cooldown" || token.kind === "string" && token.value === "cooldown") return isOp(tokens[k + 1], "=>") ? k + 2 : void 0;
+}
+/** Whitespace Ruby skips at the start of the next line while it looks for a leading .method. */
+const isLeadingSpace = (c) => c === " " || c === "	" || c === "\f" || c === "\r" || c === "\v";
+/**
+* Whether the line after the one ending at `end` continues the statement: Ruby skips comment lines and joins a next
+* line that starts with .method or &.method (a blank line does not join).
+*/
+function continuedBelow(text, end) {
+	let at = end + 1;
+	while (end !== -1 && at < text.length) {
+		let p = at;
+		while (isLeadingSpace(text[p])) p++;
+		const c = text[p];
+		if (c === "#") {
+			const next = text.indexOf("\n", p);
+			if (next === -1) return false;
+			at = next + 1;
+			continue;
+		}
+		if (c === ".") return text[p + 1] !== ".";
+		if (c === "&") return text[p + 1] === ".";
+		return false;
+	}
+	return false;
+}
+/** A plain source call on the line, or undefined. */
+function plainCall(text, line) {
+	if (!line.statement || !line.complete || line.block) return void 0;
+	const tokens = line.tokens;
+	const open = tokens[1];
+	const paren = isOp(open, "(") && open?.space === false;
+	if (!paren && open?.space !== true) return void 0;
+	let k = paren ? 2 : 1;
+	const url = tokens[k];
+	if (url?.kind !== "string" || url.value === void 0) return void 0;
+	k += 1;
+	let cooldown;
+	if (isOp(tokens[k], ",")) {
+		const at = cooldownKey(tokens, k + 1);
+		const value = at === void 0 ? void 0 : tokens[at];
+		if (at === void 0 || value?.kind !== "number") return void 0;
+		const days = rubyInteger(value.text);
+		if (days === void 0) return void 0;
+		cooldown = {
+			value: days,
+			start: value.start,
+			end: value.end
+		};
+		k = at + 1;
+	}
+	if (paren) {
+		if (!isOp(tokens[k], ")")) return void 0;
+		k += 1;
+	}
+	if (tokens[k]?.kind === "comment") k += 1;
+	if (k !== tokens.length) return void 0;
+	const last = tokens.at(-1);
+	if (last === void 0 || continuedBelow(text, text.indexOf("\n", last.end))) return void 0;
+	return {
+		url: url.value,
+		...cooldown === void 0 ? {} : { cooldown },
+		insertAt: url.end
+	};
+}
+/** The source call of a line that starts with source, or undefined when it is no call (source = x, source.foo). */
+function sourceOf(text, line) {
+	const tokens = line.tokens;
+	const second = tokens[1];
+	if (second === void 0 || second.kind === "comment" || second.kind === "symbol") return void 0;
+	if (!second.space && !isOp(second, "(")) return void 0;
+	if (second.kind === "op" && NOT_A_CALL.has(second.text)) return void 0;
+	const plain = plainCall(text, line);
+	if (plain !== void 0) return {
+		line: line.line,
+		url: plain.url,
+		...plain.cooldown === void 0 ? {} : { cooldown: plain.cooldown.value },
+		plain: true,
+		block: false
+	};
+	const first = isOp(second, "(") ? tokens[2] : second;
+	const url = first?.kind === "string" ? first.value : void 0;
+	let cooldown;
+	for (let k = 1; k < tokens.length && cooldown === void 0; k++) {
+		const at = cooldownKey(tokens, k);
+		if (at === void 0) continue;
+		const value = tokens[at];
+		cooldown = value?.kind === "number" ? rubyInteger(value.text) ?? "other" : "other";
+	}
+	return {
+		line: line.line,
+		...url === void 0 ? {} : { url },
+		...cooldown === void 0 ? {} : { cooldown },
+		plain: false,
+		block: line.block
+	};
+}
+/** The source calls of the text as Ruby reads it, up to where depcurfew cannot read it with certainty. */
+function readGemfile(text) {
+	const scan = scanRuby(text);
+	return {
+		sources: scan.lines.flatMap((line) => sourceOf(text, line) ?? []),
+		...scan.unknown === void 0 ? {} : { unknown: scan.unknown }
+	};
+}
+function withoutTrailingSlashes(value) {
+	let end = value.length;
+	while (end > 0 && value[end - 1] === "/") end--;
+	return value.slice(0, end);
 }
 /** Whether a URL names a gem server: the same host, with or without a trailing slash, in any case. */
 function sameServer(url, server) {
-	const normalized = (value) => value.trim().replace(/\/+$/u, "").toLowerCase();
+	const normalized = (value) => withoutTrailingSlashes(value.trim()).toLowerCase();
 	const target = normalized(server).replace(/^https?:\/\//u, "");
 	const value = normalized(url);
 	return value === `https://${target}` || value === `http://${target}`;
 }
-/** The text with the cooldown of the plain source call on each of `lines` set to `days`; other lines stay as they are. */
+/**
+* The text with the cooldown of the plain source call on each of `lines` set to `days`; everything else stays as it
+* is. A text depcurfew does not read with certainty comes back unchanged.
+*/
 function setSourceCooldown(text, lines, days) {
-	const all = text.split("\n");
-	for (const number of lines) {
-		const raw = all[number - 1];
-		if (raw === void 0) continue;
-		const cr = raw.endsWith("\r") ? "\r" : "";
-		const line = cr === "" ? raw : raw.slice(0, -1);
-		const groups = PLAIN$2.exec(line)?.groups;
-		if (groups === void 0) continue;
-		const head = groups["head"] ?? "";
-		const url = groups["url"] ?? "";
-		const option = groups["option"];
-		const written = groups["days"];
-		const tail = groups["tail"] ?? "";
-		const replaced = option === void 0 || written === void 0 ? `${head}${url}, cooldown: ${days}${tail}` : `${head}${url}${option.slice(0, option.length - written.length)}${days}${tail}`;
-		all[number - 1] = `${replaced}${cr}`;
+	const scan = scanRuby(text);
+	if (scan.unknown !== void 0) return text;
+	const wanted = new Set(lines);
+	const edits = [];
+	for (const line of scan.lines) {
+		if (!wanted.has(line.line)) continue;
+		const call = plainCall(text, line);
+		if (call === void 0) continue;
+		edits.push(call.cooldown === void 0 ? {
+			start: call.insertAt,
+			end: call.insertAt,
+			text: `, cooldown: ${days}`
+		} : {
+			start: call.cooldown.start,
+			end: call.cooldown.end,
+			text: String(days)
+		});
 	}
-	return all.join("\n");
+	let result = "";
+	let at = 0;
+	for (const edit of edits) {
+		result += text.slice(at, edit.start) + edit.text;
+		at = edit.end;
+	}
+	return result + text.slice(at);
 }
 /**
-* The Gemfile Bundler reads in a directory: gems.rb when it is there, otherwise Gemfile (extra.gemfileNames, which
-* lists the names in the order Bundler looks for them).
+* The Gemfile Bundler reads in a directory: gems.rb when it is a file there, otherwise Gemfile (extra.gemfileNames,
+* which lists the names in the order Bundler looks for them).
 */
 function gemfileIn(isFile, names = ["gems.rb", "Gemfile"], directory = "") {
 	const join = (name) => directory === "" || directory === "." ? name : `${directory}/${name}`;
@@ -19318,23 +20862,27 @@ function readSetting(repository, file, setting, options = yamlOptionsFor(file)) 
 		const dot = setting.indexOf(".");
 		found = dot === -1 ? tomlSetting(text, "", setting) : tomlSetting(text, setting.slice(0, dot), setting.slice(dot + 1));
 	} else if (/\.jsonc?$/u.test(name)) found = jsonSetting(text, setting.split("."));
-	else if (GEMFILES.has(name)) found = gemfileSetting(text, setting);
+	else if (GEMFILES$1.has(name)) found = gemfileSetting(text, setting);
 	return found === void 0 ? void 0 : {
 		file,
 		...found
 	};
 }
 /** The Gemfiles of Bundler (decision D-152). */
-const GEMFILES = /* @__PURE__ */ new Set(["Gemfile", "gems.rb"]);
+const GEMFILES$1 = /* @__PURE__ */ new Set(["Gemfile", "gems.rb"]);
 /**
 * A keyword of the source call of rubygems.org in a Gemfile (Bundler extra.rubygemsSource): the cooldown: of the first
-* such call without a block, as a number of days, with its line. A value that is not a number is not read.
+* plain such call, as a number of days, with its line. Only a cooldown depcurfew is sure Ruby runs counts (decision
+* D-159): none in a Gemfile it does not read with certainty, and none of a call with a block, a modifier or another
+* form apply does not edit; apply and doctor report those places instead.
 */
 function gemfileSetting(text, setting) {
 	if (setting !== "cooldown") return void 0;
 	const fact = bundler$1.extra?.["rubygemsSource"];
 	const server = fact !== void 0 && fact.status !== "disputed" && isRecord(fact.value) && typeof fact.value["url"] === "string" ? fact.value["url"] : "https://rubygems.org";
-	const source = gemfileSources(text).find((item) => !item.block && item.url !== void 0 && sameServer(item.url, server));
+	const reading = readGemfile(text);
+	if (reading.unknown !== void 0) return void 0;
+	const source = reading.sources.find((item) => item.plain && item.url !== void 0 && sameServer(item.url, server));
 	return source === void 0 || typeof source.cooldown !== "number" ? void 0 : {
 		value: source.cooldown,
 		line: source.line
@@ -20366,8 +21914,8 @@ function patternsFor(patterns, ecosystem) {
 
 // src/doctor/composer.ts
 const COMPOSER_MANIFEST = "composer.json";
-const isStrings$4 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-const isRepositoryTypes = (value) => isRecord(value) && isStrings$4(value["vcs"]) && isStrings$4(value["directory"]) && isStrings$4(value["file"]) && isStrings$4(value["inline"]) && typeof value["disable"] === "string";
+const isStrings$5 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isRepositoryTypes = (value) => isRecord(value) && isStrings$5(value["vcs"]) && isStrings$5(value["directory"]) && isStrings$5(value["file"]) && isStrings$5(value["inline"]) && typeof value["disable"] === "string";
 function repositoryTypes(tool) {
 	return extraOf(tool, "repositoryTypes", isRepositoryTypes);
 }
@@ -20451,7 +21999,7 @@ const REMOTE = /^[a-z][a-z0-9+.-]*:\/\//iu;
 function isLocal(url) {
 	return /^file:\/\//iu.test(url) || !REMOTE.test(url);
 }
-const isFormat = (value) => isRecord(value) && isStrings$4(value["sections"]) && typeof value["name"] === "string" && typeof value["version"] === "string" && typeof value["pluginType"] === "string" && isStrings$4(value["pluginTypes"]) && isStrings$4(value["optionalPlugin"]) && typeof value["pathType"] === "string";
+const isFormat = (value) => isRecord(value) && isStrings$5(value["sections"]) && typeof value["name"] === "string" && typeof value["version"] === "string" && typeof value["pluginType"] === "string" && isStrings$5(value["pluginTypes"]) && isStrings$5(value["optionalPlugin"]) && typeof value["pathType"] === "string";
 const isBranches = (value) => isRecord(value) && typeof value["prefix"] === "string" && typeof value["suffix"] === "string";
 function describe$2(location) {
 	return isRecord(location) ? [location["type"], location["url"]].filter((part) => typeof part === "string").join(" ") : "";
@@ -20465,7 +22013,7 @@ function hostOf(url) {
 * it knows by default (extra.registryDistHosts), and the hosts of the repositories composer.json declares.
 */
 function registryHosts(tool, repositories) {
-	const known = extraOf(tool, "registryDistHosts", isStrings$4);
+	const known = extraOf(tool, "registryDistHosts", isStrings$5);
 	const archives = repositoryArchiveHosts(tool);
 	return /* @__PURE__ */ new Set([...known, ...repositories.flatMap((entry) => {
 		if (entry.url === void 0 || entry.kind === "disable") return [];
@@ -20473,7 +22021,7 @@ function registryHosts(tool, repositories) {
 		return [host, ...entry.kind === "registry" && Object.hasOwn(archives, host) ? archives[host] ?? [] : []];
 	})]);
 }
-const isHostLists = (value) => isRecord(value) && Object.values(value).every(isStrings$4);
+const isHostLists = (value) => isRecord(value) && Object.values(value).every(isStrings$5);
 /** The hosts of the archives of Composer repositories other than Packagist.org, by the host of the repository (decision D-141). */
 function repositoryArchiveHosts(tool) {
 	return tool.extra?.["repositoryArchiveHosts"] === void 0 ? {} : extraOf(tool, "repositoryArchiveHosts", isHostLists);
@@ -26713,24 +28261,82 @@ const bun = (context) => {
 };
 
 // src/apply/generators/bundler.ts
-const isStrings$3 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isStrings$4 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 const isGap = (value) => isRecord(value) && typeof value["since"] === "string" && typeof value["scope"] === "string";
 const isServer = (value) => isRecord(value) && typeof value["url"] === "string";
-/** The Gemfile Bundler reads in the directory planned: gems.rb when it is there, otherwise Gemfile. */
+/**
+* The Gemfile Bundler reads in the directory planned: gems.rb when it is a regular file there, otherwise Gemfile. The
+* names are only looked at (File.file?, extra.gemfileNames), so a directory named gems.rb stops nothing.
+*/
 function plannedGemfile(context) {
-	const names = context.tool.extra?.["gemfileNames"] === void 0 ? ["gems.rb", "Gemfile"] : extraOf(context.tool, "gemfileNames", isStrings$3);
-	return gemfileIn((file) => context.exists(file), names);
+	const names = context.tool.extra?.["gemfileNames"] === void 0 ? ["gems.rb", "Gemfile"] : extraOf(context.tool, "gemfileNames", isStrings$4);
+	return gemfileIn((file) => context.isFile(file), names);
 }
 /** Why apply does not edit a source call, for messages. */
 function whyNotPlain(source) {
 	if (source.block) return "it has a block, so it is the source of the gems in the block only";
-	if (source.cooldown === "other") return "its cooldown: is not a number";
+	if (source.cooldown === "other") return "its cooldown: is not a whole number written as a Ruby integer";
 	return "it is not written as a plain source \"<URL>\" call on a line of its own";
+}
+/**
+* What to do about a source call apply does not edit. Never a shorter cooldown than the call has: one that already
+* waits as long as the policy needs is left as it is (decision D-159).
+*/
+function fixFor$1(source, server, setting, days) {
+	const plainly = "or write it as a plain call on a line of its own and run depcurfew apply again";
+	if (typeof source.cooldown === "number" && source.cooldown >= days) return `No change is needed as long as Ruby runs that call: its ${setting}: ${source.cooldown} is not shorter than the ${days} days of ${POLICY_FILE}. To let depcurfew check it, write it as a plain call on a line of its own and set cooldown.minimum in ${POLICY_FILE} to "${source.cooldown}d", so that depcurfew apply keeps ${source.cooldown}`;
+	if (typeof source.cooldown === "number") return `Change ${setting}: ${source.cooldown} to ${setting}: ${days} in that call by hand, ${plainly}`;
+	if (source.cooldown === "other") return `Write ${setting}: ${days} in that call by hand in place of its value, ${plainly}`;
+	return `Add ${setting}: ${days} to that call by hand (source "${server}", ${setting}: ${days}${source.block ? " do" : ""}), ${plainly}`;
+}
+/** The longest cooldown: of the plain rubygems.org calls read before the place depcurfew stopped reading. */
+function cooldownBefore(sources, server) {
+	let best;
+	for (const source of sources) {
+		if (!source.plain || source.url === void 0 || !sameServer(source.url, server) || typeof source.cooldown !== "number") continue;
+		if (typeof best?.cooldown !== "number" || source.cooldown > best.cooldown) best = source;
+	}
+	return best;
+}
+/** cooldown-not-written for a Gemfile depcurfew does not read with certainty. */
+function notUnderstood(context, file, unknown, sources, days, server, setting) {
+	const kept = cooldownBefore(sources, server);
+	const where = `on line ${unknown.line} of ${file}, ${unknown.fix}`;
+	context.warn({
+		code: "cooldown-not-written",
+		location: {
+			file,
+			line: unknown.line
+		},
+		message: `${context.name}: cooldown not written: depcurfew cannot read ${file} as Ruby does from line ${unknown.line} on, because ${unknown.reason}; it does not edit a Gemfile it cannot read with certainty`,
+		fix: typeof kept?.cooldown === "number" && kept.cooldown >= days ? `No change is needed if Ruby reads ${file} as written: the source "${server}" call on line ${kept.line} has ${setting}: ${kept.cooldown}, not shorter than the ${days} days of ${POLICY_FILE}. To let depcurfew check it, ${where}, then run depcurfew apply again` : `${where.charAt(0).toUpperCase()}${where.slice(1)}, then run depcurfew apply again; or add ${setting}: ${days} to the source "${server}" call by hand (source "${server}", ${setting}: ${days})`
+	});
+}
+/**
+* Whether the cooldown the policy needs may already hold at the place a cooldown-not-written of Bundler names: the
+* call there (or a plain call before a place depcurfew stopped reading) already has at least `days`, or, in a Gemfile
+* without a rubygems.org source (no line), every source call has. doctor reports such a place as a warning rather than
+* an error (decision D-159).
+*/
+function cooldownMayHold(text, line, days, server = "https://rubygems.org") {
+	const reading = readGemfile(text);
+	if (line === void 0) return reading.unknown === void 0 && otherServersWait(reading.sources, days);
+	if (reading.unknown?.line === line) {
+		const kept = cooldownBefore(reading.sources, server);
+		return typeof kept?.cooldown === "number" && kept.cooldown >= days;
+	}
+	const source = reading.sources.find((item) => item.line === line);
+	return typeof source?.cooldown === "number" && source.cooldown >= days;
 }
 function writeCooldown$1(context, file, days, server) {
 	const setting = settingOf(context.tool.cooldown.setting) ?? "cooldown";
 	const text = context.read(file);
-	const sources = gemfileSources(text);
+	const reading = readGemfile(text);
+	if (reading.unknown !== void 0) {
+		notUnderstood(context, file, reading.unknown, reading.sources, days, server, setting);
+		return false;
+	}
+	const sources = reading.sources;
 	const ours = sources.filter((source) => source.url !== void 0 && sameServer(source.url, server));
 	const plain = ours.filter((source) => source.plain);
 	for (const source of ours.filter((item) => !item.plain)) context.warn({
@@ -26740,7 +28346,7 @@ function writeCooldown$1(context, file, days, server) {
 			line: source.line
 		},
 		message: `${context.name}: cooldown not written: the source "${server}" call on line ${source.line} of ${file} is not edited, because ${whyNotPlain(source)}; depcurfew apply edits only a plain source "${server}" call on a line of its own`,
-		fix: `Add ${setting}: ${days} to that call by hand (source "${server}", ${setting}: ${days}${source.block ? " do" : ""}), or write it as a plain call on a line of its own and run depcurfew apply again`
+		fix: fixFor$1(source, server, setting, days)
 	});
 	if (plain.length > 0) {
 		if (plain.some((source) => source.cooldown !== days)) context.text(file, (body) => setSourceCooldown(body, plain.map((source) => source.line), days));
@@ -26754,16 +28360,20 @@ function writeCooldown$1(context, file, days, server) {
 			line: source.line
 		},
 		message: `${context.name}: cooldown not written: the URL of the source call on line ${source.line} of ${file} is not a literal string, so depcurfew cannot tell whether it is "${server}"`,
-		fix: `If it names rubygems.org, write it as source "${server}" on a line of its own and run depcurfew apply again, or add ${setting}: ${days} to that call by hand`
+		fix: typeof source.cooldown === "number" && source.cooldown >= days ? `No change is needed if it names rubygems.org and Ruby runs it: its ${setting}: ${source.cooldown} is not shorter than the ${days} days of ${POLICY_FILE}; to let depcurfew check it, write it as source "${server}" on a line of its own` : `If it names rubygems.org, write it as source "${server}" on a line of its own and run depcurfew apply again, or add ${setting}: ${days} to that call by hand`
 	});
 	if (ours.length > 0 || unread.length > 0) return false;
 	context.warn({
 		code: "cooldown-not-written",
 		location: { file },
 		message: `${context.name}: cooldown not written: ${file} has no source "${server}" call, and depcurfew configures the cooldown of Bundler only on that source`,
-		fix: `If the gems come from another gem server, add ${setting}: ${days} to its source call by hand (Bundler holds back only versions the server gives a created_at date); if they come from rubygems.org, add source "${server}" to ${file} and run depcurfew apply again`
+		fix: otherServersWait(sources, days) ? `No change is needed if the gems come from the gem servers of ${file}: the ${setting}: of each source call is not shorter than the ${days} days of ${POLICY_FILE} (Bundler holds back only versions the server gives a created_at date); if they come from rubygems.org, add source "${server}" to ${file} and run depcurfew apply again` : `If the gems come from another gem server, add ${setting}: ${days} to its source call by hand (Bundler holds back only versions the server gives a created_at date); if they come from rubygems.org, add source "${server}" to ${file} and run depcurfew apply again`
 	});
 	return false;
+}
+/** Whether a Gemfile without a rubygems.org source has source calls, each with a cooldown of at least `days`. */
+function otherServersWait(sources, days) {
+	return sources.length > 0 && sources.every((source) => typeof source.cooldown === "number" && source.cooldown >= days);
 }
 const bundler = (context) => {
 	const { tool, policy } = context;
@@ -26771,12 +28381,12 @@ const bundler = (context) => {
 	if (policy.cooldown !== void 0) {
 		const file = plannedGemfile(context);
 		const cooldown = cooldownValue(context);
-		const locked = (tool.project === void 0 ? [] : (values$1(tool.project.lockfiles)[0] ?? []).flatMap((entry) => [...entry.value])).some((name) => context.exists(name));
+		const locked = (tool.project === void 0 ? [] : (values$1(tool.project.lockfiles)[0] ?? []).flatMap((entry) => [...entry.value])).some((name) => context.present(name));
 		const gap = tool.extra?.["cooldownWithLockfile"] === void 0 ? void 0 : extraOf(tool, "cooldownWithLockfile", isGap);
 		const setting = settingOf(tool.cooldown.setting) ?? "cooldown";
 		const keeps = !locked || gap === void 0 || context.supports(gap.since, `${setting} ${gap.scope}`);
 		if (cooldown !== void 0 && cooldown !== void 0 && keeps && typeof cooldown.value === "number") {
-			if (!context.exists(file)) context.warn({
+			if (!context.isFile(file)) context.warn({
 				code: "manifest-missing",
 				location: { file },
 				message: `${context.name}: there is no ${file}, so ${setting} is not written; depcurfew does not create project manifests`,
@@ -26801,7 +28411,7 @@ const bundler = (context) => {
 		message: `${context.name} builds the native extensions of gems when it installs them, which runs code of the gem (extconf.rb, a Rakefile), and has no setting that blocks this or allows it for some gems only, so installScripts "deny" cannot be enforced`,
 		fix: `Review gems with native extensions (extensions in the gemspec, an ext directory) before you add or update them; there is nothing to set for ${context.name}`
 	});
-	const kinds = tool.extra?.["dependencySources"] === void 0 ? void 0 : extraOf(tool, "dependencySources", isStrings$3);
+	const kinds = tool.extra?.["dependencySources"] === void 0 ? void 0 : extraOf(tool, "dependencySources", isStrings$4);
 	const sources = policy.sources === void 0 || kinds === void 0 ? policy.sources : Object.fromEntries(Object.entries(policy.sources).filter(([kind]) => kinds.includes(kind)));
 	eachSource({
 		...context,
@@ -27432,6 +29042,8 @@ function createContext(options) {
 		user,
 		workspace,
 		exists: (file) => guard(file, () => workspace.exists(file)),
+		isFile: (file) => workspace.isFile(file),
+		present: (file) => workspace.present(file),
 		read: (file) => guard(file, () => workspace.read(file)),
 		warn,
 		snippet: (file, text) => options.snippets.push({
@@ -27482,6 +29094,7 @@ function createContext(options) {
 			]) >= 0 ? a : b);
 			warn({
 				code: "version-too-old",
+				...options.versionAt === void 0 ? {} : { location: options.versionAt },
 				message: `${tool.name} ${versionLabel} does not support ${describeRequirements(unsupported)}; not written`,
 				fix: user ? `Update ${tool.name} to ${needed} or later, then run depcurfew apply --user again` : locked === void 0 ? `Require ${tool.name} ${needed} or later where the version is pinned` : `Require ${tool.name} ${needed} or later where the version is pinned (${locked.section} of the lockfile changes with ${locked.update}), then run depcurfew apply again`
 			});
@@ -28354,15 +29967,15 @@ const poetry = (context) => {
 };
 
 // src/doctor/renovate.ts
-const isStrings$2 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isStrings$3 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 const isNames = (value) => isRecord(value) && Object.values(value).every((item) => typeof item === "string");
-const isLists = (value) => isRecord(value) && Object.values(value).every(isStrings$2);
+const isLists = (value) => isRecord(value) && Object.values(value).every(isStrings$3);
 const isManagerMatching$1 = (value) => isRecord(value) && typeof value["managerMatcher"] === "string" && typeof value["categoryMatcher"] === "string" && typeof value["stringIsList"] === "boolean";
 const isActions = (value) => isRecord(value) && typeof value["manager"] === "string" && typeof value["datasource"] === "string";
 const isActionsMatching$1 = (value) => isRecord(value) && typeof value["fileMatcher"] === "string" && typeof value["depTypeMatcher"] === "string" && typeof value["depType"] === "string";
-const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$2(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
-const isPresetFact = (value) => isRecord(value) && isStrings$2(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
-const isInternal = (value) => isRecord(value) && isStrings$2(value["prefixes"]) && isStrings$2(value["settingDelay"]);
+const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$3(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
+const isPresetFact = (value) => isRecord(value) && isStrings$3(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
+const isInternal = (value) => isRecord(value) && isStrings$3(value["prefixes"]) && isStrings$3(value["settingDelay"]);
 function readRenovateConfig(text, file, base) {
 	const top = jsonSetting(text, [...base, "minimumReleaseAge"]);
 	const extendsList = jsonSetting(text, [...base, "extends"]);
@@ -28378,7 +29991,7 @@ function readRenovateConfig(text, file, base) {
 		base,
 		top,
 		extends: {
-			presets: isStrings$2(extendsList?.value) ? extendsList.value : [],
+			presets: isStrings$3(extendsList?.value) ? extendsList.value : [],
 			line: extendsList?.line ?? 1
 		},
 		rules
@@ -28487,7 +30100,7 @@ function actionsTarget(bot, files = []) {
 		...matching === void 0 ? {} : { depTypes: [matching.depType] }
 	};
 }
-const isBotOnly = (value) => isRecord(value) && Object.values(value).every((entry) => isRecord(entry) && typeof entry["manager"] === "string" && typeof entry["datasource"] === "string" && isStrings$2(entry["categories"]));
+const isBotOnly = (value) => isRecord(value) && Object.values(value).every((entry) => isRecord(entry) && typeof entry["manager"] === "string" && typeof entry["datasource"] === "string" && isStrings$3(entry["categories"]));
 /**
 * The dependencies of the ecosystems updated by bots only among `ids` (extra.botOnlyEcosystems, decision D-151), one
 * target each, with the manager, datasource and categories Renovate gives them; none without the fact.
@@ -28531,7 +30144,7 @@ function targetOf(bot, on) {
 }
 /** The patterns of a matcher: a list, or one string when Renovate reads a string as a list of one (extra.managerMatching). */
 function patternsOf(value, stringIsList) {
-	if (isStrings$2(value)) return value;
+	if (isStrings$3(value)) return value;
 	return stringIsList && typeof value === "string" ? [value] : void 0;
 }
 /** anyMatchRegexOrGlobList: some input matches the list. */
@@ -28549,7 +30162,7 @@ function ruleCoverage(bot, rule, on) {
 	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
 	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
 	const stringIsList = managerMatching?.stringIsList === true;
-	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$2);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$3);
 	const actionsMatching = target.actions === true && bot.extra?.["actionsMatching"] !== void 0 ? extraOf(bot, "actionsMatching", isActionsMatching$1) : void 0;
 	const matchers = Object.keys(rule).filter((key) => /^(match|exclude)[A-Z]/u.test(key));
 	const known = /* @__PURE__ */ new Set([
@@ -28663,7 +30276,7 @@ function presetName(preset) {
 */
 function renovateDelay(bot, config, on) {
 	const target = targetOf(bot, on);
-	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$2);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$3);
 	const internal = extraOf(bot, "internalPresets", isInternal);
 	const byType = /* @__PURE__ */ new Map();
 	const unreadable = [];
@@ -29552,6 +31165,30 @@ var Workspace = class {
 		const entry = this.#load(file);
 		return entry.original !== null || entry.body !== "";
 	}
+	/**
+	* Whether the path is a regular file, following symlinks, as a tool's File.file? sees it (decision D-159): the file is
+	* not loaded, so a directory, a symlink or a file too large to edit of that name stops nothing. A file a generator
+	* of this run created counts.
+	*/
+	isFile(file) {
+		const entry = this.#files.get(file);
+		if (entry !== void 0 && (entry.original !== null || entry.body !== "")) return true;
+		try {
+			return statSync(join(this.root, file), { throwIfNoEntry: false })?.isFile() === true;
+		} catch {
+			return false;
+		}
+	}
+	/** Whether anything is at the path, following symlinks (File.exist?), without loading it. */
+	present(file) {
+		const entry = this.#files.get(file);
+		if (entry !== void 0 && (entry.original !== null || entry.body !== "")) return true;
+		try {
+			return statSync(join(this.root, file), { throwIfNoEntry: false }) !== void 0;
+		} catch {
+			return false;
+		}
+	}
 	read(file) {
 		return this.#load(file).body;
 	}
@@ -30218,6 +31855,18 @@ function latestVersion(tool) {
 	const value = fact === void 0 ? void 0 : values$1(fact)[0];
 	return typeof value === "string" ? value : void 0;
 }
+/**
+* Where the pinned version is written when a lockfile records it (BUNDLED WITH of Gemfile.lock), so that
+* version-too-old points there (decision D-159); the pinned version is the first exact one, as pinnedVersion takes it.
+*/
+function lockfileVersionAt(manager) {
+	const declaration = manager.versions.find((entry) => "version" in entry && parseVersion(entry.version) !== void 0);
+	if (declaration?.source !== "lockfile") return void 0;
+	return declaration.line === void 0 ? { file: declaration.file } : {
+		file: declaration.file,
+		line: declaration.line
+	};
+}
 /** Detection warnings about a file it could not read or parse (the codes of unreadable-config for single files). */
 const FILE_UNREADABLE = /* @__PURE__ */ new Set([
 	"invalid-file",
@@ -30444,7 +32093,7 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 		fix: "Run depcurfew explain to see what depcurfew detects"
 	});
 	const botTargets = /* @__PURE__ */ new Set([...targets, ...options.projects?.targets ?? []]);
-	const run = (tool, version, action, inUse) => {
+	const run = (tool, version, action, inUse, versionAt) => {
 		const view = tool.kind === "package-manager" ? policyFor(policy, ecosystemOfTool(tool)) : policy;
 		const context = createContext({
 			tool,
@@ -30458,7 +32107,8 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 			snippets,
 			failures,
 			...inUse === void 0 ? {} : { inUse },
-			...options.project === void 0 ? {} : { project: options.project }
+			...options.project === void 0 ? {} : { project: options.project },
+			...versionAt === void 0 ? {} : { versionAt }
 		});
 		workspace.startTool(tool.id);
 		try {
@@ -30496,7 +32146,7 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 		run(tool, version, (context) => {
 			const minutes = generator(context);
 			if (minutes !== void 0) managerMinutes.push(minutes);
-		}, tool.id === "npm" && manager !== void 0 ? npmVersionsInUse(root, detection, policy, options) : void 0);
+		}, tool.id === "npm" && manager !== void 0 ? npmVersionsInUse(root, detection, policy, options) : void 0, manager === void 0 ? void 0 : lockfileVersionAt(manager));
 	}
 	const duration = policy.cooldown === void 0 ? void 0 : botDuration(policy.cooldown.minimum, [...managerMinutes, ...options.projects?.managerMinutes ?? []]);
 	for (const tool of tools) {
@@ -32358,6 +34008,145 @@ const broadExclusion = {
 	}
 };
 
+// src/doctor/bundle-config.ts
+const isStrings$2 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const FORMAT = extraOf(bundler$1, "configFormat", (value) => isRecord(value) && typeof value["comment"] === "string" && isStrings$2(value["quotes"]) && typeof value["indentPerLevel"] === "number");
+const INTEGER = extraOf(bundler$1, "stringToInteger", (value) => isRecord(value) && isStrings$2(value["whitespace"]) && isStrings$2(value["signs"]) && typeof value["prefix"] === "string" && typeof value["separator"] === "string");
+const WHITESPACE = new Set(INTEGER.whitespace);
+/** Ruby's \s and ISSPACE. */
+const isSpace = (c) => c === " " || c === "	" || c === "\n" || c === "\v" || c === "\f" || c === "\r";
+/** Ruby's String#strip: whitespace and NUL at both ends. */
+function strip(text) {
+	let start = 0;
+	let end = text.length;
+	while (start < end && (isSpace(text[start]) || text[start] === "\0")) start++;
+	while (end > start && (isSpace(text[end - 1]) || text[end - 1] === "\0")) end--;
+	return text.slice(start, end);
+}
+/**
+* String#to_i of a text: leading whitespace, one sign, an optional 0d, then decimal digits with single underscores
+* between them; 0 without a digit. "0x10" is 0, "1e3" is 1, "0d14" is 14.
+*/
+function rubyToI(text) {
+	let at = 0;
+	while (at < text.length && WHITESPACE.has(text[at] ?? "")) at++;
+	let sign = 1;
+	const signChar = text[at] ?? "";
+	if (INTEGER.signs.includes(signChar)) {
+		if (signChar === "-") sign = -1;
+		at++;
+	}
+	if (text.length - at > INTEGER.prefix.length && text.slice(at, at + INTEGER.prefix.length).toLowerCase() === INTEGER.prefix) at += INTEGER.prefix.length;
+	let digits = "";
+	let previous = "";
+	for (; at < text.length; at++) {
+		const c = text[at] ?? "";
+		if (c >= "0" && c <= "9") digits += c;
+		else if (c !== INTEGER.separator || previous === INTEGER.separator || previous === "") break;
+		previous = c;
+	}
+	return digits === "" ? 0 : sign * Number(digits);
+}
+/** A line as HASH_REGEX of Gem::YAMLSerializer reads it: the key, the value without matching quotes, and its depth. */
+function hashLine(line) {
+	let spaces = 0;
+	while (line[spaces] === " ") spaces++;
+	const hash = line.indexOf(FORMAT.comment, spaces);
+	const limit = hash === -1 ? line.length : hash;
+	const qualifies = (at) => line[at] === ":" && (at + 1 === line.length || isSpace(line[at + 1]));
+	let colon = -1;
+	for (let at = limit - 1; at > spaces; at--) if (qualifies(at)) {
+		colon = at;
+		break;
+	}
+	let indent = spaces;
+	if (colon === -1) {
+		if (spaces === 0 || !qualifies(spaces) || limit <= spaces) return void 0;
+		colon = spaces;
+		indent = spaces - 1;
+	}
+	let rest = line.slice(colon + 1);
+	if (rest.startsWith(" ")) rest = rest.slice(1);
+	const quote = rest[0] ?? "";
+	const quoted = FORMAT.quotes.includes(quote) && rest.length >= 2 && rest.endsWith(quote);
+	return {
+		indent,
+		key: line.slice(indent, colon),
+		quoted,
+		value: quoted ? rest.slice(1, -1) : rest
+	};
+}
+/** A line as ARRAY_REGEX reads it: "- value". */
+function arrayLine(line) {
+	let spaces = 0;
+	while (line[spaces] === " ") spaces++;
+	if (line[spaces] !== "-" || line[spaces + 1] !== " ") return void 0;
+	const rest = line.slice(spaces + 2);
+	const quote = rest[0] ?? "";
+	return FORMAT.quotes.includes(quote) && rest.length >= 2 && rest.endsWith(quote) ? rest.slice(1, -1) : rest;
+}
+/** strip_comment: a value is cut at its first # unless it starts with one. */
+function stripComment(value) {
+	return value.includes(FORMAT.comment) && !value.startsWith(FORMAT.comment) ? strip(value.slice(0, value.indexOf(FORMAT.comment))) : value;
+}
+/**
+* The value of a top-level key of .bundle/config as Bundler reads it: the last line of the key wins; 'error' when the
+* reader fails on the file (a line deeper than any map, a list item before a key), which stops every bundle command.
+*/
+function bundleConfigValue(text, key) {
+	const lines = text.split(/\r?\n/u);
+	const top = /* @__PURE__ */ new Map();
+	const stack = [top];
+	let lastHash;
+	let lastKey = "";
+	for (const [index, line] of lines.entries()) {
+		const hash = hashLine(line);
+		if (hash !== void 0) {
+			const value = stripComment(hash.value);
+			const target = stack[Math.floor(hash.indent / FORMAT.indentPerLevel)];
+			if (target === void 0) return "error";
+			if (!hash.quoted && value === "") {
+				const map = /* @__PURE__ */ new Map();
+				target.set(hash.key, {
+					kind: "map",
+					map,
+					line: index + 1
+				});
+				stack[Math.floor(hash.indent / FORMAT.indentPerLevel) + 1] = map;
+				lastKey = hash.key;
+				lastHash = target;
+			} else target.set(hash.key, value === "[]" ? {
+				kind: "list",
+				line: index + 1
+			} : {
+				kind: "text",
+				value,
+				line: index + 1
+			});
+			continue;
+		}
+		if (arrayLine(line) === void 0) continue;
+		if (lastHash === void 0) return "error";
+		lastHash.set(lastKey, {
+			kind: "list",
+			line: lastHash.get(lastKey)?.line ?? index + 1
+		});
+	}
+	const entry = [...top].findLast(([name]) => name.replaceAll(".", "__") === key)?.[1];
+	if (entry === void 0) return void 0;
+	const written = lines[entry.line - 1] ?? "";
+	return entry.kind === "text" ? {
+		kind: "text",
+		value: entry.value,
+		line: entry.line,
+		written
+	} : {
+		kind: "other",
+		line: entry.line,
+		written
+	};
+}
+
 // src/doctor/rules/bundler-config.ts
 const RULE$3 = "bundler-config-weakens";
 /** Workflows as GitHub reads them: with their aliases expanded (environment.githubActions.yamlAliases, decision D-141). */
@@ -32365,9 +34154,11 @@ const WORKFLOW_YAML$1 = evidenceOf(environment.githubActions.yamlAliases)[0]?.va
 const isSettingFacts = (value) => isRecord(value) && typeof value["key"] === "string" && typeof value["variable"] === "string" && typeof value["localFile"] === "string";
 /** What the cooldown setting reads from a text (extra.cooldownSettingValues): days as String#to_i gives them, or unset for "false". */
 function settingDays(value) {
-	if (value === "false") return "unset";
-	const digits = /^\s*([+-]?\d+(?:_\d+)*)/u.exec(value)?.[1];
-	return digits === void 0 ? 0 : Number(digits.replaceAll("_", ""));
+	return value === "false" ? "unset" : rubyToI(value);
+}
+/** ", which Bundler reads with to_i as 0," for a value that is not just digits; empty otherwise. */
+function readAs(value, days) {
+	return /^[0-9]+$/u.test(value) ? "" : `, which Bundler reads with to_i as ${days},`;
 }
 /** The policy's delay in Bundler's whole days, rounded up; undefined without a cooldown. */
 function policyDays(context, tool) {
@@ -32386,24 +34177,34 @@ function effect(context, days, wanted, scope) {
 	if (days <= 0) return `turns off the cooldown of Bundler ${scope}, in place of the cooldown: of the Gemfile`;
 	return `sets the cooldown of Bundler to ${plural$1(days)} ${scope} in place of the cooldown: of the Gemfile, shorter than the ${context.policy?.cooldown?.minimum.text ?? ""} of ${POLICY_FILE}`;
 }
-/** .bundle/config of the project: the local config, which Bundler reads before the environment and the Gemfile. */
+/**
+* .bundle/config of the project: the local config, which Bundler reads before the environment and the Gemfile, read
+* as Bundler reads it (decision D-159, bundle-config.ts). A file Bundler cannot read stops every bundle command, and a
+* map or a list as the value stops the commands that resolve, so neither weakens the cooldown.
+*/
 function checkLocalConfig(context, facts, wanted) {
 	const file = facts.localFile;
 	const text = context.repository.readText(file);
 	if (text === void 0) return;
-	const found = yamlSetting(text, [facts.variable]);
-	if (found === void 0 || typeof found.value !== "string" && typeof found.value !== "number") return;
-	const value = String(found.value);
+	const found = bundleConfigValue(text, facts.variable);
+	if (found === void 0 || found === "error" || found.kind !== "text") return;
+	const { value } = found;
 	const days = settingDays(value);
 	const what = effect(context, days, wanted, "for every source");
 	if (what === void 0 || days === "unset") return;
+	const written = found.written.trim();
+	const shown = [
+		`${facts.variable}: ${value}`,
+		`${facts.variable}: "${value}"`,
+		`${facts.variable}: '${value}'`
+	].includes(written) ? `${facts.variable}: ${JSON.stringify(value)} in ${file}${readAs(value, days)} ${what}` : `\`${written}\` in ${file} sets ${facts.variable} to the text ${JSON.stringify(value)} (Bundler reads the file line by line, not as YAML)${/^[0-9]+$/u.test(value) ? "" : `, which to_i reads as ${days}`}, so it ${what}`;
 	context.report({
 		location: {
 			file,
 			line: found.line
 		},
-		message: `${facts.variable}: ${JSON.stringify(value)} in ${file} ${what}; Bundler reads ${file} before the environment`,
-		fix: `Remove ${facts.variable} from ${file} (bundle config unset --local ${facts.key}), so that the cooldown: of the Gemfile applies, or set it to at least ${wanted}`
+		message: `${shown}; Bundler reads ${file} before the environment`,
+		fix: `Remove ${facts.variable} from ${file} (bundle config unset --local ${facts.key}), so that the cooldown: of the Gemfile applies, or set it to at least ${wanted} (bundle config set --local ${facts.key} ${wanted})`
 	});
 }
 /**
@@ -32475,9 +34276,10 @@ function checkWorkflowEnv(context, facts, wanted) {
 			if (!isRecord(env)) continue;
 			const where = placeOf(label);
 			const raw = env[facts.variable];
-			const value = typeof raw === "string" ? raw : typeof raw === "number" || typeof raw === "boolean" ? String(raw) : void 0;
+			const setting = yamlSetting(text, [...path, facts.variable], WORKFLOW_YAML$1);
+			const value = typeof raw === "string" ? raw : typeof raw === "number" || typeof raw === "boolean" || raw === null ? setting?.written ?? String(raw) : void 0;
 			if (value === void 0) continue;
-			const line = yamlSetting(text, [...path, facts.variable], WORKFLOW_YAML$1)?.line;
+			const line = setting?.line;
 			const location = line === void 0 ? { file } : {
 				file,
 				line
@@ -32499,7 +34301,7 @@ function checkWorkflowEnv(context, facts, wanted) {
 			reported.set(key, /* @__PURE__ */ new Set([...reported.get(key) ?? [], value]));
 			context.report({
 				location,
-				message: `${facts.variable}=${value} in the env of ${where} in ${file} reaches every Bundler command there and ${what}`,
+				message: `${facts.variable}=${value} in the env of ${where} in ${file} reaches every Bundler command there${readAs(value, days)} and ${what}`,
 				fix: `Remove ${facts.variable} from that env in ${file}; for a gem that cannot wait, run bundle update GEM --cooldown 0 by hand after reviewing it`
 			});
 		}
@@ -32528,7 +34330,7 @@ const bundlerConfigWeakens = {
 	id: RULE$3,
 	checks: ".bundle/config, the env of CI workflows and the bundle commands of CI jobs and Dockerfiles keep the cooldown of Bundler",
 	summary: ".bundle/config, the env of a CI workflow or a bundle command in a CI job or a Dockerfile turns the cooldown of Bundler off or makes it shorter than the policy.",
-	description: "Bundler 4.0.13 and later hold back gem versions younger than the cooldown: of the Gemfile source, but the cooldown setting and the --cooldown option take its place for every source. BUNDLE_COOLDOWN in .bundle/config (which Bundler reads first), in the env of a CI workflow, before a bundle command or in a Dockerfile ENV, and --cooldown on bundle install, update, lock, add or cache, with fewer days than depcurfew.json or 0 (any value that does not start with a digit counts as 0), turn the delay off or shorten it while the Gemfile still looks configured. A value with a ${{ }} expression gives a warning.",
+	description: "Bundler 4.0.13 and later hold back gem versions younger than the cooldown: of the Gemfile source, but the cooldown setting and the --cooldown option take its place for every source. BUNDLE_COOLDOWN in .bundle/config (which Bundler reads first, line by line and not as YAML: quotes stay unless they enclose the whole value, and # starts a comment), in the env of a CI workflow, before a bundle command or in a Dockerfile ENV, and --cooldown on bundle install, update, lock, add or cache (also bundle i, bundle package and bundle _VERSION_ install), with fewer days than depcurfew.json or 0, turn the delay off or shorten it while the Gemfile still looks configured. Bundler reads the value with to_i: one that does not start with a digit counts as 0, and 1e3 as 1. A value with a ${{ }} expression gives a warning.",
 	help: "Remove the setting, the variable or the option, or give it at least the days of the policy; take a newer version of one gem by hand with bundle update GEM --cooldown 0 after reviewing it.",
 	level: "error",
 	requiresPolicy: true,
@@ -32781,6 +34583,8 @@ const composerConfigWeakens = {
 };
 
 // src/doctor/setting-changes.ts
+/** The Gemfiles of Bundler (extra.gemfileNames), read as source calls (decision D-159). */
+const GEMFILES = new Set(extraOf(bundler$1, "gemfileNames", (value) => Array.isArray(value) && value.every((item) => typeof item === "string")));
 const isObject$1 = (value) => typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof TomlDateTime);
 /** A value as JSON, with TOML's big integers and dates as written. */
 function valueText(value) {
@@ -32866,8 +34670,23 @@ function lineChanges(before, after) {
 		removed: [...new Set(removed.filter((line) => !moved.has(line)))]
 	};
 }
+/**
+* A Gemfile: the cooldown: apply sets on its source calls, as `cooldown: 7`, never the line it rewrites, which would
+* read as removing the source (decision D-159).
+*/
+function gemfileChanges(before, after) {
+	const old = new Map(readGemfile(before).sources.map((source) => [source.line, source.cooldown]));
+	const set = /* @__PURE__ */ new Set();
+	for (const source of readGemfile(after).sources) if (typeof source.cooldown === "number" && old.get(source.line) !== source.cooldown) set.add(`cooldown: ${source.cooldown}`);
+	return {
+		set: [...set],
+		removed: []
+	};
+}
 /** What a planned change of `file` sets and removes; both empty when only comments, markers or the layout change. */
 function settingChanges(file, before, after) {
+	const name = file.split("/").at(-1) ?? file;
+	if (before !== null && GEMFILES.has(name)) return gemfileChanges(before, after);
 	const format = formatOf(file);
 	const old = format === void 0 ? void 0 : valuesOf(format, before ?? "");
 	const now = format === void 0 ? void 0 : valuesOf(format, after);
@@ -33153,6 +34972,31 @@ function checkComposerExclusions(context, plan) {
 		})
 	});
 }
+/**
+* Bundler: when apply cannot write the cooldown (the only source "https://rubygems.org" has a block, a modifier or
+* another form apply does not edit, its URL comes from ENV, the Gemfile has no such source, or depcurfew does not read
+* the Gemfile as Ruby does), the plan has no change and Bundler has no delay. Each cooldown-not-written of the plan is
+* reported where it points, with apply's text (decision D-159): as an error, or as a warning when the call there already
+* waits at least the policy's days and depcurfew only cannot be sure that Ruby runs it.
+*/
+function checkBundlerCooldown(context, plan) {
+	const tool = context.tools.find((entry) => entry.id === "bundler");
+	const minimum = tool === void 0 || context.policy === void 0 ? void 0 : policyFor(context.policy, ecosystemOfTool(tool)).cooldown?.minimum;
+	if (tool === void 0 || minimum === void 0) return;
+	const converted = convertCooldown(tool, minimum);
+	const days = converted.ok && typeof converted.value === "number" ? converted.value : void 0;
+	for (const warning of plan.warningDetails) {
+		if (warning.code !== "cooldown-not-written" || warning.tool !== "bundler" || warning.location === void 0) continue;
+		const text = context.repository.readText(warning.location.file);
+		const mayHold = days !== void 0 && text !== void 0 && cooldownMayHold(text, warning.location.line, days);
+		context.report({
+			...mayHold ? { level: "warning" } : {},
+			location: warning.location,
+			message: warning.message,
+			...warning.fix === void 0 ? {} : { fix: warning.fix }
+		});
+	}
+}
 /** The most settings a note against the default policy names; the rest are counted (decision D-149). */
 const MAX_SETTINGS = 6;
 /** Settings for a message: `a`, `b` and `c`, at most MAX_SETTINGS, then how many more. */
@@ -33212,7 +35056,7 @@ const configDrift = {
 	id: "config-drift",
 	checks: "Configuration files match what depcurfew apply writes for depcurfew.json",
 	summary: "A configuration file does not match what depcurfew apply writes for depcurfew.json.",
-	description: "A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool's own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning. So is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, which apply keeps unless it wrote the entry itself.",
+	description: "A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool's own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning. So is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, which apply keeps unless it wrote the entry itself. A Gemfile apply cannot write the cooldown of Bundler into (a source with a block or a modifier, a URL from ENV, no rubygems.org source, a Gemfile depcurfew cannot read as Ruby does) is an error where apply says so, or a warning when that call already waits as long as the policy.",
 	help: "Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.",
 	level: "error",
 	requiresPolicy: true,
@@ -33221,6 +35065,7 @@ const configDrift = {
 		if (plan === void 0) return;
 		if (context.defaultPolicy === true) {
 			reportAgainstDefault(context, plan);
+			checkBundlerCooldown(context, plan);
 			checkAllowLists(context, plan);
 			checkComposerExclusions(context, plan);
 			return;
@@ -33249,6 +35094,7 @@ const configDrift = {
 				});
 			}
 		}
+		checkBundlerCooldown(context, plan);
 		checkAllowLists(context, plan);
 		checkComposerExclusions(context, plan);
 	}

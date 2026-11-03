@@ -48,7 +48,17 @@ export interface CommandFacts {
    * Bundler (decision D-152): its executables, the commands that resolve the Gemfile with their --cooldown option and
    * the variable BUNDLE_COOLDOWN, and gem install bundler with the options that name its version.
    */
-  bundler?: { executables: readonly string[]; commands: readonly string[]; option: string; variable: string; gem: { install: readonly string[]; name: string; versionOptions: readonly string[]; separator: string } };
+  bundler?: {
+    executables: readonly string[];
+    commands: readonly string[];
+    option: string;
+    variable: string;
+    gem: { install: readonly string[]; name: string; versionOptions: readonly string[]; separator: string };
+    /** The commands and aliases of Bundler's CLI, whether an unambiguous prefix names one, and the command of a bare bundle (decision D-159). */
+    cli?: { commands: readonly string[]; aliases: Readonly<Record<string, string>>; prefixes: boolean; defaultCommand: string };
+    /** bundle _4.0.23_ install runs that version (the executables RubyGems writes). */
+    versionSelector?: boolean;
+  };
 }
 
 export interface Word {
@@ -537,37 +547,74 @@ function pipCommand(args: readonly Word[], at: number, facts: CommandFacts, envi
 }
 
 /**
- * bundle install, update, lock, add and cache (decision D-152): an install with the release-age delay it gets, as written:
- * --cooldown N on the command line (delayOption), else BUNDLE_COOLDOWN; unknown when the value has a variable.
+ * The command Bundler's CLI runs for its first argument (Thor, extra.cliCommands): a command, an alias (i, package), or
+ * an unambiguous prefix of one (inst); a bare bundle runs the default command; an option first is no command.
+ */
+function bundlerCliCommand(name: string | undefined, cli: NonNullable<NonNullable<CommandFacts['bundler']>['cli']>): string | undefined {
+  if (name === undefined) return cli.defaultCommand;
+  if (cli.commands.includes(name)) return name;
+  const alias = cli.aliases[name];
+  if (alias !== undefined) return alias;
+  // A first argument that starts with - and is no alias is no command name: Thor runs the default command with every
+  // argument as its options, so bundle --cooldown 0 installs without the cooldown (decision D-159).
+  if (name.startsWith('-')) return cli.defaultCommand;
+  if (!cli.prefixes || name === '') return undefined;
+  const found = new Set([...cli.commands, ...Object.keys(cli.aliases)].filter((candidate) => candidate.startsWith(name)).map((candidate) => cli.aliases[candidate] ?? candidate));
+  return found.size === 1 ? [...found][0] : undefined;
+}
+
+/** A version Gem::Version.correct? accepts (VERSION_PATTERN of RubyGems), for bundle _VERSION_. */
+const GEM_VERSION = /^\s*([0-9]+(?:\.[0-9a-zA-Z]+)*(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)?\s*$/u;
+
+/**
+ * bundle install, update, lock, add and cache, also by alias or prefix (bundle i, bundle package) and a bare bundle
+ * (decisions D-152 and D-159): an install with the release-age delay it gets, as written: --cooldown N on the command
+ * line (delayOption), else BUNDLE_COOLDOWN; unknown when the value has a variable. bundle _4.0.12_ install runs Bundler
+ * 4.0.12, which the install names as its version.
  */
 function bundlerCommand(args: readonly Word[], at: number, facts: CommandFacts, environment: Environment): Found | undefined {
   const known = facts.bundler;
   if (known === undefined) return undefined;
-  const index = firstOperand(args, setOf([]));
-  const command = args[index]?.text;
+  let rest = args;
+  let version: string | undefined;
+  const selector = known.versionSelector === true ? /^_(.*)_$/su.exec(rest[0]?.text ?? '')?.[1] : undefined;
+  if (selector !== undefined && GEM_VERSION.test(selector)) {
+    version = selector.trim();
+    rest = rest.slice(1);
+  }
+  const command = known.cli === undefined ? rest[firstOperand(rest, setOf([]))]?.text : bundlerCliCommand(rest[0]?.text, known.cli);
   if (command === undefined || !known.commands.includes(command)) return undefined;
   let value: string | undefined;
-  for (const [position, word] of args.entries()) {
-    if (word.text === known.option) value = args[position + 1]?.text;
+  for (const [position, word] of rest.entries()) {
+    if (word.text === known.option) value = rest[position + 1]?.text;
     else if (word.text.startsWith(`${known.option}=`)) value = word.text.slice(known.option.length + 1);
   }
   const option = value !== undefined;
   value ??= environment.get(known.variable);
-  if (value?.includes('$') === true || (!option && environment.has(UNKNOWN_VARIABLES))) return { kind: 'install', tool: 'bundler', delayUnknown: true, offset: at };
-  return { kind: 'install', tool: 'bundler', ...(value === undefined ? {} : { delay: value }), ...(option ? { delayOption: true as const } : {}), offset: at };
+  const selected = version === undefined || version === '' ? {} : { version };
+  if (value?.includes('$') === true || (!option && environment.has(UNKNOWN_VARIABLES))) return { kind: 'install', tool: 'bundler', ...selected, delayUnknown: true, offset: at };
+  return { kind: 'install', tool: 'bundler', ...selected, ...(value === undefined ? {} : { delay: value }), ...(option ? { delayOption: true as const } : {}), offset: at };
 }
 
-/** gem install bundler -v 4.0.23, --version 4.0.23 or bundler:4.0.23: the Bundler it installs, as written (decision D-152). */
+/**
+ * gem install bundler -v 4.0.23, -v4.0.23, --version 4.0.23, --version=4.0.23 or bundler:4.0.23: the Bundler it
+ * installs, as written (decisions D-152 and D-159; Gem::OptionParser takes the value attached as well).
+ */
 function gemCommand(args: readonly Word[], at: number, facts: CommandFacts): Found[] {
   const gem = facts.bundler?.gem;
   if (gem === undefined || args[0]?.text !== gem.install[1]) return [];
   const rest = args.slice(1);
   let version: string | undefined;
   let named = false;
+  const long = gem.versionOptions.filter((option) => option.startsWith('--'));
+  const short = gem.versionOptions.filter((option) => /^-[^-]$/u.test(option));
   for (const [position, word] of rest.entries()) {
     const text = word.text;
+    const attachedLong = long.find((option) => text.startsWith(`${option}=`));
+    const attachedShort = short.find((option) => text.startsWith(option) && text.length > option.length);
     if (gem.versionOptions.includes(text)) version = rest[position + 1]?.text;
-    else if (text.startsWith('--version=')) version = text.slice('--version='.length);
+    else if (attachedLong !== undefined) version = text.slice(attachedLong.length + 1);
+    else if (attachedShort !== undefined) version = text.slice(attachedShort.length);
     else if (text === gem.name) named = true;
     else if (text.startsWith(`${gem.name}${gem.separator}`)) {
       named = true;

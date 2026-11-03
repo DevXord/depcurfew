@@ -17,6 +17,9 @@ const DSL = `${LIB}/dsl.rb`;
 const SETTINGS = `${LIB}/settings.rb`;
 const RESOLVER = `${LIB}/resolver.rb`;
 const SHARED_HELPERS = `${LIB}/shared_helpers.rb`;
+const CLI = `${LIB}/cli.rb`;
+// Ruby's parser reads the Gemfile (Dsl#eval_gemfile runs it with instance_eval); Ruby 3.4.7 is the latest release.
+const RUBY = 'https://github.com/ruby/ruby/blob/v3_4_7';
 // The announcement on the RubyGems blog, read in its source repository (rubygems/rubygems.github.io, commit 40cef7c).
 const BLOG = 'https://blog.rubygems.org/2026/06/03/cooldown-let-new-gems-be-vetted.html';
 
@@ -113,7 +116,66 @@ export const bundler: ToolKnowledge = {
     gemfileNames: verified(
       ['gems.rb', 'Gemfile'],
       SHARED_HELPERS,
-      'SharedHelpers#find_gemfile looks for gems.rb, then Gemfile, from the current directory up; with both in one directory Bundler warns ("Multiple gemfiles (gems.rb and Gemfile) detected") and reads gems.rb.',
+      'SharedHelpers#find_gemfile looks for gems.rb, then Gemfile, from the current directory up; with both in one directory Bundler warns ("Multiple gemfiles (gems.rb and Gemfile) detected") and reads gems.rb. find_file takes a name only when File.file? is true, so a directory (or another entry that is not a file) of that name is skipped; a symlink to a file counts.',
+    ),
+    lockfileExists: verified(
+      { test: 'File.exist?' },
+      `${LIB}/definition.rb`,
+      'Definition#lockfile_exists? is lockfile && File.exist?(lockfile): any entry of that name counts, and a symlink is followed. Bundler reads the lockfile from there; depcurfew only tests whether it is there and never reads or edits it for the cooldown.',
+    ),
+    gemfileEvaluation: verified(
+      'instance_eval',
+      DSL,
+      "Dsl#eval_gemfile reads the Gemfile with Bundler.read_file (File.open(file, \"r:UTF-8\"), lib/bundler.rb) and runs it with instance_eval(contents, gemfile, 1), so Ruby's parser decides what in it is code (extra.rubySyntax).",
+    ),
+    rubySyntax: verified(
+      {
+        endOfScript: { marker: '__END__', characters: ['\u0000', '\u0004', '\u001a'] },
+        embeddedDocument: ['=begin', '=end'],
+        percentLiterals: { expanding: ['Q', 'W', 'I', 'x', 'r'], plain: ['q', 'w', 'i', 's'] },
+        pairedDelimiters: { '(': ')', '[': ']', '{': '}', '<': '>' },
+        heredocIndent: ['-', '~'],
+        globalPunctuation: '~*$?!@/\\;,.=:<>"&`\'+',
+        integerPrefixes: { '0x': 16, '0b': 2, '0o': 8, '0d': 10, '0': 8 },
+        keywords: {
+          end: ['__ENCODING__', '__LINE__', '__FILE__', 'BEGIN', 'END', 'end', 'false', 'nil', 'redo', 'retry', 'self', 'true'],
+          statement: ['begin', 'do', 'else', 'ensure', 'then'],
+          value: ['and', 'case', 'elsif', 'for', 'if', 'in', 'module', 'or', 'unless', 'until', 'when', 'while'],
+          mid: ['break', 'next', 'rescue', 'return'],
+          argument: ['defined?', 'not', 'super', 'yield'],
+          methodName: ['def'],
+          className: ['class'],
+          names: ['alias', 'undef'],
+          modifiers: ['if', 'rescue', 'unless', 'until', 'while'],
+        },
+      },
+      `${RUBY}/parse.y`,
+      "How Ruby's lexer (parse.y) reads what decides where code ends. parser_yylex ends the script at NUL, ^D (\\004) or ^Z (\\032) where a token starts, and at a line that is exactly __END__ (whole_match_p, with \\r\\n allowed); =begin at the start of a line starts a comment that ends with a line starting with =end (word_match_p: followed by whitespace, the end of the line, NUL, ^D or ^Z); # starts a comment to the end of the line. parse_percent: % starts a literal where an expression begins (IS_BEG), or after a method name with a space before % and none after it (IS_SPCARG), otherwise it is an operator; its type letter is one of Q, q, W, w, I, i, x, r, s (none means Q), the delimiter is any ASCII character that is no letter or digit, and ( [ { < pair with ) ] } > and nest (tokadd_string). heredoc_identifier: << with - or ~ and an identifier of letters, digits, _ or non-ASCII characters, or any text in ', \" or ` quotes on that line; not after a value (IS_END), after . or class, or after a method name without a space; here_document: the body starts on the line after the one with <<, after the bodies of earlier heredocs of that line, and ends at a line that is exactly the identifier (with - and ~ after leading whitespace, never with trailing spaces); in a heredoc with escapes a line after one that ends with a backslash is no terminator. Strings in double quotes, `, %Q, %W, %I, %x, %r, /, :\" and heredocs without ' interpolate #{...}, #@var and #$var (parser_peek_variable_name, is_global_name_punct). parse_qmark: ? starts a character literal unless a value comes before it, a space follows or two identifier characters follow. The keywords set the lexer state as defs/keywords lists them (EXPR_END, EXPR_BEG, EXPR_VALUE, EXPR_MID, EXPR_ARG, EXPR_FNAME, EXPR_CLASS); if, unless, while, until and rescue after a value are modifiers. parse_ident: a lower-case name lexes as a local variable (EXPR_END) when one of that name was assigned before (lvar_defined) and as a method call otherwise, so %, /, <<, ? and : after such a name and a space can be read two ways. parse_numeric: 0x, 0b, 0o and 0d prefixes, a leading 0 alone means octal (010 is 8), and single underscores between digits. Prism, the default parser of Ruby 3.4, ends the script, reads __END__ and reads heredoc identifiers and terminators the same way (prism/prism.c at the same tag).",
+    ),
+    stringToInteger: verified(
+      { whitespace: [' ', '\t', '\n', '\u000b', '\f', '\r'], signs: ['+', '-'], prefix: '0d', separator: '_' },
+      `${RUBY}/bignum.c`,
+      'String#to_i (rb_str_to_inum, base 10) calls rb_int_parse_cstr with RB_INT_PARSE_DEFAULT: it skips leading whitespace (ISSPACE), takes one + or -, skips a 0d or 0D prefix, then reads decimal digits with single underscores between them and stops at anything else (a second underscore, a letter, a dot, a quote); with no digit the result is 0. So "0x10", "0o14", "true", "~" and "[0]" read as 0, "1e3" and "1e400" as 1, "0d14" and "1_4" as 14.',
+    ),
+    configFormat: verified(
+      { comment: '#', quotes: ['"', "'"], indentPerLevel: 2, duplicates: 'last' },
+      `${RUBYGEMS}/lib/rubygems/yaml_serializer.rb`,
+      "Settings#load_config reads .bundle/config with Gem::YAMLSerializer.load (Settings#serializer_class in lib/bundler/settings.rb; Bundler's own lib/bundler/yaml_serializer.rb is the same), a line reader, not YAML. HASH_REGEX takes as the key the text before the last colon that is followed by whitespace or the end of the line and comes before the first #, and as the value the rest after one optional space, without its quotes only when it starts and ends with the same quote; strip_comment then cuts the value at its first # and strips it, unless the value starts with #. A key with an empty value starts a nested map, the number of leading spaces / 2 is the depth, a later line of a key replaces an earlier one, and [] is an empty list. load_config replaces . in keys with __, so only a key spelled exactly BUNDLE_COOLDOWN at the top level is the setting; Settings#converted_value reads its text with to_i (extra.stringToInteger), and a map or a list there makes Bundler stop with an error.",
+    ),
+    cliCommands: verified(
+      {
+        commands: ['add', 'binstubs', 'cache', 'check', 'clean', 'config', 'console', 'doctor', 'env', 'exec', 'fund', 'gem', 'help', 'info', 'init', 'install', 'issue', 'licenses', 'list', 'lock', 'open', 'outdated', 'platform', 'plugin', 'pristine', 'remove', 'show', 'update', 'version'],
+        aliases: { c: 'check', i: 'install', ls: 'list', e: 'exec', ex: 'exec', exe: 'exec', package: 'cache', pack: 'cache', '-v': 'version', '--version': 'version', '-h': 'help', '-?': 'help', '--help': 'help', '-D': 'help' },
+        prefixes: true,
+        defaultCommand: 'install',
+      },
+      CLI,
+      "The commands of Bundler::CLI (desc, without the hidden cli_help, install_or_cli_help, viz and inject) and Thor's help, with COMMAND_ALIASES (map aliases_for: i for install, package and pack for cache) and Thor's HELP_MAPPINGS. Thor (lib/bundler/vendor/thor/lib/thor.rb) reads the first argument as the command: normalize_command_name takes a command or alias, or an unambiguous prefix of one (find_command_possibilities: bundle inst, bundle upd); a first argument that starts with - and is no alias is no command name (retrieve_command_name), and with no command name normalize_command_name runs default_command, which is the default_cli_command setting or install, with every argument parsed as its options: a bare bundle installs, and so does bundle --cooldown 0.",
+    ),
+    versionSelector: verified(
+      { form: '_VERSION_', variable: 'BUNDLER_VERSION' },
+      `${RUBYGEMS}/lib/rubygems/installer.rb`,
+      'The executables RubyGems writes for a gem (Gem::Installer#app_script_text) take a first argument _VERSION_ when Gem::Version.correct? accepts VERSION (ANCHORED_VERSION_PATTERN in lib/rubygems/version.rb), activate that version and drop the argument; for bundler they also set ENV["BUNDLER_VERSION"] to it, so bundle _4.0.12_ install runs Bundler 4.0.12 and does not switch to the version of BUNDLED WITH.',
     ),
     rubygemsSource: verified(
       { url: 'https://rubygems.org', method: 'source' },
@@ -163,12 +225,12 @@ export const bundler: ToolKnowledge = {
     resolveCommands: verified(
       { executables: ['bundle', 'bundler'], commands: ['install', 'update', 'lock', 'add', 'cache'], option: '--cooldown' },
       INSTALL,
-      'The gem installs the executables bundle and bundler (s.executables in bundler.gemspec). bundle install, update, lock (bundle-lock(1)), add (which runs bundle install) and cache resolve the Gemfile and take --cooldown (cli.rb); bundle outdated only reads versions.',
+      'The gem installs the executables bundle and bundler (s.executables in bundler.gemspec). bundle install, update, lock (bundle-lock(1)), add (which runs bundle install) and cache resolve the Gemfile and take --cooldown (cli.rb); bundle outdated only reads versions. Aliases, prefixes and a bare bundle are read as Bundler reads them (extra.cliCommands), and so is a first argument _VERSION_ (extra.versionSelector).',
     ),
     gemInstall: verified(
       { command: ['gem', 'install'], name: 'bundler', versionOptions: ['-v', '--version'], separator: ':' },
       `${RUBYGEMS}/lib/rubygems/command.rb`,
-      'gem install bundler -v 4.0.23 (or --version, Gem::VersionOption#add_version_option in lib/rubygems/version_option.rb) and gem install bundler:4.0.23 (Gem::Command#extract_gem_name_and_version) install that Bundler.',
+      'gem install bundler -v 4.0.23 (or --version, Gem::VersionOption#add_version_option in lib/rubygems/version_option.rb) and gem install bundler:4.0.23 (Gem::Command#extract_gem_name_and_version) install that Bundler. The options are read with Gem::OptionParser, so the value may also be attached: -v4.0.23 and --version=4.0.23.',
     ),
     configLocal: verified(
       { file: '.bundle/config', ignoredBy: 'bundle gem' },

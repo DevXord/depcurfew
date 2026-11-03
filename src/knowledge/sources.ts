@@ -50,6 +50,9 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
     { host: 'blog.rubygems.org' },
     { host: 'guides.rubygems.org' },
     { host: 'rubygems.org', pathPrefix: '/api/' },
+    // Ruby's parser (parse.y, prism) decides which lines of a Gemfile are code, since Bundler runs it with instance_eval;
+    // Ruby's String#to_i reads the number settings of Bundler (rubySyntax, stringToInteger).
+    { host: 'github.com', pathPrefix: '/ruby/ruby/' },
   ],
   renovate: [{ host: 'docs.renovatebot.com' }, { host: 'github.com', pathPrefix: '/renovatebot/' }],
   // Psych (ruby/psych) is the YAML library dependabot-core loads dependabot.yml with (extra.yamlScalars).

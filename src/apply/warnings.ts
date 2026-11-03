@@ -20,7 +20,7 @@ export const APPLY_WARNINGS = {
   'user-file-uncertain': 'apply --user: a library the tool calls decides where its user file is (platformdirs for Poetry and PDM on macOS), and its version cannot be read from files, so apply --user writes where the tool\'s docs say and names the other files the tool may read.',
   'user-setting-overridden': 'apply --user: a file the tool reads ahead of its user file (~/.npmrc for pnpm 10) sets a key apply writes there to another value, so the value written has no effect.',
   'version-not-used': 'apply --user: --for gives the version of a tool that apply --user does not configure (not in PATH with targets "auto", or not listed under targets).',
-  'cooldown-not-written': 'The release-age delay cannot be written for a tool (for Bundler: a source call of the Gemfile apply does not edit, or no source "https://rubygems.org").',
+  'cooldown-not-written': 'The release-age delay cannot be written for a tool (for Bundler: a source call of the Gemfile apply does not edit, no source "https://rubygems.org", or a Gemfile depcurfew cannot read as Ruby does from the line given on, which it then does not edit at all).',
   'cooldown-shortened': 'A release-age delay set outside depcurfew\'s markers (in JSON files also one an earlier apply wrote) is longer than the policy, and apply replaces it with the shorter one.',
   'cooldown-environment-only': 'pip reads no project configuration, so the release-age delay has to be set in the environment where pip runs.',
   'exclude-pattern-unsupported': 'A cooldown exception uses a wildcard the tool does not support, so it is not written.',

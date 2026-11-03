@@ -127,15 +127,19 @@ function commandDirectory(step: string | undefined, cd: string | undefined): str
 
 /**
  * The variables of an env map whose values are scalars, as text (a YAML true is "true"). `resolve` reads an alias
- * (*name) as the node of its anchor, as GitHub expands aliases in workflows (decision D-141).
+ * (*name) as the node of its anchor, as GitHub expands aliases in workflows (decision D-141). The variables of
+ * `asWritten` take a plain scalar as written (BUNDLE_COOLDOWN: 1e400 is "1e400", which Bundler reads with to_i as 1;
+ * decision D-159).
  */
-function environmentOf(node: unknown, resolve: (node: unknown) => unknown = (item) => item): Map<string, string> {
+function environmentOf(node: unknown, resolve: (node: unknown) => unknown = (item) => item, asWritten: ReadonlySet<string> = new Set()): Map<string, string> {
   const found = new Map<string, string>();
   const map = resolve(node);
   if (!isMap(map)) return found;
   for (const pair of map.items) {
     const key = scalarText(pair.key);
-    const value = scalarText(resolve(pair.value));
+    const item = resolve(pair.value);
+    const written = key !== undefined && asWritten.has(key) && isScalar(item) && item.type === 'PLAIN' && typeof item.source === 'string' ? item.source : undefined;
+    const value = written ?? scalarText(item);
     if (key !== undefined && value !== undefined) found.set(key, value);
   }
   return found;
@@ -178,6 +182,8 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
     .listFiles(directory, (name) => extensions.some((extension) => name.endsWith(extension)))
     .map((name) => joinPath(directory, name));
   const findings: WorkflowFindings = { files, versions: [], installs: [], jobs: [] };
+  // Bundler reads BUNDLE_COOLDOWN with to_i, so its value is taken as written (decision D-159).
+  const asWritten = new Set(facts.commands.bundler === undefined ? [] : [facts.commands.bundler.variable]);
 
   for (const file of files) {
     const text = repository.readText(file);
@@ -197,7 +203,7 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
     const workflowDirectory = defaultDirectory(document.contents);
     const { key: envKey } = facts.workflowEnvironment;
     // Only the variables commands read are kept, so thousands of env entries cost no more per step (decision D-121).
-    const workflowEnvironment = withVariables(facts.commands, environmentOf(isMap(document.contents) ? document.contents.get(envKey) : undefined, resolve));
+    const workflowEnvironment = withVariables(facts.commands, environmentOf(isMap(document.contents) ? document.contents.get(envKey) : undefined, resolve, asWritten));
     for (const pair of jobs.items) {
       const id = scalarText(pair.key);
       const job = resolve(pair.value);
@@ -243,7 +249,7 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
         }
       }
       // The container's env, then the workflow's and the job's, which docker exec passes over it, then each step's.
-      const jobEnvironment = withVariables(facts.commands, environmentOf(isMap(container) ? container.get(containerEnvKey) : undefined, resolve), workflowEnvironment, environmentOf(job.get(envKey), resolve));
+      const jobEnvironment = withVariables(facts.commands, environmentOf(isMap(container) ? container.get(containerEnvKey) : undefined, resolve, asWritten), workflowEnvironment, environmentOf(job.get(envKey), resolve, asWritten));
       const steps = resolve(job.get('steps'));
       if (!isSeq(steps)) continue;
       for (const item of steps.items) {
@@ -276,7 +282,7 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
         if (isScalar(run) && typeof run.value === 'string' && run.range !== undefined && run.range !== null) {
           // Read the source text of the step, so that commands inside block scalars get their own line.
           const start = run.range[0];
-          const environment = withVariables(facts.commands, jobEnvironment, environmentOf(step.get(envKey), resolve));
+          const environment = withVariables(facts.commands, jobEnvironment, environmentOf(step.get(envKey), resolve, asWritten));
           const found = findToolCommands(text.slice(start, run.range[1]), facts.commands, 0, environment);
           const runLine = lineCounter.linePos(start).line;
           for (const message of overLimitMessages(found.overLimit, `the run step of ${jobLabel(id, keyLine)} in ${file} (line ${runLine})`)) repository.warn('script-not-followed', message, [file], runLine);
@@ -292,7 +298,8 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
             const directory = commandDirectory(stepDirectory, cd);
             const afterCorepack = seenCorepack || (found.corepack !== undefined && found.corepack < offset);
             record.commands.push({ ...command, line, ...(directory === undefined ? {} : { directory }), ...(afterCorepack ? { afterCorepack: true as const } : {}) });
-            if ((command.tool === 'npm' || command.tool === 'poetry' || command.tool === 'bundler') && command.kind === 'upgrade' && command.version !== undefined) {
+            // bundle _4.0.12_ install runs that Bundler, so its version counts too (decision D-159).
+            if ((command.tool === 'npm' || command.tool === 'poetry' || command.tool === 'bundler') && (command.kind === 'upgrade' || command.tool === 'bundler') && command.version !== undefined) {
               findings.versions.push({ tool: command.tool, declaration: { version: command.version, source: 'github-actions', file, line, job: id } });
             }
           }

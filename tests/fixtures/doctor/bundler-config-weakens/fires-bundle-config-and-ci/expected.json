@@ -6,7 +6,7 @@
       "line": 3
     },
     "message": "BUNDLE_COOLDOWN: \"0\" in .bundle/config turns off the cooldown of Bundler for every source, in place of the cooldown: of the Gemfile; Bundler reads .bundle/config before the environment",
-    "fix": "Remove BUNDLE_COOLDOWN from .bundle/config (bundle config unset --local cooldown), so that the cooldown: of the Gemfile applies, or set it to at least 3"
+    "fix": "Remove BUNDLE_COOLDOWN from .bundle/config (bundle config unset --local cooldown), so that the cooldown: of the Gemfile applies, or set it to at least 3 (bundle config set --local cooldown 3)"
   },
   {
     "level": "error",

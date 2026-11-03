@@ -7,7 +7,7 @@ import { BLOCK_END, isBlockStart } from '../apply/block.ts';
 import type { Repository } from '../detect/repository.ts';
 import { npm } from '../knowledge/npm.ts';
 import { bundler } from '../knowledge/bundler.ts';
-import { gemfileSources, sameServer } from '../apply/gemfile.ts';
+import { readGemfile, sameServer } from '../apply/gemfile.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import { MAX_YAML_ALIASES, mergedPair, ownPair, readYamlDocument, type YamlOptions } from '../yaml-parse.ts';
 
@@ -361,13 +361,17 @@ const GEMFILES: ReadonlySet<string> = new Set(['Gemfile', 'gems.rb']);
 
 /**
  * A keyword of the source call of rubygems.org in a Gemfile (Bundler extra.rubygemsSource): the cooldown: of the first
- * such call without a block, as a number of days, with its line. A value that is not a number is not read.
+ * plain such call, as a number of days, with its line. Only a cooldown depcurfew is sure Ruby runs counts (decision
+ * D-159): none in a Gemfile it does not read with certainty, and none of a call with a block, a modifier or another
+ * form apply does not edit; apply and doctor report those places instead.
  */
 function gemfileSetting(text: string, setting: string): { value: unknown; line: number } | undefined {
   if (setting !== 'cooldown') return undefined;
   const fact = bundler.extra?.['rubygemsSource'];
   const server = fact !== undefined && fact.status !== 'disputed' && isRecord(fact.value) && typeof fact.value['url'] === 'string' ? fact.value['url'] : 'https://rubygems.org';
-  const source = gemfileSources(text).find((item) => !item.block && item.url !== undefined && sameServer(item.url, server));
+  const reading = readGemfile(text);
+  if (reading.unknown !== undefined) return undefined;
+  const source = reading.sources.find((item) => item.plain && item.url !== undefined && sameServer(item.url, server));
   return source === undefined || typeof source.cooldown !== 'number' ? undefined : { value: source.cooldown, line: source.line };
 }
 

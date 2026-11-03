@@ -13,6 +13,7 @@ import { POLICY_FILE } from '../../policy/defaults.ts';
 import type { YamlOptions } from '../../yaml-parse.ts';
 import { usesManager } from '../applies.ts';
 import { yamlAliasProblem, yamlSetting } from '../settings.ts';
+import { bundleConfigValue, rubyToI } from '../bundle-config.ts';
 import type { Rule, RuleContext } from '../types.ts';
 
 const RULE = 'bundler-config-weakens';
@@ -31,9 +32,12 @@ const isSettingFacts = (value: unknown): value is SettingFacts =>
 
 /** What the cooldown setting reads from a text (extra.cooldownSettingValues): days as String#to_i gives them, or unset for "false". */
 function settingDays(value: string): number | 'unset' {
-  if (value === 'false') return 'unset';
-  const digits = /^\s*([+-]?\d+(?:_\d+)*)/u.exec(value)?.[1];
-  return digits === undefined ? 0 : Number(digits.replaceAll('_', ''));
+  return value === 'false' ? 'unset' : rubyToI(value);
+}
+
+/** ", which Bundler reads with to_i as 0," for a value that is not just digits; empty otherwise. */
+function readAs(value: string, days: number): string {
+  return /^[0-9]+$/u.test(value) ? '' : `, which Bundler reads with to_i as ${days},`;
 }
 
 /** The policy's delay in Bundler's whole days, rounded up; undefined without a cooldown. */
@@ -56,21 +60,30 @@ function effect(context: RuleContext, days: number | 'unset', wanted: number, sc
   return `sets the cooldown of Bundler to ${plural(days)} ${scope} in place of the cooldown: of the Gemfile, shorter than the ${context.policy?.cooldown?.minimum.text ?? ''} of ${POLICY_FILE}`;
 }
 
-/** .bundle/config of the project: the local config, which Bundler reads before the environment and the Gemfile. */
+/**
+ * .bundle/config of the project: the local config, which Bundler reads before the environment and the Gemfile, read
+ * as Bundler reads it (decision D-159, bundle-config.ts). A file Bundler cannot read stops every bundle command, and a
+ * map or a list as the value stops the commands that resolve, so neither weakens the cooldown.
+ */
 function checkLocalConfig(context: RuleContext, facts: SettingFacts, wanted: number): void {
   const file = facts.localFile;
   const text = context.repository.readText(file);
   if (text === undefined) return;
-  const found = yamlSetting(text, [facts.variable]);
-  if (found === undefined || (typeof found.value !== 'string' && typeof found.value !== 'number')) return;
-  const value = String(found.value);
+  const found = bundleConfigValue(text, facts.variable);
+  if (found === undefined || found === 'error' || found.kind !== 'text') return;
+  const { value } = found;
   const days = settingDays(value);
   const what = effect(context, days, wanted, 'for every source');
   if (what === undefined || days === 'unset') return;
+  const written = found.written.trim();
+  const plain = [`${facts.variable}: ${value}`, `${facts.variable}: "${value}"`, `${facts.variable}: '${value}'`].includes(written);
+  const shown = plain
+    ? `${facts.variable}: ${JSON.stringify(value)} in ${file}${readAs(value, days)} ${what}`
+    : `\`${written}\` in ${file} sets ${facts.variable} to the text ${JSON.stringify(value)} (Bundler reads the file line by line, not as YAML)${/^[0-9]+$/u.test(value) ? '' : `, which to_i reads as ${days}`}, so it ${what}`;
   context.report({
     location: { file, line: found.line },
-    message: `${facts.variable}: ${JSON.stringify(value)} in ${file} ${what}; Bundler reads ${file} before the environment`,
-    fix: `Remove ${facts.variable} from ${file} (bundle config unset --local ${facts.key}), so that the cooldown: of the Gemfile applies, or set it to at least ${wanted}`,
+    message: `${shown}; Bundler reads ${file} before the environment`,
+    fix: `Remove ${facts.variable} from ${file} (bundle config unset --local ${facts.key}), so that the cooldown: of the Gemfile applies, or set it to at least ${wanted} (bundle config set --local ${facts.key} ${wanted})`,
   });
 }
 
@@ -124,9 +137,11 @@ function checkWorkflowEnv(context: RuleContext, facts: SettingFacts, wanted: num
       if (!isRecord(env)) continue;
       const where = placeOf(label);
       const raw = env[facts.variable];
-      const value = typeof raw === 'string' ? raw : typeof raw === 'number' || typeof raw === 'boolean' ? String(raw) : undefined;
+      const setting = yamlSetting(text, [...path, facts.variable], WORKFLOW_YAML);
+      // A plain scalar counts as written (1e400 is "1e400", which to_i reads as 1, not Infinity; decision D-159).
+      const value = typeof raw === 'string' ? raw : typeof raw === 'number' || typeof raw === 'boolean' || raw === null ? (setting?.written ?? String(raw)) : undefined;
       if (value === undefined) continue;
-      const line = yamlSetting(text, [...path, facts.variable], WORKFLOW_YAML)?.line;
+      const line = setting?.line;
       const location = line === undefined ? { file } : { file, line };
       const key = `${file}\u0000${job ?? ''}`;
       if (value.includes('${{')) {
@@ -145,7 +160,7 @@ function checkWorkflowEnv(context: RuleContext, facts: SettingFacts, wanted: num
       reported.set(key, new Set([...(reported.get(key) ?? []), value]));
       context.report({
         location,
-        message: `${facts.variable}=${value} in the env of ${where} in ${file} reaches every Bundler command there and ${what}`,
+        message: `${facts.variable}=${value} in the env of ${where} in ${file} reaches every Bundler command there${readAs(value, days)} and ${what}`,
         fix: `Remove ${facts.variable} from that env in ${file}; for a gem that cannot wait, run bundle update GEM --cooldown 0 by hand after reviewing it`,
       });
     }
@@ -179,7 +194,7 @@ export const bundlerConfigWeakens: Rule = {
   checks: '.bundle/config, the env of CI workflows and the bundle commands of CI jobs and Dockerfiles keep the cooldown of Bundler',
   summary: '.bundle/config, the env of a CI workflow or a bundle command in a CI job or a Dockerfile turns the cooldown of Bundler off or makes it shorter than the policy.',
   description:
-    'Bundler 4.0.13 and later hold back gem versions younger than the cooldown: of the Gemfile source, but the cooldown setting and the --cooldown option take its place for every source. BUNDLE_COOLDOWN in .bundle/config (which Bundler reads first), in the env of a CI workflow, before a bundle command or in a Dockerfile ENV, and --cooldown on bundle install, update, lock, add or cache, with fewer days than depcurfew.json or 0 (any value that does not start with a digit counts as 0), turn the delay off or shorten it while the Gemfile still looks configured. A value with a ${{ }} expression gives a warning.',
+    'Bundler 4.0.13 and later hold back gem versions younger than the cooldown: of the Gemfile source, but the cooldown setting and the --cooldown option take its place for every source. BUNDLE_COOLDOWN in .bundle/config (which Bundler reads first, line by line and not as YAML: quotes stay unless they enclose the whole value, and # starts a comment), in the env of a CI workflow, before a bundle command or in a Dockerfile ENV, and --cooldown on bundle install, update, lock, add or cache (also bundle i, bundle package and bundle _VERSION_ install), with fewer days than depcurfew.json or 0, turn the delay off or shorten it while the Gemfile still looks configured. Bundler reads the value with to_i: one that does not start with a digit counts as 0, and 1e3 as 1. A value with a ${{ }} expression gives a warning.',
   help: 'Remove the setting, the variable or the option, or give it at least the days of the policy; take a newer version of one gem by hand with bundle update GEM --cooldown 0 after reviewing it.',
   level: 'error',
   requiresPolicy: true,

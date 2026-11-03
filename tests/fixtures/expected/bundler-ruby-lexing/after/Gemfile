@@ -1,0 +1,24 @@
+# frozen_string_literal: true
+# Lines Ruby never runs as code are no source calls, and apply edits only the one it runs (decision D-159).
+NOTES = %q,
+source "https://rubygems.org"
+,
+SETUP = <<~"END-OF-SETUP"
+  source "https://rubygems.org"
+  END-OF-SETUP  
+  source "https://rubygems.org"
+END-OF-SETUP
+WARNING = 'for a mirror, add
+source "https://mirror.example.com"
+'
+first = ?"
+gem_list = %w[
+  rack
+]
+
+source "https://rubygems.org", cooldown: 10 # octal: 8 days
+
+gem "tzinfo-data", platforms: %i[ windows jruby ]
+gem "rack", "~> 3.2"
+__END__
+source "https://rubygems.org"

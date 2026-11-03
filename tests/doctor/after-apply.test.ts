@@ -34,9 +34,12 @@ describe('doctor after apply', () => {
       // the shared policy
     }
     writeFileSync(join(directory, 'depcurfew.json'), policy);
-    applyProject(directory, { write: true });
+    const applied = applyProject(directory, { write: true });
     const report = runDoctor(directory);
-    expect(report.findings.filter((finding) => finding.rule === 'config-drift' && finding.level === 'error')).toEqual([]);
+    // Places apply says it cannot write the cooldown into (a Gemfile source with a block, a URL from ENV) stay, with
+    // apply's own text (decision D-159); everything else apply brings in line.
+    const notWritten = new Set(applied.warningDetails.filter((warning) => warning.code === 'cooldown-not-written').map((warning) => warning.message));
+    expect(report.findings.filter((finding) => finding.rule === 'config-drift' && finding.level === 'error' && !notWritten.has(finding.message))).toEqual([]);
   });
 
   it.each(names)('doctor runs on %s without a policy', (name) => {

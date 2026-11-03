@@ -1,7 +1,7 @@
 // Bundler (decision D-152): the source calls of a Gemfile as apply reads and edits them, detection of the Bundler
 // version (BUNDLED WITH, ruby/setup-ruby, gem install bundler) and of bundle commands, apply's warnings for what Bundler
 // cannot do, the bots' entries for gems, and doctor's checks of the version and the variables that weaken the cooldown.
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -17,6 +17,8 @@ import { environment } from '../src/knowledge/environment.ts';
 import { knowledgeBase } from '../src/knowledge/index.ts';
 import { parsePolicy } from '../src/policy/validate.ts';
 import { EXIT_OK, run } from '../src/cli/run.ts';
+import { initialResolvedPolicy } from '../src/cli/init-policy.ts';
+import { canSymlink } from './support/platform.ts';
 
 const temporary: string[] = [];
 afterEach(() => {
@@ -213,6 +215,7 @@ describe('apply', () => {
     expect(report.warningDetails.find((warning) => warning.code === 'version-too-old')).toEqual({
       code: 'version-too-old',
       tool: 'bundler',
+      location: { file: 'Gemfile.lock', line: 13 },
       message: 'Bundler 2.5.6 does not support cooldown (added in 4.0.13), cooldown once Gemfile.lock exists (added in 4.0.14); not written',
       fix: 'Require Bundler 4.0.14 or later where the version is pinned (BUNDLED WITH of the lockfile changes with bundle update --bundler), then run depcurfew apply again',
     });
@@ -273,5 +276,150 @@ describe('doctor', () => {
 
   it('is valid with targets that name bundler', () => {
     expect(parsePolicy(JSON.stringify({ version: 1, targets: ['bundler'] })).ok).toBe(true);
+  });
+});
+
+describe('files Bundler only looks for (decision D-159)', () => {
+  it('skips a directory named gems.rb, as File.file? does, and edits the Gemfile', () => {
+    const root = repository({ Gemfile: 'source "https://rubygems.org"\n', 'depcurfew.json': POLICY('3d') });
+    mkdirSync(join(root, 'gems.rb'));
+    const report = applyProject(root, { write: false });
+    expect(report.errors).toEqual([]);
+    expect(report.changes.map((change) => change.file)).toEqual(['Gemfile']);
+    expect(runDoctor(root).findings.map((finding) => finding.rule)).toEqual(['config-drift']);
+  });
+
+  it.skipIf(!canSymlink())('only tests whether Gemfile.lock is there, so a symlink stops nothing', () => {
+    const root = repository({ Gemfile: 'source "https://rubygems.org"\n', 'locks/Gemfile.lock': LOCK('4.0.23'), 'depcurfew.json': POLICY('3d') });
+    symlinkSync('locks/Gemfile.lock', join(root, 'Gemfile.lock'));
+    const report = applyProject(root, { write: false });
+    expect(report.errors).toEqual([]);
+    expect(report.changes.map((change) => change.after)).toEqual(['source "https://rubygems.org", cooldown: 3\n']);
+    expect(runDoctor(root).findings.filter((finding) => finding.rule === 'unreadable-config')).toEqual([]);
+  });
+
+  it('treats a Gemfile.lock that is there as a lockfile for the version Bundler needs, without reading it', () => {
+    const root = repository({ Gemfile: 'source "https://rubygems.org"\n', 'depcurfew.json': POLICY('3d') });
+    mkdirSync(join(root, 'Gemfile.lock'));
+    const report = applyProject(root, { write: false });
+    expect(report.errors).toEqual([]);
+    expect(report.changes.map((change) => change.file)).toEqual(['Gemfile']);
+  });
+});
+
+describe('doctor when apply cannot write the cooldown (decision D-159)', () => {
+  it.each([
+    ['a block', 'source "https://rubygems.org" do\n  gem "rack"\nend\n', 1, 'because it has a block'],
+    ['a URL from ENV', 'source ENV.fetch("GEM_SOURCE", "https://rubygems.org")\ngem "rack"\n', 1, 'is not a literal string'],
+    ['an if modifier', 'source "https://rubygems.org" if ENV["CI"]\ngem "rack"\n', 1, 'not written as a plain source'],
+    ['no source', 'gem "rack"\n', undefined, 'has no source "https://rubygems.org" call'],
+    ['a Gemfile depcurfew cannot read', 'source "https://rubygems.org"\nplatforms %w[ruby]\n', 2, 'cannot read Gemfile as Ruby does from line 2 on'],
+  ])('%s: config-drift reports what apply says, at its place', (_, gemfile, line, text) => {
+    const root = repository({ Gemfile: gemfile, 'Gemfile.lock': LOCK('4.0.23'), 'depcurfew.json': POLICY('3d') });
+    const warning = applyProject(root, { write: false }).warningDetails.find((entry) => entry.code === 'cooldown-not-written');
+    expect(warning?.message).toContain(text);
+    const findings = runDoctor(root).findings.filter((finding) => finding.rule === 'config-drift');
+    expect(findings).toEqual([{ rule: 'config-drift', level: 'error', location: line === undefined ? { file: 'Gemfile' } : { file: 'Gemfile', line }, message: warning?.message, fix: warning?.fix }]);
+  });
+
+  it('gives a note without depcurfew.json, like the other notes against the default policy', () => {
+    const root = repository({ Gemfile: 'source "https://rubygems.org" do\n  gem "rack"\nend\n', 'Gemfile.lock': LOCK('4.0.23') });
+    const findings = runDoctor(root, { defaultPolicy: initialResolvedPolicy(root) }).findings.filter((finding) => finding.rule === 'config-drift');
+    expect(findings.map((finding) => [finding.level, finding.location, finding.policy])).toEqual([['note', { file: 'Gemfile', line: 1 }, 'default']]);
+    expect(findings[0]?.message).toContain('(compared with the default policy of depcurfew init)');
+    expect(findings[0]?.fix).toMatch(/^Run depcurfew init to write depcurfew.json with the default policy; then add cooldown: 3 to that call by hand/u);
+  });
+
+  it('never advises a shorter cooldown, and warns only where the call already waits long enough', () => {
+    const root = repository({ Gemfile: 'source "https://rubygems.org", cooldown: 14 unless ENV["FAST"]\n', 'Gemfile.lock': LOCK('4.0.23'), 'depcurfew.json': POLICY('7d') });
+    const warning = applyProject(root, { write: false }).warningDetails.find((entry) => entry.code === 'cooldown-not-written');
+    expect(warning?.fix).toBe(
+      'No change is needed as long as Ruby runs that call: its cooldown: 14 is not shorter than the 7 days of depcurfew.json. To let depcurfew check it, write it as a plain call on a line of its own and set cooldown.minimum in depcurfew.json to "14d", so that depcurfew apply keeps 14',
+    );
+    expect(warning?.fix).not.toContain('cooldown: 7');
+    expect(runDoctor(root).findings.map((finding) => [finding.rule, finding.level])).toEqual([['config-drift', 'warning']]);
+    writeFileSync(join(root, 'Gemfile'), 'source "https://rubygems.org", cooldown: 3 unless ENV["FAST"]\n');
+    expect(applyProject(root, { write: false }).warningDetails.find((entry) => entry.code === 'cooldown-not-written')?.fix).toBe(
+      'Change cooldown: 3 to cooldown: 7 in that call by hand, or write it as a plain call on a line of its own and run depcurfew apply again',
+    );
+    expect(runDoctor(root).findings.map((finding) => [finding.rule, finding.level])).toEqual([['config-drift', 'error']]);
+  });
+
+  it('names the cooldown apply would set in the note against the default policy, not the source line', () => {
+    const root = repository({ Gemfile: 'source "https://rubygems.org" # main\ngem "rack"\n', 'Gemfile.lock': LOCK('4.0.23') });
+    const note = runDoctor(root, { defaultPolicy: initialResolvedPolicy(root) }).findings.find((finding) => finding.rule === 'config-drift');
+    expect(note?.message).toBe('Gemfile: Bundler installs new versions without a release-age delay; with the default policy of depcurfew init, depcurfew apply would set `cooldown: 3`');
+  });
+
+  it('warns only, and advises nothing shorter, when the gems come from another server that waits long enough', () => {
+    const root = repository({ Gemfile: 'source "https://gems.example.com", cooldown: 10\ngem "rack"\n', 'Gemfile.lock': LOCK('4.0.23'), 'depcurfew.json': POLICY('7d') });
+    const warning = applyProject(root, { write: false }).warningDetails.find((entry) => entry.code === 'cooldown-not-written');
+    expect(warning?.fix).toBe(
+      'No change is needed if the gems come from the gem servers of Gemfile: the cooldown: of each source call is not shorter than the 7 days of depcurfew.json (Bundler holds back only versions the server gives a created_at date); if they come from rubygems.org, add source "https://rubygems.org" to Gemfile and run depcurfew apply again',
+    );
+    expect(runDoctor(root).findings.map((finding) => [finding.rule, finding.level, finding.location])).toEqual([['config-drift', 'warning', { file: 'Gemfile' }]]);
+  });
+
+  it('points version-too-old at BUNDLED WITH', () => {
+    const root = repository({ Gemfile: 'source "https://rubygems.org"\n', 'Gemfile.lock': LOCK('4.0.12'), 'depcurfew.json': POLICY('3d') });
+    expect(applyProject(root, { write: false }).warningDetails.find((warning) => warning.code === 'version-too-old')?.location).toEqual({ file: 'Gemfile.lock', line: 13 });
+  });
+});
+
+describe('commands as Bundler and RubyGems read them (decision D-159)', () => {
+  const facts = detectionFacts(knowledgeBase, environment).commands;
+  const read = (script: string) => findToolCommands(script, facts, 0, new Map()).commands.map(({ offset: _offset, ...command }) => command);
+
+  it.each([
+    ['bundle i --cooldown 0'],
+    ['bundle inst --cooldown 0'],
+    ['bundle u --cooldown 0'],
+    ['bundle package --cooldown 0'],
+    ['bundle pack --cooldown 0'],
+    ['bundle pa --cooldown 0'],
+    ['bundle lo --cooldown 0'],
+    ['bundler a rack --cooldown 0'],
+  ])('%s resolves the Gemfile', (script) => {
+    expect(read(script)).toEqual([{ kind: 'install', tool: 'bundler', delay: '0', delayOption: true }]);
+  });
+
+  it('reads a bare bundle as bundle install, and bundle _VERSION_ as that version', () => {
+    expect(read('BUNDLE_COOLDOWN=0 bundle')).toEqual([{ kind: 'install', tool: 'bundler', delay: '0' }]);
+    expect(read('bundle _4.0.12_ install --cooldown 1')).toEqual([{ kind: 'install', tool: 'bundler', version: '4.0.12', delay: '1', delayOption: true }]);
+    expect(read('bundle _4.0.12_')).toEqual([{ kind: 'install', tool: 'bundler', version: '4.0.12' }]);
+  });
+
+  // Thor runs the default command, install, when the first argument is an option, with every argument as an option
+  // (decision D-159); bundle --verbose install then stops at the extra argument install, but its options are read.
+  it.each([['bundle --cooldown 0'], ['bundle --cooldown=0'], ['bundle --verbose --cooldown 0'], ['bundle --verbose install --cooldown 0']])('%s installs with the options it names', (script) => {
+    expect(read(script)).toEqual([{ kind: 'install', tool: 'bundler', delay: '0', delayOption: true }]);
+  });
+
+  it('reads bundle --version and bundle -h as the commands they are', () => {
+    expect(read('bundle --version\nbundle -h')).toEqual([]);
+  });
+
+  it.each([['bundle in --cooldown 0'], ['bundle exec rake'], ['bundle _x_ install'], ['bundle outdated --cooldown 0']])('%s does not resolve the Gemfile as Bundler reads it', (script) => {
+    expect(read(script).filter((command) => command.kind === 'install')).toEqual([]);
+  });
+
+  it('reads gem install bundler with the version attached', () => {
+    expect(read('gem install bundler -v4.0.12\ngem install bundler --version=4.0.13')).toEqual([
+      { kind: 'upgrade', tool: 'bundler', version: '4.0.12' },
+      { kind: 'upgrade', tool: 'bundler', version: '4.0.13' },
+    ]);
+  });
+
+  it.each([['bundle i --cooldown 0'], ['bundle package --cooldown 0'], ['bundle _4.0.23_ install --cooldown 0']])('doctor reports %s in a CI job', (command) => {
+    const workflow = `on: [push]\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ${command}\n`;
+    const root = repository({ Gemfile: 'source "https://rubygems.org", cooldown: 7\n', 'Gemfile.lock': LOCK('4.0.23'), '.github/workflows/ci.yml': workflow, 'depcurfew.json': POLICY('7d') });
+    expect(runDoctor(root).findings.map((finding) => finding.rule)).toEqual(['bundler-config-weakens']);
+  });
+
+  it('counts bundle _4.0.12_ install as a Bundler too old for the cooldown', () => {
+    const workflow = 'on: [push]\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: bundle _4.0.12_ install\n';
+    const root = repository({ Gemfile: 'source "https://rubygems.org", cooldown: 7\n', 'Gemfile.lock': LOCK('4.0.23'), '.github/workflows/ci.yml': workflow, 'depcurfew.json': POLICY('7d') });
+    expect(detectProject(root).packageManagers.find((manager) => manager.id === 'bundler')?.versions).toContainEqual({ version: '4.0.12', source: 'github-actions', file: '.github/workflows/ci.yml', line: 6, job: 'a' });
+    expect(runDoctor(root).findings.filter((finding) => finding.rule === 'manager-version-too-old').map((finding) => finding.location)).toEqual([{ file: '.github/workflows/ci.yml', line: 6 }]);
   });
 });

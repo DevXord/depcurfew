@@ -210,6 +210,9 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
   const resolve = bundlerTool === undefined ? undefined : extraValue(bundlerTool, 'resolveCommands');
   const bundlerSetting = bundlerTool === undefined ? undefined : extraValue(bundlerTool, 'cooldownSetting');
   const gemInstall = bundlerTool === undefined ? undefined : extraValue(bundlerTool, 'gemInstall');
+  const bundlerCli = bundlerTool === undefined ? undefined : extraValue(bundlerTool, 'cliCommands');
+  const versionSelector = bundlerTool === undefined ? undefined : extraValue(bundlerTool, 'versionSelector');
+  const isStringMap = (value: unknown): value is Record<string, string> => isRecord(value) && Object.values(value).every((item) => typeof item === 'string');
   const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []);
   // pnpm, Yarn and Bun: the commands that install the project's dependencies and those that add packages.
   const others = (['pnpm', 'yarn', 'bun'] as const).flatMap((id) => {
@@ -267,6 +270,10 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
             option: resolve['option'],
             variable: bundlerSetting['variable'],
             gem: { install: strings(gemInstall['command']), name: gemInstall['name'], versionOptions: strings(gemInstall['versionOptions']), separator: gemInstall['separator'] },
+            ...(isRecord(bundlerCli) && isStringMap(bundlerCli['aliases']) && typeof bundlerCli['defaultCommand'] === 'string'
+              ? { cli: { commands: strings(bundlerCli['commands']), aliases: bundlerCli['aliases'], prefixes: bundlerCli['prefixes'] === true, defaultCommand: bundlerCli['defaultCommand'] } }
+              : {}),
+            ...(isRecord(versionSelector) && versionSelector['form'] === '_VERSION_' ? { versionSelector: true } : {}),
           },
         }
       : {}),

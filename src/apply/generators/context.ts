@@ -127,6 +127,13 @@ export interface Context {
   workspace: Workspace;
   /** Whether the file exists; a file that cannot be read stops the generator with an error. */
   exists(file: string): boolean;
+  /**
+   * Whether the path is a regular file (symlinks followed), without reading it: for a file the tool only looks for, so
+   * a directory or a symlink of that name stops nothing (decision D-159).
+   */
+  isFile(file: string): boolean;
+  /** Whether anything is at the path (symlinks followed), without reading it. */
+  present(file: string): boolean;
   /** The file's text (empty when missing); a file that cannot be read stops the generator with an error. */
   read(file: string): string;
   /** Reports a warning about this tool (the tool is filled in); the same warning twice is reported once. */
@@ -209,6 +216,8 @@ export function createContext(options: {
   user?: { versionText?: string };
   /** cooldown.exclude of the whole policy; `policy` may be one registry's view of it. */
   policyExclusions?: readonly string[];
+  /** Where the pinned version is written, for version-too-old: BUNDLED WITH of a lockfile (decision D-159). */
+  versionAt?: { file: string; line?: number };
 }): Context {
   const { tool, workspace, warnings, failures } = options;
   const user = options.user !== undefined;
@@ -251,6 +260,8 @@ export function createContext(options: {
     user,
     workspace,
     exists: (file) => guard(file, () => workspace.exists(file)),
+    isFile: (file) => workspace.isFile(file),
+    present: (file) => workspace.present(file),
     read: (file) => guard(file, () => workspace.read(file)),
     warn,
     snippet: (file, text) => options.snippets.push({ tool: tool.id, file, text }),
@@ -276,6 +287,7 @@ export function createContext(options: {
       const needed = unsupported.map((item) => item.since).reduce((a, b) => (compareVersions(parseVersion(a) ?? [0, 0, 0], parseVersion(b) ?? [0, 0, 0]) >= 0 ? a : b));
       warn({
         code: 'version-too-old',
+        ...(options.versionAt === undefined ? {} : { location: options.versionAt }),
         message: `${tool.name} ${versionLabel} does not support ${describeRequirements(unsupported)}; not written`,
         // A project pins the version; on this machine the installed tool is what has to change. A version a lockfile
         // records changes with the tool's own command (BUNDLED WITH, bundle update --bundler; decision D-152).

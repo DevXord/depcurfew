@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".bundle/config",
+      "line": 4
+    },
+    "message": "`BUNDLE_COOLDOWN: \"14\" # two weeks` in .bundle/config sets BUNDLE_COOLDOWN to the text \"\\\"14\\\"\" (Bundler reads the file line by line, not as YAML), which to_i reads as 0, so it turns off the cooldown of Bundler for every source, in place of the cooldown: of the Gemfile; Bundler reads .bundle/config before the environment",
+    "fix": "Remove BUNDLE_COOLDOWN from .bundle/config (bundle config unset --local cooldown), so that the cooldown: of the Gemfile applies, or set it to at least 3 (bundle config set --local cooldown 3)"
+  }
+]

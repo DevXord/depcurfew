@@ -8,6 +8,12 @@ import { parseJsonc } from '../detect/jsonc.ts';
 import { parseToml, TomlDateTime } from '../detect/toml.ts';
 import { parseYaml } from '../yaml-parse.ts';
 import { iniEntries } from './settings.ts';
+import { readGemfile } from '../apply/gemfile.ts';
+import { extraOf } from '../apply/facts.ts';
+import { bundler } from '../knowledge/bundler.ts';
+
+/** The Gemfiles of Bundler (extra.gemfileNames), read as source calls (decision D-159). */
+const GEMFILES: ReadonlySet<string> = new Set(extraOf(bundler, 'gemfileNames', (value): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string')));
 
 export interface SettingChanges {
   /** Each setting with the value it gets, as `key=value` (.npmrc), `path = value` (TOML) or `path: value`. */
@@ -106,8 +112,23 @@ function lineChanges(before: string, after: string): SettingChanges {
   return { set: [...new Set(added.filter((line) => !moved.has(line)))], removed: [...new Set(removed.filter((line) => !moved.has(line)))] };
 }
 
+/**
+ * A Gemfile: the cooldown: apply sets on its source calls, as `cooldown: 7`, never the line it rewrites, which would
+ * read as removing the source (decision D-159).
+ */
+function gemfileChanges(before: string, after: string): SettingChanges {
+  const old = new Map(readGemfile(before).sources.map((source) => [source.line, source.cooldown]));
+  const set = new Set<string>();
+  for (const source of readGemfile(after).sources) {
+    if (typeof source.cooldown === 'number' && old.get(source.line) !== source.cooldown) set.add(`cooldown: ${source.cooldown}`);
+  }
+  return { set: [...set], removed: [] };
+}
+
 /** What a planned change of `file` sets and removes; both empty when only comments, markers or the layout change. */
 export function settingChanges(file: string, before: string | null, after: string): SettingChanges {
+  const name = file.split('/').at(-1) ?? file;
+  if (before !== null && GEMFILES.has(name)) return gemfileChanges(before, after);
   const format = formatOf(file);
   const old = format === undefined ? undefined : valuesOf(format, before ?? '');
   const now = format === undefined ? undefined : valuesOf(format, after);

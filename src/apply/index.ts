@@ -6,7 +6,7 @@ import { detectProject } from '../detect/index.ts';
 import { Repository } from '../detect/repository.ts';
 import { denyConflictText, outsideConflictText, remainingConflicts } from '../doctor/allow-lists.ts';
 import { UNREADABLE_WARNINGS } from '../doctor/unreadable-warnings.ts';
-import type { Detection, VersionDeclaration, WorkflowJob } from '../detect/types.ts';
+import type { Detection, PackageManagerInfo, VersionDeclaration, WorkflowJob } from '../detect/types.ts';
 import { jobsInProject, npmInUse, rootPlaces, type NpmInUse, type RootPlaces } from '../doctor/rules/bundled-versions.ts';
 import { SOURCE_LABEL } from '../doctor/rules/manager-version.ts';
 import { environment as environmentKnowledge } from '../knowledge/environment.ts';
@@ -119,6 +119,16 @@ function latestVersion(tool: ToolKnowledge): string | undefined {
   const fact = tool.extra?.['latestVersion'];
   const value = fact === undefined ? undefined : values(fact)[0];
   return typeof value === 'string' ? value : undefined;
+}
+
+/**
+ * Where the pinned version is written when a lockfile records it (BUNDLED WITH of Gemfile.lock), so that
+ * version-too-old points there (decision D-159); the pinned version is the first exact one, as pinnedVersion takes it.
+ */
+function lockfileVersionAt(manager: PackageManagerInfo): { file: string; line?: number } | undefined {
+  const declaration = manager.versions.find((entry) => 'version' in entry && parseVersion(entry.version) !== undefined);
+  if (declaration?.source !== 'lockfile') return undefined;
+  return declaration.line === undefined ? { file: declaration.file } : { file: declaration.file, line: declaration.line };
 }
 
 /** Detection warnings about a file it could not read or parse (the codes of unreadable-config for single files). */
@@ -337,7 +347,13 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   // Package managers see the policy of their registry; bots serve both and get all of it, and the package managers of
   // every project too.
   const botTargets = new Set<ToolId>([...targets, ...(options.projects?.targets ?? [])]);
-  const run = (tool: ToolKnowledge, version: Version | undefined, action: (context: ReturnType<typeof createContext>) => void, inUse?: readonly NpmInUse[]) => {
+  const run = (
+    tool: ToolKnowledge,
+    version: Version | undefined,
+    action: (context: ReturnType<typeof createContext>) => void,
+    inUse?: readonly NpmInUse[],
+    versionAt?: { file: string; line?: number },
+  ) => {
     const view = tool.kind === 'package-manager' ? policyFor(policy, ecosystemOfTool(tool)) : policy;
     const context = createContext({
       tool,
@@ -352,6 +368,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
       failures,
       ...(inUse === undefined ? {} : { inUse }),
       ...(options.project === undefined ? {} : { project: options.project }),
+      ...(versionAt === undefined ? {} : { versionAt }),
     });
     workspace.startTool(tool.id);
     try {
@@ -398,6 +415,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
         if (minutes !== undefined) managerMinutes.push(minutes);
       },
       tool.id === 'npm' && manager !== undefined ? npmVersionsInUse(root, detection, policy, options) : undefined,
+      manager === undefined ? undefined : lockfileVersionAt(manager),
     );
   }
 

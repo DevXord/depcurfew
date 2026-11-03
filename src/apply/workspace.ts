@@ -171,6 +171,32 @@ export class Workspace {
     return entry.original !== null || entry.body !== '';
   }
 
+  /**
+   * Whether the path is a regular file, following symlinks, as a tool's File.file? sees it (decision D-159): the file is
+   * not loaded, so a directory, a symlink or a file too large to edit of that name stops nothing. A file a generator
+   * of this run created counts.
+   */
+  isFile(file: string): boolean {
+    const entry = this.#files.get(file);
+    if (entry !== undefined && (entry.original !== null || entry.body !== '')) return true;
+    try {
+      return statSync(join(this.root, file), { throwIfNoEntry: false })?.isFile() === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Whether anything is at the path, following symlinks (File.exist?), without loading it. */
+  present(file: string): boolean {
+    const entry = this.#files.get(file);
+    if (entry !== undefined && (entry.original !== null || entry.body !== '')) return true;
+    try {
+      return statSync(join(this.root, file), { throwIfNoEntry: false }) !== undefined;
+    } catch {
+      return false;
+    }
+  }
+
   read(file: string): string {
     return this.#load(file).body;
   }

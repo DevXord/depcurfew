@@ -305,7 +305,8 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
     for (const message of overLimitMessages(run.overLimit, `the RUN instruction in ${file} (line ${instruction.line})`)) notices.push({ message, line: instruction.line });
     for (const command of run.commands) {
       stage.commands.push(seenCorepack && command.afterCorepack !== true ? { ...command, afterCorepack: true } : command);
-      if (command.kind === 'upgrade' && command.version !== undefined && (command.tool === 'npm' || command.tool === 'pip' || command.tool === 'poetry' || command.tool === 'bundler')) {
+      // bundle _4.0.12_ install runs that Bundler, so its version counts too (decision D-159).
+      if ((command.kind === 'upgrade' || command.tool === 'bundler') && command.version !== undefined && (command.tool === 'npm' || command.tool === 'pip' || command.tool === 'poetry' || command.tool === 'bundler')) {
         versions.push({ tool: command.tool, declaration: { version: command.version, source: 'dockerfile', file, line: command.line, stage: stage.name ?? String(stages.length - 1) } });
       }
     }

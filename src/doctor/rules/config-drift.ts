@@ -7,6 +7,8 @@ import { YAML_MARKER } from '../../apply/yaml-edit.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
 import { planDetails, type ApplyReport } from '../../apply/index.ts';
+import { cooldownMayHold } from '../../apply/generators/bundler.ts';
+import { convertCooldown } from '../../policy/convert.ts';
 import { pinnedVersion } from '../../apply/version.ts';
 import { listing } from '../../apply/requirements.ts';
 import { extraOf, isRecord, settingOf, values, yamlOptionsFor } from '../../apply/facts.ts';
@@ -299,6 +301,27 @@ function checkComposerExclusions(context: RuleContext, plan: ApplyReport): void 
   }
 }
 
+/**
+ * Bundler: when apply cannot write the cooldown (the only source "https://rubygems.org" has a block, a modifier or
+ * another form apply does not edit, its URL comes from ENV, the Gemfile has no such source, or depcurfew does not read
+ * the Gemfile as Ruby does), the plan has no change and Bundler has no delay. Each cooldown-not-written of the plan is
+ * reported where it points, with apply's text (decision D-159): as an error, or as a warning when the call there already
+ * waits at least the policy's days and depcurfew only cannot be sure that Ruby runs it.
+ */
+function checkBundlerCooldown(context: RuleContext, plan: ApplyReport): void {
+  const tool = context.tools.find((entry) => entry.id === 'bundler');
+  const minimum = tool === undefined || context.policy === undefined ? undefined : policyFor(context.policy, ecosystemOfTool(tool)).cooldown?.minimum;
+  if (tool === undefined || minimum === undefined) return;
+  const converted = convertCooldown(tool, minimum);
+  const days = converted.ok && typeof converted.value === 'number' ? converted.value : undefined;
+  for (const warning of plan.warningDetails) {
+    if (warning.code !== 'cooldown-not-written' || warning.tool !== 'bundler' || warning.location === undefined) continue;
+    const text = context.repository.readText(warning.location.file);
+    const mayHold = days !== undefined && text !== undefined && cooldownMayHold(text, warning.location.line, days);
+    context.report({ ...(mayHold ? { level: 'warning' as const } : {}), location: warning.location, message: warning.message, ...(warning.fix === undefined ? {} : { fix: warning.fix }) });
+  }
+}
+
 /** The most settings a note against the default policy names; the rest are counted (decision D-149). */
 export const MAX_SETTINGS = 6;
 
@@ -367,7 +390,7 @@ export const configDrift: Rule = {
   checks: 'Configuration files match what depcurfew apply writes for depcurfew.json',
   summary: 'A configuration file does not match what depcurfew apply writes for depcurfew.json.',
   description:
-    'A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool\'s own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning. So is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, which apply keeps unless it wrote the entry itself.',
+    'A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool\'s own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning. So is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, which apply keeps unless it wrote the entry itself. A Gemfile apply cannot write the cooldown of Bundler into (a source with a block or a modifier, a URL from ENV, no rubygems.org source, a Gemfile depcurfew cannot read as Ruby does) is an error where apply says so, or a warning when that call already waits as long as the policy.',
   help: 'Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.',
   level: 'error',
   requiresPolicy: true,
@@ -376,6 +399,7 @@ export const configDrift: Rule = {
     if (plan === undefined) return;
     if (context.defaultPolicy === true) {
       reportAgainstDefault(context, plan);
+      checkBundlerCooldown(context, plan);
       checkAllowLists(context, plan);
       checkComposerExclusions(context, plan);
       return;
@@ -403,6 +427,7 @@ export const configDrift: Rule = {
         });
       }
     }
+    checkBundlerCooldown(context, plan);
     checkAllowLists(context, plan);
     checkComposerExclusions(context, plan);
   },
