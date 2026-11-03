@@ -6,6 +6,9 @@
     { "matchPackageNames": ["eslint"], "automerge": true }, // keep
     {
       "description": "depcurfew: packages excluded from minimumReleaseAge",
+      "matchDatasources": [
+        "npm"
+      ],
       "matchPackageNames": [
         "@acme/*",
         "left-pad"

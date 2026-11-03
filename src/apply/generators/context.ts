@@ -9,7 +9,7 @@ import type { ToolId, ToolKnowledge } from '../../knowledge/types.ts';
 import { blockStart } from '../block.ts';
 import { isRecord, mergesYamlKeys, readsYamlLikePsych, values } from '../facts.ts';
 import { writeIniBlock } from '../ini.ts';
-import { invalidJson, jsonArrayAppend, jsonArrayRemove, jsonArrayReplace, jsonGet, jsonObjectRemove, jsonSet } from '../json-edit.ts';
+import { invalidJson, jsonArrayAppend, jsonArrayInsert, jsonArrayRemove, jsonArrayReplace, jsonGet, jsonObjectRemove, jsonSet } from '../json-edit.ts';
 import { writeRequirementsBlock } from '../pip-requirements.ts';
 import { requirementsLongOptions } from '../../doctor/python.ts';
 import { requirementsFormatOf } from '../../doctor/python-lockfiles.ts';
@@ -182,6 +182,8 @@ export interface JsonFile {
   get(path: readonly (string | number)[]): unknown;
   set(path: readonly (string | number)[], value: unknown): void;
   append(path: readonly (string | number)[], value: unknown): void;
+  /** Inserts an element before element `index` of the array at `path` (appends when there is none). */
+  insert(path: readonly (string | number)[], index: number, value: unknown): void;
   replace(path: readonly (string | number)[], index: number, value: unknown): void;
   remove(path: readonly (string | number)[], index: number): void;
   /** Removes a key of the object at `path`. */
@@ -336,6 +338,7 @@ export function createContext(options: {
           }),
         set: (path, value) => edit((body) => jsonSet(body === '' ? '{}\n' : body, path, value)),
         append: (path, value) => edit((body) => jsonArrayAppend(body, path, value)),
+        insert: (path, index, value) => edit((body) => jsonArrayInsert(body, path, index, value)),
         replace: (path, index, value) => edit((body) => jsonArrayReplace(body, path, index, value)),
         remove: (path, index) => edit((body) => jsonArrayRemove(body, path, index)),
         removeKey: (path, key) => edit((body) => jsonObjectRemove(body, path, key)),

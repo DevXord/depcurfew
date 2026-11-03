@@ -38,6 +38,8 @@ export interface DelaySource {
   line: number;
   /** The packageRules entry of the repository that set it, if one did. */
   rule?: number;
+  /** The built-in preset of extends that set it, with the datasource its rule matches (decision D-171). */
+  preset?: { name: string; datasource: string };
 }
 
 /** A packageRules entry that sets minimumReleaseAge with a matcher depcurfew cannot read (decision D-131). */
@@ -89,8 +91,25 @@ const isActionsMatching = (value: unknown): value is { fileMatcher: string; file
   isRecord(value) && typeof value['fileMatcher'] === 'string' && typeof value['depTypeMatcher'] === 'string' && typeof value['depType'] === 'string';
 const isMatching = (value: unknown): value is { negation: string; allPatterns: string; packageMatchers: string[]; datasourceMatcher: string; updateTypeMatcher: string } =>
   isRecord(value) && typeof value['negation'] === 'string' && isStrings(value['packageMatchers']) && typeof value['datasourceMatcher'] === 'string';
-const isPresetFact = (value: unknown): value is { presets: string[]; value: string; datasource: string } =>
+/** A built-in preset that sets minimumReleaseAge for one datasource (extra.minimumReleaseAgePresets, pypiPresets, cratePresets). */
+export interface PresetDelay {
+  presets: string[];
+  value: string;
+  datasource: string;
+}
+
+const isPresetFact = (value: unknown): value is PresetDelay =>
   isRecord(value) && isStrings(value['presets']) && typeof value['value'] === 'string' && typeof value['datasource'] === 'string';
+
+/** The built-in presets that set minimumReleaseAge, each in a packageRules entry with matchDatasources for its datasource. */
+export function presetDelays(bot: ToolKnowledge): PresetDelay[] {
+  return ['minimumReleaseAgePresets', 'pypiPresets', 'cratePresets'].flatMap((key) => (bot.extra?.[key] === undefined ? [] : [extraOf(bot, key, isPresetFact)]));
+}
+
+/** The preset of `extends` that `fact` is about, as written there (with its arguments), if the list has one. */
+export function presetIn(presets: readonly string[], fact: PresetDelay): string | undefined {
+  return presets.find((item) => fact.presets.includes(presetName(item)));
+}
 const isInternal = (value: unknown): value is { prefixes: string[]; settingDelay: string[] } =>
   isRecord(value) && isStrings(value['prefixes']) && isStrings(value['settingDelay']);
 
@@ -372,6 +391,63 @@ export function ruleCoverage(bot: ToolKnowledge, rule: Record<string, unknown>, 
 }
 
 /**
+ * Whether a rule can apply to packages of the target at all, by its datasource, manager and category matchers only:
+ * true when each of them matches (or the rule has none), false when one does not, undefined when depcurfew cannot read
+ * one. Matchers of names, update types and the rest only narrow the packages further (decision D-171).
+ */
+export function ruleReaches(bot: ToolKnowledge, rule: Record<string, unknown>, on: RenovateTarget | Ecosystem): boolean | undefined {
+  const target = targetOf(bot, on);
+  const matching = extraOf(bot, 'packageRuleMatching', isMatching);
+  const managerMatching = bot.extra?.['managerMatching'] === undefined ? undefined : extraOf(bot, 'managerMatching', isManagerMatching);
+  const stringIsList = managerMatching?.stringIsList === true;
+  const lists: [string, readonly string[] | undefined][] = [[matching.datasourceMatcher, target.datasource === undefined ? undefined : [target.datasource]]];
+  if (managerMatching !== undefined) {
+    lists.push([managerMatching.managerMatcher, target.manager === undefined ? undefined : [target.manager]]);
+    lists.push([managerMatching.categoryMatcher, target.categories.length === 0 ? undefined : target.categories]);
+  }
+  let reaches: boolean | undefined = true;
+  for (const [key, inputs] of lists) {
+    if (!(key in rule)) continue;
+    const patterns = patternsOf(rule[key], stringIsList);
+    const matches = patterns === undefined || inputs === undefined ? undefined : matchesAny(inputs, patterns, matching.negation);
+    if (matches === false) return false;
+    if (matches === undefined) reaches = undefined;
+  }
+  return reaches;
+}
+
+/** Whether a package name matches a Renovate pattern of matchPackageNames ("*", /regex/ or a glob; undefined when depcurfew cannot tell). */
+export function matchesName(bot: ToolKnowledge, name: string, pattern: string): boolean | undefined {
+  return matchesPattern(name, pattern, extraOf(bot, 'packageRuleMatching', isMatching).negation);
+}
+
+/** The delayed update types a rule applies to (all without matchUpdateTypes); undefined when depcurfew cannot read its patterns. */
+export function ruleUpdateTypes(bot: ToolKnowledge, rule: Record<string, unknown>): UpdateType[] | undefined {
+  const matching = extraOf(bot, 'packageRuleMatching', isMatching);
+  const updateTypes = extraOf(bot, 'delayedUpdateTypes', isStrings);
+  if (!(matching.updateTypeMatcher in rule)) return updateTypes;
+  const managerMatching = bot.extra?.['managerMatching'] === undefined ? undefined : extraOf(bot, 'managerMatching', isManagerMatching);
+  const patterns = patternsOf(rule[matching.updateTypeMatcher], managerMatching?.stringIsList === true);
+  if (patterns === undefined) return undefined;
+  const matched = updateTypes.map((type) => matchesList(type, patterns, matching.negation));
+  return matched.includes(undefined) ? undefined : updateTypes.filter((_, index) => matched[index] === true);
+}
+
+/** The patterns of the name matchers of a rule (matchPackageNames, matchDepNames); undefined when one cannot be read. */
+export function namePatterns(bot: ToolKnowledge, rule: Record<string, unknown>): string[] | undefined {
+  const matching = extraOf(bot, 'packageRuleMatching', isMatching);
+  const managerMatching = bot.extra?.['managerMatching'] === undefined ? undefined : extraOf(bot, 'managerMatching', isManagerMatching);
+  const patterns: string[] = [];
+  for (const key of matching.packageMatchers) {
+    if (!(key in rule)) continue;
+    const list = patternsOf(rule[key], managerMatching?.stringIsList === true);
+    if (list === undefined) return undefined;
+    patterns.push(...list);
+  }
+  return patterns;
+}
+
+/**
  * The update types for which a rule applies to every package of the target (or of a registry), or undefined when it
  * narrows the packages or depcurfew cannot tell.
  */
@@ -401,11 +477,10 @@ export function renovateDelay(bot: ToolKnowledge, config: RenovateConfig, on: Re
   if (config.top !== undefined) set(updateTypes, { value: config.top.value, origin: `${path}: ${JSON.stringify(config.top.value)} in ${config.file}`, line: config.top.line });
 
   // The rules of presets come before the repository's rules (extra.packageRulesOrder).
-  for (const key of ['minimumReleaseAgePresets', 'pypiPresets', 'cratePresets']) {
-    const fact = bot.extra?.[key] === undefined ? undefined : extraOf(bot, key, isPresetFact);
-    const preset = fact === undefined ? undefined : config.extends.presets.find((item) => fact.presets.includes(presetName(item)));
-    if (fact === undefined || preset === undefined || target.datasource !== fact.datasource) continue;
-    set(updateTypes, { value: fact.value, origin: `the preset ${preset} in ${config.file} (${fact.value})`, line: config.extends.line });
+  for (const fact of presetDelays(bot)) {
+    const preset = presetIn(config.extends.presets, fact);
+    if (preset === undefined || target.datasource !== fact.datasource) continue;
+    set(updateTypes, { value: fact.value, origin: `the preset ${preset} in ${config.file} (${fact.value})`, line: config.extends.line, preset: { name: preset, datasource: fact.datasource } });
   }
   let repositorySets = config.top !== undefined;
   for (const { index, line, rule } of config.rules) {

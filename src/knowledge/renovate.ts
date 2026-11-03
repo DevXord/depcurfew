@@ -12,6 +12,8 @@ const bots = verifiedOn('2026-11-02');
 const composer = verifiedOn('2026-11-02');
 const d151 = verifiedOn('2026-11-03');
 const d152 = verifiedOn('2026-11-03');
+// Facts the rule apply writes over a preset relies on (decision D-171), read at the latest release on 2026-11-03.
+const d171 = verifiedOn('2026-11-03');
 
 const AT = 'https://github.com/renovatebot/renovate/blob/44.198.2';
 // The latest release on 2026-11-03, for the sources pinned by D-170.
@@ -119,10 +121,10 @@ export const renovate: ToolKnowledge = {
       `${LATEST}/docs/usage/key-concepts/minimum-release-age.md`,
       'Values such as "3 days" or "1 hour", parsed by toMs (lib/util/pretty-time.ts).',
     ),
-    minimumReleaseAgePresets: verified(
+    minimumReleaseAgePresets: d171.verified(
       { presets: ['config:best-practices', 'security:minimumReleaseAgeNpm'], value: '3 days', since: '42.0.0', datasource: 'npm' },
-      'https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm',
-      'config:best-practices extends security:minimumReleaseAgeNpm, which sets minimumReleaseAge "3 days" for the npm datasource (see presets).',
+      `${LATEST}/lib/config/presets/internal/security.preset.ts`,
+      'security:minimumReleaseAgeNpm is built by buildMinimumReleaseAgePreset: a packageRules entry { internalChecksFilter: "strict", matchDatasources: ["npm"], minimumReleaseAge: "3 days" }, then entries with the same matchDatasources that set minimumReleaseAge: null for the update types without release timestamps (lockFileMaintenance, replacement, pin, and bump, lockfileUpdate and rollback). config:best-practices extends it (config.preset.ts in the same directory).',
     ),
     excludeRule: d170.verified(
       { list: 'packageRules', match: 'matchPackageNames', value: null },
@@ -178,15 +180,15 @@ export const renovate: ToolKnowledge = {
       `${AT}/docs/usage/configuration-options.md#packagerules`,
       'A packageRules entry applies to a dependency when all of its matchers match. Within one matcher, at least one positive pattern must match when there are any, and no negative pattern (starting with !) may match, so a list of only negative patterns matches every name it does not exclude (docs/usage/string-pattern-matching.md and matchRegexOrGlobList in lib/util/string-match.ts). matchPackageNames, matchDepNames, matchDatasources and matchUpdateTypes all match this way; "*" alone matches everything.',
     ),
-    packageRulesOrder: rules.verified(
+    packageRulesOrder: d171.verified(
       { presetsFirst: true, overridesTopLevel: true, laterWins: true },
-      `${AT}/docs/usage/configuration-options.md#packagerules`,
-      'All packageRules are evaluated and later rules override options set by earlier ones; a matching rule overrides the top-level configuration ("Package rule config overrides any existing config", lib/util/package-rules/index.ts). Presets in extends are merged before the repository configuration, and packageRules is mergeable, so the rules of presets come first and the repository\'s rules after them, while a top-level option of the repository replaces the same option of a preset (resolveConfigPresets in lib/config/presets/index.ts and mergeChildConfig in lib/config/utils.ts).',
+      `${LATEST}/lib/config/presets/index.ts`,
+      'resolveConfigPresets merges the presets of extends from left to right and then the configuration itself on top with mergeChildConfig, which for packageRules (mergeable, type array in lib/config/options/index.ts) concatenates the parent\'s list with the child\'s (lib/config/utils.ts): the rules of presets come first and the repository\'s rules after them. applyPackageRules (lib/util/package-rules/index.ts) goes through the list in order and merges every matching rule over the configuration so far ("Package rule config overrides any existing config"), so a later rule wins, and a matching rule wins over the top-level configuration. A top-level option of the repository replaces the same option of a preset (mergeChildConfig takes the child\'s value for an option that is not mergeable). Read at 44.209.0.',
     ),
-    delayedUpdateTypes: rules.verified(
+    delayedUpdateTypes: d171.verified(
       ['major', 'minor', 'patch'],
-      `${AT}/docs/usage/key-concepts/minimum-release-age.md#which-update-types-take-minimumreleaseage-into-account`,
-      'The update types that take minimumReleaseAge into account; digest and pinDigest only for some datasources, and pin, lockFileMaintenance, lockfileUpdate, rollback, bump and replacement not at all.',
+      `${LATEST}/docs/usage/key-concepts/minimum-release-age.md#which-update-types-take-minimumreleaseage-into-account`,
+      'The update types that take minimumReleaseAge into account; digest and pinDigest only for some datasources, and pin, lockFileMaintenance, lockfileUpdate, rollback, bump and replacement not at all. The table is kept in sync with the null rules of the security:minimumReleaseAge* presets (security.preset.ts), so a rule with matchUpdateTypes of these three leaves those rules as they are.',
     ),
     internalPresets: rules.verified(
       {
@@ -196,10 +198,10 @@ export const renovate: ToolKnowledge = {
       `${AT}/lib/config/presets/internal/index.ts`,
       'The built-in preset groups; a default preset is written :name or default:name. Other presets (github>, gitlab>, local>, npm packages and so on) are fetched from elsewhere. Among the built-in presets only the security:minimumReleaseAge* presets set minimumReleaseAge, each in a packageRules entry with matchDatasources for its datasource, and config:best-practices extends security:minimumReleaseAgeNpm (security.preset.ts and config.preset.ts in the same directory).',
     ),
-    pypiPresets: python.verified(
+    pypiPresets: d171.verified(
       { presets: ['security:minimumReleaseAgePypi'], value: '3 days', since: '44.8.0', datasource: 'pypi' },
-      'https://docs.renovatebot.com/presets-security/#securityminimumreleaseagepypi',
-      'Added in 44.8.0; config:best-practices does not include it (it includes only security:minimumReleaseAgeNpm).',
+      `${LATEST}/lib/config/presets/internal/security.preset.ts`,
+      'Added in 44.8.0; the same rules as security:minimumReleaseAgeNpm with matchDatasources ["pypi"] (buildMinimumReleaseAgePreset). config:best-practices does not include it (it includes only security:minimumReleaseAgeNpm, config.preset.ts).',
     ),
     pnpmSecurityExclusions: reviewed.uncertain(
       { managers: ['pnpm'], file: 'pnpm-workspace.yaml', setting: 'minimumReleaseAgeExclude', comment: '# Renovate security update: ', versionSeparator: ' || ' },
@@ -257,9 +259,9 @@ export const renovate: ToolKnowledge = {
       `${AT}/lib/modules/manager/api.ts`,
       'The Renovate manager of each ecosystem depcurfew delays only through the bots (decision D-151), by its id in api.ts, with the datasource it gives the packages and its categories (categories in lib/modules/manager/<id>/index.ts, all in lib/constants/category.ts): cargo updates Cargo.toml (managerFilePatterns, lockFileNames Cargo.lock) from the crate datasource (lib/modules/manager/cargo/schema.ts) in the rust category; gomod updates go.mod from the go datasource (line-parser.ts) in golang; maven updates pom.xml and gradle the .gradle(.kts) files, gradle.properties and the version catalogs in gradle/, both from the maven datasource, in java; nuget updates .csproj, .fsproj, .vbproj, .props and .targets files, dotnet-tools.json and global.json from the nuget datasource in dotnet. getManagerConfig (lib/config/index.ts) starts every manager from the whole configuration, so the top-level minimumReleaseAge applies to them as to the other managers. All four datasources have releaseTimestampSupport: crate takes pubtime of the crates.io index or created_at of the crates.io API, go the Time of the module proxy (or a later GitHub release or tag of a module on GitHub), maven the Last-Modified header, nuget the published date (index.ts of each datasource).',
     ),
-    cratePresets: d151.verified(
+    cratePresets: d171.verified(
       { presets: ['security:minimumReleaseAgeCrate'], value: '3 days', since: '44.5.0', datasource: 'crate' },
-      `${AT}/lib/config/presets/internal/security.preset.ts`,
+      `${LATEST}/lib/config/presets/internal/security.preset.ts`,
       'security:minimumReleaseAgeCrate sets minimumReleaseAge "3 days" (with internalChecksFilter "strict") in a packageRules entry with matchDatasources ["crate"], and turns it off for lockFileMaintenance, replacement, pin, bump, lockfileUpdate and rollback updates of that datasource. Added in 44.5.0 ("presets: add security:minimumReleaseAgeCrate preset", https://github.com/renovatebot/renovate/releases/tag/44.5.0); config:best-practices does not include it.',
     ),
     managerMatching: bots.verified(

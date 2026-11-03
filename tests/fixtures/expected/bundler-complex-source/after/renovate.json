@@ -6,7 +6,7 @@
     {
       "description": "depcurfew: packages excluded from minimumReleaseAge",
       "matchDatasources": [
-        "!rubygems"
+        "npm"
       ],
       "matchPackageNames": [
         "@acme/*",

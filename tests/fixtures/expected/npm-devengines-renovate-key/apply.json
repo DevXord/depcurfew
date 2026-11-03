@@ -66,7 +66,7 @@
     {
       "tool": "renovate",
       "file": "package.json",
-      "text": "{\n  \"minimumReleaseAge\": \"3 days\",\n  \"packageRules\": [\n    {\n      \"description\": \"depcurfew: packages excluded from minimumReleaseAge\",\n      \"matchPackageNames\": [\n        \"@acme/*\",\n        \"left-pad\"\n      ],\n      \"minimumReleaseAge\": null\n    }\n  ],\n  \"vulnerabilityAlerts\": {\n    \"minimumReleaseAge\": null\n  }\n}"
+      "text": "{\n  \"minimumReleaseAge\": \"3 days\",\n  \"packageRules\": [\n    {\n      \"description\": \"depcurfew: packages excluded from minimumReleaseAge\",\n      \"matchDatasources\": [\n        \"npm\"\n      ],\n      \"matchPackageNames\": [\n        \"@acme/*\",\n        \"left-pad\"\n      ],\n      \"minimumReleaseAge\": null\n    }\n  ],\n  \"vulnerabilityAlerts\": {\n    \"minimumReleaseAge\": null\n  }\n}"
     }
   ]
 }

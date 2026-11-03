@@ -1874,6 +1874,7 @@ const bots$1 = verifiedOn("2026-11-02");
 const composer$2 = verifiedOn("2026-11-02");
 const d151$1 = verifiedOn("2026-11-03");
 const d152$1 = verifiedOn("2026-11-03");
+const d171$1 = verifiedOn("2026-11-03");
 const OPTIONS$1 = "https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference";
 const COOLDOWN_GA = "https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/";
 const DEFAULT_COOLDOWN = "https://github.blog/changelog/2026-07-14-dependabot-version-updates-introduce-default-package-cooldown/";
@@ -1960,11 +1961,11 @@ const dependabot$1 = {
 			bundler: ["bundler"]
 		}, `${OPTIONS$1}#package-ecosystem`, "The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). composer covers Composer v2, bundler Bundler (the table lists v2; dependabot-core v0.403.0 also builds a helper with Bundler ~> 4.0, bundler/helpers/v4/build). Cooldown, including the semver-* keys, is supported for all of them (the cooldown table of the same page lists Composer and Bundler with default and SemVer-bump days, read 2026-11-02 and, for Bundler, 2026-11-03). PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0)."),
 		yamlAliases: bots$1.verified({ accepted: false }, "https://github.com/dependabot/dependabot-core/blob/v0.402.0/common/lib/dependabot/config/file.rb", "Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load(config, symbolize_names: true); Psych.safe_load takes aliases: false unless told otherwise and raises Psych::AliasesNotEnabled on an alias (*name), so a file with one is not read. The issue that asks for aliases (https://github.com/dependabot/dependabot-core/issues/1582, \"YAML aliases\", open and labelled Keep on 2026-11-02) quotes the error users get, \"YAML aliases are not supported\"; the pull request that would allow them (#9653) is open and not merged. The reference of dependabot.yml (dependabot-options-reference.md in github/docs) does not mention anchors or aliases. An anchor (&name) that no alias refers to changes nothing."),
-		yamlScalars: bots$1.verified({
+		yamlScalars: d171$1.verified({
 			library: "psych",
 			version: "5.5.0",
 			integers: "legacy"
-		}, "https://github.com/ruby/psych/blob/v5.5.0/lib/psych/scalar_scanner.rb", "Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load (dependabot-core v0.402.0, common/lib/dependabot/config/file.rb), which is Psych: Ruby 4.0.5 (.ruby-version) with psych 5.5.0 (Gemfile.lock of dependabot-core at v0.402.0). ScalarScanner#tokenize reads a plain scalar in this order: words, booleans (yes, no, on, off, true, false) and null; times and dates; .inf and .nan; :symbols; base 60 integers [-+]?[0-9][0-9_]*(:[0-5]?[0-9]){1,2}, summed as part * 60 ** (index - 2).abs, so 1:30 is 5400; floats with a dot; then INTEGER_LEGACY, the default without strict_integer: 0b binary, 0 followed by octal digits, decimal without a leading zero, 0x hex, each with _ and , allowed, read with Integer(string.delete(',_')), so 010 is 8, 1_0 and 1,0 are 10; anything else, 0o12 and 08 too, is a string."),
+		}, "https://github.com/ruby/psych/blob/v5.5.0/lib/psych/scalar_scanner.rb", "Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load (dependabot-core v0.402.0, common/lib/dependabot/config/file.rb), which is Psych: Ruby 4.0.5 (.ruby-version) with psych 5.5.0 (Gemfile.lock of dependabot-core at v0.402.0). ScalarScanner#tokenize reads a plain scalar in this order: words, where a word of up to five characters is null when it is ~ or null and a boolean when it is yes, true or on (true) or no, false or off (false), all in any case (BOOLEAN_TRUE and BOOLEAN_FALSE of the default libyaml backend, the YAML 1.1 set; only the experimental libfyaml backend takes true and false alone), and the empty scalar is nil; times and dates; .inf and .nan; :symbols; base 60 integers [-+]?[0-9][0-9_]*(:[0-5]?[0-9]){1,2}, summed as part * 60 ** (index - 2).abs, so 1:30 is 5400; floats with a dot; then INTEGER_LEGACY, the default without strict_integer: 0b binary, 0 followed by octal digits, decimal without a leading zero, 0x hex, each with _ and , allowed, read with Integer(string.delete(',_')), so 010 is 8, 1_0 and 1,0 are 10; anything else, 0o12 and 08 too, is a string."),
 		githubActions: bots$1.verified({
 			ecosystem: "github-actions",
 			semverDays: false
@@ -5941,6 +5942,7 @@ const bots = verifiedOn("2026-11-02");
 const composer$1 = verifiedOn("2026-11-02");
 const d151 = verifiedOn("2026-11-03");
 const d152 = verifiedOn("2026-11-03");
+const d171 = verifiedOn("2026-11-03");
 const AT = "https://github.com/renovatebot/renovate/blob/44.198.2";
 const LATEST = "https://github.com/renovatebot/renovate/blob/44.209.0";
 const OPTIONS = "https://docs.renovatebot.com/configuration-options/";
@@ -5998,12 +6000,12 @@ const renovate$1 = {
 			since: null,
 			syntax: "words"
 		}, `${LATEST}/docs/usage/key-concepts/minimum-release-age.md`, "Values such as \"3 days\" or \"1 hour\", parsed by toMs (lib/util/pretty-time.ts)."),
-		minimumReleaseAgePresets: verified$5({
+		minimumReleaseAgePresets: d171.verified({
 			presets: ["config:best-practices", "security:minimumReleaseAgeNpm"],
 			value: "3 days",
 			since: "42.0.0",
 			datasource: "npm"
-		}, "https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm", "config:best-practices extends security:minimumReleaseAgeNpm, which sets minimumReleaseAge \"3 days\" for the npm datasource (see presets)."),
+		}, `${LATEST}/lib/config/presets/internal/security.preset.ts`, "security:minimumReleaseAgeNpm is built by buildMinimumReleaseAgePreset: a packageRules entry { internalChecksFilter: \"strict\", matchDatasources: [\"npm\"], minimumReleaseAge: \"3 days\" }, then entries with the same matchDatasources that set minimumReleaseAge: null for the update types without release timestamps (lockFileMaintenance, replacement, pin, and bump, lockfileUpdate and rollback). config:best-practices extends it (config.preset.ts in the same directory)."),
 		excludeRule: d170$2.verified({
 			list: "packageRules",
 			match: "matchPackageNames",
@@ -6039,16 +6041,16 @@ const renovate$1 = {
 			datasourceMatcher: "matchDatasources",
 			updateTypeMatcher: "matchUpdateTypes"
 		}, `${AT}/docs/usage/configuration-options.md#packagerules`, "A packageRules entry applies to a dependency when all of its matchers match. Within one matcher, at least one positive pattern must match when there are any, and no negative pattern (starting with !) may match, so a list of only negative patterns matches every name it does not exclude (docs/usage/string-pattern-matching.md and matchRegexOrGlobList in lib/util/string-match.ts). matchPackageNames, matchDepNames, matchDatasources and matchUpdateTypes all match this way; \"*\" alone matches everything."),
-		packageRulesOrder: rules.verified({
+		packageRulesOrder: d171.verified({
 			presetsFirst: true,
 			overridesTopLevel: true,
 			laterWins: true
-		}, `${AT}/docs/usage/configuration-options.md#packagerules`, "All packageRules are evaluated and later rules override options set by earlier ones; a matching rule overrides the top-level configuration (\"Package rule config overrides any existing config\", lib/util/package-rules/index.ts). Presets in extends are merged before the repository configuration, and packageRules is mergeable, so the rules of presets come first and the repository's rules after them, while a top-level option of the repository replaces the same option of a preset (resolveConfigPresets in lib/config/presets/index.ts and mergeChildConfig in lib/config/utils.ts)."),
-		delayedUpdateTypes: rules.verified([
+		}, `${LATEST}/lib/config/presets/index.ts`, "resolveConfigPresets merges the presets of extends from left to right and then the configuration itself on top with mergeChildConfig, which for packageRules (mergeable, type array in lib/config/options/index.ts) concatenates the parent's list with the child's (lib/config/utils.ts): the rules of presets come first and the repository's rules after them. applyPackageRules (lib/util/package-rules/index.ts) goes through the list in order and merges every matching rule over the configuration so far (\"Package rule config overrides any existing config\"), so a later rule wins, and a matching rule wins over the top-level configuration. A top-level option of the repository replaces the same option of a preset (mergeChildConfig takes the child's value for an option that is not mergeable). Read at 44.209.0."),
+		delayedUpdateTypes: d171.verified([
 			"major",
 			"minor",
 			"patch"
-		], `${AT}/docs/usage/key-concepts/minimum-release-age.md#which-update-types-take-minimumreleaseage-into-account`, "The update types that take minimumReleaseAge into account; digest and pinDigest only for some datasources, and pin, lockFileMaintenance, lockfileUpdate, rollback, bump and replacement not at all."),
+		], `${LATEST}/docs/usage/key-concepts/minimum-release-age.md#which-update-types-take-minimumreleaseage-into-account`, "The update types that take minimumReleaseAge into account; digest and pinDigest only for some datasources, and pin, lockFileMaintenance, lockfileUpdate, rollback, bump and replacement not at all. The table is kept in sync with the null rules of the security:minimumReleaseAge* presets (security.preset.ts), so a rule with matchUpdateTypes of these three leaves those rules as they are."),
 		internalPresets: rules.verified({
 			prefixes: [
 				":",
@@ -6076,12 +6078,12 @@ const renovate$1 = {
 				"security:minimumReleaseAgePypi"
 			]
 		}, `${AT}/lib/config/presets/internal/index.ts`, "The built-in preset groups; a default preset is written :name or default:name. Other presets (github>, gitlab>, local>, npm packages and so on) are fetched from elsewhere. Among the built-in presets only the security:minimumReleaseAge* presets set minimumReleaseAge, each in a packageRules entry with matchDatasources for its datasource, and config:best-practices extends security:minimumReleaseAgeNpm (security.preset.ts and config.preset.ts in the same directory)."),
-		pypiPresets: python$1.verified({
+		pypiPresets: d171.verified({
 			presets: ["security:minimumReleaseAgePypi"],
 			value: "3 days",
 			since: "44.8.0",
 			datasource: "pypi"
-		}, "https://docs.renovatebot.com/presets-security/#securityminimumreleaseagepypi", "Added in 44.8.0; config:best-practices does not include it (it includes only security:minimumReleaseAgeNpm)."),
+		}, `${LATEST}/lib/config/presets/internal/security.preset.ts`, "Added in 44.8.0; the same rules as security:minimumReleaseAgeNpm with matchDatasources [\"pypi\"] (buildMinimumReleaseAgePreset). config:best-practices does not include it (it includes only security:minimumReleaseAgeNpm, config.preset.ts)."),
 		pnpmSecurityExclusions: reviewed.uncertain({
 			managers: ["pnpm"],
 			file: "pnpm-workspace.yaml",
@@ -6150,12 +6152,12 @@ const renovate$1 = {
 				categories: ["dotnet"]
 			}
 		}, `${AT}/lib/modules/manager/api.ts`, "The Renovate manager of each ecosystem depcurfew delays only through the bots (decision D-151), by its id in api.ts, with the datasource it gives the packages and its categories (categories in lib/modules/manager/<id>/index.ts, all in lib/constants/category.ts): cargo updates Cargo.toml (managerFilePatterns, lockFileNames Cargo.lock) from the crate datasource (lib/modules/manager/cargo/schema.ts) in the rust category; gomod updates go.mod from the go datasource (line-parser.ts) in golang; maven updates pom.xml and gradle the .gradle(.kts) files, gradle.properties and the version catalogs in gradle/, both from the maven datasource, in java; nuget updates .csproj, .fsproj, .vbproj, .props and .targets files, dotnet-tools.json and global.json from the nuget datasource in dotnet. getManagerConfig (lib/config/index.ts) starts every manager from the whole configuration, so the top-level minimumReleaseAge applies to them as to the other managers. All four datasources have releaseTimestampSupport: crate takes pubtime of the crates.io index or created_at of the crates.io API, go the Time of the module proxy (or a later GitHub release or tag of a module on GitHub), maven the Last-Modified header, nuget the published date (index.ts of each datasource)."),
-		cratePresets: d151.verified({
+		cratePresets: d171.verified({
 			presets: ["security:minimumReleaseAgeCrate"],
 			value: "3 days",
 			since: "44.5.0",
 			datasource: "crate"
-		}, `${AT}/lib/config/presets/internal/security.preset.ts`, "security:minimumReleaseAgeCrate sets minimumReleaseAge \"3 days\" (with internalChecksFilter \"strict\") in a packageRules entry with matchDatasources [\"crate\"], and turns it off for lockFileMaintenance, replacement, pin, bump, lockfileUpdate and rollback updates of that datasource. Added in 44.5.0 (\"presets: add security:minimumReleaseAgeCrate preset\", https://github.com/renovatebot/renovate/releases/tag/44.5.0); config:best-practices does not include it."),
+		}, `${LATEST}/lib/config/presets/internal/security.preset.ts`, "security:minimumReleaseAgeCrate sets minimumReleaseAge \"3 days\" (with internalChecksFilter \"strict\") in a packageRules entry with matchDatasources [\"crate\"], and turns it off for lockFileMaintenance, replacement, pin, bump, lockfileUpdate and rollback updates of that datasource. Added in 44.5.0 (\"presets: add security:minimumReleaseAgeCrate preset\", https://github.com/renovatebot/renovate/releases/tag/44.5.0); config:best-practices does not include it."),
 		managerMatching: bots.verified({
 			managerMatcher: "matchManagers",
 			categoryMatcher: "matchCategories",
@@ -17218,12 +17220,31 @@ function rubyInteger$1(text) {
 	return Number(negative ? -big : big);
 }
 /**
-* A plain scalar as Psych 5.5.0's ScalarScanner#tokenize reads it (extra.yamlScalars of Dependabot), as far as numbers
-* go: words, booleans, null, times, dates, infinities and symbols are `other` (no number either way), so are floats;
-* base 60 and INTEGER_LEGACY integers are integers; any other text is a string, also where YAML 1.2 reads a number.
+* A word of up to five characters as Psych 5.5.0 reads it with its default libyaml backend (extra.yamlScalars of
+* Dependabot): ~ and null in any case are null, yes, true and on true, no, false and off false, in any case (YAML 1.1);
+* undefined for any other word, which Psych reads as text.
+*/
+function psychWord(text) {
+	if (text.length > 5 || /^[^ytonf~]/iu.test(text)) return void 0;
+	if (text === "~" || /^null$/iu.test(text)) return { kind: "null" };
+	if (/^(?:yes|true|on)$/iu.test(text)) return {
+		kind: "boolean",
+		value: true
+	};
+	if (/^(?:no|false|off)$/iu.test(text)) return {
+		kind: "boolean",
+		value: false
+	};
+}
+/**
+* A plain scalar as Psych 5.5.0's ScalarScanner#tokenize reads it (extra.yamlScalars of Dependabot), as far as it
+* differs from YAML 1.2: the YAML 1.1 booleans and nulls are `boolean` and `null`; other words, times, dates,
+* infinities, symbols and floats are `other` (as YAML 1.2 reads them, or no number either way); base 60 and
+* INTEGER_LEGACY integers are integers; any other text is a string, also where YAML 1.2 reads a number.
 */
 function psychScalar(text) {
-	if (text === "" || PSYCH_WORD.test(text) || text.includes("\n")) return { kind: "other" };
+	if (text === "") return { kind: "other" };
+	if (PSYCH_WORD.test(text) || text.includes("\n")) return (text.includes("\n") ? void 0 : psychWord(text)) ?? { kind: "other" };
 	if (PSYCH_TIME.test(text) || PSYCH_DATE.test(text)) return { kind: "other" };
 	if (/^\+?\.inf$/iu.test(text) || /^-\.inf$/iu.test(text) || /^\.nan$/iu.test(text) || /^:./u.test(text)) return { kind: "other" };
 	if (PSYCH_BASE60.test(text)) {
@@ -17244,12 +17265,28 @@ function psychScalar(text) {
 		value: text
 	};
 }
-/** Gives the plain values of a document the numbers Psych reads (YamlOptions.psychScalars). */
+/**
+* Whether Psych 5.5.0 reads a plain scalar as this very text (ScalarScanner#tokenize): not for the empty scalar (nil),
+* the YAML 1.1 booleans and nulls, times and dates (which YAML.safe_load does not even accept), infinities, NaN,
+* symbols, base 60 numbers, floats and integers. A string for which this is false has to be quoted in a file Psych
+* reads, so that it stays a string (decision D-171).
+*/
+function psychReadsAsString(text) {
+	if (text === "") return false;
+	if (PSYCH_WORD.test(text) || text.includes("\n")) return text.includes("\n") || psychWord(text) === void 0;
+	if (PSYCH_TIME.test(text) || PSYCH_DATE.test(text)) return false;
+	if (/^\+?\.inf$/iu.test(text) || /^-\.inf$/iu.test(text) || /^\.nan$/iu.test(text) || /^:./u.test(text)) return false;
+	if (PSYCH_BASE60.test(text) || PSYCH_BASE60_FLOAT.test(text)) return false;
+	if (PSYCH_FLOAT.test(text)) return /^[-+]?\.$/u.test(text);
+	return !PSYCH_INTEGER.test(text);
+}
+/** Gives the plain values of a document the numbers, booleans and nulls Psych reads (YamlOptions.psychScalars). */
 function readLikePsych(document) {
 	(0, import_dist.visit)(document, { Scalar(key, node) {
 		if (key === "key" || node.type !== "PLAIN" || typeof node.source !== "string") return;
 		const reading = psychScalar(node.source);
-		if (reading.kind === "integer") node.value = reading.value;
+		if (reading.kind === "integer" || reading.kind === "boolean") node.value = reading.value;
+		else if (reading.kind === "null") node.value = null;
 		else if (reading.kind === "string" && typeof node.value === "number") node.value = reading.value;
 	} });
 }
@@ -20215,6 +20252,28 @@ function jsonArrayAppend(text, path, value) {
 		const array = arrayAt(body, path);
 		return insertItem(body, array, array.elements.at(-1)?.end, array.elements[0]?.start, (indent) => serialize(value, unit, indent));
 	}, (data) => withArray(data, path, (array) => [...array, value]));
+}
+/**
+* Inserts `value` as element `index` of the array at `path`, before the element there now (after the last one when
+* there is none): on the same line in an inline array; in one written over several lines on a line of its own, right
+* after the line of the [ or of the comma before, so that comments above the element there now stay with it.
+*/
+function jsonArrayInsert(text, path, index, value) {
+	return checked(text, `adding ${JSON.stringify(value)} to ${path.join(".")}`, (body) => {
+		const array = arrayAt(body, path);
+		const element = array.elements[index];
+		if (element === void 0) return jsonArrayAppend(body, path, value);
+		const unit = indentUnit$1(body);
+		if (isSameLine(body, array.start, element.start)) return `${body.slice(0, element.start)}${serialize(value, unit, "").replaceAll(/\n\s*/gu, " ")}, ${body.slice(element.start)}`;
+		const indent = lineIndent(body, element.start);
+		const previous = array.elements[index - 1];
+		const at = endOfLine(body, previous === void 0 ? array.start + 1 : nextSignificant(body, previous.end) + 1);
+		return `${body.slice(0, at)}\n${indent}${serialize(value, unit, indent)},${body.slice(at)}`;
+	}, (data) => withArray(data, path, (array) => [
+		...array.slice(0, index),
+		value,
+		...array.slice(index)
+	]));
 }
 function jsonArrayReplace(text, path, index, value) {
 	return checked(text, `replacing element ${index} of ${path.join(".")}`, (body) => {
@@ -30056,17 +30115,28 @@ function indentUnit(text) {
 }
 /** The style of the last text rendered for: edits of one file in a batch all render for the same text. */
 let lastStyle;
-function render(value, text) {
+/**
+* A value as YAML in the style of `text`. For a file Psych reads (Mode.psych), a string Psych would read as something
+* else when written plain (yes, Off, nUll, 1_0, 2024-01-01: YAML 1.1 booleans, nulls, numbers and dates) is written in
+* double quotes, so that Dependabot reads the name (decision D-171).
+*/
+function render(value, text, psych = false) {
 	if (lastStyle?.text !== text) lastStyle = {
 		text,
 		indent: indentUnit(text),
 		indentSeq: indentsSequences(text)
 	};
-	return (0, import_dist.stringify)(value, {
+	const options = {
 		indent: lastStyle.indent,
 		indentSeq: lastStyle.indentSeq,
 		lineWidth: 0
-	});
+	};
+	if (!psych) return (0, import_dist.stringify)(value, options);
+	const document = new import_dist.Document(value);
+	(0, import_dist.visit)(document, { Scalar(_key, node) {
+		if (typeof node.value === "string" && !psychReadsAsString(node.value)) node.type = "QUOTE_DOUBLE";
+	} });
+	return document.toString(options);
 }
 function indentLines(block, indent) {
 	return block.split("\n").map((line) => line === "" ? line : `${indent}${line}`).join("\n");
@@ -30095,12 +30165,12 @@ function mark(text, keyStart, original = text) {
 * ends with its last line of content: comments after it and the next line stay as they are, and so do a comment on
 * the key's line and comments before the first item of a block collection.
 */
-function replaceValue(text, keyRange, valueNode, value, keyIndent) {
+function replaceValue(text, keyRange, valueNode, value, keyIndent, psych = false) {
 	const colon = text.indexOf(":", keyRange[1]);
 	const keyLineEnd = lineEnd(text, colon);
 	const block = value !== null && typeof value === "object" && Object.keys(value).length > 0;
 	const blockIndent = " ".repeat(Array.isArray(value) && !indentsSequences(text) ? keyIndent : keyIndent + indentUnit(text));
-	const rendered = block ? indentLines(render(value, text), blockIndent).replace(/\n$/u, "") : render(value, text).trimEnd();
+	const rendered = block ? indentLines(render(value, text, psych), blockIndent).replace(/\n$/u, "") : render(value, text, psych).trimEnd();
 	const valueStart = valueNode === null ? colon + 1 : valueNode.range[0];
 	if (valueNode === null || valueStart <= keyLineEnd) {
 		let end = valueNode === null ? colon + 1 : contentEnd(valueNode);
@@ -30295,7 +30365,7 @@ function yamlSetMany(text, edits, options = {}) {
 function setValue(text, path, value, mode = PLAIN$1) {
 	const { document, lineCounter } = parse(text, mode);
 	const column = (offset) => lineCounter.linePos(offset).col - 1;
-	if (document.contents === null || (0, import_dist.isScalar)(document.contents) && document.contents.value === null) return `${text.trim() === "" ? "" : text.endsWith("\n") ? text : `${text}\n`}${YAML_MARKER}\n${render(nest(path, value), text)}`;
+	if (document.contents === null || (0, import_dist.isScalar)(document.contents) && document.contents.value === null) return `${text.trim() === "" ? "" : text.endsWith("\n") ? text : `${text}\n`}${YAML_MARKER}\n${render(nest(path, value), text, mode.psych)}`;
 	let node = document.contents;
 	if (!(0, import_dist.isMap)(node)) throw new Error("the YAML document is not a map");
 	let insideMarked = false;
@@ -30321,7 +30391,7 @@ function setValue(text, path, value, mode = PLAIN$1) {
 			const first = node.items[0];
 			const keyColumn = first === void 0 || first.key.range === null || first.key.range === void 0 ? 0 : column(first.key.range[0]);
 			const at = nestedCommentsEnd(text, contentLineEnd(text, node), keyColumn);
-			const addition = indentLines(`${insideMarked ? "" : `${YAML_MARKER}\n`}${render({ [segment]: nest(path.slice(index + 1), value) }, text)}`, " ".repeat(keyColumn));
+			const addition = indentLines(`${insideMarked ? "" : `${YAML_MARKER}\n`}${render({ [segment]: nest(path.slice(index + 1), value) }, text, mode.psych)}`, " ".repeat(keyColumn));
 			return at >= text.length ? `${text}\n${addition}` : `${text.slice(0, at + 1)}${addition}${text.slice(at + 1)}`;
 		}
 		if (index === path.length - 1) {
@@ -30333,10 +30403,10 @@ function setValue(text, path, value, mode = PLAIN$1) {
 				const [start, end] = valueNode.range;
 				const before = start > 0 && !/\s/u.test(text[start - 1]) ? " " : "";
 				const after = text[end] === "#" ? " " : "";
-				replaced = `${text.slice(0, start)}${before}${render(value, text).trimEnd()}${after}${text.slice(end)}`;
+				replaced = `${text.slice(0, start)}${before}${render(value, text, mode.psych).trimEnd()}${after}${text.slice(end)}`;
 			} else {
 				if (isFlow(node)) refuseFlow(path, index, value);
-				replaced = replaceValue(text, keyRange, valueNode, value, column(keyRange[0]));
+				replaced = replaceValue(text, keyRange, valueNode, value, column(keyRange[0]), mode.psych);
 			}
 			return insideMarked ? replaced : mark(replaced, keyRange[0], text);
 		}
@@ -30675,6 +30745,442 @@ function sameList(a, b) {
 	return JSON.stringify(a) === JSON.stringify(b);
 }
 
+// src/doctor/renovate.ts
+const isStrings$4 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isNames = (value) => isRecord(value) && Object.values(value).every((item) => typeof item === "string");
+const isLists = (value) => isRecord(value) && Object.values(value).every(isStrings$4);
+const isManagerMatching$1 = (value) => isRecord(value) && typeof value["managerMatcher"] === "string" && typeof value["categoryMatcher"] === "string" && typeof value["stringIsList"] === "boolean";
+const isActions = (value) => isRecord(value) && typeof value["manager"] === "string" && typeof value["datasource"] === "string";
+const isActionsMatching$1 = (value) => isRecord(value) && typeof value["fileMatcher"] === "string" && typeof value["depTypeMatcher"] === "string" && typeof value["depType"] === "string";
+const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$4(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
+const isPresetFact = (value) => isRecord(value) && isStrings$4(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
+/** The built-in presets that set minimumReleaseAge, each in a packageRules entry with matchDatasources for its datasource. */
+function presetDelays(bot) {
+	return [
+		"minimumReleaseAgePresets",
+		"pypiPresets",
+		"cratePresets"
+	].flatMap((key) => bot.extra?.[key] === void 0 ? [] : [extraOf(bot, key, isPresetFact)]);
+}
+/** The preset of `extends` that `fact` is about, as written there (with its arguments), if the list has one. */
+function presetIn(presets, fact) {
+	return presets.find((item) => fact.presets.includes(presetName(item)));
+}
+const isInternal = (value) => isRecord(value) && isStrings$4(value["prefixes"]) && isStrings$4(value["settingDelay"]);
+function readRenovateConfig(text, file, base) {
+	const top = jsonSetting(text, [...base, "minimumReleaseAge"]);
+	const extendsList = jsonSetting(text, [...base, "extends"]);
+	const list = jsonSetting(text, [...base, "packageRules"]);
+	const lines = Array.isArray(list?.value) ? jsonElementLines(text, [...base, "packageRules"]) : void 0;
+	const rules = Array.isArray(list?.value) ? list.value.flatMap((rule, index) => isRecord(rule) ? [{
+		index,
+		rule,
+		line: lines?.[index] ?? list.line
+	}] : []) : [];
+	return {
+		file,
+		base,
+		top,
+		extends: {
+			presets: isStrings$4(extendsList?.value) ? extendsList.value : [],
+			line: extendsList?.line ?? 1
+		},
+		rules
+	};
+}
+/**
+* Whether one Renovate pattern matches `input`, as matchRegexOrGlob does: "*", a /regex/ (with ! for "not"), or a
+* case-insensitive glob. undefined for glob syntax beyond * (braces, classes...), which depcurfew does not evaluate.
+*/
+function matchesPattern(input, pattern, negation) {
+	const negative = pattern.startsWith(negation);
+	const body = negative ? pattern.slice(negation.length) : pattern;
+	if (!negative && body === "*") return true;
+	const regex = /^\/(.+)\/(i?)$/u.exec(body);
+	if (regex !== null) {
+		let result;
+		try {
+			result = new RegExp(regex[1] ?? "", regex[2] === "i" ? "iu" : "u").test(input);
+		} catch {
+			return;
+		}
+		return negative ? !result : result;
+	}
+	if (/[?[\]{}()!+@]/u.test(body.replace(/^@/u, ""))) return void 0;
+	const result = wildcardMatch(input.toLowerCase(), body.toLowerCase().replaceAll("**", "*"));
+	return negative ? !result : result;
+}
+/**
+* Whether a path matches a glob as minimatch reads it with { dot: true, nocase: true } (decision D-135): * within one
+* directory, ** for any number of them, letters in any case. undefined for anything else minimatch reads (?, classes,
+* braces, extglobs, escapes) and for empty, . and .. parts, which depcurfew does not evaluate.
+*/
+function matchesPath(path, glob) {
+	const parts = glob.toLowerCase().split("/");
+	if (parts.some((part) => part === "" || part === "." || part === ".." || /[?[\]{}()!+@\\]/u.test(part))) return void 0;
+	const pattern = parts.filter((part, index) => part !== "**" || parts[index - 1] !== "**");
+	const segments = path.toLowerCase().split("/");
+	let row = new Uint8Array(pattern.length + 1);
+	let below = new Uint8Array(pattern.length + 1);
+	for (let at = segments.length; at >= 0; at--) {
+		row.fill(0);
+		row[pattern.length] = at === segments.length ? 1 : 0;
+		const inside = at < segments.length;
+		for (let index = pattern.length - 1; index >= 0; index--) {
+			const part = pattern[index] ?? "";
+			if (part === "**") row[index] = row[index + 1] === 1 || inside && below[index] === 1 ? 1 : 0;
+			else row[index] = inside && below[index + 1] === 1 && matchSegment$1(segments[at] ?? "", part.replaceAll(/\*+/gu, "*")) ? 1 : 0;
+		}
+		[row, below] = [below, row];
+	}
+	return below[0] === 1;
+}
+/** One pattern of matchFileNames: "*", a /regex/ (with ! for "not") or a glob of paths (matchesPath). */
+function matchesFilePattern(input, pattern, negation) {
+	const negative = pattern.startsWith(negation);
+	const body = negative ? pattern.slice(negation.length) : pattern;
+	if (!negative && body === "*") return true;
+	if (/^\/(.+)\/(i?)$/u.test(body)) return matchesPattern(input, pattern, negation);
+	const result = matchesPath(input, body);
+	return result === void 0 ? void 0 : negative ? !result : result;
+}
+/** matchRegexOrGlobList: some positive pattern matches (when there are any) and every negative pattern does too. */
+function matchesList(input, patterns, negation, matches = matchesPattern) {
+	if (patterns.length === 0) return false;
+	const positive = patterns.filter((pattern) => !pattern.startsWith(negation));
+	const negative = patterns.filter((pattern) => pattern.startsWith(negation));
+	const results = positive.map((pattern) => matches(input, pattern, negation));
+	if (positive.length > 0 && !results.includes(true)) return results.includes(void 0) ? void 0 : false;
+	const excluded = negative.map((pattern) => matches(input, pattern, negation));
+	if (excluded.includes(false)) return false;
+	return excluded.includes(void 0) ? void 0 : true;
+}
+/** Patterns that match every package name: *, **, @*\/*, npm:*, and regexes like /.*\/. */
+function matchesEveryName(pattern) {
+	const name = pattern.replace(/^(npm|jsr):/u, "");
+	return /^(@\*+\/)?\*+$/u.test(name) || /^\/\^?\.[*+]\$?\/[a-z]*$/u.test(name);
+}
+function categoriesOf(bot, manager) {
+	if (manager === void 0 || bot.extra?.["managerCategories"] === void 0) return [];
+	return extraOf(bot, "managerCategories", isLists)[manager] ?? [];
+}
+/** The packages a package manager installs: its datasource, Renovate manager and categories (extra.managers). */
+function managerTarget(bot, tool, ecosystem) {
+	const datasource = extraOf(bot, "datasources", isRecord)[ecosystem];
+	const manager = bot.extra?.["managers"] === void 0 ? void 0 : extraOf(bot, "managers", isNames)[tool];
+	return {
+		...typeof datasource === "string" ? { datasource } : {},
+		...manager === void 0 ? {} : { manager },
+		categories: categoriesOf(bot, manager)
+	};
+}
+/**
+* The actions the workflows run (extra.githubActions), when the knowledge base has them; `files` are the workflow
+* files of the repository, which a matchFileNames rule must match all of to cover the actions (decision D-135).
+*/
+function actionsTarget(bot, files = []) {
+	if (bot.extra?.["githubActions"] === void 0) return void 0;
+	const fact = extraOf(bot, "githubActions", isActions);
+	const matching = bot.extra["actionsMatching"] === void 0 ? void 0 : extraOf(bot, "actionsMatching", isActionsMatching$1);
+	return {
+		datasource: fact.datasource,
+		manager: fact.manager,
+		categories: categoriesOf(bot, fact.manager),
+		actions: true,
+		files,
+		...matching === void 0 ? {} : { depTypes: [matching.depType] }
+	};
+}
+const isBotOnly = (value) => isRecord(value) && Object.values(value).every((entry) => isRecord(entry) && typeof entry["manager"] === "string" && typeof entry["datasource"] === "string" && isStrings$4(entry["categories"]));
+/**
+* The dependencies of the ecosystems updated by bots only among `ids` (extra.botOnlyEcosystems, decision D-151), one
+* target each, with the manager, datasource and categories Renovate gives them; none without the fact.
+*/
+function botEcosystemTargets(bot, ids) {
+	if (bot.extra?.["botOnlyEcosystems"] === void 0) return [];
+	const fact = extraOf(bot, "botOnlyEcosystems", isBotOnly);
+	return [...new Set(ids)].flatMap((id) => {
+		const entry = fact[id];
+		return entry === void 0 ? [] : [{
+			datasource: entry.datasource,
+			manager: entry.manager,
+			categories: [...entry.categories],
+			ecosystem: id
+		}];
+	});
+}
+/** The targets of the package managers among `tools`, one for each datasource and manager, with the tools of each. */
+function managerTargets(bot, tools) {
+	const groups = /* @__PURE__ */ new Map();
+	for (const tool of tools) {
+		if (tool.kind !== "package-manager") continue;
+		const target = managerTarget(bot, tool.id, ecosystemOfTool(tool));
+		const key = `${target.datasource ?? ""}\u0000${target.manager ?? `\u0000${tool.id}`}`;
+		const group = groups.get(key);
+		if (group === void 0) groups.set(key, {
+			target,
+			tools: [tool]
+		});
+		else group.tools.push(tool);
+	}
+	return [...groups.values()];
+}
+function targetOf(bot, on) {
+	if (typeof on !== "string") return on;
+	const datasource = extraOf(bot, "datasources", isRecord)[on];
+	return {
+		...typeof datasource === "string" ? { datasource } : {},
+		categories: []
+	};
+}
+/** The patterns of a matcher: a list, or one string when Renovate reads a string as a list of one (extra.managerMatching). */
+function patternsOf(value, stringIsList) {
+	if (isStrings$4(value)) return value;
+	return stringIsList && typeof value === "string" ? [value] : void 0;
+}
+/** anyMatchRegexOrGlobList: some input matches the list. */
+function matchesAny(inputs, patterns, negation) {
+	const results = inputs.map((input) => matchesList(input, patterns, negation));
+	if (results.includes(true)) return true;
+	return results.includes(void 0) ? void 0 : false;
+}
+/**
+* How a rule covers the packages of `on` (a target, or the packages of a registry without a known manager): all of
+* them for some update types, some of them only, or depcurfew cannot tell.
+*/
+function ruleCoverage(bot, rule, on) {
+	const target = targetOf(bot, on);
+	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
+	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
+	const stringIsList = managerMatching?.stringIsList === true;
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$4);
+	const actionsMatching = target.actions === true && bot.extra?.["actionsMatching"] !== void 0 ? extraOf(bot, "actionsMatching", isActionsMatching$1) : void 0;
+	const matchers = Object.keys(rule).filter((key) => /^(match|exclude)[A-Z]/u.test(key));
+	const known = /* @__PURE__ */ new Set([
+		...matching.packageMatchers,
+		matching.datasourceMatcher,
+		matching.updateTypeMatcher,
+		...managerMatching === void 0 ? [] : [managerMatching.managerMatcher, managerMatching.categoryMatcher],
+		...actionsMatching === void 0 ? [] : [actionsMatching.fileMatcher, actionsMatching.depTypeMatcher]
+	]);
+	const unmodelled = matchers.find((key) => !known.has(key));
+	let unknown = unmodelled;
+	const result = (key, matches) => {
+		if (matches === void 0) unknown ??= key;
+		return matches !== false;
+	};
+	let names = { kind: "all" };
+	for (const key of matching.packageMatchers) {
+		if (!(key in rule)) continue;
+		const patterns = patternsOf(rule[key], stringIsList);
+		if (patterns === void 0) {
+			result(key, void 0);
+			continue;
+		}
+		const positive = patterns.filter((pattern) => !pattern.startsWith(matching.negation));
+		const broad = positive.find(matchesEveryName);
+		if (patterns.length === 0 || positive.length > 0 && broad === void 0) return { kind: "narrow" };
+		if (broad !== void 0 && names.kind === "all") names = {
+			kind: "pattern",
+			pattern: broad
+		};
+		else if (positive.length === 0) names = {
+			kind: "except",
+			patterns: [...names.kind === "except" ? names.patterns : [], ...patterns]
+		};
+	}
+	const lists = [[
+		matching.datasourceMatcher,
+		target.datasource === void 0 ? void 0 : [target.datasource],
+		"one"
+	]];
+	if (managerMatching !== void 0) {
+		lists.push([
+			managerMatching.managerMatcher,
+			target.manager === void 0 ? void 0 : [target.manager],
+			"one"
+		]);
+		lists.push([
+			managerMatching.categoryMatcher,
+			target.categories.length === 0 ? void 0 : target.categories,
+			"any"
+		]);
+	}
+	for (const [key, inputs] of lists) {
+		if (!(key in rule)) continue;
+		const patterns = patternsOf(rule[key], stringIsList);
+		if (!result(key, patterns === void 0 || inputs === void 0 ? void 0 : matchesAny(inputs, patterns, matching.negation))) return { kind: "narrow" };
+	}
+	if (actionsMatching !== void 0) {
+		if (actionsMatching.fileMatcher in rule) {
+			const patterns = patternsOf(rule[actionsMatching.fileMatcher], actionsMatching.fileStringIsList);
+			const files = target.files ?? [];
+			const each = patterns === void 0 ? [void 0] : files.map((file) => matchesList(file, patterns, matching.negation, matchesFilePattern));
+			const matches = files.length === 0 || each.includes(false) ? false : each.includes(void 0) ? void 0 : true;
+			if (!result(actionsMatching.fileMatcher, matches)) return { kind: "narrow" };
+		}
+		if (actionsMatching.depTypeMatcher in rule) {
+			const patterns = patternsOf(rule[actionsMatching.depTypeMatcher], actionsMatching.depTypeStringIsList);
+			const matches = patterns === void 0 || target.depTypes === void 0 ? void 0 : matchesAny(target.depTypes, patterns, matching.negation);
+			if (!result(actionsMatching.depTypeMatcher, matches)) return { kind: "narrow" };
+		}
+	}
+	let types = updateTypes;
+	if (matching.updateTypeMatcher in rule) {
+		const patterns = patternsOf(rule[matching.updateTypeMatcher], stringIsList);
+		const matched = patterns === void 0 ? [] : updateTypes.map((type) => matchesList(type, patterns, matching.negation));
+		types = updateTypes.filter((_, index) => matched[index] === true);
+		if (types.length === 0 && !result(matching.updateTypeMatcher, patterns === void 0 || matched.includes(void 0) ? void 0 : false)) return { kind: "narrow" };
+	}
+	if (unknown !== void 0) return {
+		kind: "unknown",
+		matcher: unknown,
+		...unknown === unmodelled ? { unmodelled: true } : {}
+	};
+	if (types.length === 0) return { kind: "narrow" };
+	const categoryPatterns = managerMatching === void 0 ? void 0 : patternsOf(rule[managerMatching.categoryMatcher], stringIsList);
+	const categories = categoryPatterns === void 0 ? void 0 : target.categories.filter((category) => matchesList(category, categoryPatterns, matching.negation) === true);
+	return {
+		kind: "covers",
+		scope: {
+			updateTypes: types,
+			names,
+			matchers,
+			...categories === void 0 ? {} : { categories }
+		}
+	};
+}
+/**
+* Whether a rule can apply to packages of the target at all, by its datasource, manager and category matchers only:
+* true when each of them matches (or the rule has none), false when one does not, undefined when depcurfew cannot read
+* one. Matchers of names, update types and the rest only narrow the packages further (decision D-171).
+*/
+function ruleReaches(bot, rule, on) {
+	const target = targetOf(bot, on);
+	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
+	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
+	const stringIsList = managerMatching?.stringIsList === true;
+	const lists = [[matching.datasourceMatcher, target.datasource === void 0 ? void 0 : [target.datasource]]];
+	if (managerMatching !== void 0) {
+		lists.push([managerMatching.managerMatcher, target.manager === void 0 ? void 0 : [target.manager]]);
+		lists.push([managerMatching.categoryMatcher, target.categories.length === 0 ? void 0 : target.categories]);
+	}
+	let reaches = true;
+	for (const [key, inputs] of lists) {
+		if (!(key in rule)) continue;
+		const patterns = patternsOf(rule[key], stringIsList);
+		const matches = patterns === void 0 || inputs === void 0 ? void 0 : matchesAny(inputs, patterns, matching.negation);
+		if (matches === false) return false;
+		if (matches === void 0) reaches = void 0;
+	}
+	return reaches;
+}
+/** Whether a package name matches a Renovate pattern of matchPackageNames ("*", /regex/ or a glob; undefined when depcurfew cannot tell). */
+function matchesName(bot, name, pattern) {
+	return matchesPattern(name, pattern, extraOf(bot, "packageRuleMatching", isMatching$1).negation);
+}
+/** The delayed update types a rule applies to (all without matchUpdateTypes); undefined when depcurfew cannot read its patterns. */
+function ruleUpdateTypes(bot, rule) {
+	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$4);
+	if (!(matching.updateTypeMatcher in rule)) return updateTypes;
+	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
+	const patterns = patternsOf(rule[matching.updateTypeMatcher], managerMatching?.stringIsList === true);
+	if (patterns === void 0) return void 0;
+	const matched = updateTypes.map((type) => matchesList(type, patterns, matching.negation));
+	return matched.includes(void 0) ? void 0 : updateTypes.filter((_, index) => matched[index] === true);
+}
+/** The patterns of the name matchers of a rule (matchPackageNames, matchDepNames); undefined when one cannot be read. */
+function namePatterns(bot, rule) {
+	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
+	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
+	const patterns = [];
+	for (const key of matching.packageMatchers) {
+		if (!(key in rule)) continue;
+		const list = patternsOf(rule[key], managerMatching?.stringIsList === true);
+		if (list === void 0) return void 0;
+		patterns.push(...list);
+	}
+	return patterns;
+}
+/**
+* The update types for which a rule applies to every package of the target (or of a registry), or undefined when it
+* narrows the packages or depcurfew cannot tell.
+*/
+function ruleScope(bot, rule, on) {
+	const coverage = ruleCoverage(bot, rule, on);
+	return coverage.kind === "covers" ? coverage.scope : void 0;
+}
+function presetName(preset) {
+	return preset.replace(/\(.*\)$/u, "");
+}
+/**
+* The delay Renovate applies to every package of the target (or of a registry), for each delayed update type. Without
+* a top-level value or a rule, an update type has no entry: Renovate does not wait.
+*/
+function renovateDelay$1(bot, config, on) {
+	const target = targetOf(bot, on);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$4);
+	const internal = extraOf(bot, "internalPresets", isInternal);
+	const byType = /* @__PURE__ */ new Map();
+	const unreadable = [];
+	const set = (types, source) => {
+		for (const type of types) byType.set(type, source);
+	};
+	const path = [...config.base, "minimumReleaseAge"].join(".");
+	if (config.top !== void 0) set(updateTypes, {
+		value: config.top.value,
+		origin: `${path}: ${JSON.stringify(config.top.value)} in ${config.file}`,
+		line: config.top.line
+	});
+	for (const fact of presetDelays(bot)) {
+		const preset = presetIn(config.extends.presets, fact);
+		if (preset === void 0 || target.datasource !== fact.datasource) continue;
+		set(updateTypes, {
+			value: fact.value,
+			origin: `the preset ${preset} in ${config.file} (${fact.value})`,
+			line: config.extends.line,
+			preset: {
+				name: preset,
+				datasource: fact.datasource
+			}
+		});
+	}
+	let repositorySets = config.top !== void 0;
+	for (const { index, line, rule } of config.rules) {
+		if (!("minimumReleaseAge" in rule)) continue;
+		const coverage = ruleCoverage(bot, rule, target);
+		if (coverage.kind === "unknown") unreadable.push({
+			index,
+			line,
+			matcher: coverage.matcher,
+			patterns: rule[coverage.matcher],
+			value: rule["minimumReleaseAge"],
+			...coverage.unmodelled === true ? { unmodelled: true } : {}
+		});
+		if (coverage.kind !== "covers") continue;
+		repositorySets = true;
+		set(coverage.scope.updateTypes, {
+			value: rule["minimumReleaseAge"],
+			origin: `minimumReleaseAge: ${JSON.stringify(rule["minimumReleaseAge"])} in packageRules[${index}] of ${config.file}`,
+			line,
+			rule: index
+		});
+	}
+	const unreadablePreset = config.extends.presets.find((preset) => !internal.prefixes.some((prefix) => preset.startsWith(prefix)));
+	const fromKnownPreset = config.extends.presets.some((preset) => internal.settingDelay.includes(presetName(preset)));
+	if (unreadablePreset !== void 0 && !repositorySets && !(fromKnownPreset && byType.size > 0)) return {
+		known: false,
+		preset: unreadablePreset,
+		line: config.extends.line
+	};
+	return {
+		known: true,
+		byType,
+		unreadable
+	};
+}
+
 // src/apply/generators/dependabot.ts
 const isKeys = (value) => isRecord(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string" && Array.isArray(value["semverDays"]) && value["semverDays"].every((key) => typeof key === "string");
 const isActionsEcosystem = (value) => isRecord(value) && typeof value["ecosystem"] === "string" && typeof value["semverDays"] === "boolean";
@@ -30686,6 +31192,59 @@ function botOnlyEntries(tool) {
 		id,
 		...entry
 	}]));
+}
+/**
+* bot-rule-shortens-delay for the updates entries that keep a list of their own that limits the cooldown apply writes
+* (decision D-171): an include list, which gives a cooldown only to the dependencies it names (extra.cooldownInclude),
+* and an exclude list that matches every dependency, which apply keeps where the policy names none of the entry's
+* dependencies (the actions, the ecosystems updated by bots only and Ruby gems, decision D-152). doctor reports both
+* as well (bot-cooldown-mismatch, broad-exclusion). The lines are those of the file as apply leaves it.
+*/
+function limitedCooldowns(context, file, setting, excludeKey, entries) {
+	if (entries.length === 0) return;
+	const { tool } = context;
+	const include = extraOf(tool, "cooldownInclude", (value) => isRecord(value) && typeof value["key"] === "string");
+	const text = context.read(file);
+	const yaml = yamlOptionsFor(file, [tool]);
+	const strings = (value) => Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+	for (const { index, ecosystem, cooldown, kept, other } of entries) {
+		const where = (key) => {
+			const line = yamlSetting(text, [
+				"updates",
+				String(index),
+				setting,
+				key
+			], yaml)?.line;
+			return {
+				location: line === void 0 ? { file } : {
+					file,
+					line
+				},
+				at: `cooldown.${key} in updates[${index}] (${ecosystem}) of ${file}${line === void 0 ? "" : ` (line ${line})`}`
+			};
+		};
+		const included = strings(cooldown[include.key]);
+		if (included.length > 0 && !included.some((pattern) => /^\*+$/u.test(pattern))) {
+			const { location, at } = where(include.key);
+			context.warn({
+				code: "bot-rule-shortens-delay",
+				location,
+				message: `${context.name}: ${at} names only ${listing$1(included)}, so the cooldown depcurfew apply writes there covers only these dependencies, and ${context.name} proposes updates of every other dependency of the entry without waiting`,
+				fix: `Remove ${include.key} from the cooldown of updates[${index}] in ${file}, so that the cooldown covers every dependency, and list the dependencies that need no delay ${kept ? `under cooldown.${excludeKey} there` : `in cooldown.exclude in ${POLICY_FILE}`}`
+			});
+		}
+		const broad = kept ? strings(cooldown[excludeKey]).find(matchesEveryName) : void 0;
+		if (broad !== void 0) {
+			const { location, at } = where(excludeKey);
+			const names = other === void 0 ? "Ruby gems" : "id" in other ? `${botEcosystemFact(other.id)?.client ?? other.ecosystem} dependencies` : "actions";
+			context.warn({
+				code: "bot-rule-shortens-delay",
+				location,
+				message: `${context.name}: ${at} contains ${JSON.stringify(broad)}, so ${context.name} applies no cooldown to these updates, the one depcurfew apply writes included; depcurfew apply keeps this list, because cooldown.exclude in ${POLICY_FILE} names no ${names}`,
+				fix: `Remove ${JSON.stringify(broad)} from cooldown.${excludeKey} in updates[${index}] of ${file} and list only the dependencies that need the exception`
+			});
+		}
+	}
 }
 const dependabot = (context, duration, repository) => {
 	const { tool, policy } = context;
@@ -30742,6 +31301,7 @@ const dependabot = (context, duration, repository) => {
 	const others = /* @__PURE__ */ new Set();
 	const edits = [];
 	const dropped = [];
+	const limited = [];
 	(Array.isArray(updates) ? updates : []).forEach((entry, index) => {
 		if (!isRecord(entry)) return;
 		const ecosystem = String(entry["package-ecosystem"]);
@@ -30752,6 +31312,13 @@ const dependabot = (context, duration, repository) => {
 		const patterns = other !== void 0 ? void 0 : patternsOf(ecosystem);
 		const semverDays = other !== void 0 && !other.semverDays ? [] : keys.semverDays;
 		const current = entry[setting];
+		if (isRecord(current)) limited.push({
+			index,
+			ecosystem,
+			cooldown: current,
+			kept: patterns === void 0,
+			...other === void 0 ? {} : { other }
+		});
 		if (!isRecord(current)) {
 			edits.push([[
 				"updates",
@@ -30800,6 +31367,7 @@ const dependabot = (context, duration, repository) => {
 	});
 	if (edits.length > 0) yaml.setMany(edits);
 	for (const { path, old } of dropped) commentReplacedList(context, file, path, old);
+	limitedCooldowns(context, file, setting, keys.exclude, limited);
 	const managersInUse = context.tools.some((entry) => entry.kind === "package-manager" && context.targets.has(entry.id));
 	if (configured === 0 && (others.size === 0 || managersInUse)) context.warn({
 		code: "bot-entries-missing",
@@ -30812,7 +31380,8 @@ const dependabot = (context, duration, repository) => {
 // src/apply/delays.ts
 const isString$3 = (value) => typeof value === "string";
 const isNpmrcKey = (value) => isRecord(value) && isString$3(value["key"]) && isString$3(value["until"]);
-const isCooldownKeys$1 = (value) => isRecord(value) && isString$3(value["days"]);
+const isCooldownKeys$1 = (value) => isRecord(value) && isString$3(value["days"]) && isString$3(value["exclude"]);
+const isInclude = (value) => isRecord(value) && isString$3(value["key"]);
 const isPackageJsonConfig$2 = (value) => isRecord(value) && isString$3(value["file"]) && isString$3(value["key"]);
 function lines$1(text) {
 	return text.split(/\r?\n/u);
@@ -30921,6 +31490,7 @@ function dependabotDelays$1(repository, bot, file, workflows) {
 	const updates = yamlSetting(text, ["updates"], yaml);
 	if (updates === void 0 || !Array.isArray(updates.value)) return [];
 	const keys = extraOf(bot, "cooldownKeys", isCooldownKeys$1);
+	const include = extraOf(bot, "cooldownInclude", isInclude);
 	const ecosystems = Object.keys(extraOf(bot, "ecosystems", isRecord));
 	const actions = bot.extra?.["githubActions"] === void 0 || workflows.length === 0 ? void 0 : extraOf(bot, "githubActions", isActionsEcosystem).ecosystem;
 	if (actions !== void 0) ecosystems.push(actions);
@@ -30932,6 +31502,10 @@ function dependabotDelays$1(repository, bot, file, workflows) {
 		const cooldown = entry[setting];
 		const days = isRecord(cooldown) ? cooldown[keys.days] : void 0;
 		if (typeof days !== "number" || days <= 0) return [];
+		const strings = (key) => isRecord(cooldown) && Array.isArray(cooldown[key]) ? cooldown[key].filter(isString$3) : [];
+		if (strings(keys.exclude).some(matchesEveryName)) return [];
+		const included = strings(include.key);
+		const only = included.length > 0 && !included.some((pattern) => /^\*+$/u.test(pattern)) ? ` of ${listing$1(included)}` : "";
 		const path = [
 			"updates",
 			String(index),
@@ -30943,7 +31517,7 @@ function dependabotDelays$1(repository, bot, file, workflows) {
 		return [{
 			tool: bot.id,
 			scope: `updates[${index}]`,
-			label: `${String(entry["package-ecosystem"])} updates`,
+			label: `${String(entry["package-ecosystem"])} updates${only}`,
 			setting: keys.days,
 			value: days,
 			...found?.written === void 0 ? {} : { written: found.written },
@@ -30956,7 +31530,7 @@ function dependabotDelays$1(repository, bot, file, workflows) {
 		}];
 	});
 }
-function renovateDelay$1(repository, bot, file) {
+function renovateDelay(repository, bot, file) {
 	if (!/\.jsonc?$/u.test(file) && !file.endsWith(".renovaterc")) return void 0;
 	const packageJson = extraOf(bot, "packageJsonConfig", isPackageJsonConfig$2);
 	const setting = settingOf(bot.cooldown.setting) ?? "minimumReleaseAge";
@@ -31002,7 +31576,7 @@ function configuredDelays(repository, detection, tools, only) {
 		if (bot === void 0 || file === void 0 || only !== void 0 && !only.has(bot.id)) continue;
 		if (bot.id === "dependabot") delays.push(...readable(() => dependabotDelays$1(repository, bot, file, detection.workflows), []));
 		else {
-			const delay = readable(() => renovateDelay$1(repository, bot, file), void 0);
+			const delay = readable(() => renovateDelay(repository, bot, file), void 0);
 			if (delay !== void 0) delays.push(delay);
 		}
 	}
@@ -31610,7 +32184,7 @@ const bun = (context) => {
 };
 
 // src/apply/generators/bundler.ts
-const isStrings$4 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isStrings$3 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 const isGap = (value) => isRecord(value) && typeof value["since"] === "string" && typeof value["scope"] === "string";
 const isServer = (value) => isRecord(value) && typeof value["url"] === "string";
 /**
@@ -31618,7 +32192,7 @@ const isServer = (value) => isRecord(value) && typeof value["url"] === "string";
 * names are only looked at (File.file?, extra.gemfileNames), so a directory named gems.rb stops nothing.
 */
 function plannedGemfile(context) {
-	const names = context.tool.extra?.["gemfileNames"] === void 0 ? ["gems.rb", "Gemfile"] : extraOf(context.tool, "gemfileNames", isStrings$4);
+	const names = context.tool.extra?.["gemfileNames"] === void 0 ? ["gems.rb", "Gemfile"] : extraOf(context.tool, "gemfileNames", isStrings$3);
 	return gemfileIn((file) => context.isFile(file), names);
 }
 /** Why apply does not edit a source call, for messages. */
@@ -31764,7 +32338,7 @@ const bundler = (context) => {
 		message: `${context.name} builds the native extensions of gems when it installs them, which runs code of the gem (extconf.rb, a Rakefile), and has no setting that blocks this or allows it for some gems only, so installScripts "deny" cannot be enforced`,
 		fix: `Review gems with native extensions (extensions in the gemspec, an ext directory) before you add or update them; there is nothing to set for ${context.name}`
 	});
-	const kinds = tool.extra?.["dependencySources"] === void 0 ? void 0 : extraOf(tool, "dependencySources", isStrings$4);
+	const kinds = tool.extra?.["dependencySources"] === void 0 ? void 0 : extraOf(tool, "dependencySources", isStrings$3);
 	const sources = policy.sources === void 0 || kinds === void 0 ? policy.sources : Object.fromEntries(Object.entries(policy.sources).filter(([kind]) => kinds.includes(kind)));
 	eachSource({
 		...context,
@@ -32237,6 +32811,7 @@ function createContext(options) {
 				}),
 				set: (path, value) => edit((body) => jsonSet(body === "" ? "{}\n" : body, path, value)),
 				append: (path, value) => edit((body) => jsonArrayAppend(body, path, value)),
+				insert: (path, index, value) => edit((body) => jsonArrayInsert(body, path, index, value)),
 				replace: (path, index, value) => edit((body) => jsonArrayReplace(body, path, index, value)),
 				remove: (path, index) => edit((body) => jsonArrayRemove(body, path, index)),
 				removeKey: (path, key) => edit((body) => jsonObjectRemove(body, path, key))
@@ -33784,385 +34359,25 @@ const poetry = (context) => {
 	return minutes;
 };
 
-// src/doctor/renovate.ts
-const isStrings$3 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-const isNames = (value) => isRecord(value) && Object.values(value).every((item) => typeof item === "string");
-const isLists = (value) => isRecord(value) && Object.values(value).every(isStrings$3);
-const isManagerMatching$1 = (value) => isRecord(value) && typeof value["managerMatcher"] === "string" && typeof value["categoryMatcher"] === "string" && typeof value["stringIsList"] === "boolean";
-const isActions = (value) => isRecord(value) && typeof value["manager"] === "string" && typeof value["datasource"] === "string";
-const isActionsMatching$1 = (value) => isRecord(value) && typeof value["fileMatcher"] === "string" && typeof value["depTypeMatcher"] === "string" && typeof value["depType"] === "string";
-const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$3(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
-const isPresetFact = (value) => isRecord(value) && isStrings$3(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
-const isInternal = (value) => isRecord(value) && isStrings$3(value["prefixes"]) && isStrings$3(value["settingDelay"]);
-function readRenovateConfig(text, file, base) {
-	const top = jsonSetting(text, [...base, "minimumReleaseAge"]);
-	const extendsList = jsonSetting(text, [...base, "extends"]);
-	const list = jsonSetting(text, [...base, "packageRules"]);
-	const lines = Array.isArray(list?.value) ? jsonElementLines(text, [...base, "packageRules"]) : void 0;
-	const rules = Array.isArray(list?.value) ? list.value.flatMap((rule, index) => isRecord(rule) ? [{
-		index,
-		rule,
-		line: lines?.[index] ?? list.line
-	}] : []) : [];
-	return {
-		file,
-		base,
-		top,
-		extends: {
-			presets: isStrings$3(extendsList?.value) ? extendsList.value : [],
-			line: extendsList?.line ?? 1
-		},
-		rules
-	};
-}
-/**
-* Whether one Renovate pattern matches `input`, as matchRegexOrGlob does: "*", a /regex/ (with ! for "not"), or a
-* case-insensitive glob. undefined for glob syntax beyond * (braces, classes...), which depcurfew does not evaluate.
-*/
-function matchesPattern(input, pattern, negation) {
-	const negative = pattern.startsWith(negation);
-	const body = negative ? pattern.slice(negation.length) : pattern;
-	if (!negative && body === "*") return true;
-	const regex = /^\/(.+)\/(i?)$/u.exec(body);
-	if (regex !== null) {
-		let result;
-		try {
-			result = new RegExp(regex[1] ?? "", regex[2] === "i" ? "iu" : "u").test(input);
-		} catch {
-			return;
-		}
-		return negative ? !result : result;
-	}
-	if (/[?[\]{}()!+@]/u.test(body.replace(/^@/u, ""))) return void 0;
-	const result = wildcardMatch(input.toLowerCase(), body.toLowerCase().replaceAll("**", "*"));
-	return negative ? !result : result;
-}
-/**
-* Whether a path matches a glob as minimatch reads it with { dot: true, nocase: true } (decision D-135): * within one
-* directory, ** for any number of them, letters in any case. undefined for anything else minimatch reads (?, classes,
-* braces, extglobs, escapes) and for empty, . and .. parts, which depcurfew does not evaluate.
-*/
-function matchesPath(path, glob) {
-	const parts = glob.toLowerCase().split("/");
-	if (parts.some((part) => part === "" || part === "." || part === ".." || /[?[\]{}()!+@\\]/u.test(part))) return void 0;
-	const pattern = parts.filter((part, index) => part !== "**" || parts[index - 1] !== "**");
-	const segments = path.toLowerCase().split("/");
-	let row = new Uint8Array(pattern.length + 1);
-	let below = new Uint8Array(pattern.length + 1);
-	for (let at = segments.length; at >= 0; at--) {
-		row.fill(0);
-		row[pattern.length] = at === segments.length ? 1 : 0;
-		const inside = at < segments.length;
-		for (let index = pattern.length - 1; index >= 0; index--) {
-			const part = pattern[index] ?? "";
-			if (part === "**") row[index] = row[index + 1] === 1 || inside && below[index] === 1 ? 1 : 0;
-			else row[index] = inside && below[index + 1] === 1 && matchSegment$1(segments[at] ?? "", part.replaceAll(/\*+/gu, "*")) ? 1 : 0;
-		}
-		[row, below] = [below, row];
-	}
-	return below[0] === 1;
-}
-/** One pattern of matchFileNames: "*", a /regex/ (with ! for "not") or a glob of paths (matchesPath). */
-function matchesFilePattern(input, pattern, negation) {
-	const negative = pattern.startsWith(negation);
-	const body = negative ? pattern.slice(negation.length) : pattern;
-	if (!negative && body === "*") return true;
-	if (/^\/(.+)\/(i?)$/u.test(body)) return matchesPattern(input, pattern, negation);
-	const result = matchesPath(input, body);
-	return result === void 0 ? void 0 : negative ? !result : result;
-}
-/** matchRegexOrGlobList: some positive pattern matches (when there are any) and every negative pattern does too. */
-function matchesList(input, patterns, negation, matches = matchesPattern) {
-	if (patterns.length === 0) return false;
-	const positive = patterns.filter((pattern) => !pattern.startsWith(negation));
-	const negative = patterns.filter((pattern) => pattern.startsWith(negation));
-	const results = positive.map((pattern) => matches(input, pattern, negation));
-	if (positive.length > 0 && !results.includes(true)) return results.includes(void 0) ? void 0 : false;
-	const excluded = negative.map((pattern) => matches(input, pattern, negation));
-	if (excluded.includes(false)) return false;
-	return excluded.includes(void 0) ? void 0 : true;
-}
-/** Patterns that match every package name: *, **, @*\/*, npm:*, and regexes like /.*\/. */
-function matchesEveryName(pattern) {
-	const name = pattern.replace(/^(npm|jsr):/u, "");
-	return /^(@\*+\/)?\*+$/u.test(name) || /^\/\^?\.[*+]\$?\/[a-z]*$/u.test(name);
-}
-function categoriesOf(bot, manager) {
-	if (manager === void 0 || bot.extra?.["managerCategories"] === void 0) return [];
-	return extraOf(bot, "managerCategories", isLists)[manager] ?? [];
-}
-/** The packages a package manager installs: its datasource, Renovate manager and categories (extra.managers). */
-function managerTarget(bot, tool, ecosystem) {
-	const datasource = extraOf(bot, "datasources", isRecord)[ecosystem];
-	const manager = bot.extra?.["managers"] === void 0 ? void 0 : extraOf(bot, "managers", isNames)[tool];
-	return {
-		...typeof datasource === "string" ? { datasource } : {},
-		...manager === void 0 ? {} : { manager },
-		categories: categoriesOf(bot, manager)
-	};
-}
-/**
-* The actions the workflows run (extra.githubActions), when the knowledge base has them; `files` are the workflow
-* files of the repository, which a matchFileNames rule must match all of to cover the actions (decision D-135).
-*/
-function actionsTarget(bot, files = []) {
-	if (bot.extra?.["githubActions"] === void 0) return void 0;
-	const fact = extraOf(bot, "githubActions", isActions);
-	const matching = bot.extra["actionsMatching"] === void 0 ? void 0 : extraOf(bot, "actionsMatching", isActionsMatching$1);
-	return {
-		datasource: fact.datasource,
-		manager: fact.manager,
-		categories: categoriesOf(bot, fact.manager),
-		actions: true,
-		files,
-		...matching === void 0 ? {} : { depTypes: [matching.depType] }
-	};
-}
-const isBotOnly = (value) => isRecord(value) && Object.values(value).every((entry) => isRecord(entry) && typeof entry["manager"] === "string" && typeof entry["datasource"] === "string" && isStrings$3(entry["categories"]));
-/**
-* The dependencies of the ecosystems updated by bots only among `ids` (extra.botOnlyEcosystems, decision D-151), one
-* target each, with the manager, datasource and categories Renovate gives them; none without the fact.
-*/
-function botEcosystemTargets(bot, ids) {
-	if (bot.extra?.["botOnlyEcosystems"] === void 0) return [];
-	const fact = extraOf(bot, "botOnlyEcosystems", isBotOnly);
-	return [...new Set(ids)].flatMap((id) => {
-		const entry = fact[id];
-		return entry === void 0 ? [] : [{
-			datasource: entry.datasource,
-			manager: entry.manager,
-			categories: [...entry.categories],
-			ecosystem: id
-		}];
-	});
-}
-/** The targets of the package managers among `tools`, one for each datasource and manager, with the tools of each. */
-function managerTargets(bot, tools) {
-	const groups = /* @__PURE__ */ new Map();
-	for (const tool of tools) {
-		if (tool.kind !== "package-manager") continue;
-		const target = managerTarget(bot, tool.id, ecosystemOfTool(tool));
-		const key = `${target.datasource ?? ""}\u0000${target.manager ?? `\u0000${tool.id}`}`;
-		const group = groups.get(key);
-		if (group === void 0) groups.set(key, {
-			target,
-			tools: [tool]
-		});
-		else group.tools.push(tool);
-	}
-	return [...groups.values()];
-}
-function targetOf(bot, on) {
-	if (typeof on !== "string") return on;
-	const datasource = extraOf(bot, "datasources", isRecord)[on];
-	return {
-		...typeof datasource === "string" ? { datasource } : {},
-		categories: []
-	};
-}
-/** The patterns of a matcher: a list, or one string when Renovate reads a string as a list of one (extra.managerMatching). */
-function patternsOf(value, stringIsList) {
-	if (isStrings$3(value)) return value;
-	return stringIsList && typeof value === "string" ? [value] : void 0;
-}
-/** anyMatchRegexOrGlobList: some input matches the list. */
-function matchesAny(inputs, patterns, negation) {
-	const results = inputs.map((input) => matchesList(input, patterns, negation));
-	if (results.includes(true)) return true;
-	return results.includes(void 0) ? void 0 : false;
-}
-/**
-* How a rule covers the packages of `on` (a target, or the packages of a registry without a known manager): all of
-* them for some update types, some of them only, or depcurfew cannot tell.
-*/
-function ruleCoverage(bot, rule, on) {
-	const target = targetOf(bot, on);
-	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
-	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
-	const stringIsList = managerMatching?.stringIsList === true;
-	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$3);
-	const actionsMatching = target.actions === true && bot.extra?.["actionsMatching"] !== void 0 ? extraOf(bot, "actionsMatching", isActionsMatching$1) : void 0;
-	const matchers = Object.keys(rule).filter((key) => /^(match|exclude)[A-Z]/u.test(key));
-	const known = /* @__PURE__ */ new Set([
-		...matching.packageMatchers,
-		matching.datasourceMatcher,
-		matching.updateTypeMatcher,
-		...managerMatching === void 0 ? [] : [managerMatching.managerMatcher, managerMatching.categoryMatcher],
-		...actionsMatching === void 0 ? [] : [actionsMatching.fileMatcher, actionsMatching.depTypeMatcher]
-	]);
-	const unmodelled = matchers.find((key) => !known.has(key));
-	let unknown = unmodelled;
-	const result = (key, matches) => {
-		if (matches === void 0) unknown ??= key;
-		return matches !== false;
-	};
-	let names = { kind: "all" };
-	for (const key of matching.packageMatchers) {
-		if (!(key in rule)) continue;
-		const patterns = patternsOf(rule[key], stringIsList);
-		if (patterns === void 0) {
-			result(key, void 0);
-			continue;
-		}
-		const positive = patterns.filter((pattern) => !pattern.startsWith(matching.negation));
-		const broad = positive.find(matchesEveryName);
-		if (patterns.length === 0 || positive.length > 0 && broad === void 0) return { kind: "narrow" };
-		if (broad !== void 0 && names.kind === "all") names = {
-			kind: "pattern",
-			pattern: broad
-		};
-		else if (positive.length === 0) names = {
-			kind: "except",
-			patterns: [...names.kind === "except" ? names.patterns : [], ...patterns]
-		};
-	}
-	const lists = [[
-		matching.datasourceMatcher,
-		target.datasource === void 0 ? void 0 : [target.datasource],
-		"one"
-	]];
-	if (managerMatching !== void 0) {
-		lists.push([
-			managerMatching.managerMatcher,
-			target.manager === void 0 ? void 0 : [target.manager],
-			"one"
-		]);
-		lists.push([
-			managerMatching.categoryMatcher,
-			target.categories.length === 0 ? void 0 : target.categories,
-			"any"
-		]);
-	}
-	for (const [key, inputs] of lists) {
-		if (!(key in rule)) continue;
-		const patterns = patternsOf(rule[key], stringIsList);
-		if (!result(key, patterns === void 0 || inputs === void 0 ? void 0 : matchesAny(inputs, patterns, matching.negation))) return { kind: "narrow" };
-	}
-	if (actionsMatching !== void 0) {
-		if (actionsMatching.fileMatcher in rule) {
-			const patterns = patternsOf(rule[actionsMatching.fileMatcher], actionsMatching.fileStringIsList);
-			const files = target.files ?? [];
-			const each = patterns === void 0 ? [void 0] : files.map((file) => matchesList(file, patterns, matching.negation, matchesFilePattern));
-			const matches = files.length === 0 || each.includes(false) ? false : each.includes(void 0) ? void 0 : true;
-			if (!result(actionsMatching.fileMatcher, matches)) return { kind: "narrow" };
-		}
-		if (actionsMatching.depTypeMatcher in rule) {
-			const patterns = patternsOf(rule[actionsMatching.depTypeMatcher], actionsMatching.depTypeStringIsList);
-			const matches = patterns === void 0 || target.depTypes === void 0 ? void 0 : matchesAny(target.depTypes, patterns, matching.negation);
-			if (!result(actionsMatching.depTypeMatcher, matches)) return { kind: "narrow" };
-		}
-	}
-	let types = updateTypes;
-	if (matching.updateTypeMatcher in rule) {
-		const patterns = patternsOf(rule[matching.updateTypeMatcher], stringIsList);
-		const matched = patterns === void 0 ? [] : updateTypes.map((type) => matchesList(type, patterns, matching.negation));
-		types = updateTypes.filter((_, index) => matched[index] === true);
-		if (types.length === 0 && !result(matching.updateTypeMatcher, patterns === void 0 || matched.includes(void 0) ? void 0 : false)) return { kind: "narrow" };
-	}
-	if (unknown !== void 0) return {
-		kind: "unknown",
-		matcher: unknown,
-		...unknown === unmodelled ? { unmodelled: true } : {}
-	};
-	if (types.length === 0) return { kind: "narrow" };
-	const categoryPatterns = managerMatching === void 0 ? void 0 : patternsOf(rule[managerMatching.categoryMatcher], stringIsList);
-	const categories = categoryPatterns === void 0 ? void 0 : target.categories.filter((category) => matchesList(category, categoryPatterns, matching.negation) === true);
-	return {
-		kind: "covers",
-		scope: {
-			updateTypes: types,
-			names,
-			matchers,
-			...categories === void 0 ? {} : { categories }
-		}
-	};
-}
-/**
-* The update types for which a rule applies to every package of the target (or of a registry), or undefined when it
-* narrows the packages or depcurfew cannot tell.
-*/
-function ruleScope(bot, rule, on) {
-	const coverage = ruleCoverage(bot, rule, on);
-	return coverage.kind === "covers" ? coverage.scope : void 0;
-}
-function presetName(preset) {
-	return preset.replace(/\(.*\)$/u, "");
-}
-/**
-* The delay Renovate applies to every package of the target (or of a registry), for each delayed update type. Without
-* a top-level value or a rule, an update type has no entry: Renovate does not wait.
-*/
-function renovateDelay(bot, config, on) {
-	const target = targetOf(bot, on);
-	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$3);
-	const internal = extraOf(bot, "internalPresets", isInternal);
-	const byType = /* @__PURE__ */ new Map();
-	const unreadable = [];
-	const set = (types, source) => {
-		for (const type of types) byType.set(type, source);
-	};
-	const path = [...config.base, "minimumReleaseAge"].join(".");
-	if (config.top !== void 0) set(updateTypes, {
-		value: config.top.value,
-		origin: `${path}: ${JSON.stringify(config.top.value)} in ${config.file}`,
-		line: config.top.line
-	});
-	for (const key of [
-		"minimumReleaseAgePresets",
-		"pypiPresets",
-		"cratePresets"
-	]) {
-		const fact = bot.extra?.[key] === void 0 ? void 0 : extraOf(bot, key, isPresetFact);
-		const preset = fact === void 0 ? void 0 : config.extends.presets.find((item) => fact.presets.includes(presetName(item)));
-		if (fact === void 0 || preset === void 0 || target.datasource !== fact.datasource) continue;
-		set(updateTypes, {
-			value: fact.value,
-			origin: `the preset ${preset} in ${config.file} (${fact.value})`,
-			line: config.extends.line
-		});
-	}
-	let repositorySets = config.top !== void 0;
-	for (const { index, line, rule } of config.rules) {
-		if (!("minimumReleaseAge" in rule)) continue;
-		const coverage = ruleCoverage(bot, rule, target);
-		if (coverage.kind === "unknown") unreadable.push({
-			index,
-			line,
-			matcher: coverage.matcher,
-			patterns: rule[coverage.matcher],
-			value: rule["minimumReleaseAge"],
-			...coverage.unmodelled === true ? { unmodelled: true } : {}
-		});
-		if (coverage.kind !== "covers") continue;
-		repositorySets = true;
-		set(coverage.scope.updateTypes, {
-			value: rule["minimumReleaseAge"],
-			origin: `minimumReleaseAge: ${JSON.stringify(rule["minimumReleaseAge"])} in packageRules[${index}] of ${config.file}`,
-			line,
-			rule: index
-		});
-	}
-	const unreadablePreset = config.extends.presets.find((preset) => !internal.prefixes.some((prefix) => preset.startsWith(prefix)));
-	const fromKnownPreset = config.extends.presets.some((preset) => internal.settingDelay.includes(presetName(preset)));
-	if (unreadablePreset !== void 0 && !repositorySets && !(fromKnownPreset && byType.size > 0)) return {
-		known: false,
-		preset: unreadablePreset,
-		line: config.extends.line
-	};
-	return {
-		known: true,
-		byType,
-		unreadable
-	};
-}
-
 // src/apply/generators/renovate.ts
 const RULE_DESCRIPTION = "depcurfew: packages excluded from minimumReleaseAge";
 const PYTHON_RULE_DESCRIPTION = "depcurfew: Python packages excluded from minimumReleaseAge";
 const COMPOSER_RULE_DESCRIPTION = "depcurfew: Composer packages excluded from minimumReleaseAge";
+/** The description of the rule that gives a datasource the policy's delay over a preset's shorter one (decision D-171). */
+const presetRuleDescription = (datasource) => `depcurfew: minimumReleaseAge for the ${datasource} datasource over a preset's shorter delay`;
+const PRESET_RULE = /^depcurfew: minimumReleaseAge for the \S+ datasource over a preset's shorter delay$/u;
+/** Whether a packageRules description is one of the rules depcurfew apply writes. */
+function isOwnRule(description) {
+	return typeof description === "string" && ([
+		"depcurfew: packages excluded from minimumReleaseAge",
+		"depcurfew: Python packages excluded from minimumReleaseAge",
+		"depcurfew: Composer packages excluded from minimumReleaseAge"
+	].includes(description) || PRESET_RULE.test(description));
+}
 const isString = (value) => typeof value === "string";
 const isRule = (value) => isRecord(value) && typeof value["list"] === "string" && typeof value["match"] === "string";
 const isPath$2 = (value) => Array.isArray(value) && value.every(isString);
+const isMatchers = (value) => isRecord(value) && typeof value["datasourceMatcher"] === "string" && typeof value["updateTypeMatcher"] === "string";
 const renovate = (context, duration, repository) => {
 	const { tool, policy } = context;
 	if (policy.cooldown === void 0 || duration === void 0) return;
@@ -34184,28 +34399,22 @@ const renovate = (context, duration, repository) => {
 	const patterns = exclusions(context, patternsFor(excluded, "npm")) ?? [];
 	const pythonPatterns = exclusions(context, patternsFor(excluded, "pypi")) ?? [];
 	const composerPatterns = exclusions(context, patternsFor(excluded, "packagist")) ?? [];
-	const negative = extraOf(tool, "negativeMatch", isString);
-	const uses = (ecosystem) => context.tools.some((entry) => entry.kind === "package-manager" && ecosystemOfTool(entry) === ecosystem && context.targets.has(entry.id));
-	const others = [
-		"pypi",
-		"packagist",
-		"rubygems"
-	].filter(uses).map((ecosystem) => `${negative}${String(datasources[ecosystem])}`);
+	const matchers = extraOf(tool, "packageRuleMatching", isMatchers);
 	const exclusionRule = {
 		[descriptionKey]: RULE_DESCRIPTION,
-		...others.length > 0 ? { matchDatasources: others } : {},
+		[matchers.datasourceMatcher]: [datasources["npm"]],
 		[rule.match]: patterns,
 		[setting]: rule.value
 	};
 	const pythonRule = {
 		[descriptionKey]: PYTHON_RULE_DESCRIPTION,
-		matchDatasources: [datasources["pypi"]],
+		[matchers.datasourceMatcher]: [datasources["pypi"]],
 		[rule.match]: pythonPatterns,
 		[setting]: rule.value
 	};
 	const composerRule = {
 		[descriptionKey]: COMPOSER_RULE_DESCRIPTION,
-		matchDatasources: [datasources["packagist"]],
+		[matchers.datasourceMatcher]: [datasources["packagist"]],
 		[rule.match]: composerPatterns,
 		[setting]: rule.value
 	};
@@ -34227,12 +34436,32 @@ const renovate = (context, duration, repository) => {
 		}
 	];
 	const security = policy.cooldown.securityUpdates === "delay" ? result.value : null;
+	const targets = delayTargets(context, repository);
+	const presetRules = (config) => {
+		const wanted = delayMinutes(tool, result.value, latestVersion$1(tool));
+		if (config === void 0 || !wanted.ok) return [];
+		const updateTypes = extraOf(tool, "delayedUpdateTypes", (value) => Array.isArray(value) && value.every(isString));
+		return presetDelays(tool).flatMap((fact) => {
+			const preset = delayMinutes(tool, fact.value, latestVersion$1(tool));
+			if (presetIn(config.extends.presets, fact) === void 0 || !targets.some(({ target }) => target.datasource === fact.datasource)) return [];
+			if (!preset.ok || preset.minutes >= wanted.minutes) return [];
+			return [{
+				[descriptionKey]: presetRuleDescription(fact.datasource),
+				[matchers.datasourceMatcher]: [fact.datasource],
+				[matchers.updateTypeMatcher]: updateTypes,
+				[setting]: result.value
+			}];
+		});
+	};
 	const file = (values$1(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
-	const snippet = () => JSON.stringify({
-		[setting]: result.value,
-		...managedRules.some((entry) => entry.wanted) ? { [rule.list]: managedRules.filter((entry) => entry.wanted).map((entry) => entry.rule) } : {},
-		...securityPath.reduceRight((inner, key) => ({ [key]: inner }), security)
-	}, null, 2);
+	const snippet = (config) => {
+		const rules = [...presetRules(config), ...managedRules.filter((entry) => entry.wanted).map((entry) => entry.rule)];
+		return JSON.stringify({
+			[setting]: result.value,
+			...rules.length > 0 ? { [rule.list]: rules } : {},
+			...securityPath.reduceRight((inner, key) => ({ [key]: inner }), security)
+		}, null, 2);
+	};
 	if (file === void 0 || !/\.jsonc?$/u.test(file)) {
 		const packageJson = extraOf(tool, "packageJsonConfig", isRecord);
 		const where = file ?? (context.exists("package.json") && context.json("package.json").get([String(packageJson["key"])]) !== void 0 ? "package.json" : void 0);
@@ -34255,12 +34484,15 @@ const renovate = (context, duration, repository) => {
 			message: `${context.name}: ${where} is not plain JSON or JSONC, so depcurfew does not edit it`,
 			fix: "Add the snippet by hand"
 		});
-		context.snippet(where, snippet());
+		const base = where === "package.json" ? [String(packageJson["key"])] : [];
+		const readable = where === "package.json" || where.endsWith(".renovaterc");
+		context.snippet(where, snippet(readable ? readRenovateConfig(context.read(where), where, base) : void 0));
 		return;
 	}
-	shorterRules(context, file, result.value, rule.list, descriptionKey, repository);
 	const json = context.json(file);
+	const presets = presetRules(readRenovateConfig(context.read(file), file, []));
 	json.set([setting], result.value);
+	placePresetRules(json, rule.list, descriptionKey, presets);
 	for (const managed of managedRules) {
 		const rules = json.get([rule.list]);
 		const index = Array.isArray(rules) ? rules.findIndex((entry) => isRecord(entry) && entry[descriptionKey] === managed.description) : -1;
@@ -34271,6 +34503,7 @@ const renovate = (context, duration, repository) => {
 			else json.set([rule.list], [managed.rule]);
 		} else if (index >= 0) json.remove([rule.list], index);
 	}
+	shorterRules(context, file, result.value, rule.list, descriptionKey, targets);
 	const current = json.get(securityPath);
 	const delay = current === void 0 || security !== null ? void 0 : delayMinutes(tool, current, void 0);
 	if (delay?.ok === true && delay.minutes > 0) {
@@ -34287,6 +34520,44 @@ const renovate = (context, duration, repository) => {
 	}
 	json.set(securityPath, security);
 };
+/**
+* Puts the rules that give datasources the policy's delay over a preset first in packageRules, in their order, and
+* removes the ones no longer wanted (the preset left extends, or no longer waits less than the policy). Renovate
+* applies the rules of the presets before the repository's own and a later rule wins (extra.packageRulesOrder), so
+* at the front such a rule wins over the preset, and every rule of the repository after it, the exclusion rules
+* included, still wins over it; a rule moved further down would undo the exceptions before it, so it is moved back.
+*/
+function placePresetRules(json, list, key, wanted) {
+	const current = () => {
+		const rules = json.get([list]);
+		return Array.isArray(rules) ? rules : void 0;
+	};
+	const description = (entry) => isRecord(entry) ? entry[key] : void 0;
+	const descriptions = new Set(wanted.map(description));
+	for (;;) {
+		const rules = current() ?? [];
+		const index = rules.findIndex((entry, position) => {
+			const text = description(entry);
+			return typeof text === "string" && PRESET_RULE.test(text) && (!descriptions.has(text) || rules.findIndex((other) => description(other) === text) !== position);
+		});
+		if (index < 0) break;
+		json.remove([list], index);
+	}
+	wanted.forEach((entry, position) => {
+		const rules = current();
+		if (rules === void 0) {
+			json.set([list], [entry]);
+			return;
+		}
+		const index = rules.findIndex((item) => description(item) === description(entry));
+		if (index === position) {
+			if (JSON.stringify(rules[index]) !== JSON.stringify(entry)) json.replace([list], index, entry);
+			return;
+		}
+		if (index >= 0) json.remove([list], index);
+		json.insert([list], position, entry);
+	});
+}
 const ECOSYSTEM_LABELS = {
 	npm: "npm",
 	pypi: "Python",
@@ -34294,37 +34565,18 @@ const ECOSYSTEM_LABELS = {
 	rubygems: "Ruby"
 };
 /**
-* packageRules entries that apply does not manage and that give every package of a package manager in use (by
-* registry, Renovate manager or category, decision D-131), the actions of the workflows (decision D-130) or the
-* dependencies of an ecosystem updated by bots only that the repository has (decision D-151), or some
-* update types of them, a shorter delay than the one apply writes: Renovate uses them, and apply never changes entries
-* it did not write, so it warns (decision D-116). They are found as doctor's bot-cooldown-mismatch finds them
-* (renovateDelay), on the file as it is, with the top-level delay apply writes and without depcurfew's own exclusion
-* rules.
+* What the delay apply writes covers, as doctor's bot-cooldown-mismatch compares it: the packages of each package
+* manager in use (by registry, Renovate manager or category, decision D-131), the dependencies of each ecosystem
+* updated by bots only that the repository has (decision D-151) and the actions of the workflows (decision D-130),
+* each with the label messages name it by.
 */
-function shorterRules(context, file, written, list, descriptionKey, repository) {
+function delayTargets(context, repository) {
 	const { tool } = context;
-	const config = readRenovateConfig(context.read(file), file, []);
-	const own = /* @__PURE__ */ new Set([
-		RULE_DESCRIPTION,
-		PYTHON_RULE_DESCRIPTION,
-		COMPOSER_RULE_DESCRIPTION
-	]);
-	const planned = {
-		...config,
-		top: {
-			value: written,
-			line: config.top?.line ?? 1
-		},
-		rules: config.rules.filter((entry) => !own.has(entry.rule[descriptionKey]))
-	};
-	const wanted = delayMinutes(tool, written, latestVersion$1(tool));
-	if (!wanted.ok) return;
 	const inUse = context.tools.filter((entry) => entry.kind === "package-manager" && context.targets.has(entry.id));
 	const actions = repository.workflows.length > 0 ? actionsTarget(tool, repository.workflows) : void 0;
 	const botOnly = botEcosystemTargets(tool, (repository.botEcosystems ?? []).map((entry) => entry.id));
 	const botLabels = new Map(botEcosystemFacts().map((entry) => [entry.id, entry.client]));
-	const targets = [
+	return [
 		...managerTargets(tool, inUse).map(({ target, tools }) => ({
 			target,
 			label: ECOSYSTEM_LABELS[ecosystemOfTool(tools[0] ?? tool)]
@@ -34338,9 +34590,33 @@ function shorterRules(context, file, written, list, descriptionKey, repository) 
 			label: ACTIONS_LABEL
 		}]
 	];
+}
+/**
+* packageRules entries that apply does not manage and that give every package of a package manager in use (by
+* registry, Renovate manager or category, decision D-131), the actions of the workflows (decision D-130) or the
+* dependencies of an ecosystem updated by bots only that the repository has (decision D-151), or some
+* update types of them, a shorter delay than the one apply writes: Renovate uses them, and apply never changes entries
+* it did not write, so it warns (decision D-116). They are found as doctor's bot-cooldown-mismatch finds them
+* (renovateDelay), on the file as apply leaves it and without depcurfew's own rules; the shorter delay of a built-in
+* preset is not one of them, since the rule apply writes after it gives the policy's delay again (decision D-171).
+*/
+function shorterRules(context, file, written, list, descriptionKey, targets) {
+	const { tool } = context;
+	const config = readRenovateConfig(context.read(file), file, []);
+	const planned = {
+		...config,
+		top: {
+			value: written,
+			line: config.top?.line ?? 1
+		},
+		rules: config.rules.filter((entry) => !isOwnRule(entry.rule[descriptionKey]))
+	};
+	const wanted = delayMinutes(tool, written, latestVersion$1(tool));
+	if (!wanted.ok) return;
+	const botLabels = new Map(botEcosystemFacts().map((entry) => [entry.id, entry.client]));
 	const found = /* @__PURE__ */ new Map();
 	for (const { target, label } of targets) {
-		const delay = renovateDelay(tool, planned, target);
+		const delay = renovateDelay$1(tool, planned, target);
 		if (!delay.known) continue;
 		for (const [type, source] of delay.byType) {
 			if (source.rule === void 0) continue;
@@ -37078,7 +37354,7 @@ function renovateDelays(context, bot, file) {
 	const config = readRenovateConfig(text, file, base);
 	const updateTypes = extraOf(bot, "delayedUpdateTypes", (value) => Array.isArray(value) && value.every((item) => typeof item === "string"));
 	return targets.flatMap(({ target, managers }) => {
-		const delay = renovateDelay(bot, config, target);
+		const delay = renovateDelay$1(bot, config, target);
 		if (!delay.known) return [{
 			bot,
 			managers,
@@ -37125,6 +37401,11 @@ function renovateDelays(context, bot, file) {
 				scope: types.length === updateTypes.length ? scopeOf(target, "updates") : `${listing$1(types)} ${scopeOf(target, "updates")}`,
 				applies,
 				...source?.rule === void 0 ? {} : { rule: source.rule },
+				...source?.rule !== void 0 && isOwnRule(config.rules.find((entry) => entry.index === source.rule)?.rule["description"]) ? { ownRule: true } : {},
+				...source?.preset === void 0 ? {} : { preset: {
+					...source.preset,
+					value: source.value
+				} },
 				...index === 0 && delay.unreadable.length > 0 ? { unreadableRules: delay.unreadable } : {},
 				...index === 0 ? {} : { secondary: true }
 			};
@@ -37409,9 +37690,24 @@ function compare(context, delay, reference) {
 	context.report({
 		location: delay.location,
 		message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? "without waiting" : `after ${describe$1(delay.minutes)}`} (${delay.origin}), but ${reference.waits}`,
-		fix: delay.fix ?? (delay.rule !== void 0 ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe$1(reference.minutes)}, or limit the rule to the ${reference.things} that need a shorter delay` : delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(reference.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(reference.minutes)}, or run depcurfew apply`)
+		fix: delay.fix ?? (delay.preset !== void 0 ? presetFix(context, delay, delay.preset, reference) : delay.rule !== void 0 && delay.ownRule !== true ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe$1(reference.minutes)}, or limit the rule to the ${reference.things} that need a shorter delay` : delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(reference.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(reference.minutes)}, or run depcurfew apply`)
 	});
 	return true;
+}
+/**
+* The fix when a built-in preset of extends sets the shorter delay (decision D-171): its rule wins over the top-level
+* value, so only a packageRules entry for its datasource helps, which Renovate applies after the rules of the preset
+* (extra.packageRulesOrder). depcurfew apply writes one when cooldown.minimum is longer than the preset's delay; it
+* does not edit the deprecated package.json key or a file it cannot read.
+*/
+function presetFix(context, delay, preset, reference) {
+	const file = delay.location?.file ?? "";
+	const entry = `a packageRules entry with matchDatasources ${JSON.stringify([preset.datasource])} and a minimumReleaseAge of at least ${describe$1(reference.minutes)}`;
+	if (delay.applies === false) return `Add ${entry} to ${file} (depcurfew apply does not edit it); ${delay.bot.name} applies it after the rules of the preset ${preset.name}`;
+	const minimum = context.policy?.cooldown?.minimum.minutes;
+	const presetDelay = delayMinutes(delay.bot, preset.value, latestVersion$1(delay.bot));
+	const writes = minimum !== void 0 && presetDelay.ok && minimum > presetDelay.minutes;
+	return `Add ${entry} to ${file}, which ${delay.bot.name} applies after the rules of the preset ${preset.name}, or run depcurfew apply${writes ? ", which adds one" : ""}`;
 }
 /**
 * Whether the scope has something a bot's delay is compared with: a package manager, the actions of workflows, or the
@@ -37722,6 +38018,7 @@ function checkRenovate(context, file) {
 		matching.fileMatcher,
 		matching.depTypeMatcher
 	];
+	const reported = /* @__PURE__ */ new Set();
 	for (const { index, line, rule } of config.rules) {
 		if (!("minimumReleaseAge" in rule)) continue;
 		const delay = delayMinutes(bot, rule["minimumReleaseAge"], latestVersion$1(bot));
@@ -37736,6 +38033,7 @@ function checkRenovate(context, file) {
 		const first = covered[0];
 		if (first === void 0) continue;
 		const { scope } = first;
+		reported.add(index);
 		context.report({
 			location: {
 				file,
@@ -37745,12 +38043,145 @@ function checkRenovate(context, file) {
 			fix: "Match only the packages that need the exception, e.g. with matchPackageNames: [\"@your-scope/*\"]"
 		});
 	}
+	const registries = managerTargets(bot, detected.length > 0 ? detected : context.tools).flatMap(({ target, tools }) => {
+		const ecosystem = tools[0] === void 0 ? void 0 : ecosystemOfTool(tools[0]);
+		return ecosystem === void 0 ? [] : [{
+			target,
+			ecosystem
+		}];
+	});
+	const edits = /\.jsonc?$/u.test(file) && file !== packageJson.file;
+	ownRuleDatasources(context, bot, file, config, matching, registries, [...botOnly, ...actions === void 0 ? [] : [actions]], reported, edits);
+	exemptions(context, bot, file, config, matching, registries, reported, edits);
+}
+const REGISTRY_LABELS = {
+	npm: "npm",
+	pypi: "Python",
+	packagist: "Composer",
+	rubygems: "Ruby"
+};
+const POLICY_PREFIXES = {
+	npm: "",
+	pypi: PYPI_PREFIX,
+	packagist: COMPOSER_PREFIX
+};
+/** The datasource each rule depcurfew apply writes for the names of one registry is limited to (decision D-171). */
+const OWN_RULES = [
+	{
+		description: RULE_DESCRIPTION,
+		ecosystem: "npm"
+	},
+	{
+		description: PYTHON_RULE_DESCRIPTION,
+		ecosystem: "pypi"
+	},
+	{
+		description: COMPOSER_RULE_DESCRIPTION,
+		ecosystem: "packagist"
+	}
+];
+/** A target as messages name it: "npm packages", "Cargo dependencies", "GitHub Actions". */
+function targetLabel(target, registries) {
+	if (target.actions === true) return "GitHub Actions";
+	if (target.ecosystem !== void 0) return `${botEcosystemFact(target.ecosystem)?.client ?? target.ecosystem} dependencies`;
+	const ecosystem = registries.find((entry) => entry.target === target)?.ecosystem;
+	return `${ecosystem === void 0 ? target.datasource ?? "other" : REGISTRY_LABELS[ecosystem]} packages`;
+}
+/**
+* A rule depcurfew apply writes for the names of one registry (recognized by its description) that is not limited to
+* that registry's datasource, as earlier versions of depcurfew wrote the rule for npm names (with no matchDatasources, or with only
+* negative ones): it exempts packages of the same names from every other datasource too, the crates, Go modules and
+* actions of the repository among them, which cooldown.exclude never names (decisions D-065 and D-171).
+*/
+function ownRuleDatasources(context, bot, file, config, matching, registries, others, reported, edits) {
+	const datasources = extraOf(bot, "datasources", isRecord);
+	const negation = matching.negation;
+	for (const { index, line, rule } of config.rules) {
+		const own = OWN_RULES.find((entry) => entry.description === rule["description"]);
+		const datasource = own === void 0 ? void 0 : datasources[own.ecosystem];
+		if (own === void 0 || typeof datasource !== "string" || reported.has(index) || !("minimumReleaseAge" in rule)) continue;
+		const written = rule[matching.datasourceMatcher];
+		if (Array.isArray(written) && written.length > 0 && written.every((item) => typeof item === "string" && !item.startsWith(negation) && item.toLowerCase() === datasource)) continue;
+		const targets = [...registries.map((entry) => entry.target), ...others];
+		const reached = [...new Set(targets.filter((target) => target.datasource !== datasource && ruleReaches(bot, rule, target) === true).map((target) => targetLabel(target, registries)))];
+		const wanted = JSON.stringify([datasource]);
+		reported.add(index);
+		context.report({
+			location: {
+				file,
+				line
+			},
+			message: `packageRules[${index}] in ${file}, the rule depcurfew apply writes for the ${REGISTRY_LABELS[own.ecosystem]} names of cooldown.exclude in ${POLICY_FILE}, is not limited to ${matching.datasourceMatcher} ${wanted}, so it also turns off minimumReleaseAge for packages of the same names from other datasources${reached.length === 0 ? "" : `, ${listing$1(reached)} among them`}`,
+			fix: edits ? `Run depcurfew apply, which limits the rule to ${matching.datasourceMatcher} ${wanted}` : `Add ${matching.datasourceMatcher}: ${wanted} to packageRules[${index}] of ${file}, as the snippet of depcurfew apply shows it (depcurfew apply does not edit ${file})`
+		});
+	}
+}
+/**
+* Whether a positive pattern of a rule names only packages that one of the policy's patterns exempts: the same pattern,
+* or one the policy's pattern matches as text (its * stands for any text, so it covers whatever the * of the rule's
+* pattern stands for: "@acme/*" covers "@acme/ui" and "@acme/ui-*"). A /regex/ is compared as written only.
+*/
+function exempted(bot, pattern, policy) {
+	const normal = (text) => text.toLowerCase().replaceAll("**", "*");
+	if (policy.some((item) => normal(item) === normal(pattern))) return true;
+	if (/^\/.*\/i?$/u.test(pattern)) return false;
+	return policy.some((item) => matchesName(bot, normal(pattern), item) === true);
+}
+/**
+* packageRules entries that give npm, Python or Composer packages of some names a shorter delay than cooldown.minimum,
+* or none, while cooldown.exclude does not exempt them (decision D-171): an exception the policy does not make, like a
+* Yarn npmScopes entry. Only the registries the policy names packages of count: the exceptions of actions, Ruby gems
+* and the ecosystems updated by bots only stay the repository's own, as in Dependabot (decision D-152). A rule that
+* covers every package is the business of the checks above and of bot-cooldown-mismatch.
+*/
+function exemptions(context, bot, file, config, matching, registries, reported, edits) {
+	const cooldown = context.policy?.cooldown;
+	if (cooldown === void 0) return;
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", (value) => Array.isArray(value) && value.every((item) => typeof item === "string"));
+	for (const { index, line, rule } of config.rules) {
+		if (reported.has(index) || !("minimumReleaseAge" in rule)) continue;
+		const delay = delayMinutes(bot, rule["minimumReleaseAge"], latestVersion$1(bot));
+		if (!delay.ok || delay.minutes >= cooldown.minimum.minutes) continue;
+		const positive = (namePatterns(bot, rule) ?? []).filter((pattern) => !pattern.startsWith(matching.negation));
+		if (positive.length === 0 || positive.some(matchesEveryName)) continue;
+		const types = ruleUpdateTypes(bot, rule);
+		if (types === void 0 || types.length === 0) continue;
+		const found = registries.flatMap(({ target, ecosystem }) => {
+			const prefix = POLICY_PREFIXES[ecosystem];
+			if (prefix === void 0 || ruleReaches(bot, rule, target) !== true) return [];
+			const policy = patternsFor(cooldown.exclude, ecosystem);
+			const names = positive.filter((pattern) => !exempted(bot, pattern, policy));
+			return names.length === 0 ? [] : [{
+				label: REGISTRY_LABELS[ecosystem],
+				names,
+				prefix
+			}];
+		});
+		if (found.length === 0) continue;
+		const names = [...new Set(found.flatMap((entry) => entry.names))];
+		const quoted = listing$1(names.map((name) => JSON.stringify(name)));
+		const labels = [...new Set(found.map((entry) => entry.label))];
+		const where = `${listing$1(labels)} packages`;
+		const scope = types.length === updateTypes.length ? quoted : `${listing$1(types)} updates of ${quoted}`;
+		const own = OWN_RULES.some((entry) => entry.description === rule["description"]);
+		const additions = [...new Set(found.flatMap((entry) => entry.names.map((name) => JSON.stringify(`${entry.prefix}${name}`))))];
+		const add = names.every((name) => !/^\/.*\/i?$/u.test(name)) ? `Add ${listing$1(additions)} to cooldown.exclude in ${POLICY_FILE}` : `List the packages in cooldown.exclude in ${POLICY_FILE}`;
+		const then = (rules) => `depcurfew apply then ${edits ? "writes" : "shows in a snippet"} the ${rules} for them`;
+		context.report({
+			location: {
+				file,
+				line
+			},
+			message: delay.minutes === 0 ? `packageRules[${index}] in ${file} turns off minimumReleaseAge for ${scope} (${where}), which cooldown.exclude in ${POLICY_FILE} does not exempt` : `packageRules[${index}] in ${file} sets minimumReleaseAge: ${JSON.stringify(rule["minimumReleaseAge"])} for ${scope} (${where}), shorter than cooldown.minimum "${cooldown.minimum.text}" in ${POLICY_FILE}, which cooldown.exclude does not exempt them from`,
+			fix: own ? edits ? `Run depcurfew apply, which writes the rule from cooldown.exclude in ${POLICY_FILE}` : `Write packageRules[${index}] of ${file} as the snippet of depcurfew apply shows it, from cooldown.exclude in ${POLICY_FILE} (depcurfew apply does not edit ${file})` : labels.length === 1 ? `${add} if these packages need no delay (${then("rule")}), or remove the exception from packageRules[${index}] of ${file}` : `${add} if these packages need no delay (${then("rules")}), limit packageRules[${index}] of ${file} with ${matching.datasourceMatcher} to the registry it is meant for, or remove the exception from it`
+		});
+	}
 }
 const broadExclusion = {
 	id: "broad-exclusion",
-	checks: "No exception list or per-scope setting turns the release-age delay off",
-	summary: "An exception list matches every package, or a per-scope setting shortens the delay, which turns the protection off.",
-	description: "A release-age exception such as \"*\" (or a policy allow-list entry such as \"@*/*\") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, Renovate manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name, and, when depcurfew.json sets a cooldown for Renovate and the repository has workflows, for the github-actions manager, every workflow file (matchFileNames) or the depType action (matchDepTypes), or, when it has the files of Cargo, Go modules, Maven, Gradle or NuGet, for their Renovate manager (cargo, gomod, maven, gradle, nuget), category or datasource. In Yarn 4.17 and later, npmScopes.<scope>.npmMinimalAgeGate replaces the delay for one scope, so a shorter value there exempts that scope.",
+	checks: "No exception list, per-scope setting or Renovate rule turns the release-age delay off beyond cooldown.exclude",
+	summary: "An exception list matches every package, or a per-scope setting or a Renovate rule exempts packages cooldown.exclude does not, which turns the protection off.",
+	description: "A release-age exception such as \"*\" (or a policy allow-list entry such as \"@*/*\") looks narrow but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns; with a cooldown for Renovate, also for the actions of the workflows (the github-actions manager, every workflow file, the depType action) and for Cargo, Go modules, Maven, Gradle or NuGet in the repository. A Renovate rule that gives npm, Python or Composer packages of some names a shorter delay than cooldown.minimum is an exception cooldown.exclude must make too, and a rule depcurfew apply wrote for the names of one registry must be limited to its datasource. In Yarn 4.17 and later, a shorter npmScopes.<scope>.npmMinimalAgeGate exempts that scope.",
 	help: "Replace the pattern with the packages or scopes that really need the exception.",
 	level: "error",
 	requiresPolicy: false,

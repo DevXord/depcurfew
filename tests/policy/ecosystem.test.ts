@@ -78,7 +78,7 @@ describe('package names per registry', () => {
     expect(written).not.toMatch(/acme-lib|docopt|pypi/u);
   });
 
-  it('gives Renovate a separate rule for Python packages and keeps the npm rule as it was', () => {
+  it('gives Renovate a separate rule for Python packages and limits the npm rule to the npm datasource (decision D-171)', () => {
     const root = project({
       'package.json': '{"name": "app", "packageManager": "npm@11.19.1"}\n',
       'renovate.json': '{}\n',
@@ -87,7 +87,7 @@ describe('package names per registry', () => {
     expect(applyProject(root).errors).toEqual([]);
     const config = JSON.parse(readFileSync(join(root, 'renovate.json'), 'utf8')) as { packageRules: unknown[] };
     expect(config.packageRules).toEqual([
-      { description: 'depcurfew: packages excluded from minimumReleaseAge', matchPackageNames: ['@acme/*'], minimumReleaseAge: null },
+      { description: 'depcurfew: packages excluded from minimumReleaseAge', matchDatasources: ['npm'], matchPackageNames: ['@acme/*'], minimumReleaseAge: null },
       {
         description: 'depcurfew: Python packages excluded from minimumReleaseAge',
         matchDatasources: ['pypi'],
@@ -109,7 +109,7 @@ describe('package names per registry', () => {
     expect(applyProject(root).errors).toEqual([]);
     const config = JSON.parse(readFileSync(join(root, 'renovate.json'), 'utf8')) as { packageRules: unknown[] };
     expect(config.packageRules).toEqual([
-      { description: 'depcurfew: packages excluded from minimumReleaseAge', matchDatasources: ['!pypi'], matchPackageNames: ['six'], minimumReleaseAge: null },
+      { description: 'depcurfew: packages excluded from minimumReleaseAge', matchDatasources: ['npm'], matchPackageNames: ['six'], minimumReleaseAge: null },
     ]);
     expect(applyProject(root).changes).toEqual([]);
   });

@@ -6,7 +6,7 @@
     {
       "description": "depcurfew: packages excluded from minimumReleaseAge",
       "matchDatasources": [
-        "!packagist"
+        "npm"
       ],
       "matchPackageNames": [
         "@acme/*"

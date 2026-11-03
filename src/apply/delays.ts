@@ -20,6 +20,8 @@ import { compareVersions, parseVersion, pinnedVersion, type Version } from './ve
 import type { ApplyWarning } from './warnings.ts';
 import type { FileChange } from './workspace.ts';
 import { YAML_MARKER } from './yaml-edit.ts';
+import { matchesEveryName } from '../doctor/renovate.ts';
+import { listing } from './requirements.ts';
 
 export interface ConfiguredDelay {
   tool: ToolId;
@@ -43,7 +45,8 @@ export interface ConfiguredDelay {
 
 const isString = (value: unknown): value is string => typeof value === 'string';
 const isNpmrcKey = (value: unknown): value is { key: string; until: string } => isRecord(value) && isString(value['key']) && isString(value['until']);
-const isCooldownKeys = (value: unknown): value is { days: string } => isRecord(value) && isString(value['days']);
+const isCooldownKeys = (value: unknown): value is { days: string; exclude: string } => isRecord(value) && isString(value['days']) && isString(value['exclude']);
+const isInclude = (value: unknown): value is { key: string } => isRecord(value) && isString(value['key']);
 const isPackageJsonConfig = (value: unknown): value is { file: string; key: string } => isRecord(value) && isString(value['file']) && isString(value['key']);
 
 function lines(text: string): string[] {
@@ -158,6 +161,7 @@ function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: stri
   const updates = yamlSetting(text, ['updates'], yaml);
   if (updates === undefined || !Array.isArray(updates.value)) return [];
   const keys = extraOf(bot, 'cooldownKeys', isCooldownKeys);
+  const include = extraOf(bot, 'cooldownInclude', isInclude);
   const ecosystems = Object.keys(extraOf(bot, 'ecosystems', isRecord));
   // apply writes the github-actions entries too when there are workflows (decision D-130), and the entries of the
   // ecosystems updated by bots only (decision D-151).
@@ -171,6 +175,12 @@ function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: stri
     const cooldown = entry[setting];
     const days = isRecord(cooldown) ? cooldown[keys.days] : undefined;
     if (typeof days !== 'number' || days <= 0) return [];
+    // An exclude list that matches every dependency leaves the entry without a cooldown, and an include list limits it
+    // to the dependencies it names (decision D-171): the delay is none, or covers only those.
+    const strings = (key: string) => (isRecord(cooldown) && Array.isArray(cooldown[key]) ? (cooldown[key] as unknown[]).filter(isString) : []);
+    if (strings(keys.exclude).some(matchesEveryName)) return [];
+    const included = strings(include.key);
+    const only = included.length > 0 && !included.some((pattern) => /^\*+$/u.test(pattern)) ? ` of ${listing(included)}` : '';
     const path = ['updates', String(index), setting, keys.days];
     const found = yamlSetting(text, path, yaml);
     const line = found?.line ?? updates.line;
@@ -178,7 +188,7 @@ function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: stri
       {
         tool: bot.id,
         scope: `updates[${index}]`,
-        label: `${String(entry['package-ecosystem'])} updates`,
+        label: `${String(entry['package-ecosystem'])} updates${only}`,
         setting: keys.days,
         value: days,
         ...(found?.written === undefined ? {} : { written: found.written }),

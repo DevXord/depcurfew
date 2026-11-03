@@ -1,5 +1,7 @@
 // broad-exclusion: an exception list that matches every package turns the protection off while the setting still
-// looks configured. Checked in depcurfew.json, in the tools' own files and in Renovate packageRules.
+// looks configured. Checked in depcurfew.json, in the tools' own files and in Renovate packageRules; there also a rule
+// that exempts npm, Python or Composer packages cooldown.exclude does not, and a rule depcurfew apply wrote for the
+// names of one registry that is not limited to its datasource (decision D-171).
 import { extraOf, isRecord, settingOf, values, yamlOptionsFor } from '../../apply/facts.ts';
 import { listing } from '../../apply/requirements.ts';
 import { compareVersions, formatVersion, parseVersion, pinnedVersion } from '../../apply/version.ts';
@@ -10,7 +12,25 @@ import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
 import { matchesEveryComposerName } from '../composer.ts';
 import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion } from '../effective.ts';
-import { actionsTarget, botEcosystemTargets, managerTargets, matchesEveryName, readRenovateConfig, ruleScope, type RenovateTarget, type RuleScope } from '../renovate.ts';
+import {
+  actionsTarget,
+  botEcosystemTargets,
+  managerTargets,
+  matchesEveryName,
+  matchesName,
+  namePatterns,
+  readRenovateConfig,
+  ruleReaches,
+  ruleScope,
+  ruleUpdateTypes,
+  type RenovateConfig,
+  type RenovateTarget,
+  type RuleScope,
+} from '../renovate.ts';
+import { COMPOSER_RULE_DESCRIPTION, PYTHON_RULE_DESCRIPTION, RULE_DESCRIPTION } from '../../apply/generators/renovate.ts';
+import { botEcosystemFact } from '../../detect/bot-ecosystems.ts';
+import { COMPOSER_PREFIX, PYPI_PREFIX, patternsFor } from '../../policy/package-pattern.ts';
+import type { Ecosystem } from '../../knowledge/types.ts';
 import { lineOf, readSetting, rejectsYamlAliases, yamlAliasLine, yamlSetting } from '../settings.ts';
 import { managerSources } from '../projects.ts';
 import { readToolSetting } from '../pnpm-config.ts';
@@ -222,6 +242,7 @@ function checkRenovate(context: RuleContext, file: string): void {
   const botOnly = coversBotEcosystems(context.policy, bot.id) ? botEcosystemTargets(bot, (context.detection.botEcosystems ?? []).map((entry) => entry.id)) : [];
   const targets = [...managerTargets(bot, detected.length > 0 ? detected : context.tools).map((group) => group.target), ...botOnly, ...(actions === undefined ? [] : [actions])];
   const narrowing = [matching.datasourceMatcher, matching.updateTypeMatcher, matching.managerMatcher, matching.categoryMatcher, matching.fileMatcher, matching.depTypeMatcher];
+  const reported = new Set<number>();
   for (const { index, line, rule } of config.rules) {
     if (!('minimumReleaseAge' in rule)) continue;
     const delay = delayMinutes(bot, rule['minimumReleaseAge'], latestVersion(bot));
@@ -233,6 +254,7 @@ function checkRenovate(context: RuleContext, file: string): void {
     const first = covered[0];
     if (first === undefined) continue;
     const { scope } = first;
+    reported.add(index);
     context.report({
       location: { file, line },
       message:
@@ -244,14 +266,157 @@ function checkRenovate(context: RuleContext, file: string): void {
       fix: 'Match only the packages that need the exception, e.g. with matchPackageNames: ["@your-scope/*"]',
     });
   }
+  const registries = managerTargets(bot, detected.length > 0 ? detected : context.tools).flatMap(({ target, tools }) => {
+    const ecosystem = tools[0] === undefined ? undefined : ecosystemOfTool(tools[0]);
+    return ecosystem === undefined ? [] : [{ target, ecosystem }];
+  });
+  // apply edits renovate.json and renovate.jsonc, not the deprecated key of package.json or a .renovaterc (it prints a snippet).
+  const edits = /\.jsonc?$/u.test(file) && file !== packageJson.file;
+  ownRuleDatasources(context, bot, file, config, matching, registries, [...botOnly, ...(actions === undefined ? [] : [actions])], reported, edits);
+  exemptions(context, bot, file, config, matching, registries, reported, edits);
+}
+
+const REGISTRY_LABELS: Readonly<Record<Ecosystem, string>> = { npm: 'npm', pypi: 'Python', packagist: 'Composer', rubygems: 'Ruby' };
+const POLICY_PREFIXES: Readonly<Partial<Record<Ecosystem, string>>> = { npm: '', pypi: PYPI_PREFIX, packagist: COMPOSER_PREFIX };
+
+/** The datasource each rule depcurfew apply writes for the names of one registry is limited to (decision D-171). */
+const OWN_RULES: readonly { description: string; ecosystem: Ecosystem }[] = [
+  { description: RULE_DESCRIPTION, ecosystem: 'npm' },
+  { description: PYTHON_RULE_DESCRIPTION, ecosystem: 'pypi' },
+  { description: COMPOSER_RULE_DESCRIPTION, ecosystem: 'packagist' },
+];
+
+/** A target as messages name it: "npm packages", "Cargo dependencies", "GitHub Actions". */
+function targetLabel(target: RenovateTarget, registries: readonly { target: RenovateTarget; ecosystem: Ecosystem }[]): string {
+  if (target.actions === true) return 'GitHub Actions';
+  if (target.ecosystem !== undefined) return `${botEcosystemFact(target.ecosystem)?.client ?? target.ecosystem} dependencies`;
+  const ecosystem = registries.find((entry) => entry.target === target)?.ecosystem;
+  return `${ecosystem === undefined ? (target.datasource ?? 'other') : REGISTRY_LABELS[ecosystem]} packages`;
+}
+
+/**
+ * A rule depcurfew apply writes for the names of one registry (recognized by its description) that is not limited to
+ * that registry's datasource, as earlier versions of depcurfew wrote the rule for npm names (with no matchDatasources, or with only
+ * negative ones): it exempts packages of the same names from every other datasource too, the crates, Go modules and
+ * actions of the repository among them, which cooldown.exclude never names (decisions D-065 and D-171).
+ */
+function ownRuleDatasources(
+  context: RuleContext,
+  bot: ToolKnowledge,
+  file: string,
+  config: RenovateConfig,
+  matching: Matchers,
+  registries: readonly { target: RenovateTarget; ecosystem: Ecosystem }[],
+  others: readonly RenovateTarget[],
+  reported: Set<number>,
+  edits: boolean,
+): void {
+  const datasources = extraOf(bot, 'datasources', isRecord);
+  const negation = matching.negation;
+  for (const { index, line, rule } of config.rules) {
+    const own = OWN_RULES.find((entry) => entry.description === rule['description']);
+    const datasource = own === undefined ? undefined : datasources[own.ecosystem];
+    if (own === undefined || typeof datasource !== 'string' || reported.has(index) || !('minimumReleaseAge' in rule)) continue;
+    const written = rule[matching.datasourceMatcher];
+    const limited = Array.isArray(written) && written.length > 0 && written.every((item) => typeof item === 'string' && !item.startsWith(negation) && item.toLowerCase() === datasource);
+    if (limited) continue;
+    const targets = [...registries.map((entry) => entry.target), ...others];
+    const reached = [...new Set(targets.filter((target) => target.datasource !== datasource && ruleReaches(bot, rule, target) === true).map((target) => targetLabel(target, registries)))];
+    const wanted = JSON.stringify([datasource]);
+    reported.add(index);
+    context.report({
+      location: { file, line },
+      message: `packageRules[${index}] in ${file}, the rule depcurfew apply writes for the ${REGISTRY_LABELS[own.ecosystem]} names of cooldown.exclude in ${POLICY_FILE}, is not limited to ${matching.datasourceMatcher} ${wanted}, so it also turns off minimumReleaseAge for packages of the same names from other datasources${reached.length === 0 ? '' : `, ${listing(reached)} among them`}`,
+      fix: edits
+        ? `Run depcurfew apply, which limits the rule to ${matching.datasourceMatcher} ${wanted}`
+        : `Add ${matching.datasourceMatcher}: ${wanted} to packageRules[${index}] of ${file}, as the snippet of depcurfew apply shows it (depcurfew apply does not edit ${file})`,
+    });
+  }
+}
+
+/**
+ * Whether a positive pattern of a rule names only packages that one of the policy's patterns exempts: the same pattern,
+ * or one the policy's pattern matches as text (its * stands for any text, so it covers whatever the * of the rule's
+ * pattern stands for: "@acme/*" covers "@acme/ui" and "@acme/ui-*"). A /regex/ is compared as written only.
+ */
+function exempted(bot: ToolKnowledge, pattern: string, policy: readonly string[]): boolean {
+  const normal = (text: string) => text.toLowerCase().replaceAll('**', '*');
+  if (policy.some((item) => normal(item) === normal(pattern))) return true;
+  if (/^\/.*\/i?$/u.test(pattern)) return false;
+  return policy.some((item) => matchesName(bot, normal(pattern), item) === true);
+}
+
+/**
+ * packageRules entries that give npm, Python or Composer packages of some names a shorter delay than cooldown.minimum,
+ * or none, while cooldown.exclude does not exempt them (decision D-171): an exception the policy does not make, like a
+ * Yarn npmScopes entry. Only the registries the policy names packages of count: the exceptions of actions, Ruby gems
+ * and the ecosystems updated by bots only stay the repository's own, as in Dependabot (decision D-152). A rule that
+ * covers every package is the business of the checks above and of bot-cooldown-mismatch.
+ */
+function exemptions(
+  context: RuleContext,
+  bot: ToolKnowledge,
+  file: string,
+  config: RenovateConfig,
+  matching: Matchers,
+  registries: readonly { target: RenovateTarget; ecosystem: Ecosystem }[],
+  reported: ReadonlySet<number>,
+  edits: boolean,
+): void {
+  const cooldown = context.policy?.cooldown;
+  if (cooldown === undefined) return;
+  const updateTypes = extraOf(bot, 'delayedUpdateTypes', (value): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string'));
+  for (const { index, line, rule } of config.rules) {
+    if (reported.has(index) || !('minimumReleaseAge' in rule)) continue;
+    const delay = delayMinutes(bot, rule['minimumReleaseAge'], latestVersion(bot));
+    if (!delay.ok || delay.minutes >= cooldown.minimum.minutes) continue;
+    const patterns = namePatterns(bot, rule);
+    const positive = (patterns ?? []).filter((pattern) => !pattern.startsWith(matching.negation));
+    if (positive.length === 0 || positive.some(matchesEveryName)) continue;
+    // The delayed update types it applies to; none (pin, lockFileMaintenance only) is no exception.
+    const types = ruleUpdateTypes(bot, rule);
+    if (types === undefined || types.length === 0) continue;
+    const found = registries.flatMap(({ target, ecosystem }) => {
+      const prefix = POLICY_PREFIXES[ecosystem];
+      if (prefix === undefined || ruleReaches(bot, rule, target) !== true) return [];
+      const policy = patternsFor(cooldown.exclude, ecosystem);
+      const names = positive.filter((pattern) => !exempted(bot, pattern, policy));
+      return names.length === 0 ? [] : [{ label: REGISTRY_LABELS[ecosystem], names, prefix }];
+    });
+    if (found.length === 0) continue;
+    const names = [...new Set(found.flatMap((entry) => entry.names))];
+    const quoted = listing(names.map((name) => JSON.stringify(name)));
+    const labels = [...new Set(found.map((entry) => entry.label))];
+    const where = `${listing(labels)} packages`;
+    const scope = types.length === updateTypes.length ? quoted : `${listing(types)} updates of ${quoted}`;
+    const own = OWN_RULES.some((entry) => entry.description === rule['description']);
+    const additions = [...new Set(found.flatMap((entry) => entry.names.map((name) => JSON.stringify(`${entry.prefix}${name}`))))];
+    // A /regex/ has no place in cooldown.exclude, which takes names and * patterns.
+    const add = names.every((name) => !/^\/.*\/i?$/u.test(name)) ? `Add ${listing(additions)} to cooldown.exclude in ${POLICY_FILE}` : `List the packages in cooldown.exclude in ${POLICY_FILE}`;
+    const then = (rules: string) => `depcurfew apply then ${edits ? 'writes' : 'shows in a snippet'} the ${rules} for them`;
+    context.report({
+      location: { file, line },
+      message:
+        delay.minutes === 0
+          ? `packageRules[${index}] in ${file} turns off minimumReleaseAge for ${scope} (${where}), which cooldown.exclude in ${POLICY_FILE} does not exempt`
+          : `packageRules[${index}] in ${file} sets minimumReleaseAge: ${JSON.stringify(rule['minimumReleaseAge'])} for ${scope} (${where}), shorter than cooldown.minimum "${cooldown.minimum.text}" in ${POLICY_FILE}, which cooldown.exclude does not exempt them from`,
+      fix: own
+        ? edits
+          ? `Run depcurfew apply, which writes the rule from cooldown.exclude in ${POLICY_FILE}`
+          : `Write packageRules[${index}] of ${file} as the snippet of depcurfew apply shows it, from cooldown.exclude in ${POLICY_FILE} (depcurfew apply does not edit ${file})`
+        : labels.length === 1
+          ? `${add} if these packages need no delay (${then('rule')}), or remove the exception from packageRules[${index}] of ${file}`
+          : `${add} if these packages need no delay (${then('rules')}), limit packageRules[${index}] of ${file} with ${matching.datasourceMatcher} to the registry it is meant for, or remove the exception from it`,
+    });
+  }
 }
 
 export const broadExclusion: Rule = {
   id: 'broad-exclusion',
-  checks: 'No exception list or per-scope setting turns the release-age delay off',
-  summary: 'An exception list matches every package, or a per-scope setting shortens the delay, which turns the protection off.',
+  checks: 'No exception list, per-scope setting or Renovate rule turns the release-age delay off beyond cooldown.exclude',
+  summary: 'An exception list matches every package, or a per-scope setting or a Renovate rule exempts packages cooldown.exclude does not, which turns the protection off.',
   description:
-    'A release-age exception such as "*" (or a policy allow-list entry such as "@*/*") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, Renovate manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name, and, when depcurfew.json sets a cooldown for Renovate and the repository has workflows, for the github-actions manager, every workflow file (matchFileNames) or the depType action (matchDepTypes), or, when it has the files of Cargo, Go modules, Maven, Gradle or NuGet, for their Renovate manager (cargo, gomod, maven, gradle, nuget), category or datasource. In Yarn 4.17 and later, npmScopes.<scope>.npmMinimalAgeGate replaces the delay for one scope, so a shorter value there exempts that scope.',
+    'A release-age exception such as "*" (or a policy allow-list entry such as "@*/*") looks narrow but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns; with a cooldown for Renovate, also for the actions of the workflows (the github-actions manager, every workflow file, the depType action) and for Cargo, Go modules, Maven, Gradle or NuGet in the repository. A Renovate rule that gives npm, Python or Composer packages of some names a shorter delay than cooldown.minimum is an exception cooldown.exclude must make too, and a rule depcurfew apply wrote for the names of one registry must be limited to its datasource. In Yarn 4.17 and later, a shorter npmScopes.<scope>.npmMinimalAgeGate exempts that scope.',
   help: 'Replace the pattern with the packages or scopes that really need the exception.',
   level: 'error',
   requiresPolicy: false,

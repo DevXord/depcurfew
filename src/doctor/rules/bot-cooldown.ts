@@ -11,6 +11,7 @@ import { extraOf, isRecord, values, yamlOptionsFor } from '../../apply/facts.ts'
 import { botOnlyEntries, isActionsEcosystem } from '../../apply/generators/dependabot.ts';
 import { listing } from '../../apply/requirements.ts';
 import { coversActions, coversBotEcosystems } from '../../apply/targets.ts';
+import { isOwnRule } from '../../apply/generators/renovate.ts';
 import { pinnedVersion } from '../../apply/version.ts';
 import { botEcosystemFact, ownDelayText } from '../../detect/bot-ecosystems.ts';
 import type { BotEcosystemInfo, PackageManagerId, PackageManagerInfo } from '../../detect/types.ts';
@@ -43,6 +44,10 @@ interface BotDelay extends Delay {
   applies?: boolean;
   /** The packageRules entry of the repository that sets this delay (Renovate). */
   rule?: number;
+  /** That entry is one depcurfew apply writes (Renovate, decision D-171). */
+  ownRule?: true;
+  /** The built-in preset of extends that sets this delay, with the datasource of its rule (Renovate, decision D-171). */
+  preset?: { name: string; datasource: string; value: unknown };
   /** A preset depcurfew cannot read may set the delay; the repository itself sets none (Renovate). */
   unreadablePreset?: string;
   /** The configuration file is in a format depcurfew does not read (Renovate's JSON5), so the delay is not known. */
@@ -207,6 +212,8 @@ function renovateDelays(context: RuleContext, bot: ToolKnowledge, file: string):
         scope: types.length === updateTypes.length ? scopeOf(target, 'updates') : `${listing(types)} ${scopeOf(target, 'updates')}`,
         applies,
         ...(source?.rule === undefined ? {} : { rule: source.rule }),
+        ...(source?.rule !== undefined && isOwnRule(config.rules.find((entry) => entry.index === source.rule)?.rule['description']) ? { ownRule: true as const } : {}),
+        ...(source?.preset === undefined ? {} : { preset: { ...source.preset, value: source.value } }),
         ...(index === 0 && delay.unreadable.length > 0 ? { unreadableRules: delay.unreadable } : {}),
         ...(index === 0 ? {} : { secondary: true as const }),
       };
@@ -530,13 +537,31 @@ function compare(context: RuleContext, delay: BotDelay, reference: Reference): b
     message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? 'without waiting' : `after ${describe(delay.minutes)}`} (${delay.origin}), but ${reference.waits}`,
     fix:
       delay.fix ??
-      (delay.rule !== undefined
-        ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe(reference.minutes)}, or limit the rule to the ${reference.things} that need a shorter delay`
-        : delay.applies === false
-          ? `Make the ${delay.bot.name} delay at least ${describe(reference.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)`
-          : `Make the ${delay.bot.name} delay at least ${describe(reference.minutes)}, or run depcurfew apply`),
+      (delay.preset !== undefined
+        ? presetFix(context, delay, delay.preset, reference)
+        : delay.rule !== undefined && delay.ownRule !== true
+          ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe(reference.minutes)}, or limit the rule to the ${reference.things} that need a shorter delay`
+          : delay.applies === false
+            ? `Make the ${delay.bot.name} delay at least ${describe(reference.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)`
+            : `Make the ${delay.bot.name} delay at least ${describe(reference.minutes)}, or run depcurfew apply`),
   });
   return true;
+}
+
+/**
+ * The fix when a built-in preset of extends sets the shorter delay (decision D-171): its rule wins over the top-level
+ * value, so only a packageRules entry for its datasource helps, which Renovate applies after the rules of the preset
+ * (extra.packageRulesOrder). depcurfew apply writes one when cooldown.minimum is longer than the preset's delay; it
+ * does not edit the deprecated package.json key or a file it cannot read.
+ */
+function presetFix(context: RuleContext, delay: BotDelay, preset: NonNullable<BotDelay['preset']>, reference: Reference): string {
+  const file = delay.location?.file ?? '';
+  const entry = `a packageRules entry with matchDatasources ${JSON.stringify([preset.datasource])} and a minimumReleaseAge of at least ${describe(reference.minutes)}`;
+  if (delay.applies === false) return `Add ${entry} to ${file} (depcurfew apply does not edit it); ${delay.bot.name} applies it after the rules of the preset ${preset.name}`;
+  const minimum = context.policy?.cooldown?.minimum.minutes;
+  const presetDelay = delayMinutes(delay.bot, preset.value, latestVersion(delay.bot));
+  const writes = minimum !== undefined && presetDelay.ok && minimum > presetDelay.minutes;
+  return `Add ${entry} to ${file}, which ${delay.bot.name} applies after the rules of the preset ${preset.name}, or run depcurfew apply${writes ? ', which adds one' : ''}`;
 }
 
 /**
