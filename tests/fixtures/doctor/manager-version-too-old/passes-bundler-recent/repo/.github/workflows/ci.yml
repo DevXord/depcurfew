@@ -1,0 +1,11 @@
+name: ci
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler: Gemfile.lock
+          bundler-cache: true
+      - run: gem install bundler:4.0.23 && bundle exec rake

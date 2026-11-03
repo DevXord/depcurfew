@@ -24,8 +24,22 @@ export interface OsvPackage {
   version: string;
 }
 
-/** What OSV.dev says about one version: the ids of its MAL- records (none: no known malware), or why it was not checked. */
-export type OsvVerdict = { status: 'checked'; malicious: string[] } | { status: 'unchecked'; reason: string };
+/**
+ * Where an answer about known malicious versions comes from: api.osv.dev (--osv), or the local copy of the OSV.dev data
+ * that depcurfew osv update writes (decision D-150).
+ */
+export type OsvSource = 'osv-api' | 'osv-local';
+
+/**
+ * What OSV.dev says about one version: the ids of its MAL- records (none: no known malware), or why it was not checked.
+ * `source`: where the answer comes from; api.osv.dev when left out.
+ */
+export type OsvVerdict = { status: 'checked'; malicious: string[]; source?: OsvSource } | { status: 'unchecked'; reason: string };
+
+/** The local copy of the OSV.dev data (LocalOsvData of src/osv/data.ts): the MAL- ids for a version, undefined without data for its ecosystem. */
+export interface OsvLocalLookup {
+  lookup(pkg: OsvPackage): string[] | undefined;
+}
 
 export interface OsvOptions {
   fetch: FetchLike;
@@ -317,11 +331,21 @@ function packageOf(report: PackageReport): OsvPackage | undefined {
 }
 
 /**
- * Looks up the version each report picked and adds what OSV.dev says: a MAL- record is an error (known-malicious, first
- * among the findings), a version OSV.dev did not answer for is unverified. Versions are looked up once per run, also
- * across the checks of one hook command (`lookups`).
+ * The answer of the local data where api.osv.dev gave none (decision D-150): a version the local data lists as
+ * malicious is reported from it; one it does not list stays unchecked, since --osv asked for the answer of the API.
  */
-export async function addOsvFindings(reports: readonly PackageReport[], options: OsvOptions & { lookups?: LookupCache | undefined }): Promise<void> {
+export function withLocalAnswer(pkg: OsvPackage, verdict: OsvVerdict, local: OsvLocalLookup | undefined): OsvVerdict {
+  if (verdict.status === 'checked' || local === undefined) return verdict;
+  const ids = local.lookup(pkg);
+  return ids !== undefined && ids.length > 0 ? { status: 'checked', malicious: ids, source: 'osv-local' } : verdict;
+}
+
+/**
+ * Looks up the version each report picked and adds what OSV.dev says: a MAL- record is an error (known-malicious, first
+ * among the findings), a version OSV.dev did not answer for is unverified, unless the local data (`local`) lists it as
+ * malicious. Versions are looked up once per run, also across the checks of one hook command (`lookups`).
+ */
+export async function addOsvFindings(reports: readonly PackageReport[], options: OsvOptions & { lookups?: LookupCache | undefined; local?: OsvLocalLookup | undefined }): Promise<void> {
   const wanted = reports.map((report) => ({ report, pkg: packageOf(report) })).filter((entry): entry is { report: PackageReport; pkg: OsvPackage } => entry.pkg !== undefined);
   if (wanted.length === 0) return;
   const cacheKey = (pkg: OsvPackage) => `osv\u0000${osvKey(pkg)}`;
@@ -330,10 +354,30 @@ export async function addOsvFindings(reports: readonly PackageReport[], options:
   const position = new Map(missing.map((pkg, index) => [osvKey(pkg), index] as const).reverse());
   const verdicts = await Promise.all(wanted.map(({ pkg }) => cachedLookup(options.lookups, cacheKey(pkg), async () => (await batch)[position.get(osvKey(pkg)) ?? -1] as OsvVerdict)));
   wanted.forEach(({ report, pkg }, index) => {
-    const verdict = verdicts[index] as OsvVerdict;
+    const verdict = withLocalAnswer(pkg, verdicts[index] as OsvVerdict, options.local);
     const finding = osvFinding(report.name ?? pkg.name, pkg, verdict);
     if (finding !== undefined) report.findings.unshift(finding);
   });
+}
+
+/**
+ * Without --osv: looks the version each report picked up in the local data (decision D-150), with no network access,
+ * and adds known-malicious for a version it lists. A version of an ecosystem without local data is not looked up.
+ */
+export function addLocalOsvFindings(reports: readonly PackageReport[], local: OsvLocalLookup): void {
+  for (const report of reports) {
+    const pkg = packageOf(report);
+    if (pkg === undefined) continue;
+    const ids = local.lookup(pkg);
+    if (ids === undefined || ids.length === 0) continue;
+    const finding = osvFinding(report.name ?? pkg.name, pkg, { status: 'checked', malicious: ids, source: 'osv-local' });
+    if (finding !== undefined) report.findings.unshift(finding);
+  }
+}
+
+/** The ecosystems of the versions a check looked up (registry packages with a version), for the notes about the local data. */
+export function checkedEcosystems(reports: readonly PackageReport[]): string[] {
+  return [...new Set(reports.flatMap((report) => packageOf(report)?.ecosystem ?? []))];
 }
 
 /** The finding of one checked version: known-malicious for MAL- records, unverified when OSV.dev did not answer. */
@@ -342,11 +386,20 @@ function osvFinding(name: string, pkg: OsvPackage, verdict: OsvVerdict): CheckFi
     return { level: 'error', code: 'unverified', message: `it was not checked for known malicious versions in OSV.dev: ${verdict.reason}`, fix: OSV_RETRY_FIX };
   }
   if (verdict.malicious.length === 0) return undefined;
+  return maliciousFinding(name, pkg, verdict.malicious, verdict.source ?? 'osv-api');
+}
+
+/**
+ * known-malicious for a version with MAL- records (`ids`); `name` is the name of the report (with pypi: or composer:),
+ * and `source` says where the answer comes from: api.osv.dev or the local data of depcurfew osv update (decision D-150).
+ */
+export function maliciousFinding(name: string, pkg: OsvPackage, ids: readonly string[], source: OsvSource): CheckFinding {
   return {
     level: 'error',
     code: 'known-malicious',
     // A Composer version as composer require takes it (composer:vendor/name:1.2.3), as the other findings of check write it.
-    message: `${versionLabel(pkg.ecosystem, name, pkg.version)} is a known malicious version: OSV.dev lists it as ${linkedIds(verdict.malicious)}`,
+    message: `${versionLabel(pkg.ecosystem, name, pkg.version)} is a known malicious version: OSV.dev lists it as ${linkedIds(ids)}`,
     fix: 'Do not install it; pick another package or version. If it is installed anywhere already, remove it and read the record on OSV.dev for what it does',
+    source,
   };
 }

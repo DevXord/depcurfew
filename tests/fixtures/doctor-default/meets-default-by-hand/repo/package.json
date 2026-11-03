@@ -1,0 +1,9 @@
+{
+  "name": "dependabot-default",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "npm@11.17.0",
+  "dependencies": {
+    "abbrev": "^1.1.1"
+  }
+}

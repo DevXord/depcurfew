@@ -247,7 +247,7 @@ describe('doctor with projects', () => {
     // apply changed exclude-newer, which uv.lock records, so uv.lock has to be locked again (decision D-116).
     const relock = await exec('doctor', directory);
     expect(relock.code).toBe(EXIT_OK);
-    expect(relock.stdout).toMatch(/^0 errors, 1 warning, 0 notes\n\nbackend\/uv\.lock\n {2}warning backend\/uv\.lock was locked without exclude-newer, but .+ \(lockfile-out-of-date\)\n/u);
+    expect(relock.stdout).toMatch(/^0 errors, 1 warning, 1 note\n\nbackend\/uv\.lock\n {2}warning backend\/uv\.lock was locked without exclude-newer, but .+ \(lockfile-out-of-date\)\n/u);
     // What uv lock writes for "36 hours".
     const lock = join(directory, 'backend', 'uv.lock');
     writeFileSync(lock, readFileSync(lock, 'utf8').replace(/\n\n\[\[package\]\]/u, '\n\n[options]\nexclude-newer = "0001-01-01T00:00:00Z"\nexclude-newer-span = "PT36H"\n\n[[package]]'));
@@ -404,6 +404,42 @@ describe('init with projects', () => {
     expect(parsePolicy(read('depcurfew.json'))).toMatchObject({ ok: true, policy: { projects: ['backend', 'frontend'] } });
     const apply = await exec('apply', '--dry-run', directory);
     expect(apply.code).toBe(EXIT_OK);
+  });
+
+  // Two directories whose names differ only in case exist only on a file system that tells case apart (decision D-154).
+  it.skipIf(process.platform === 'darwin' || process.platform === 'win32')('lists one of two directories whose names differ only in case, so that the policy stays valid, and doctor without a policy still works', async () => {
+    mkdirSync(join(directory, 'Frontend'));
+    writeFileSync(join(directory, 'Frontend', 'package.json'), '{ "name": "frontend-two", "private": true }\n');
+    const doctor = await exec('doctor', '--json', directory);
+    expect(doctor.code).toBe(EXIT_OK);
+    expect(JSON.parse(doctor.stdout)).toMatchObject({ policySource: 'default' });
+    const result = await exec('init', directory);
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stdout).toContain(
+      'warning: frontend is not in projects: its name differs from "Frontend" only in case, so both name the same directory on Windows and macOS, and projects in depcurfew.json cannot list both (project-left-out)\n' +
+        '  fix: Rename one of the two directories so that their names differ in more than case, then run depcurfew init --force to list both\n',
+    );
+    expect(parsePolicy(read('depcurfew.json'))).toMatchObject({ ok: true, policy: { projects: ['Frontend', 'backend'] } });
+  });
+
+  // The twins are told among the directories init can list: one left out for a policy of its own does not keep the
+  // other out (decision D-161).
+  it.skipIf(process.platform === 'darwin' || process.platform === 'win32')('lists a directory whose case twin is left out for a policy of its own', async () => {
+    mkdirSync(join(directory, 'Frontend'));
+    writeFileSync(join(directory, 'Frontend', 'package.json'), '{ "name": "frontend-two", "private": true }\n');
+    writeFileSync(join(directory, 'Frontend', 'depcurfew.json'), '{ "version": 1 }\n');
+    const doctor = await exec('doctor', '--json', directory);
+    expect(doctor.code).toBe(EXIT_OK);
+    const report = JSON.parse(doctor.stdout) as { policySource: string; notices: { code: string; message: string }[] };
+    expect(report.policySource).toBe('default');
+    expect(report.notices.find((notice) => notice.code === 'policy-missing')?.message).toContain('(with projects "backend" and "frontend")');
+    const result = await exec('init', directory);
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stdout).toContain(
+      'warning: Frontend is not in projects: Frontend/depcurfew.json is a policy of its own, and two policies for the same files are refused (project-left-out)\n',
+    );
+    expect(result.stdout).not.toContain('only in case');
+    expect(parsePolicy(read('depcurfew.json'))).toMatchObject({ ok: true, policy: { projects: ['backend', 'frontend'] } });
   });
 
   it('adds no projects when the root has a manifest', async () => {

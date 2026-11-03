@@ -1,0 +1,18 @@
+0 errors, 0 warnings, 4 notes
+
+Compared with the default policy (no depcurfew.json):
+
+.npmrc
+  note .npmrc does not exist; npm installs new versions without a release-age delay; with the default policy of depcurfew init, depcurfew apply would create it and set `min-release-age=3`, `strict-allow-scripts=true`, `allow-git=none`, `allow-remote=none`, `allow-file=all` and `allow-directory=all` (config-drift)
+    fix: Run depcurfew init to write depcurfew.json with the default policy, then depcurfew apply (depcurfew apply --dry-run shows the changes first)
+
+package-lock.json
+  14: note core-js has install scripts and npm 11.17.0 (packageManager in package.json) runs them, but the default policy of depcurfew init does not allow it (lockfile-install-scripts)
+    fix: Run depcurfew init to write depcurfew.json with the default policy; then review its scripts and add core-js to installScripts.allow in depcurfew.json, or replace the package; then run depcurfew apply (depcurfew apply --dry-run shows the changes first)
+
+Notes:
+  note no depcurfew.json: the rules that need a policy compared the repository with the default policy of depcurfew init; what they find is a note and does not fail doctor (policy-missing)
+    fix: Run depcurfew init to write depcurfew.json with this policy, then depcurfew apply (depcurfew apply --dry-run shows the changes first)
+  note known-malicious did not check the locked package versions: there is no local OSV.dev data, and --osv was not given (known-malicious)
+    fix: Run depcurfew osv update to download the OSV.dev data of known malicious packages (it requests only the public export files and sends no package names), then run depcurfew doctor again; or run depcurfew doctor --osv to ask api.osv.dev
+

@@ -2,6 +2,66 @@
 
 All notable changes for users of depcurfew. The project follows [semantic versioning](https://semver.org/): the policy file (`version: 1`), the command-line options, the exit codes and the JSON and SARIF output (`schemaVersion: 1`) only change in a backward-incompatible way in a new major version.
 
+## 1.5.0
+
+### doctor before init
+
+- `depcurfew doctor` works before `depcurfew init`. Without `depcurfew.json` it compares the repository with the policy `init` would write (with a longer release-age delay and the projects `init` would keep) and lists what `init` and `apply` would change, in a block "Compared with the default policy (no depcurfew.json):".
+- These findings are always notes, so they never make `doctor` fail, even with `--fail-on warning` or `--strict`. `config-drift` gives one note per file: it says when a package manager waits less than the policy's delay and lists the settings `apply` would set; a file whose settings already match, even if written by hand, gets none. A pinned package manager too old for a setting the default policy needs (for example npm 10) and a lockfile that cannot be parsed are notes too.
+- At most the first 20 projects `init` would list are compared; the note `projects-not-compared` names the others. Their lockfiles are also checked for known malicious versions, and a listed version there is an error, as in the root lockfile.
+- `--json` adds `policySource` (`"file"`, `"default"` or `null`) and `"policy": "default"` on these findings and their `checked.rules` entries; SARIF results get `properties.policy`. The GitHub Action, `doctor --user` and repositories with an invalid `depcurfew.json` behave as before.
+
+### Known malicious versions without sending package names
+
+- New `depcurfew osv update` downloads the public OSV.dev data of known malicious packages for npm, PyPI and Packagist into depcurfew's user cache directory. It requests only the export files and sends no package names.
+- With that data, `check`, the Claude Code hook, `depcurfew mcp` (`check_packages`) and `doctor` block known malicious versions without `--osv` and without network access (`known-malicious`, with the same message and fix as with `--osv`). `known-malicious` findings have a new `source` field (`osv-local` or `osv-api`) in JSON and in SARIF result properties.
+- A version named exactly (`name@1.0.1`, `@=1.0.1`, `@v1.0.1`, `npm:` aliases, `pypi:name==1.0.0` and `===`, Composer `vendor/name:5.0.2` or `:v5.0.2`) that the data lists is denied before anything else is checked. The hook denies it instead of asking also when `depcurfew.json` is invalid, when an option points the install at another registry or index (`--registry`, `--index-url`, `--extra-index-url`, `--index`, `--repository`, …), when the command has more than 50 packages or installs in more than 20 directories, when a word of the command is expanded by the shell (`"$X"`, `*`, `$(…)`), or when the registry does not answer; the reason names the record first, then why the rest was not checked. `check` and `check_packages` report such versions also when an invalid `depcurfew.json` or a missing directory stops the rest of the check.
+- Local data older than 7 days gives a note, older than 30 days a warning, both saying to run `depcurfew osv update`. Without local data and without `--osv`, `doctor` gives one note saying how to get it. With `--osv`, a version api.osv.dev could not answer for but the local data lists is `known-malicious` instead of `unverified`.
+- `osv update` limits what it keeps from an export (records, versions, ranges, line and file size): a record past a limit is left out whole and counted (`tooLarge`), so a small crafted download cannot make a huge data file or slow the hook down. It keeps the local data when a new export has fewer than half its records (error `osv-export-shrunk`; `--accept-fewer` replaces it anyway), ignores a `Last-Modified` date after the download, and removes only its own leftover temporary files. On Linux and macOS, `osv update`, `check`, the hook, `depcurfew mcp` and `doctor` warn (`osv-cache-shared`) when other users can write the directory of the data, for example with `XDG_CACHE_HOME=/tmp`; the data is still used.
+
+### Claude Code hook
+
+- The hook checks the packages named before the subcommand: `pnpm --package=x dlx y`, `npm --package=x exec y`, `yarn -p x dlx y` and `bun --package=x x y`, and the packages `npm exec` and `npm x` take from options after their arguments (`npm exec y --package=x`). Before, `pnpm --package=x dlx y` installed and ran `x` without a check.
+- The hook reads npm commands as npm resolves them: unique abbreviations and camelCase spellings such as `npm exe`, `npm installTest`, `npm ini` and `npm cre` are checked like `npm exec`, `npm install-test` and `npm init` (also with `--package` before them and inside `npm exe -c "…"`); before, they went through without a decision. A word npm cannot resolve to one command (`npm ex`, `npm install-`) runs nothing and gets no decision. `bun a` and `bun c`, Bun's aliases of `bun add` and `bun create`, are checked too.
+- The hook asks about `npm exec y "$X"` and other words the shell expands among the arguments of `npm exec` before `--`, since npm may read them as options; put `--` before the command. When a command has more than 10,000 package specs, every answer says that only the first 10,000 were looked up in the local data.
+
+### Bundler (Ruby)
+
+- Bundler is supported. `apply` writes the policy's delay as `cooldown:` on `source "https://rubygems.org"` in the Gemfile (or `gems.rb`), in whole days rounded up. It reads the file as Ruby does (strings, percent literals, heredocs, comments, `=begin` blocks and everything after `__END__` are no `source` calls) and edits only a plain call at the top level of the file. Anything else gets a warning with the line (`cooldown-not-written`), which `doctor` reports too: a `source` call inside a block, method, class, condition, loop, lambda, `begin` or brackets, a source whose URL is not a literal (`ENV.fetch(...)`), a `cooldown:` given twice or with a value that goes on (`7 - 7`), a call followed by a line starting with `&&`, `||`, `and` or `or` (which Ruby 4.0 joins to it), and a file it cannot read with certainty, such as one that Ruby 3.4 (Prism) and older Ruby read differently or one with an unbalanced `do`/`end`. `.bundle/config` is only read, never written.
+- `doctor` reads the Bundler version from `BUNDLED WITH`, the `ruby/setup-ruby` `bundler` input, `gem install bundler -v` and `bundle _VERSION_`, and reports a Bundler without the cooldown (before 4.0.13) or one that loses the Gemfile cooldown once `Gemfile.lock` exists (4.0.13; 4.0.14 is needed).
+- New rule `bundler-config-weakens`: `BUNDLE_COOLDOWN` or `--cooldown` that turns the cooldown off or shortens it in `.bundle/config`, CI `env`, CI steps or Dockerfiles, read as Bundler reads them (its own `.bundle/config` reader and Ruby's `to_i`; command aliases, prefixes, a bare `bundle` with options and the hidden `install_or_cli_help` run `install`).
+- Dependabot `bundler` entries get the cooldown, and `bot-cooldown-mismatch` compares Dependabot and Renovate (`bundler`, `ruby`, `rubygems`) with the Gemfile delay.
+- `apply` says what Bundler cannot do: per-gem exceptions (`exclude-unsupported`), blocking native-extension builds (`scripts-not-enforceable`), forbidding git or path sources (`source-not-enforceable`). `check`, the hook and `depcurfew mcp` do not look gems up on rubygems.org.
+
+### Cargo, Go modules, Maven, Gradle and NuGet
+
+- Cargo, Go modules, Maven, Gradle and NuGet projects are detected. `depcurfew explain` lists them under "Updated by bots only", because their package managers have no release-age delay that depcurfew configures.
+- `apply` gives the Dependabot entries `cargo`, `gomod`, `maven`, `gradle` and `nuget` the same `cooldown` as the packages, keeping each entry's own `exclude`.
+- `doctor` (`bot-cooldown-mismatch`) checks that Dependabot and Renovate wait at least `cooldown.minimum` for these ecosystems, including Renovate `packageRules` by `matchManagers`, `matchCategories` (`rust`, `golang`, `java`, `dotnet`) and `matchDatasources`, and the preset `security:minimumReleaseAgeCrate`. A repository with these files but no update bot gets a note per ecosystem. `broad-exclusion` and `bot-rule-shortens-delay` also report Renovate rules that turn off or shorten the delay for them.
+
+### Speed and robustness
+
+- `doctor`, `explain`, `apply` and `init` are fast on large repositories (many files in one directory, many top-level directories, many projects): faster than 1.4.1 in most cases, for example 0.7 s instead of 6.3 s for 200,000 files in one directory. Directory listings resolve only the names that can match, and one `doctor` run detects each directory once.
+- Workspace patterns such as `**` no longer make `explain` and `doctor` hang when a symlink points back up (`s0 -> .`): each directory is searched once by its real path, a symlink to the root is not a workspace package, and one workspace file searches at most 20,000 directories (new note `workspace-search-limit`). Detection never lists directories above the repository root and checks again that a file's real path is inside the repository before reading it.
+- `init` leaves out a project directory whose name differs from another only in case (`App` and `app`), with a warning, instead of writing a policy that cannot be read.
+
+### Documentation
+
+- The README and the site say what depcurfew stops and finds, and have a start page for Ruby, a step-by-step guide from the first `doctor` to CI, coding agents and the whole machine, and a page on using depcurfew alongside tools that inspect the packages themselves.
+- "Verifying a release" describes the provenance of each release and the commands that rebuild a tag and compare its checksums with those on npm. A public workflow, Verify release, does this every day for the newest version.
+
+### Upgrading from 1.4.1
+
+- Programs reading `doctor --json` for repositories without `depcurfew.json` now see note findings with `"policy": "default"`, counted in `summary.note`; the rules that need a policy report `passed`, `problems` or `not-applicable` instead of `skipped`, and the `policy-missing` notice has a new message and fix. The text output says "No problems found." only when the repository already does what the default policy asks.
+- `doctor` (CLI, not the Action) prints one more note (`known-malicious`) in repositories with a lockfile when there is no local OSV.dev data and no `--osv`. With `doctor.failOn: "warning"`, local data older than 30 days, or a data directory other users can write, makes `doctor` fail. `check --json` and `check_packages` notices can now have level `warning` (`osv-data-old`, `osv-cache-shared`).
+- With a `cooldown` in `depcurfew.json`, `apply` now edits existing `cargo`, `gomod`, `maven`, `gradle` and `nuget` entries in `.github/dependabot.yml`, and the Gemfile of a repository with Bundler (`targets: "auto"`); until you run it, `doctor` reports `config-drift` and `bot-cooldown-mismatch` for them. Repositories with Cargo, Go, Maven, Gradle or NuGet files and no bot get a new note, and a repository with only such files no longer gets the `nothing-detected` warning. When Bundler is used, Renovate's rule for the policy's npm exceptions gains `"matchDatasources": ["!rubygems"]`.
+- A hook deny for a known malicious version can have a second part, "depcurfew also cannot vouch for the rest of this command: …", and with more than 50 packages the hook's ">50" reason and the 10,000 note are two lines. `check --json` and `check_packages` can return non-empty `packages` together with `errors`, and `check_packages` with more than 50 specs and a listed version returns them with the new notice `too-many-packages`.
+- `osv update --json` has the fields `tooLarge` and `warnings`. A local data file larger than 128 MiB is not read.
+- A workspace package reached through several paths (symlinks inside the repository) is listed once, under the first path in sort order, and a symlink to the repository root is no longer a workspace package.
+- `bun ins x`, `bun it x` and other npm-only install words after `bun` are no longer read as Bun installs, because Bun runs a script or file there.
+- `targets` and the schema accept `"bundler"`. `Gemfile.lock` does not count as a lockfile depcurfew checks, so `lockfile-*` and `known-malicious` show "not applicable" for Bundler-only repositories.
+- Library: `runDoctor` has the new optional `defaultPolicy` and `detections` options, `Rule` the optional fields `alsoWithDefaultPolicy` and `alsoInComparedProjects`, and `CommandScan` from `scanCommandLine` an optional `aside` field. The texts of the `known-malicious` rule changed.
+
 ## 1.4.1
 
 ### Fixes

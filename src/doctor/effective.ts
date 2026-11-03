@@ -17,6 +17,15 @@ export interface Delay {
   /** Where the value comes from, for messages, e.g. "minimumReleaseAge: 4320 in pnpm-workspace.yaml". */
   origin: string;
   location?: { file: string; line: number };
+  /** The default of the version, which supports the setting but does not set it. */
+  byDefault?: true;
+}
+
+/** The names of the Gemfile in the order Bundler looks for them (extra.gemfileNames). */
+export function gemfileNamesOf(tool: ToolKnowledge): string[] {
+  const fact = tool.extra?.['gemfileNames'];
+  const names = fact === undefined ? undefined : values(fact)[0];
+  return Array.isArray(names) && names.every((name) => typeof name === 'string') ? names : ['gems.rb', 'Gemfile'];
 }
 
 export function latestVersion(tool: ToolKnowledge): Version | undefined {
@@ -37,6 +46,8 @@ export function versionedValue<T>(list: Versioned<T>, version: Version | undefin
 
 function managerConfigFiles(tool: ToolKnowledge, manager: PackageManagerInfo): string[] {
   if (tool.id === 'deno') return manager.configFiles.filter((file) => /^deno\.jsonc?$/u.test(file));
+  // Bundler reads gems.rb in place of the Gemfile when both are there (extra.gemfileNames, decision D-152).
+  if (tool.id === 'bundler') return gemfileNamesOf(tool).filter((name) => manager.configFiles.includes(name)).slice(0, 1);
   return (values(tool.cooldown.configFiles)[0] ?? []).filter((file) => file !== '.npmrc' || tool.id === 'npm').slice(0, 1);
 }
 
@@ -133,5 +144,5 @@ export function managerDelay(context: RuleContext, manager: PackageManagerInfo, 
   }
   const minutes = longest ?? 0;
   const disputed = tool.cooldown.default.status === 'disputed' ? '; official sources disagree, the longest is assumed' : '';
-  return { minutes, origin: minutes === 0 ? `${versionText} has no delay by default` : `the default of ${versionText}${disputed}` };
+  return { minutes, origin: minutes === 0 ? `${versionText} has no delay by default` : `the default of ${versionText}${disputed}`, byDefault: true };
 }

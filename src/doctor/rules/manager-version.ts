@@ -137,6 +137,8 @@ export { SOURCE_LABEL } from './bundled-versions.ts';
 
 /** Where a version is declared, for messages; a tool's own required version is named by its key. */
 function sourceLabel(tool: ToolKnowledge, declaration: VersionDeclaration): string {
+  // The section of the lockfile that holds the version (BUNDLED WITH, decision D-152).
+  if (declaration.source === 'lockfile') return lockfileVersionOf(tool)?.section ?? SOURCE_LABEL[declaration.source];
   if (declaration.source !== 'tool-config') return SOURCE_LABEL[declaration.source];
   const required = tool.extra?.['requiredVersion'] === undefined ? undefined : values(tool.extra['requiredVersion'])[0];
   if (!isRecord(required) || typeof required['key'] !== 'string') return SOURCE_LABEL[declaration.source];
@@ -173,12 +175,35 @@ function scriptFeatures(context: RuleContext, tool: ToolKnowledge, policy: Resol
   return blocks === undefined || strict.since === undefined ? [] : [{ ...blocks, instead: { setting: `${strict.setting}=${String(strict.value)}`, file, since: strict.since } }];
 }
 
+/** The section of a lockfile that holds the version of the tool that wrote it, and the command that changes it (Bundler). */
+function lockfileVersionOf(tool: ToolKnowledge): { section: string; update: string } | undefined {
+  const fact = tool.extra?.['lockfileVersion'];
+  const value = fact === undefined ? undefined : values(fact)[0];
+  return isRecord(value) && typeof value['section'] === 'string' && typeof value['update'] === 'string' ? { section: value['section'], update: value['update'] } : undefined;
+}
+
+/**
+ * A version that has the cooldown but loses it where a lockfile exists (Bundler before 4.0.14 drops the keyword of a
+ * Gemfile source then, extra.cooldownWithLockfile): a feature of its own, for a manager with a lockfile.
+ */
+function lockfileGap(context: RuleContext, tool: ToolKnowledge, features: readonly Feature[]): Feature | undefined {
+  const fact = tool.extra?.['cooldownWithLockfile'];
+  const gap = fact === undefined ? undefined : values(fact)[0];
+  const setting = settingOf(tool.cooldown.setting);
+  if (!isRecord(gap) || typeof gap['since'] !== 'string' || typeof gap['scope'] !== 'string' || setting === null) return undefined;
+  if (!features.some((item) => item.setting === setting)) return undefined;
+  const locked = context.detection.packageManagers.some((manager) => manager.id === tool.id && manager.evidence.some((entry) => entry.kind === 'lockfile'));
+  return locked ? kinded('cooldown', feature(`${setting} ${gap['scope']}`, gap['since'])) : undefined;
+}
+
 /** Every setting in use for a tool: the ones depcurfew.json needs and the ones already in its configuration. */
 export function featuresOf(context: RuleContext, tool: ToolKnowledge): Feature[] {
   const features = new Map<string, Feature>();
   const policy = context.policy === undefined ? undefined : policyFor(context.policy, ecosystemOfTool(tool));
   const fromPolicy = policy === undefined ? [] : [...policyFeatures(tool, policy), ...scriptFeatures(context, tool, policy)];
   for (const item of [...fromPolicy, ...configuredFeatures(context, tool)]) features.set(item.setting, item);
+  const gap = lockfileGap(context, tool, [...features.values()]);
+  if (gap !== undefined) features.set(gap.setting, gap);
   return [...features.values()];
 }
 
@@ -214,12 +239,20 @@ function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: T
         ? `${tool.name} ${formatBound(lowest)} in ${where} does not support ${list}`
         : `${where} allows ${tool.name} ${formatBound(lowest)} ("${declaration.version}"), which does not support ${list}`;
     const alternative = alternativeOf(missing, tool.name, advice);
+    const settled = alternative !== undefined && advice.now && advice.targeted && lowest.kind === 'exact' && compareVersions(lowest.version, alternative.version) >= 0;
+    // Against the default policy, a setting depcurfew apply writes for this repository settles it, and config-drift
+    // already lists that setting (decision D-154).
+    if (settled && context.defaultPolicy === true) continue;
+    // The version of a lockfile changes with the tool's own command (bundle update --bundler, decision D-152).
+    const locked = declaration.source === 'lockfile' ? lockfileVersionOf(tool) : undefined;
     context.report({
       level: lowest.kind === 'exact' ? 'error' : 'warning',
       location: line === undefined ? { file: declaration.file } : { file: declaration.file, line },
       message: subject,
       fix:
-        alternative !== undefined && lowest.kind === 'exact' && compareVersions(lowest.version, alternative.version) >= 0
+        locked !== undefined
+          ? `Run ${locked.update}, which locks the latest ${tool.name} release (${formatVersion(needed)} or later is needed), and commit ${declaration.file}`
+          : alternative !== undefined && lowest.kind === 'exact' && compareVersions(lowest.version, alternative.version) >= 0
           ? `${alternative.set.charAt(0).toUpperCase()}${alternative.set.slice(1)}, or require ${tool.name} ${formatVersion(needed)} or later in ${label}`
           : `Require ${tool.name} ${formatVersion(needed)} or later in ${label}${alternative === undefined ? '' : `, or ${alternative.text}`}`,
     });
@@ -267,10 +300,11 @@ export const managerVersionTooOld: Rule = {
   checks: 'The declared package manager versions, and the npm and pip that come with the declared Node.js and Python versions, support the settings the repository relies on',
   summary: 'A declared package manager version, or the npm or pip that comes with a declared Node.js or Python version, is older than a setting the repository relies on.',
   description:
-    'Package managers ignore settings they do not know yet; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, a CI step or a Dockerfile pins an older version, the setting is silently not applied there. The same holds for the npm that comes with the Node.js a CI job, a Dockerfile stage or a version file (.nvmrc, .node-version) chooses, and for the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age. Composer cannot pin its own version: a composer.lock whose plugin-api-version shows that a Composer older than 2.11 wrote it gives a warning, and otherwise a note says that the cooldown needs Composer 2.11.',
+    'Package managers ignore settings they do not know yet; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, a CI step or a Dockerfile pins an older version, the setting is silently not applied there. The same holds for the npm that comes with the Node.js a CI job, a Dockerfile stage or a version file (.nvmrc, .node-version) chooses, and for the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age. Composer cannot pin its own version: a composer.lock whose plugin-api-version shows that a Composer older than 2.11 wrote it gives a warning, and otherwise a note says that the cooldown needs Composer 2.11. Bundler switches to the version of BUNDLED WITH in Gemfile.lock, which counts as a pin (the cooldown: of a Gemfile source needs 4.0.14 once Gemfile.lock exists), as do the bundler input of ruby/setup-ruby and gem install bundler -v.',
   help: 'Raise the declared version to at least the version that introduced the setting, everywhere it is declared, or install a newer npm or pip before installing packages.',
   level: 'error',
   requiresPolicy: false,
+  alsoWithDefaultPolicy: true,
   // Any package manager: the rule also says that a policy does nothing for Yarn Classic, which is not supported.
   applies: (scope) => scope.detection.packageManagers.length > 0 || (scope.detection.ciForProjects?.length ?? 0) > 0,
   check(context) {

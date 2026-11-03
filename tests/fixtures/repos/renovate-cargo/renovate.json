@@ -1,0 +1,15 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "packageRules": [
+    {
+      "description": "Crates of our own organization",
+      "matchManagers": ["cargo"],
+      "minimumReleaseAge": "1 hour"
+    },
+    {
+      "matchCategories": ["golang"],
+      "minimumReleaseAge": null
+    }
+  ]
+}

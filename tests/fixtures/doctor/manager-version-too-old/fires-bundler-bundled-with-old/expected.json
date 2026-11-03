@@ -1,0 +1,29 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 9
+    },
+    "message": "GitHub Actions (.github/workflows/ci.yml) allows Bundler 2.6.0 (\"2.6\"), which does not support cooldown (added in 4.0.13), cooldown once Gemfile.lock exists (added in 4.0.14)",
+    "fix": "Require Bundler 4.0.14 or later in GitHub Actions"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 14
+    },
+    "message": "Bundler 4.0.13 in GitHub Actions (.github/workflows/ci.yml) does not support cooldown once Gemfile.lock exists (added in 4.0.14)",
+    "fix": "Require Bundler 4.0.14 or later in GitHub Actions"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "Gemfile.lock",
+      "line": 13
+    },
+    "message": "Bundler 2.5.6 in BUNDLED WITH (Gemfile.lock) does not support cooldown (added in 4.0.13), cooldown once Gemfile.lock exists (added in 4.0.14)",
+    "fix": "Run bundle update --bundler, which locks the latest Bundler release (4.0.14 or later is needed), and commit Gemfile.lock"
+  }
+]

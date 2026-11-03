@@ -156,7 +156,7 @@ export const policyShape = object(
     projects: withDefault(projectsShape, []),
     doctor: optional(doctorShape),
   },
-  { description: 'One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Composer, Renovate and Dependabot.' },
+  { description: 'One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Composer, Bundler, Renovate and Dependabot.' },
 );
 
 /** The policy as written in depcurfew.json. */

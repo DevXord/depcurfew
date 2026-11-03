@@ -19,8 +19,10 @@ import { resolve } from 'node:path';
 import { agentFix, POLICY_IS_THE_USERS, reasonText } from '../check/hook.ts';
 import type { FetchLike } from '../check/registry.ts';
 import { osvBatchUrl } from '../check/osv.ts';
+import type { LocalOsvData } from '../osv/data.ts';
 import { packagistUrl } from '../check/packagist.ts';
-import { appliedPolicy, checkDocument, policyNotices, type CheckDocument, type CheckNotice, type Lookups } from '../cli/check.ts';
+import { appliedPolicy, checkDocument, localNotices, policyNotices, type CheckDocument, type CheckNotice, type Lookups } from '../cli/check.ts';
+import { listedReports, MAX_LISTED_SPECS } from '../check/listed.ts';
 import { checkDirectory, type InputError } from '../cli/directory.ts';
 import { safeJson } from '../json-safe.ts';
 import { isInside } from '../paths.ts';
@@ -43,6 +45,11 @@ export interface ToolContext {
   now: () => Date;
   /** --osv of depcurfew mcp: check_packages looks the versions up in OSV.dev too; never an argument of a call. */
   osv?: boolean;
+  /**
+   * The local OSV.dev data of depcurfew osv update (decision D-150), read afresh for each call, so that an update while
+   * the server runs counts; without --osv check_packages looks the versions up in it.
+   */
+  local?: () => LocalOsvData;
 }
 
 export interface ToolResult {
@@ -153,6 +160,29 @@ function existingDirectory(directory: string | undefined, context: ToolContext):
   return target.ok ? { ok: true, directory: target.directory } : target;
 }
 
+/**
+ * More packages than one call checks: the versions they name exactly are still looked up in the local OSV.dev data
+ * (decision D-155), and a call with one it lists gets them as known-malicious, with a warning that the rest was not
+ * checked; undefined when the data lists none, which leaves the error as it was.
+ */
+function listedBeyondTheCap(packages: readonly unknown[], context: ToolContext): ToolResult | undefined {
+  if (context.local === undefined) return undefined;
+  const local = context.local();
+  const specs = packages.filter((spec): spec is string => typeof spec === 'string' && spec !== '' && spec.length <= MAX_SPEC_LENGTH);
+  const listed = listedReports(specs, local);
+  if (listed.length === 0) return undefined;
+  // Past the most that are looked up in the local data, the specs are not (decision D-160).
+  const which = new Set(specs).size > MAX_LISTED_SPECS ? `the first ${MAX_LISTED_SPECS} of them` : 'they';
+  const tooMany: CheckNotice = {
+    level: 'warning',
+    code: 'too-many-packages',
+    message: `packages lists ${packages.length} package specs, and check_packages checks at most ${MAX_PACKAGES} in one call: only the versions ${which} name exactly were looked up, in the local OSV.dev data`,
+    fix: `Split them into calls of at most ${MAX_PACKAGES}`,
+  };
+  const notices = [tooMany, ...localNotices(local, listed, context.now(), { osv: context.osv, audience: 'agent' })];
+  return documentResult({ schemaVersion: 1, policy: null, packages: listed, notices, errors: [] } satisfies CheckDocument, true);
+}
+
 const checkPackages: ToolDefinition = {
   name: 'check_packages',
   title: 'Check packages',
@@ -182,6 +212,8 @@ const checkPackages: ToolDefinition = {
     const example = 'such as ["lodash@4", "pypi:requests"]';
     if (!Array.isArray(packages)) return failure(`packages must be a list of 1 to ${MAX_PACKAGES} package specs, ${example}`);
     if (packages.length === 0 || packages.length > MAX_PACKAGES) {
+      const listed = packages.length > MAX_PACKAGES ? listedBeyondTheCap(packages, context) : undefined;
+      if (listed !== undefined) return listed;
       return failure(`packages must list 1 to ${MAX_PACKAGES} package specs, not ${packages.length}; ${packages.length === 0 ? `name the packages to check, ${example}` : `split them into calls of at most ${MAX_PACKAGES}`}`);
     }
     const wrong = packages.findIndex((spec) => typeof spec !== 'string' || spec === '' || spec.length > MAX_SPEC_LENGTH);
@@ -205,6 +237,7 @@ const checkPackages: ToolDefinition = {
       // The body of an install script is written by the package's publisher; the model gets the names only.
       scriptBodies: false,
       ...(context.osv === true ? { osv: true } : {}),
+      ...(context.local === undefined ? {} : { local: context.local() }),
     });
     return documentResult(outcome.document satisfies CheckDocument, outcome.status !== 'checked');
   },

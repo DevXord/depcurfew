@@ -27,6 +27,10 @@ const MANAGED_VALUES = new Set([
   'enableScripts',
   'approvedGitRepositories',
   'default-days',
+  // Raised to the policy's delay where an ecosystem reads them, never lowered (cargo-dependabot, decision D-151).
+  'semver-major-days',
+  'semver-minor-days',
+  'semver-patch-days',
   'exclude',
   'minimumDependencyAge',
   'allowScripts',
@@ -66,8 +70,18 @@ function structured(file: string, text: string): unknown {
   return undefined;
 }
 
+/** A Gemfile line without the cooldown: keyword of a source call, the only value apply changes there (decision D-152). */
+function withoutCooldown(line: string): string {
+  return line.replace(/[ \t]*,[ \t]*(?:cooldown:|:cooldown[ \t]*=>)[ \t]*\d+/u, '');
+}
+
 /** Every setting present before is still there afterwards, with the same value unless depcurfew manages it. */
 function expectNothingUnmanagedLost(file: string, before: string, after: string): void {
+  if (/(?:^|\/)(?:Gemfile|gems\.rb)$/u.test(file)) {
+    // Every line stays where it was; a source call may only gain or change its cooldown:.
+    expect(after.split('\n').map(withoutCooldown), file).toEqual(before.split('\n').map(withoutCooldown));
+    return;
+  }
   const old = structured(file, before);
   if (old !== undefined) {
     const current = structured(file, after);

@@ -1,6 +1,8 @@
-import type { ToolId } from '../knowledge/types.ts';
+import type { BotOnlyEcosystemId, ToolId } from '../knowledge/types.ts';
 
-export type PackageManagerId = Extract<ToolId, 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'uv' | 'pip' | 'poetry' | 'pdm' | 'pipenv' | 'composer'>;
+export type { BotOnlyEcosystemId } from '../knowledge/types.ts';
+
+export type PackageManagerId = Extract<ToolId, 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'uv' | 'pip' | 'poetry' | 'pdm' | 'pipenv' | 'composer' | 'bundler'>;
 export type BotId = Extract<ToolId, 'renovate' | 'dependabot'>;
 
 /** Why a package manager is considered in use. Ordered from the strongest signal. */
@@ -13,13 +15,15 @@ export interface Evidence {
 }
 
 /**
- * tool-config: a version the tool's own configuration requires, e.g. required-version in [tool.uv]. nvmrc and
+ * tool-config: a version the tool's own configuration requires, e.g. required-version in [tool.uv]. lockfile: the
+ * version of the tool that wrote the lockfile, which the tool switches to (BUNDLED WITH in Gemfile.lock). nvmrc and
  * node-version: the files .nvmrc and .node-version; engines: engines.node in package.json (a range of the Node.js
  * versions the package works on, advisory); dockerfile: a Dockerfile (FROM node:22, RUN npm install -g npm@11).
  */
 export type VersionSource =
   | 'packageManager'
   | 'tool-config'
+  | 'lockfile'
   | 'devEngines'
   | 'volta'
   | 'tool-versions'
@@ -64,10 +68,15 @@ export interface ToolCommand {
   kind: 'install' | 'upgrade';
   /**
    * pnpm, Yarn and Bun only install (their versions come from packageManager and the setup actions); poetry only
-   * upgrades: pipx install poetry==2.3.0 or pip install poetry==2.3.0 installs that Poetry (decision D-115).
+   * upgrades: pipx install poetry==2.3.0 or pip install poetry==2.3.0 installs that Poetry (decision D-115). bundler:
+   * bundle install, update, lock, add and cache resolve the Gemfile, and gem install bundler -v 4.0.23 upgrades (decision
+   * D-152).
    */
-  tool: 'npm' | 'pip' | 'pnpm' | 'yarn' | 'bun' | 'poetry';
-  /** upgrade: the version asked for as written, latest when none is; absent when the command does not say (corepack enable npm). */
+  tool: 'npm' | 'pip' | 'pnpm' | 'yarn' | 'bun' | 'poetry' | 'bundler';
+  /**
+   * upgrade: the version asked for as written, latest when none is; absent when the command does not say (corepack
+   * enable npm). A bundler install: the version bundle _4.0.12_ install runs (decision D-159).
+   */
   version?: string;
   /** npm ci and its aliases, which install exactly the versions of package-lock.json (decision D-115). */
   lockfile?: true;
@@ -83,6 +92,8 @@ export interface ToolCommand {
   delay?: string;
   /** pip install: PIP_CONFIG_FILE names a file that may set the delay, or the value is a variable depcurfew does not read. */
   delayUnknown?: true;
+  /** bundler: the delay comes from the command line (--cooldown), not from BUNDLE_COOLDOWN (decision D-152). */
+  delayOption?: true;
   line: number;
   /**
    * A command that installs or runs Corepack comes before it in the same job (an earlier run step, or earlier in its
@@ -175,6 +186,16 @@ export interface BotInfo {
   configFiles: string[];
 }
 
+/**
+ * An ecosystem whose new versions depcurfew delays only through the update bots (decision D-151): its package manager
+ * has no release-age delay depcurfew configures.
+ */
+export interface BotEcosystemInfo {
+  id: BotOnlyEcosystemId;
+  /** The files that show it, from the root, the direct subdirectories, workspace packages and projects; sorted. */
+  files: string[];
+}
+
 export interface WorkspaceInfo {
   declarations: { file: string; patterns: string[] }[];
   /** Directories of workspace packages, without the root. */
@@ -200,6 +221,8 @@ export interface Detection {
   ciForProjects?: PackageManagerInfo[];
   node: { versions: VersionDeclaration[] };
   bots: BotInfo[];
+  /** Cargo, Go modules, Maven, Gradle and NuGet, whose new versions only the bots delay (decision D-151); absent when none. */
+  botEcosystems?: BotEcosystemInfo[];
   workspaces: WorkspaceInfo | null;
   /** `.npmrc` files in the root and in workspace packages; several tools read them. */
   npmrcFiles: string[];

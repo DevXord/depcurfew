@@ -78,6 +78,7 @@ export const unreadableConfig: Rule = {
   help: 'Fix what the message describes: invalid syntax, missing read permission, a symlink, a file over the size limit or a style depcurfew apply cannot edit.',
   level: 'error',
   requiresPolicy: false,
+  alsoWithDefaultPolicy: true,
   check(context) {
     // One error per file: a file that cannot be read cannot be edited either.
     const reported = new Set<string>();

@@ -92,10 +92,17 @@ export function checkedLines(checked: Checked, policy?: DoctorReport['policy']):
     `  Files read: ${checked.files.length === 0 ? 'none' : checked.files.join(', ')}`,
     `  ${resultCounts(checked.rules)}`,
     ...checked.rules.map(
-      (result) => `    ${resultText(result).padEnd(width)}  ${result.check}${result.result === 'skipped' ? ` (${policyNeeded(checked.policyFile, policy)})` : ''} [${result.rule}]`,
+      (result) =>
+        `    ${resultText(result).padEnd(width)}  ${result.check}${result.result === 'skipped' ? ` (${policyNeeded(checked.policyFile, policy)})` : result.policy === 'default' && result.result !== 'not-applicable' ? ` (${DEFAULT_RESULT})` : ''} [${result.rule}]`,
     ),
   ];
 }
+
+/** After a check that ran against the default policy, in the list of what doctor checked (decision D-149). */
+export const DEFAULT_RESULT = 'compared with the default policy';
+
+/** The title of the findings against the default policy, which come after the others (decision D-149). */
+export const DEFAULT_BLOCK = 'Compared with the default policy (no depcurfew.json):';
 
 /** The line --strict adds when warnings make doctor fail. */
 export const STRICT_NOTE = '--strict: warnings count as failures, so depcurfew doctor exits with 1';
@@ -124,16 +131,25 @@ export function renderText(
     const explanation = options.failOn === undefined ? undefined : failOnExplanation(options.failOn, counts);
     if (explanation !== undefined) lines.push(printable(explanation.message), `  ${colors.green('fix:')} ${printable(explanation.fix)}`);
     else if (options.failOn === undefined && options.strict === true && counts.warning > 0) lines.push(STRICT_NOTE);
-    let file: string | undefined;
-    for (const finding of report.findings) {
-      if (finding.location.file !== file) {
-        file = finding.location.file;
-        lines.push('', colors.bold(printable(file)));
+    const byFile = (findings: readonly Finding[]) => {
+      let file: string | undefined;
+      for (const finding of findings) {
+        if (finding.location.file !== file) {
+          file = finding.location.file;
+          lines.push('', colors.bold(printable(file)));
+        }
+        const where = finding.location.line === undefined ? '' : `${finding.location.line}: `;
+        const help = finding.fix ?? rules.find((rule) => rule.id === finding.rule)?.help;
+        lines.push(`  ${where}${levelColor(finding.level, colors)(finding.level)} ${printable(finding.message)} ${colors.dim(`(${printable(finding.rule)})`)}`);
+        if (help !== undefined) lines.push(`    ${colors.green('fix:')} ${printable(help)}`);
       }
-      const where = finding.location.line === undefined ? '' : `${finding.location.line}: `;
-      const help = finding.fix ?? rules.find((rule) => rule.id === finding.rule)?.help;
-      lines.push(`  ${where}${levelColor(finding.level, colors)(finding.level)} ${printable(finding.message)} ${colors.dim(`(${printable(finding.rule)})`)}`);
-      if (help !== undefined) lines.push(`    ${colors.green('fix:')} ${printable(help)}`);
+    };
+    byFile(report.findings.filter((finding) => finding.policy !== 'default'));
+    // What the rules that need a policy found against the default policy: notes, in a block of their own (decision D-149).
+    const compared = report.findings.filter((finding) => finding.policy === 'default');
+    if (compared.length > 0) {
+      lines.push('', colors.bold(DEFAULT_BLOCK));
+      byFile(compared);
     }
   }
   if (report.notices.length > 0) {

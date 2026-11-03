@@ -240,7 +240,7 @@ function renderEnvironment(environment: EnvironmentKnowledge | undefined): strin
   const lines = [
     '## Environment',
     '',
-    'How repositories pin tool versions (Corepack, devEngines, Volta, asdf) and how GitHub Actions installs them.',
+    'How repositories pin tool versions (Corepack, devEngines, Volta, asdf), how GitHub Actions installs them, and the ecosystems whose new versions only the update bots delay (botOnlyEcosystems: Cargo, Go modules, Maven, Gradle and NuGet).',
     '',
   ];
   for (const { path, fact } of collectFacts(environment)) {

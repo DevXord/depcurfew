@@ -3,11 +3,13 @@
 // datasources; when the repository also has Python or Composer packages, the rule for npm names leaves out those
 // datasources, so an npm exception never reaches a package of the same name in another registry. JSON5 files and the
 // deprecated package.json key are not edited; a snippet is printed. The top-level minimumReleaseAge covers every
-// Renovate manager, the github-actions manager of the workflows' actions included (decision D-130), so the actions
-// need no rule of their own.
+// Renovate manager, the github-actions manager of the workflows' actions (decision D-130) and the managers of the
+// ecosystems updated by bots only (cargo, gomod, maven, gradle, nuget; decision D-151) included, so they need no rule
+// of their own.
 import { delayMinutes, formatMinutes } from '../../doctor/durations.ts';
 import { latestVersion } from '../../doctor/effective.ts';
-import { actionsTarget, managerTargets, readRenovateConfig, renovateDelay, type RenovateTarget } from '../../doctor/renovate.ts';
+import { actionsTarget, botEcosystemTargets, managerTargets, readRenovateConfig, renovateDelay, type RenovateTarget } from '../../doctor/renovate.ts';
+import { botEcosystemFacts } from '../../detect/bot-ecosystems.ts';
 import type { Ecosystem } from '../../knowledge/types.ts';
 import { convertCooldown } from '../../policy/convert.ts';
 import { listing } from '../requirements.ts';
@@ -50,8 +52,8 @@ export const renovate: BotGenerator = (context, duration, repository) => {
   const composerPatterns = exclusions(context, patternsFor(excluded, 'packagist')) ?? [];
   const negative = extraOf(tool, 'negativeMatch', isString);
   const uses = (ecosystem: Ecosystem) => context.tools.some((entry) => entry.kind === 'package-manager' && ecosystemOfTool(entry) === ecosystem && context.targets.has(entry.id));
-  // The rule for npm names leaves out the datasources of the other registries in use.
-  const others = (['pypi', 'packagist'] as const).filter(uses).map((ecosystem) => `${negative}${String(datasources[ecosystem])}`);
+  // The rule for npm names leaves out the datasources of the other registries in use, Ruby gems too (decision D-152).
+  const others = (['pypi', 'packagist', 'rubygems'] as const).filter(uses).map((ecosystem) => `${negative}${String(datasources[ecosystem])}`);
   const exclusionRule = {
     [descriptionKey]: RULE_DESCRIPTION,
     ...(others.length > 0 ? { matchDatasources: others } : {}),
@@ -126,11 +128,12 @@ export const renovate: BotGenerator = (context, duration, repository) => {
   json.set(securityPath, security);
 };
 
-const ECOSYSTEM_LABELS: Readonly<Record<Ecosystem, string>> = { npm: 'npm', pypi: 'Python', packagist: 'Composer' };
+const ECOSYSTEM_LABELS: Readonly<Record<Ecosystem, string>> = { npm: 'npm', pypi: 'Python', packagist: 'Composer', rubygems: 'Ruby' };
 
 /**
  * packageRules entries that apply does not manage and that give every package of a package manager in use (by
- * registry, Renovate manager or category, decision D-131) or the actions of the workflows (decision D-130), or some
+ * registry, Renovate manager or category, decision D-131), the actions of the workflows (decision D-130) or the
+ * dependencies of an ecosystem updated by bots only that the repository has (decision D-151), or some
  * update types of them, a shorter delay than the one apply writes: Renovate uses them, and apply never changes entries
  * it did not write, so it warns (decision D-116). They are found as doctor's bot-cooldown-mismatch finds them
  * (renovateDelay), on the file as it is, with the top-level delay apply writes and without depcurfew's own exclusion
@@ -145,8 +148,12 @@ function shorterRules(context: Parameters<BotGenerator>[0], file: string, writte
   if (!wanted.ok) return;
   const inUse = context.tools.filter((entry) => entry.kind === 'package-manager' && context.targets.has(entry.id));
   const actions = repository.workflows.length > 0 ? actionsTarget(tool, repository.workflows) : undefined;
+  // The ecosystems updated by bots only that the repository has (decision D-151), named by their package manager.
+  const botOnly = botEcosystemTargets(tool, (repository.botEcosystems ?? []).map((entry) => entry.id));
+  const botLabels = new Map(botEcosystemFacts().map((entry) => [entry.id, entry.client]));
   const targets: { target: RenovateTarget; label: string }[] = [
     ...managerTargets(tool, inUse).map(({ target, tools }) => ({ target, label: ECOSYSTEM_LABELS[ecosystemOfTool(tools[0] ?? tool)] })),
+    ...botOnly.flatMap((target) => (target.ecosystem === undefined ? [] : [{ target, label: botLabels.get(target.ecosystem) ?? target.ecosystem }])),
     ...(actions === undefined ? [] : [{ target: actions, label: ACTIONS_LABEL }]),
   ];
   const found = new Map<number, { line: number; value: unknown; types: Set<string>; labels: Set<string> }>();
@@ -165,7 +172,7 @@ function shorterRules(context: Parameters<BotGenerator>[0], file: string, writte
   }
   const updateTypes = extraOf(tool, 'delayedUpdateTypes', (value): value is string[] => Array.isArray(value) && value.every(isString));
   const describe = (minutes: number) => (minutes === 0 ? 'no delay' : formatMinutes(minutes));
-  const order = [...Object.values(ECOSYSTEM_LABELS), ACTIONS_LABEL];
+  const order = [...Object.values(ECOSYSTEM_LABELS), ...botLabels.values(), ACTIONS_LABEL];
   for (const [index, entry] of [...found].sort(([a], [b]) => a - b)) {
     const types = updateTypes.filter((type) => entry.types.has(type));
     const scope = types.length === updateTypes.length ? 'updates' : `${listing(types)} updates`;

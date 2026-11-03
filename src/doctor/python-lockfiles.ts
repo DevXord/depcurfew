@@ -39,7 +39,8 @@ export function showsBuilds(tool: ToolKnowledge, file: string, tools: readonly T
 export function hasBuildRecords(managers: readonly PackageManagerInfo[], tools: readonly ToolKnowledge[], ecosystem: 'pypi' | 'any' = 'any'): boolean {
   return managers.some((manager) => {
     const tool = tools.find((entry) => entry.id === manager.id);
-    if (!manager.supported || tool === undefined) return false;
+    // A lockfile depcurfew does not read (Gemfile.lock, decision D-152) shows nothing.
+    if (!manager.supported || tool === undefined || tool.extra?.['lockfileFormat'] === undefined) return false;
     const python = ecosystemOfTool(tool) === 'pypi';
     if (ecosystem === 'pypi' && !python) return false;
     return manager.evidence.some((evidence) => evidence.kind === 'lockfile' && (!python || showsBuilds(tool, evidence.file, tools)));

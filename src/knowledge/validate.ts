@@ -128,7 +128,7 @@ export function validateKnowledge(tools: readonly ToolKnowledge[], today: string
     }
     if (typeof tool.name !== 'string' || tool.name.trim() === '') add('name', 'missing tool name');
     if (tool.kind !== 'package-manager' && tool.kind !== 'update-bot') add('kind', `unknown kind '${String(tool.kind)}'`);
-    if (tool.ecosystem !== undefined && (tool.kind !== 'package-manager' || (tool.ecosystem !== 'npm' && tool.ecosystem !== 'pypi' && tool.ecosystem !== 'packagist'))) {
+    if (tool.ecosystem !== undefined && (tool.kind !== 'package-manager' || (tool.ecosystem !== 'npm' && tool.ecosystem !== 'pypi' && tool.ecosystem !== 'packagist' && tool.ecosystem !== 'rubygems'))) {
       add('ecosystem', `ecosystem '${String(tool.ecosystem)}' is not an ecosystem of a package manager`);
     }
 

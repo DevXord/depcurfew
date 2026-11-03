@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, EnvironmentNameRule, OmitOptionalKnowledge, RootLifecycleScriptsKnowledge, ToolKnowledge } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, OmitOptionalKnowledge, RootLifecycleScriptsKnowledge, RunnerOptionsKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -8,6 +8,7 @@ const rechecked = verifiedOn('2026-10-31');
 const runtimes = verifiedOn('2026-11-01');
 const finalReview = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
+const runners = verifiedOn('2026-11-03');
 
 const CONFIG = 'https://docs.npmjs.com/cli/v12/using-npm/config';
 const CONFIG_V11 = 'https://docs.npmjs.com/cli/v11/using-npm/config';
@@ -358,6 +359,20 @@ export const npm: ToolKnowledge = {
       CMD_LIST,
       'Aliases of install (add, i and the typo aliases in, ins, inst, insta, instal, isnt, isnta, isntal, isntall), install-test (it), exec (x) and init (create, innit), the same in 11.19.1. install-test takes the same arguments as install (docs/lib/content/commands/npm-install-test.md). npm exec and npx take the packages to download from --package; -p means --package only in npx (in npm it is --parseable); without --package the first positional argument names the package, and -c/--call takes a command string that runs with the packages, shell operators included (npm-exec.md). npm init <initializer> runs npm exec create-<initializer>: foo → create-foo, @usr → @usr/create, @usr/foo@2.0.0 → @usr/create-foo@2.0.0 (npm-init.md).',
     ),
+    runnerOptions: runners.verified<RunnerOptionsKnowledge>(
+      {
+        beforeCommand: [
+          { command: ['npm', 'exec'], values: 'separate' },
+          { command: ['npm', 'x'], values: 'separate' },
+        ],
+        amongArguments: [
+          ['npm', 'exec'],
+          ['npm', 'x'],
+        ],
+      },
+      `${NPM_GITHUB_V12}/docs/lib/content/commands/npm-exec.md`,
+      'npm parses its whole command line with nopt and the types of every setting (load in workspaces/config/lib/index.js at v12.2.1), and lib/commands/exec.js takes the packages from the setting package and the command line from call, so --package and --call count wherever they stand before --: before exec (npm --package=x exec y) and after the arguments. npm-exec.md ("npx vs npm exec"): "npm exec foo@latest bar --package=@npmcli/foo" resolves @npmcli/foo and runs foo@latest bar, and "a double-hyphen -- flag can be used to suppress npm\'s parsing of switches and options that should be sent to the executed command". npx puts -- before its first positional argument (bin/npx-cli.js), so there the options after it belong to the command. npm init and npm create do not pass --package on (lib/commands/init.js). Decision D-160.',
+    ),
     valueOptions: checked.verified(
       [
         '--access', '--allow-directory', '--allow-file', '--allow-git', '--allow-remote', '--allow-scripts',
@@ -462,7 +477,7 @@ export const npm: ToolKnowledge = {
       'https://github.com/npm/cli/blob/v12.2.1/lib/commands/config.js',
       'npm config set sets keys (in the user configuration unless location is given), delete (also rm and del) removes keys from every configuration file, edit opens a configuration file in an editor and fix repairs invalid items; get and list (ls) only read (the switch in exec, and docs/lib/content/commands/npm-config.md). npm set <key>=<value> runs npm config set with its arguments and fails without any (lib/commands/set.js); npm get only reads (lib/commands/get.js). npm pkg set, delete and fix write package.json back, get only reads (lib/commands/pkg.js). Other spellings of these commands come from commandNames.',
     ),
-    commandNames: runtimes.verified(
+    commandNames: runners.verified(
       {
         commands: [
           'access', 'approve-scripts', 'audit', 'bugs', 'cache', 'ci', 'completion', 'config', 'dedupe', 'deny-scripts',
@@ -485,7 +500,7 @@ export const npm: ToolKnowledge = {
         },
       },
       CMD_LIST,
-      'deref resolves a command name: camelCase to kebab-case (installTest is install-test), an exact command, a direct alias, else a unique abbreviation of the commands and alias names (abbrev), whose aliases are followed to the command (npm install-cl is install-clean, then ci). So npm c, npm con, npm conf and npm confi are npm config, and npm pk is npm pkg.',
+      'deref resolves a command name: camelCase to kebab-case (installTest is install-test), an exact command, a direct alias, else a unique abbreviation of the commands and alias names (abbrev 5.0.0, node_modules/abbrev/lib/index.js: every prefix that only one name starts with, and each name itself), whose aliases are followed to the command (npm install-cl is install-clean, then ci). So npm c, npm con, npm conf and npm confi are npm config, npm pk is npm pkg, npm exe is npm exec, npm ini is npm init and npm cre is npm create, so npm init; npm ex (exec, explain, explore) and npm install- are ambiguous. lib/npm.js resolves the first word with deref, and lib/cli/entry.js prints the usage and exits with 1 when it finds no command. deref and its use are the same in v11.21.1 and v10.9.9; their lists differ (11.21.1 also has adduser, add-user, shrinkwrap, star, stars and unstar and not patch; 10.9.9 has hook and run-script with the alias run, and not approve-scripts, deny-scripts, install-scripts, stage, trust, undeprecate or u, which the 11.13.0 changelog adds), and with them no word is install, install-test, install-ci-test, ci, update, exec, init, config, set or pkg that is not one with the lists of 12.2.1 (ad is install only with those of 12.2.1, u is update from 11.13.0). Decision D-162.',
     ),
     installOverrides: runtimes.verified(
       {
@@ -519,14 +534,14 @@ export const npm: ToolKnowledge = {
       'https://github.com/npm/nopt/blob/v10.0.1/lib/nopt-lib.js',
       'nopt, which parses the npm command line, also supports "--bool true or --bool false": a Boolean option followed by the word true or false takes it as its value and skips it, and a --no- prefix inverts the value (parse in lib/nopt-lib.js at v10.0.1, used by npm 12.2.1, and the same code at v9.0.0, used by npm 11.21.1).',
     ),
-    installCommands: runtimes.verified(
+    installCommands: runners.verified(
       {
         install: INSTALL_ALIASES,
         clean: ['ci', 'clean-install', 'ic', 'install-clean', 'isntall-clean', 'install-ci-test', 'cit', 'clean-install-test', 'sit'],
         update: ['update', 'up', 'upgrade', 'udpate'],
       },
       CMD_LIST,
-      'Commands that install packages into the project and their aliases: install (add, i, typo aliases, install-test and it), ci (clean-install, ic, install-clean, isntall-clean) with install-ci-test (cit, clean-install-test, sit), and update (up, upgrade, udpate; u only from npm 12, so left out). The same in v10.9.9 (lib/utils/cmd-list.js). npm also accepts unique abbreviations of command names, which are not listed.',
+      'Commands that install packages into the project and their aliases: install (add, i, typo aliases, install-test and it), ci (clean-install, ic, install-clean, isntall-clean) with install-ci-test (cit, clean-install-test, sit), and update (up, upgrade, udpate; u only from npm 11.13.0, whose changelog adds it, so left out). The same in v10.9.9 (lib/utils/cmd-list.js). npm also accepts unique abbreviations of command names, which are not listed.',
     ),
     globalOption: runtimes.verified(
       ['--global', '-g', '--location=global'],

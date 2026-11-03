@@ -3,7 +3,7 @@ import type { Detection } from '../detect/types.ts';
 import type { PlanOptions } from '../apply/index.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
-import type { OsvPackage, OsvVerdict } from '../check/osv.ts';
+import type { OsvPackage, OsvSource, OsvVerdict } from '../check/osv.ts';
 
 /** The SARIF levels: an error fails `doctor`, warnings and notes do not. */
 export type Level = 'error' | 'warning' | 'note';
@@ -26,6 +26,16 @@ export interface Finding {
   location: Location;
   /** A fix for this finding; the rule's general help applies when absent. */
   fix?: string;
+  /**
+   * "default": the repository has no depcurfew.json, and a rule that needs a policy found this by comparing it with the
+   * policy depcurfew init would write (decision D-149). Such a finding is always a note. Absent otherwise.
+   */
+  policy?: 'default';
+  /**
+   * known-malicious: where the answer comes from, api.osv.dev (--osv) or the local copy of the OSV.dev data that
+   * depcurfew osv update writes (decision D-150).
+   */
+  source?: OsvSource;
 }
 
 /**
@@ -65,8 +75,14 @@ export interface RuleContext {
   root: string;
   repository: Repository;
   detection: Detection;
-  /** undefined when the repository has no depcurfew.json. */
+  /** undefined when the repository has no depcurfew.json (and the rule does not need one). */
   policy: ResolvedPolicy | undefined;
+  /**
+   * true when `policy` is the policy depcurfew init would write, because the repository has no depcurfew.json (decision
+   * D-149): every finding becomes a note that says so, and a rule may word its findings for that (config-drift groups
+   * them by file).
+   */
+  defaultPolicy?: true;
   tools: readonly ToolKnowledge[];
   report(finding: Omit<Finding, 'rule' | 'level'> & { level?: Level }): void;
   /** Something the rule could not check; its code is the rule's id (decision D-116). */
@@ -88,10 +104,29 @@ export interface RuleContext {
 }
 
 /**
- * What known-malicious gets with --osv: a list to fill with the locked versions (the first run, before OSV.dev is
- * asked), or the answers of OSV.dev by osvKey (the second run, which reports).
+ * What known-malicious gets: a list to fill with the locked versions (the first run, before OSV.dev is asked or the
+ * local data is read), or the answers by osvKey (the second run, which reports). With `local` the answers come from
+ * the local OSV.dev data of depcurfew osv update, without --osv (decision D-150), and `local` says, by ecosystem of
+ * depcurfew, whether there is such data and how old it is. `unavailable`: neither --osv nor any local data, so the
+ * rule only says how to get them.
  */
-export type OsvDoctor = { collect: OsvPackage[] } | { answers: ReadonlyMap<string, OsvVerdict> };
+export type OsvDoctor = { collect: OsvPackage[] } | { answers: ReadonlyMap<string, OsvVerdict>; local?: OsvLocalDoctor } | { unavailable: true };
+
+/** The local OSV.dev data of each ecosystem, as known-malicious reports it (decision D-150). */
+export interface OsvLocalDoctor {
+  ecosystems: Readonly<Record<string, OsvLocalEcosystem>>;
+  /**
+   * Other users can write a directory of the data (decision D-156): which one and how, and what to do. The rule warns
+   * for each lockfile it checks against the data, which it still uses.
+   */
+  shared?: { reason: string; fix: string };
+}
+
+/** missing, unreadable with the reason, or ready with its date, its age in days and whether that gives a note or a warning. */
+export type OsvLocalEcosystem =
+  | { status: 'missing' }
+  | { status: 'unreadable'; reason: string }
+  | { status: 'ready'; date: string; days: number; staleness: 'fresh' | 'note' | 'warning' };
 
 /** A directory listed in projects, as the rules at the repository root see it. */
 export interface ProjectView {
@@ -121,6 +156,19 @@ export interface Rule {
   level: Level;
   /** Rules that compare the repository with depcurfew.json do not run without one. */
   requiresPolicy: boolean;
+  /**
+   * A rule that runs without depcurfew.json but finds more with one: what a policy needs from the package manager
+   * version, or a file that only the rules that need a policy read. Without depcurfew.json it runs once more against
+   * the default policy with those rules, and the errors and warnings it finds only there are notes like theirs
+   * (decision D-154).
+   */
+  alsoWithDefaultPolicy?: true;
+  /**
+   * A rule that runs without a policy and reports facts of the files, not differences from a policy (known-malicious):
+   * without depcurfew.json it also runs in the projects depcurfew init would list, the ones compared with the default
+   * policy, and what it finds there keeps its level, as in the root (decision D-161).
+   */
+  alsoInComparedProjects?: true;
   /**
    * Whether the rule concerns the project at all, from detection: the Python rules without a Python tool, the bot rules
    * without a bot. false shows the rule as "not applicable" in the list of what doctor checked (decision D-098). It
@@ -158,6 +206,8 @@ export interface RuleResult {
   errors: number;
   warnings: number;
   notes: number;
+  /** "default": the rule needs a policy and ran against the policy depcurfew init would write (decision D-149). */
+  policy?: 'default';
 }
 
 /** What doctor looked at, shown below the result, so that a clean report says what it covers. */
@@ -175,6 +225,11 @@ export interface DoctorReport {
   schemaVersion: 1;
   /** invalid: depcurfew.json does not follow the schema or cannot be read (only with invalidPolicy: 'report'). */
   policy: 'valid' | 'missing' | 'invalid';
+  /**
+   * The policy the rules that need one ran against (decision D-149): "file" for depcurfew.json, "default" for the policy
+   * depcurfew init would write when there is no depcurfew.json, null when they did not run. Absent in doctor --user.
+   */
+  policySource?: 'file' | 'default' | null;
   findings: Finding[];
   notices: Notice[];
   /** What was checked. */

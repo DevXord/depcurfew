@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Ruby gems
+  - package-ecosystem: bundler
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      # managed by depcurfew
+      default-days: 2
+      exclude:
+        - "rails*" # the entry's own exception stays
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # managed by depcurfew
+    cooldown:
+      default-days: 2

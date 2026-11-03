@@ -27,6 +27,7 @@ import { parseYaml } from '../yaml-parse.ts';
 import { iniEntries } from '../doctor/settings.ts';
 import type { ProjectOptional } from './commands.ts';
 import { yamlOptionsFor } from '../apply/facts.ts';
+import { botEcosystemFacts, detectBotEcosystems } from './bot-ecosystems.ts';
 
 export type * from './types.ts';
 
@@ -34,6 +35,7 @@ const EVIDENCE_ORDER: readonly EvidenceKind[] = ['lockfile', 'packageManager', '
 const SOURCE_ORDER: readonly VersionSource[] = [
   'packageManager',
   'tool-config',
+  'lockfile',
   'devEngines',
   'volta',
   'tool-versions',
@@ -112,6 +114,26 @@ function createdBy(repository: Repository, file: string, key: string): string | 
     }
   }
   return undefined;
+}
+
+/**
+ * The version in a section of a lockfile, on the first line after the section's own line (Gemfile.lock: BUNDLED WITH,
+ * then the version indented, at the end of the file).
+ */
+function readLockfileVersion(repository: Repository, id: PackageManagerId, section: string, file: string, collector: Collector): void {
+  const text = repository.readText(file);
+  if (text === undefined) return;
+  const lines = text.split(/\r?\n/u);
+  const at = lines.findIndex((line) => line.trimEnd() === section);
+  if (at === -1) return;
+  for (let index = at + 1; index < lines.length; index++) {
+    const version = lines[index]?.trim() ?? '';
+    if (version === '') continue;
+    // A line at the start is the next section: the version is missing.
+    if (!/^\s/u.test(lines[index] ?? '')) return;
+    collector.addVersion(id, { version, source: 'lockfile', file, line: index + 1 });
+    return;
+  }
 }
 
 function orList(items: readonly string[]): string {
@@ -401,7 +423,7 @@ export function detectProject(
   // supports it: a Pipenv or uv project with an exported pylock.toml is not a pip project.
   const owners = new Map<string, PackageManagerId>();
   for (const manager of facts.managers) {
-    const named = manager.lockfilePattern === null ? [] : repository.listFiles('.').filter((name) => manager.lockfilePattern?.test(name) === true);
+    const named = manager.lockfilePattern === null ? [] : repository.listFiles('.', (name) => manager.lockfilePattern?.test(name) === true);
     for (const file of new Set([...manager.lockfiles.filter((name) => repository.isFile(name)), ...named])) {
       const creator = manager.createdByKey === null ? undefined : createdBy(repository, file, manager.createdByKey);
       const owner = creator === undefined ? undefined : facts.managers.find((other) => other.pylockCreatedBy !== null && normalizePythonName(other.pylockCreatedBy) === normalizePythonName(creator));
@@ -413,6 +435,8 @@ export function detectProject(
     const present = [...owners].filter(([, owner]) => owner === manager.id).map(([file]) => file).sort(byPath);
     if (present.length > 0) lockfiles.set(manager.id, present);
     for (const file of present) collector.addEvidence(manager.id, 'lockfile', file);
+    // The version that wrote the lockfile, which the tool switches to (BUNDLED WITH of Gemfile.lock, decision D-152).
+    if (manager.lockfileVersion !== null) for (const file of present) readLockfileVersion(repository, manager.id, manager.lockfileVersion, file, collector);
     for (const file of manager.configFiles.filter((name) => repository.isFile(name))) collector.addEvidence(manager.id, 'config', file);
   }
 
@@ -532,7 +556,11 @@ export function detectProject(
       [facts.pythonProject],
     );
   }
-  if (manifest === undefined && packageManagers.length === 0 && !repository.isFile('package.json') && !repository.isFile(facts.pythonProject)) {
+  // Cargo, Go modules, Maven, Gradle and NuGet (decision D-151): in the root, its direct subdirectories that are not
+  // hidden, workspace packages and the directories listed in projects.
+  const searched = [...new Set(['.', ...repository.listDirectories('.', (name) => !name.startsWith('.')).sort(byPath), ...directories.slice(1), ...projects])];
+  const botEcosystems = detectBotEcosystems(repository, botEcosystemFacts(environment), searched);
+  if (manifest === undefined && packageManagers.length === 0 && botEcosystems.length === 0 && !repository.isFile('package.json') && !repository.isFile(facts.pythonProject)) {
     repository.warn('nothing-detected', 'no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found', []);
   }
 
@@ -541,6 +569,7 @@ export function detectProject(
     ...(ciForProjects.length === 0 ? {} : { ciForProjects }),
     node: { versions: [...(collector.versions.get('node') ?? [])].sort(compareVersions) },
     bots,
+    ...(botEcosystems.length === 0 ? {} : { botEcosystems }),
     workspaces,
     npmrcFiles: npmrcFiles(repository, directories),
     workflows: workflows.files,

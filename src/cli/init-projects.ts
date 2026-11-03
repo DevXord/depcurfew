@@ -13,15 +13,19 @@ import { validateProjectDirectory } from '../policy/project-directory.ts';
 /** Directories init does not look into: installed packages and git's own. Dot-directories are skipped too. */
 const SKIPPED = new Set(['node_modules']);
 
-/** The manifests and lockfiles of every package manager depcurfew knows (package.json, pyproject.toml, uv.lock …). */
+/**
+ * The manifests, then the lockfiles, of every package manager depcurfew knows (package.json, pyproject.toml … uv.lock),
+ * in the order of the knowledge base: a directory with package.json is told by the first lookup (decision D-157).
+ */
 function projectFiles(): string[] {
   const facts = detectionFacts(knowledgeBase, environment);
-  return [...new Set(facts.managers.flatMap((manager) => [...manager.manifests, ...manager.lockfiles]))].sort();
+  return [...new Set([...facts.managers.flatMap((manager) => manager.manifests), ...facts.managers.flatMap((manager) => manager.lockfiles)])];
 }
 
+/** Whether the path is a regular file; a missing one costs no exception, which matters for thousands of directories (decision D-157). */
 function isFile(path: string): boolean {
   try {
-    return lstatSync(path).isFile();
+    return lstatSync(path, { throwIfNoEntry: false })?.isFile() === true;
   } catch {
     return false;
   }
@@ -45,7 +49,8 @@ export interface LeftOutProject {
  * The direct subdirectories of `root` that hold a manifest or lockfile, sorted, when the root itself holds none; an
  * empty list otherwise. Symlinks are not followed: apply refuses a project reached through one. A directory that apply
  * would refuse as a project (projectProblems: one with a depcurfew.json of its own, or a git submodule or other
- * repository of its own) is left out, with the reason.
+ * repository of its own) is left out, with the reason, and so is one whose name differs only in case from another
+ * that can be listed.
  */
 export function proposedProjects(root: string): { projects: string[]; leftOut: LeftOutProject[] } {
   const files = projectFiles();
@@ -86,5 +91,35 @@ export function proposedProjects(root: string): { projects: string[]; leftOut: L
     // The fix of apply speaks of an entry of projects, which init did not write: what to do here instead.
     return { project, file: project, reason: `${problem.message}; depcurfew apply would refuse it`, fix: `Fix what the message describes, then run depcurfew init --force to list ${project}` };
   });
-  return { projects: candidates.filter((name) => !problems.some((problem) => problem.project === name)), leftOut };
+  const { listed, twins } = caseTwins(candidates, new Set(problems.map((problem) => problem.project)));
+  return { projects: listed, leftOut: [...leftOut, ...twins].sort((a, b) => (a.project < b.project ? -1 : a.project > b.project ? 1 : 0)) };
+}
+
+/**
+ * Directories whose names differ only in case are one directory on Windows and macOS, and the policy refuses both
+ * (decision D-158): of the sorted `candidates` init can list (those not `refused`, decision D-161), the first in sort
+ * order of each name in any case is listed and the others are left out with the reason. A set and a map keep this
+ * linear for tens of thousands of directories (decision D-163).
+ */
+export function caseTwins(candidates: readonly string[], refused: ReadonlySet<string>): { listed: string[]; twins: LeftOutProject[] } {
+  const firsts = new Map<string, string>();
+  const listed: string[] = [];
+  const twins: LeftOutProject[] = [];
+  for (const name of candidates) {
+    if (refused.has(name)) continue;
+    const key = name.toLowerCase();
+    const first = firsts.get(key);
+    if (first === undefined) {
+      firsts.set(key, name);
+      listed.push(name);
+      continue;
+    }
+    twins.push({
+      project: name,
+      file: name,
+      reason: `its name differs from "${first}" only in case, so both name the same directory on Windows and macOS, and projects in ${POLICY_FILE} cannot list both`,
+      fix: `Rename one of the two directories so that their names differ in more than case, then run depcurfew init --force to list both`,
+    });
+  }
+  return { listed, twins };
 }

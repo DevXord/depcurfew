@@ -255,7 +255,7 @@ describe('doctor --osv: known-malicious', () => {
   it('does not run without --osv: nothing is sent, nothing is reported, and the check is not applicable', () => {
     const report = runDoctor(FIXTURE);
     expect(own(report)).toEqual([]);
-    expect(result(report)).toMatchObject({ result: 'not-applicable', check: 'With --osv: no locked package version is a known malicious version in OSV.dev' });
+    expect(result(report)).toMatchObject({ result: 'not-applicable', check: 'With --osv or the local OSV.dev data of depcurfew osv update: no locked package version is a known malicious version in OSV.dev' });
   });
 });
 
@@ -274,6 +274,7 @@ describe('doctor --osv: what the tool installs, not the labels', () => {
     rule: 'known-malicious',
     level: 'error',
     location: { file, line },
+    source: 'osv-api',
     message: `${file} locks cutekitten-test@1.0.1, a known malicious version: OSV.dev lists it as ${MAL_NPM}`,
     fix: 'Remove cutekitten-test@1.0.1 from the project: update or replace the package and lock again. If it was installed anywhere, read the record on OSV.dev for what it does and treat that machine as exposed',
   });
@@ -466,7 +467,7 @@ describe('depcurfew doctor --osv', () => {
   it('shows the findings in the text with the level word and the fix', async () => {
     const result = await exec(['doctor', '--osv', FIXTURE], osvFetch());
     expect(result.stdout).toContain(`  15: error package-lock.json locks cutekitten-test@1.0.1, a known malicious version: OSV.dev lists it as ${MAL_NPM} (known-malicious)\n    fix: Remove cutekitten-test@1.0.1`);
-    expect(result.stdout).toMatch(/ {4}2 errors +With --osv: no locked package version is a known malicious version in OSV\.dev \[known-malicious\]/u);
+    expect(result.stdout).toMatch(/ {4}2 errors +With --osv or the local OSV\.dev data of depcurfew osv update: no locked package version is a known malicious version in OSV\.dev \[known-malicious\]/u);
   });
 
   it('sends nothing without --osv', async () => {

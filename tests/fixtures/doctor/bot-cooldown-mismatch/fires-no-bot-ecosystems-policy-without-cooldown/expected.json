@@ -1,0 +1,10 @@
+[
+  {
+    "level": "note",
+    "location": {
+      "file": "go.mod"
+    },
+    "message": "No update bot delays new versions of Go dependencies: the repository configures neither Dependabot nor Renovate, and Go has no release-age delay of its own, so nothing holds back the versions the dependencies in go.mod are updated to",
+    "fix": "Update these dependencies with Dependabot (an updates entry with package-ecosystem: gomod in .github/dependabot.yml) or Renovate (its gomod manager), then add a cooldown section with cooldown.minimum to depcurfew.json and run depcurfew apply, which gives the bot that cooldown; depcurfew delays Go dependencies only through these bots"
+  }
+]

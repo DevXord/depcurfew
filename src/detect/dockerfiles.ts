@@ -215,7 +215,7 @@ function copySources(text: string): string[] {
 export interface DockerfileReading {
   info: DockerfileInfo;
   /** Node.js from FROM, npm, pip and Poetry from RUN (npm install -g npm@X, pip install pip==X, pipx install poetry==X). */
-  versions: { tool: 'node' | 'npm' | 'pip' | 'poetry'; declaration: VersionDeclaration }[];
+  versions: { tool: 'node' | 'npm' | 'pip' | 'poetry' | 'bundler'; declaration: VersionDeclaration }[];
   /** RUN instructions that went over a limit of the command reader, as the notices say it (decision D-121), with the line of the instruction (decision D-124). */
   notices: { message: string; line: number }[];
 }
@@ -305,7 +305,8 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
     for (const message of overLimitMessages(run.overLimit, `the RUN instruction in ${file} (line ${instruction.line})`)) notices.push({ message, line: instruction.line });
     for (const command of run.commands) {
       stage.commands.push(seenCorepack && command.afterCorepack !== true ? { ...command, afterCorepack: true } : command);
-      if (command.kind === 'upgrade' && command.version !== undefined && (command.tool === 'npm' || command.tool === 'pip' || command.tool === 'poetry')) {
+      // bundle _4.0.12_ install runs that Bundler, so its version counts too (decision D-159).
+      if ((command.kind === 'upgrade' || command.tool === 'bundler') && command.version !== undefined && (command.tool === 'npm' || command.tool === 'pip' || command.tool === 'poetry' || command.tool === 'bundler')) {
         versions.push({ tool: command.tool, declaration: { version: command.version, source: 'dockerfile', file, line: command.line, stage: stage.name ?? String(stages.length - 1) } });
       }
     }
@@ -324,7 +325,7 @@ export function dockerfileCandidates(repository: Repository, facts: DockerFacts,
   }
   const files: string[] = [];
   for (const directory of directories) {
-    for (const name of repository.listFiles(directory)) if (isDockerfileName(name, facts)) files.push(joinPath(directory, name));
+    for (const name of repository.listFiles(directory, (entry) => isDockerfileName(entry, facts))) files.push(joinPath(directory, name));
   }
   return [...new Set(files)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }

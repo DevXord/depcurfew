@@ -218,7 +218,7 @@ describe('depcurfew mcp --osv', () => {
     client.send(call(1, 'check_packages', { packages: ['cutekitten-test@1.0.1'] }));
     const answer = await client.next();
     const packages = structured(answer)['packages'] as { findings: { code: string; level: string; message: string; fix: string }[] }[];
-    expect(packages[0]?.findings).toEqual([{ level: 'error', code: 'known-malicious', message: MALWARE_MESSAGE, fix: MALWARE_FIX }]);
+    expect(packages[0]?.findings).toEqual([{ level: 'error', code: 'known-malicious', message: MALWARE_MESSAGE, fix: MALWARE_FIX, source: 'osv-api' }]);
     expect(fetch.requests).toHaveLength(1);
     await client.close();
   });

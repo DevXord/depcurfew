@@ -1,10 +1,13 @@
 // Every fact about a package manager or bot carries the official URL it was verified against
 // and the date of verification. Disputed facts keep every variant with its own source.
 
-export type ToolId = 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'uv' | 'pip' | 'poetry' | 'pdm' | 'pipenv' | 'composer' | 'renovate' | 'dependabot';
+export type ToolId = 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'uv' | 'pip' | 'poetry' | 'pdm' | 'pipenv' | 'composer' | 'bundler' | 'renovate' | 'dependabot';
 export type ToolKind = 'package-manager' | 'update-bot';
-/** The registry a package manager installs from; package names in the policy are compared per ecosystem. */
-export type Ecosystem = 'npm' | 'pypi' | 'packagist';
+/**
+ * The registry a package manager installs from; package names in the policy are compared per ecosystem. rubygems
+ * (Bundler, decision D-152) has no prefix in the policy, so no name there belongs to it.
+ */
+export type Ecosystem = 'npm' | 'pypi' | 'packagist' | 'rubygems';
 
 export interface Evidence<T> {
   value: T;
@@ -312,6 +315,25 @@ export interface DownloadCommand {
   binaryPath?: boolean;
 }
 
+/**
+ * Where a tool reads the options of its download commands besides between the subcommand and the first argument, in a
+ * fact of its own (`runnerOptions`) next to the command-line fact (decision D-160).
+ */
+export interface RunnerOptionsKnowledge {
+  /**
+   * Download commands whose options the tool also reads between the executable and the subcommand (pnpm --package=x
+   * dlx y). `separate`: an option there takes its value from the next word as after the subcommand; `attached`: only
+   * an option with its value in the same word (--package=x), since the tool takes the word after an option there for
+   * the subcommand.
+   */
+  beforeCommand?: readonly { command: readonly string[]; values: 'separate' | 'attached' }[];
+  /**
+   * Download commands whose options the tool also reads after the first argument, up to --: npm exec y --package=x
+   * downloads x and runs y. A word the shell expands there may be such an option.
+   */
+  amongArguments?: readonly (readonly string[])[];
+}
+
 /** How a tool reads its options. A fact of its own (`parsing`) next to the command-line fact adds to these. */
 export interface CommandLineParsing {
   /**
@@ -577,11 +599,11 @@ export interface CommandNamesKnowledge {
   /** Alias to the name it stands for (a command or another alias). */
   aliases: Readonly<Record<string, string>>;
   /**
-   * How a word is resolved: npm (deref, the default) or symfony-console (Composer, decision D-133): an exact command
+   * How a word is resolved: npm (deref, the default), symfony-console (Composer, decision D-133): an exact command
    * or alias, else the commands and aliases that start with the word, compared with case and then without, which
-   * must all stand for one command.
+   * must all stand for one command, or exact (Bun, decision D-162): only a command or an alias as written.
    */
-  matching?: 'npm' | 'symfony-console';
+  matching?: 'npm' | 'symfony-console' | 'exact';
   /** symfony-console: commands find() leaves out when a word matches others too, and refuses when it matches only them. */
   hidden?: readonly string[];
 }
@@ -864,6 +886,11 @@ export interface SetupActionInput {
   kind: 'version' | 'version-file' | 'runtime';
   /** The tool a `version` or `version-file` input refers to. */
   tool?: RuntimeOrTool;
+  /**
+   * Values of a `version` input that name no version but a way to choose one (ruby/setup-ruby's bundler input:
+   * Gemfile.lock, default, latest, none); such a value declares no version.
+   */
+  keywords?: readonly string[];
 }
 
 export interface SetupActionKnowledge {
@@ -1045,6 +1072,44 @@ export interface OsvKnowledge {
   ecosystems: Fact<Readonly<Record<string, string>>>;
   /** How the API compares the version of a query with the versions of a record, by depcurfew's ecosystem (decision D-142). */
   versionMatching: Fact<Readonly<Record<string, OsvVersionMatchingKnowledge>>>;
+  /** The public export of the database, which depcurfew osv update downloads (decision D-150). */
+  dataExport: Fact<OsvExportKnowledge>;
+  /** How a record says which versions of a package it affects, and how they are evaluated (decision D-150). */
+  affected: Fact<OsvAffectedKnowledge>;
+}
+
+/** The public export of OSV.dev: one zip file per ecosystem, with one JSON file per record (decision D-150). */
+export interface OsvExportKnowledge {
+  /** Base URL of the bucket over HTTPS. */
+  url: string;
+  /** The path of the zip file of one ecosystem below url ({folder}). */
+  archivePath: string;
+  /** The folder of each ecosystem of depcurfew (npm, pypi, packagist). */
+  folders: Readonly<Record<string, string>>;
+  /** The name of the entry of one record in the zip file ({id}). */
+  recordEntry: string;
+  /** Whether the zip files hold withdrawn records too. */
+  withdrawnIncluded: boolean;
+}
+
+/** The fields of affected[] of an OSV record and the evaluation of its ranges (the OSV schema). */
+export interface OsvAffectedKnowledge {
+  affectedField: string;
+  packageField: string;
+  nameField: string;
+  ecosystemField: string;
+  versionsField: string;
+  rangesField: string;
+  typeField: string;
+  eventsField: string;
+  /** The range types whose events are versions of the package: SEMVER and ECOSYSTEM (the third type holds commits). */
+  versionRangeTypes: readonly string[];
+  /** The keys of the events. */
+  events: { introduced: string; fixed: string; lastAffected: string; limit: string };
+  /** introduced "0": before every version. */
+  earliest: string;
+  /** limit "*": no limit. */
+  unlimited: string;
 }
 
 /** What OSV.dev leaves out of a version before it compares it. */
@@ -1448,7 +1513,46 @@ export interface RootLifecycleScriptsKnowledge {
   allowListApplies: boolean;
 }
 
+/**
+ * An ecosystem whose package manager has no release-age delay depcurfew configures, so that depcurfew delays new
+ * versions there only through the update bots (decision D-151): Cargo, Go modules, Maven, Gradle and NuGet.
+ */
+export type BotOnlyEcosystemId = 'cargo' | 'gomod' | 'maven' | 'gradle' | 'nuget';
+
+/** The files that show an ecosystem updated by bots only, in a project directory. */
+export interface BotOnlyProjectKnowledge {
+  /** The ecosystem as messages name it: Cargo, Go modules. */
+  name: string;
+  /** The package manager as messages name it: Cargo, Go. */
+  client: string;
+  /** Paths relative to a project directory (gradle/libs.versions.toml). */
+  files: readonly string[];
+  /** File name endings that show it (the project files of NuGet: .csproj). */
+  extensions?: readonly string[];
+}
+
+/** The release-age delay of the package manager itself. */
+export interface ClientDelayKnowledge {
+  /** The setting; null when the package manager has none. */
+  setting: string | null;
+  /** The first version with the setting; null without one. */
+  since: string | null;
+  /** What the version belongs to, for messages: Cargo, .NET SDK. */
+  product?: string;
+  /** The setting holds back only the versions an update picks, not what an install or restore takes. */
+  updatesOnly?: boolean;
+  /** The file the setting is written in. */
+  file?: string;
+}
+
+export interface BotOnlyEcosystemKnowledge {
+  project: Fact<BotOnlyProjectKnowledge>;
+  releaseAge: Fact<ClientDelayKnowledge>;
+}
+
 export interface EnvironmentKnowledge {
+  /** Ecosystems whose new versions only the update bots delay (decision D-151). */
+  botOnlyEcosystems: Readonly<Record<BotOnlyEcosystemId, BotOnlyEcosystemKnowledge>>;
   corepack: {
     packageManagerField: Fact<PackageManagerFieldKnowledge>;
     devEnginesSince: Fact<string>;
@@ -1538,6 +1642,7 @@ export interface EnvironmentKnowledge {
     /** Third-party actions that install Poetry; Poetry has no official action. */
     installPoetry: Fact<SetupActionKnowledge>;
     actionsPoetry: Fact<SetupActionKnowledge>;
+    setupRuby: Fact<SetupActionKnowledge>;
     codeScanningUpload: Fact<CodeScanningUploadKnowledge>;
     stopCommands: Fact<StopCommandsKnowledge>;
     annotations: Fact<AnnotationsKnowledge>;

@@ -1,6 +1,7 @@
 // What to do about a file depcurfew could not read, by the code of the repository warning: the fix of unreadable-config
 // in doctor, and of the file-unreadable warning of apply.
 import { POLICY_FILE } from '../policy/defaults.ts';
+import { MAX_WORKSPACE_DIRECTORIES } from '../detect/workspaces.ts';
 import { MAX_LOCKFILE_SIZE, MAX_YAML_LOCKFILE_SIZE } from './lockfiles.ts';
 
 /** Repository warnings that mean a file was not checked. */
@@ -30,10 +31,12 @@ export const WARNING_FIXES: Readonly<Record<string, string>> = {
   'package-manager-mismatch': 'Commit the lockfile of the package manager that packageManager in package.json names, or correct packageManager',
   'python-tool-unknown': `Commit the lockfile of the tool that installs the project, or name the tool in targets in ${POLICY_FILE}`,
   'script-not-followed': 'Split the script into shorter run steps or RUN instructions, or check by hand where the installs after that point run and with which variables',
+  'workspace-search-limit': `Narrow the workspace patterns (for example packages/* instead of **), so that they match at most ${MAX_WORKSPACE_DIRECTORIES} directories and depcurfew finds every workspace package`,
 };
 
 /**
  * Warnings of detection that doctor shows as notices: what detection could not follow, so the rules did not check it
- * (decision D-121). The others are about what explain and apply configure.
+ * (decision D-121), such as a script it stopped following or workspace patterns it stopped matching (decision D-161).
+ * The others are about what explain and apply configure.
  */
-export const DETECTION_NOTICES: ReadonlySet<string> = new Set(['script-not-followed']);
+export const DETECTION_NOTICES: ReadonlySet<string> = new Set(['script-not-followed', 'workspace-search-limit']);

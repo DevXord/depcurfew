@@ -1,0 +1,63 @@
+# Checks that the newest depcurfew on npm is exactly the build of its git tag: the tag is checked out and built as the
+# Release workflow builds it, and the checksum of its pack is compared with the one the registry serves. It runs every
+# day and on demand, and its runs are public. See "Verifying a release" in README.md.
+name: Verify release
+
+on:
+  schedule:
+    - cron: '41 4 * * *'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'The version to verify, such as 1.4.1 (empty: the latest on npm)'
+        required: false
+        default: ''
+
+permissions: {}
+
+jobs:
+  verify:
+    name: The package on npm equals the build of its tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: The version to verify
+        id: version
+        env:
+          REQUESTED: ${{ inputs.version }}
+        run: |
+          version="${REQUESTED:-$(npm view depcurfew version)}"
+          case "$version" in
+            '' | *[!0-9.]*) echo "::error::depcurfew: the version to verify is not one such as 1.4.1 (digits and dots only)"; exit 1 ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: v${{ steps.version.outputs.version }}
+      # The npm of packageManager in package.json, as in the Release workflow (decision D-099).
+      - run: npm install -g npm@11.19.1
+      # The project .npmrc sets ignore-scripts, so no dependency script runs.
+      - run: npm ci
+      - run: npm run build
+      - name: The checksums of the pack equal those on npm
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          npm pack --dry-run --json > "$RUNNER_TEMP/pack.json"
+          built_shasum="$(node -p 'require(process.argv[1])[0].shasum' "$RUNNER_TEMP/pack.json")"
+          built_integrity="$(node -p 'require(process.argv[1])[0].integrity' "$RUNNER_TEMP/pack.json")"
+          published_shasum="$(npm view "depcurfew@$VERSION" dist.shasum)"
+          published_integrity="$(npm view "depcurfew@$VERSION" dist.integrity)"
+          echo "build of v$VERSION: $built_shasum $built_integrity"
+          echo "depcurfew@$VERSION on npm: $published_shasum $published_integrity"
+          if [ -z "$built_integrity" ] || [ "$built_shasum" != "$published_shasum" ] || [ "$built_integrity" != "$published_integrity" ]; then
+            echo "::error::depcurfew@$VERSION on npm is not the build of the tag v$VERSION"
+            exit 1
+          fi

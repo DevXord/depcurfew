@@ -26,6 +26,7 @@ const manifest = JSON.parse(read('package.json')) as { name: string; version: st
 // ecosystems of the knowledge base; npm, Python, PHP and the bots have one each.
 const PAGES = [
   'index.html',
+  'guide.html',
   ...START_PAGES.map((entry) => entry.file),
   'policy.html',
   'commands.html',
@@ -39,6 +40,7 @@ const PAGES = [
   'mcp.html',
   'machine.html',
   'about.html',
+  'other-tools.html',
 ];
 const FILES = [...PAGES, 'favicon.svg', 'schema.json', 'schema/v1.json', 'style.css'].sort();
 
@@ -212,8 +214,8 @@ describe('navigation in groups (D-140)', () => {
     const grouped = PAGE_GROUPS.flatMap((group) => group.files);
     expect(new Set(grouped).size).toBe(grouped.length);
     expect(PAGE_GROUPS.map((group) => group.title)).toEqual(['Start', 'Reference', 'Integrations', 'Project']);
-    expect(PAGE_GROUPS[0]?.files).toEqual(['index.html', ...START_PAGES.map((entry) => entry.file)]);
-    expect(PAGE_GROUPS.at(-1)?.files).toEqual(['about.html', VERSIONS_PAGE.file]);
+    expect(PAGE_GROUPS[0]?.files).toEqual(['index.html', 'guide.html', ...START_PAGES.map((entry) => entry.file)]);
+    expect(PAGE_GROUPS.at(-1)?.files).toEqual(['about.html', 'other-tools.html', VERSIONS_PAGE.file]);
     expect([...SITE_PAGES, VERSIONS_PAGE].map((entry) => entry.file).sort()).toEqual([...grouped].sort());
     expect(SITE_PAGES.map((entry) => entry.file)).toEqual(grouped.filter((file) => file !== VERSIONS_PAGE.file));
   });

@@ -7,6 +7,8 @@ const review = verifiedOn('2026-10-31');
 const projects = verifiedOn('2026-11-01');
 const bots = verifiedOn('2026-11-02');
 const composer = verifiedOn('2026-11-02');
+const d151 = verifiedOn('2026-11-03');
+const d152 = verifiedOn('2026-11-03');
 
 const OPTIONS = 'https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference';
 const COOLDOWN_GA = 'https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/';
@@ -108,10 +110,10 @@ export const dependabot: ToolKnowledge = {
       'https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates#setting-up-a-cooldown-period-for-dependency-updates',
       'An include list in the cooldown block limits the cooldown to the dependencies it names (* wildcards, up to 150 entries): the example applies the cooldown to requests, numpy and names starting with pandas or django, and to cover all dependencies one omits include or uses "*". The other dependencies get no cooldown at all, not even the default 3 days: dependabot-core skips the cooldown for a dependency that the include list does not match (ReleaseCooldownOptions#included? with File.fnmatch? and CooldownCalculation.skip_cooldown? in common/lib/dependabot, commit 03892a3e8ee26d43eb96f31c5136c98a85d63b14). exclude wins over include.',
     ),
-    ecosystems: composer.verified(
-      { npm: ['npm', 'pnpm', 'yarn'], bun: ['bun'], deno: ['deno'], pip: ['pip', 'poetry', 'pipenv'], uv: ['uv'], composer: ['composer'] },
+    ecosystems: d152.verified(
+      { npm: ['npm', 'pnpm', 'yarn'], bun: ['bun'], deno: ['deno'], pip: ['pip', 'poetry', 'pipenv'], uv: ['uv'], composer: ['composer'], bundler: ['bundler'] },
       `${OPTIONS}#package-ecosystem`,
-      'The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). composer covers Composer v2. Cooldown, including the semver-* keys, is supported for all of them (the cooldown table of the same page lists Composer with default and SemVer-bump days, read 2026-11-02). PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0).',
+      'The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). composer covers Composer v2, bundler Bundler (the table lists v2; dependabot-core v0.403.0 also builds a helper with Bundler ~> 4.0, bundler/helpers/v4/build). Cooldown, including the semver-* keys, is supported for all of them (the cooldown table of the same page lists Composer and Bundler with default and SemVer-bump days, read 2026-11-02 and, for Bundler, 2026-11-03). PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0).',
     ),
     yamlAliases: bots.verified(
       { accepted: false },
@@ -127,6 +129,17 @@ export const dependabot: ToolKnowledge = {
       { ecosystem: 'github-actions', semverDays: false },
       `${OPTIONS}#cooldown`,
       'package-ecosystem github-actions updates the actions the workflows run: with directory / Dependabot "will search the /.github/workflows directory, as well as the action.yml/action.yaml file from the root directory". The cooldown table lists GitHub Actions with default-days supported and the semver-major-days, semver-minor-days and semver-patch-days keys not supported, and the default cooldown of 3 days covers version updates without a cooldown block (github/docs, content/code-security/reference/supply-chain-security/dependabot-options-reference.md, main on 2026-11-02).',
+    ),
+    botOnlyEcosystems: d151.verified(
+      {
+        cargo: { ecosystem: 'cargo', semverDays: true },
+        gomod: { ecosystem: 'gomod', semverDays: true },
+        maven: { ecosystem: 'maven', semverDays: true },
+        gradle: { ecosystem: 'gradle', semverDays: true },
+        nuget: { ecosystem: 'nuget', semverDays: true },
+      },
+      `${OPTIONS}#cooldown`,
+      'The package-ecosystem values of the ecosystems depcurfew delays only through the bots (decision D-151): cargo (Cargo v1), gomod (Go modules v1), maven, gradle and nuget (NuGet <=6.12.0), from the package-ecosystem table of the same page. The cooldown table lists Cargo, Gomod (Go Modules), Gradle, Maven and NuGet with default-days and the SemVer-bump days (semver-major-days, semver-minor-days, semver-patch-days) supported, and the default cooldown of 3 days covers their version updates without a cooldown block (github/docs, content/code-security/reference/supply-chain-security/dependabot-options-reference.md, main on 2026-11-03).',
     ),
     actionsReleaseDate: bots.uncertain(
       'the publication date of the GitHub release of the tag, else the date of the tag, else the date of the commit; with no date the update does not wait',

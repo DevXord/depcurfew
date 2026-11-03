@@ -20,6 +20,7 @@ const SOURCE_LABELS: Record<Ecosystem, Record<SourceKind, string>> = {
   npm: { git: 'git', remoteTarball: 'remote tarball', file: 'local tarball', directory: 'local directory' },
   pypi: { git: 'git', remoteTarball: 'URL', file: 'local archive', directory: 'local directory' },
   packagist: { git: 'VCS repository', remoteTarball: 'package repository', file: 'artifact repository', directory: 'path repository' },
+  rubygems: { git: 'git', remoteTarball: 'archive URL', file: 'local archive', directory: 'path' },
 };
 
 export interface CooldownValue {

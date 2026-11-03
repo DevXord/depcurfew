@@ -1,0 +1,11 @@
+Policy (depcurfew.json):
+  targets: Bundler, Dependabot (detected)
+  cooldown 36h:
+    Bundler: 2 days (rounded up)
+    Dependabot: 2 days (rounded up)
+  installScripts deny:
+    Bundler: nothing written; warning: Bundler builds the native extensions of gems when it installs them, which runs code of the gem (extconf.rb, a Rakefile), and has no setting that blocks this or allows it for some gems only, so installScripts "deny" cannot be enforced (scripts-not-enforceable); fix: Review gems with native extensions (extensions in the gemspec, an ext directory) before you add or update them; there is nothing to set for Bundler
+    Dependabot: nothing to write
+  sources git deny, remoteTarball deny, file allow, directory allow:
+    Bundler: nothing written; warning: Bundler has no setting for git dependencies, so "deny" cannot be enforced (source-not-enforceable); fix: Review new dependencies by hand; depcurfew doctor cannot see them in the lockfile either
+    Dependabot: nothing to write

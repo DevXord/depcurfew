@@ -8,17 +8,15 @@ import { dirname, join } from 'node:path';
 import { homeProblem, ownerOfNewUnderHome } from '../user/home.ts';
 import { shownPath, type UserEnvironment } from '../user/locate.ts';
 import { userPolicyPath } from '../user/policy-path.ts';
-import { describeDelay, longestDelay, policyDuration, type ConfiguredDelay } from '../apply/delays.ts';
+import { describeDelay, policyDuration, type ConfiguredDelay } from '../apply/delays.ts';
 import { longestUserDelay } from '../user/delays.ts';
 import { fileSystemReason, writeChanges } from '../apply/workspace.ts';
-import { detectProject } from '../detect/index.ts';
 import type { Detection } from '../detect/types.ts';
 import { DEFAULT_POLICY, POLICY_FILE, renderPolicy } from '../policy/defaults.ts';
 import { parseDuration } from '../policy/duration.ts';
 import type { ApplyErrorCode } from '../apply/warnings.ts';
 import { autoTargets } from '../apply/targets.ts';
 import { listing } from '../apply/requirements.ts';
-import { inProject } from '../apply/projects.ts';
 import { paint, type Paint } from '../color.ts';
 import { jsonSetting, rejectsYamlAliases, yamlAliasLine } from '../doctor/settings.ts';
 import { Repository } from '../detect/repository.ts';
@@ -27,8 +25,8 @@ import type { ToolId } from '../knowledge/types.ts';
 import { printable } from '../printable.ts';
 import { toolName } from './describe.ts';
 import type { InitMessage } from './init-codes.ts';
-import { proposedProjects } from './init-projects.ts';
-import { composerCheckoutNotes, installScriptHints } from './init-scripts.ts';
+import { initialPolicy } from './init-policy.ts';
+import { composerCheckoutNotes } from './init-scripts.ts';
 import { hasBuildRecords } from '../doctor/python-lockfiles.ts';
 import { checkDirectory, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
@@ -287,30 +285,9 @@ export function init(directory: string | undefined, options: InitOptions, io: Cl
   if (existing?.isDirectory() === true) {
     return fail('cannot-write', `${shownTarget} is a directory, not a file`, `Remove or rename the directory ${shownTarget}, then run depcurfew init again`);
   }
-  const detection = detectProject(absolute);
-  // No manifest in the root, but in direct subdirectories: independent projects (decision D-100).
-  const proposed = proposedProjects(absolute);
-  const projects = proposed.projects.map((project) => ({ project, detection: detectProject(join(absolute, project)) }));
-  const defaultMinimum = parseDuration(DEFAULT_POLICY.cooldown.minimum);
-  // The longest delay of the root and of every project, which apply would otherwise shorten (decision D-075).
-  let kept = defaultMinimum.ok ? longestDelay(absolute, detection, defaultMinimum.duration.minutes) : undefined;
-  for (const entry of defaultMinimum.ok ? projects : []) {
-    const longer = longestDelay(join(absolute, entry.project), entry.detection, kept?.minutes ?? (defaultMinimum.ok ? defaultMinimum.duration.minutes : 0));
-    if (longer !== undefined) kept = { ...longer, location: { ...longer.location, file: inProject(entry.project, longer.location.file) } };
-  }
-  const minimum = kept === undefined ? DEFAULT_POLICY.cooldown.minimum : policyDuration(kept.minutes);
-  // Packages of the lockfiles whose install scripts depcurfew knows go into installScripts.deny, each with a note, and
-  // the other packages with install scripts are listed to review (decision D-127).
-  const scripts =
-    DEFAULT_POLICY.installScripts.default === 'deny'
-      ? installScriptHints(absolute, [{ detection }, ...projects.map((entry) => ({ project: entry.project, detection: entry.detection }))])
-      : { deny: [], notes: [] };
-  const text = renderPolicy({
-    ...DEFAULT_POLICY,
-    cooldown: { ...DEFAULT_POLICY.cooldown, minimum },
-    installScripts: { ...DEFAULT_POLICY.installScripts, deny: scripts.deny },
-    ...(projects.length === 0 ? {} : { projects: projects.map((entry) => entry.project) }),
-  });
+  // The longest delay the repository sets, the known install-script packages and the projects (decision D-149: doctor
+  // compares a repository without depcurfew.json with the same policy).
+  const { detection, projects, leftOut, kept, minimum, scripts, text } = initialPolicy(absolute);
   try {
     if (existing === undefined || !options.force) {
       // 'wx' fails if the file appeared in the meantime, so nothing is overwritten without --force.
@@ -347,7 +324,7 @@ export function init(directory: string | undefined, options: InitOptions, io: Cl
       fix: `Edit projects in ${POLICY_FILE} if that is not right`,
     });
   }
-  for (const entry of proposed.leftOut) {
+  for (const entry of leftOut) {
     before.push({ code: 'project-left-out', level: 'warning', location: { file: entry.file }, message: `${entry.project} is not in projects: ${entry.reason}`, fix: entry.fix });
   }
   if (kept !== undefined) before.push(keptNote(kept, minimum, POLICY_FILE, 'depcurfew apply'));

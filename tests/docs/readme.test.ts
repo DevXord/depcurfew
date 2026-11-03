@@ -74,7 +74,7 @@ describe('README.md', () => {
   });
 
   it('keeps the generated sections between markers', () => {
-    for (const name of ['default-policy', 'policy-fields', 'tools', 'rules', 'action-workflow', 'action-reference', 'claude-code-hook', 'mcp-clients', 'user-config', 'user-rules']) {
+    for (const name of ['default-policy', 'policy-fields', 'tools', 'rules', 'action-workflow', 'verify-release', 'action-reference', 'claude-code-hook', 'mcp-clients', 'user-config', 'user-rules']) {
       expect(readme).toContain(`<!-- BEGIN GENERATED: ${name} -->`);
       expect(readme).toContain(`<!-- END GENERATED: ${name} -->`);
     }
@@ -89,5 +89,10 @@ describe('README.md', () => {
     expect(released).toBeDefined();
     expect(current).toBeDefined();
     expect(compareVersions(released!, current!)).toBeLessThanOrEqual(0);
+  });
+
+  it('checks the same release in "Verifying a release"', () => {
+    expect(readme).toContain(`git clone --branch v${ACTION_RELEASE.version} https://github.com/DevXord/depcurfew.git\n`);
+    expect(readme).toContain(`npm view depcurfew@${ACTION_RELEASE.version} dist.shasum\n`);
   });
 });

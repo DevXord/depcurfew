@@ -12,6 +12,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, posix } from 'node:path';
 import { KNOWLEDGE_DOCUMENT, readmeSections, renderReadme, type ReadmeInputs } from '../../src/docs/readme.ts';
 import { environment } from '../../src/knowledge/environment.ts';
+import { evidenceOf } from '../../src/knowledge/facts.ts';
 import { knowledgeBase } from '../../src/knowledge/index.ts';
 import { renderKnowledgeMarkdown } from '../../src/knowledge/render.ts';
 import type { Ecosystem, ToolId, ToolKnowledge } from '../../src/knowledge/types.ts';
@@ -99,6 +100,8 @@ export const README_PAGES: readonly ReadmePage[] = [
   { file: 'check.html', nav: 'Guarding installs', title: 'Guarding installs', summary: 'depcurfew check before a package is installed.', sections: ['guarding-installs'] },
   { file: 'claude-code.html', nav: 'Claude Code', title: 'Claude Code', summary: 'The Claude Code hook and how to set it up.', sections: ['claude-code'] },
   { file: 'mcp.html', nav: 'MCP server', title: 'MCP server', summary: 'depcurfew mcp and how to add it to an MCP client.', sections: ['mcp-server'] },
+  { file: 'guide.html', nav: 'Step-by-step guide', title: 'Step-by-step guide', summary: 'From the first doctor run to CI, coding agents and the whole machine, one step at a time.', sections: ['step-by-step-guide'] },
+  { file: 'other-tools.html', nav: 'Other tools', title: 'Alongside other supply-chain tools', summary: 'How depcurfew works together with tools that inspect the packages themselves.', sections: ['alongside-other-supply-chain-tools'] },
   {
     file: 'about.html',
     nav: 'About',
@@ -119,8 +122,13 @@ const ECOSYSTEM_PAGES: Partial<Record<Ecosystem, EcosystemPage>> = {
   npm: { file: 'npm.html', nav: 'JavaScript', guide: [], rules: ['npmrc-overrides-policy', 'pnpm-shared-workspace-lockfile'] },
   pypi: { file: 'python.html', nav: 'Python', guide: ['python-projects'], rules: ['python-config-ignored', 'lockfile-out-of-date'] },
   packagist: { file: 'php.html', nav: 'PHP', guide: ['composer-projects'], rules: ['composer-config-weakens'] },
+  rubygems: { file: 'ruby.html', nav: 'Ruby', guide: ['ruby-projects'], rules: ['bundler-config-weakens'] },
 };
-const BOTS_PAGE: EcosystemPage = { file: 'bots.html', nav: 'Bots', guide: [], rules: ['bot-cooldown-mismatch'] };
+// The bots' section of the README says what they do for each ecosystem, also for those only they delay (D-151).
+const BOTS_PAGE: EcosystemPage = { file: 'bots.html', nav: 'Bots', guide: ['update-bots'], rules: ['bot-cooldown-mismatch'] };
+
+/** The ecosystems updated by bots only, for the summary of the bots' start page: "Cargo, Go modules … and NuGet". */
+const BOT_ECOSYSTEMS = Object.values(environment.botOnlyEcosystems).flatMap((entry) => evidenceOf(entry.project).slice(0, 1).map((evidence) => evidence.value.name));
 
 const names = (tools: readonly ToolKnowledge[]) => {
   const all = tools.map((tool) => tool.name);
@@ -139,10 +147,11 @@ function startPages(tools: readonly ToolKnowledge[]): StartPage[] {
   return keys.map((key) => {
     const members = groups.get(key) ?? [];
     const page = key === 'bots' ? BOTS_PAGE : (ECOSYSTEM_PAGES[key as Ecosystem] ?? { file: `${key}.html`, nav: names(members), guide: [], rules: [] });
+    const also = key === 'bots' && BOT_ECOSYSTEMS.length > 0 ? `, also for ${BOT_ECOSYSTEMS.slice(0, -1).join(', ')} and ${BOT_ECOSYSTEMS.at(-1) ?? ''}, which only the bots delay` : '';
     return {
       ...page,
       title: `Start with ${names(members)}`,
-      summary: `The five-minute start, the settings and the doctor rules for ${names(members)}.`,
+      summary: `The five-minute start, the settings and the doctor rules for ${names(members)}${also}.`,
       tools: members.map((tool) => tool.id),
     };
   });
@@ -162,10 +171,10 @@ export interface PageGroup {
  * knowledge base gets a start page `<ecosystem>.html`, which has to be added here.
  */
 export const PAGE_GROUPS: readonly PageGroup[] = [
-  { title: 'Start', files: ['index.html', 'npm.html', 'python.html', 'php.html', 'bots.html'] },
+  { title: 'Start', files: ['index.html', 'guide.html', 'npm.html', 'python.html', 'php.html', 'ruby.html', 'bots.html'] },
   { title: 'Reference', files: ['policy.html', 'commands.html', 'codes.html', 'doctor.html', 'tools.html', 'knowledge.html'] },
   { title: 'Integrations', files: ['action.html', 'check.html', 'claude-code.html', 'mcp.html', 'machine.html'] },
-  { title: 'Project', files: ['about.html', 'versions.html'] },
+  { title: 'Project', files: ['about.html', 'other-tools.html', 'versions.html'] },
 ];
 
 /** The pages in their groups, in the order of PAGE_GROUPS, without empty groups; a page in no group stops the build. */

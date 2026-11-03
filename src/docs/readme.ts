@@ -11,7 +11,7 @@ import type { Rule } from '../doctor/types.ts';
 import { USER_RULES } from '../user/doctor.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import { SOURCE_KINDS } from '../knowledge/schema.ts';
-import type { CommandLineKnowledge, EnvironmentKnowledge, Fact, ToolKnowledge, UserConfigKnowledge, UserDirectory, UserFile, UserPlatform } from '../knowledge/types.ts';
+import type { CommandLineKnowledge, CommandNamesKnowledge, EnvironmentKnowledge, Fact, ToolKnowledge, UserConfigKnowledge, UserDirectory, UserFile, UserPlatform } from '../knowledge/types.ts';
 import { DEFAULT_POLICY, renderPolicy } from '../policy/defaults.ts';
 import { policyJsonSchema } from '../policy/json-schema.ts';
 import { INSTALLED_CLI, TOOLS_DIRECTORY } from '../self-version.ts';
@@ -60,7 +60,7 @@ function setting(fact: Fact<string | null> | undefined): string | undefined {
   return fact === undefined || values(fact).every((value) => value === null) ? undefined : shown(fact, code);
 }
 
-function verifiedRange(tool: ToolKnowledge): string {
+function verifiedRange(tool: object): string {
   const dates: string[] = [];
   const visit = (node: unknown) => {
     if (!isRecord(node)) return;
@@ -75,7 +75,39 @@ function verifiedRange(tool: ToolKnowledge): string {
   return sorted.length <= 1 ? (sorted[0] ?? 'n/a') : `${sorted[0] ?? ''} – ${sorted.at(-1) ?? ''}`;
 }
 
-function toolsTable(tools: readonly ToolKnowledge[]): string {
+/**
+ * The ecosystems updated by bots only (decision D-151), one row each after the bots: the release-age delay of the
+ * package manager itself, which depcurfew does not configure, and the bot entries and managers that wait instead. Only
+ * in a table with an update bot, so that the start pages of the package managers leave them out.
+ */
+function botEcosystemRows(tools: readonly ToolKnowledge[], environment: EnvironmentKnowledge | undefined): string[] {
+  const bots = tools.filter((tool) => tool.kind === 'update-bot');
+  if (environment === undefined || bots.length === 0) return [];
+  const names = (tool: ToolKnowledge, key: 'ecosystem' | 'manager'): Record<string, string> => {
+    const fact = tool.extra?.['botOnlyEcosystems'];
+    const value = fact === undefined ? undefined : values(fact)[0];
+    return isRecord(value) ? Object.fromEntries(Object.entries(value).flatMap(([id, entry]) => (isRecord(entry) && typeof entry[key] === 'string' ? [[id, entry[key]]] : []))) : {};
+  };
+  const dependabot = bots.find((tool) => tool.id === 'dependabot');
+  const renovate = bots.find((tool) => tool.id === 'renovate');
+  return Object.entries(environment.botOnlyEcosystems).map(([id, entry]) => {
+    const project = values(entry.project)[0];
+    const delay = shown(entry.releaseAge, (value) => {
+      if (!isRecord(value) || typeof value['setting'] !== 'string' || typeof value['since'] !== 'string') return 'none';
+      const file = typeof value['file'] === 'string' ? ` in ${code(value['file'])}` : '';
+      const product = typeof value['product'] === 'string' ? `${value['product']} ` : '';
+      return `${code(value['setting'])}${file}, since ${product}${value['since']}${value['updatesOnly'] === true ? ', for updates only' : ''} (depcurfew does not write it)`;
+    });
+    const through = [
+      ...(dependabot === undefined || names(dependabot, 'ecosystem')[id] === undefined ? [] : [`Dependabot ${code(names(dependabot, 'ecosystem')[id])}`]),
+      ...(renovate === undefined || names(renovate, 'manager')[id] === undefined ? [] : [`Renovate ${code(names(renovate, 'manager')[id])}`]),
+    ];
+    const cellText = `${delay ?? 'none'}; the delay comes from the bots: ${through.join(', ')}`;
+    return `| ${[`${project?.name ?? id} (bots only)`, cellText, 'n/a', 'n/a', 'n/a', verifiedRange(entry)].map(cell).join(' | ')} |`;
+  });
+}
+
+function toolsTable(tools: readonly ToolKnowledge[], environment?: EnvironmentKnowledge): string {
   const rows = tools.map((tool) => {
     const cooldownSetting = setting(tool.cooldown.setting);
     const files = shown(tool.cooldown.configFiles, (value) => {
@@ -106,6 +138,7 @@ function toolsTable(tools: readonly ToolKnowledge[]): string {
     '| Tool | Release-age delay | Exceptions | Install-script allow-list (Python: packages built from source; Composer: plugins) | Dependency sources | Verified |',
     '| --- | --- | --- | --- | --- | --- |',
     ...rows,
+    ...botEcosystemRows(tools, environment),
     '',
     `⚠️ official sources disagree (depcurfew takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](${KNOWLEDGE_DOCUMENT}).`,
   ].join('\n');
@@ -128,12 +161,16 @@ function policyTable(): string {
   return ['| Field | Values | Default | Meaning |', '| --- | --- | --- | --- |', ...rows].join('\n');
 }
 
-function rulesList(rules: readonly Rule[] = RULES): string {
+/**
+ * `fallback`: what a rule that needs the policy does without one; doctor compares with the default policy (decision
+ * D-149). `also`: what a rule that runs without one but finds more with one adds then (decision D-154).
+ */
+function rulesList(rules: readonly Rule[] = RULES, fallback = ' (without one: a note against the default policy)', also = ' · without depcurfew.json also a note against the default policy'): string {
   return rules.map((rule) =>
     [
       `### \`${rule.id}\``,
       '',
-      `**${rule.level}**${rule.requiresPolicy ? ' · needs depcurfew.json' : ''} · ${rule.summary}`,
+      `**${rule.level}**${rule.requiresPolicy ? ` · needs depcurfew.json${fallback}` : rule.alsoWithDefaultPolicy === true ? also : ''} · ${rule.summary}`,
       '',
       rule.description,
       '',
@@ -201,6 +238,21 @@ function exampleWorkflow(environment: EnvironmentKnowledge, workflow: string): s
     '        with:',
     '          persist-credentials: false',
     `      - uses: DevXord/depcurfew@${ACTION_RELEASE.commit} # v${ACTION_RELEASE.version}`,
+    '```',
+  ].join('\n');
+}
+
+/** The commands that check a release against its tag, for the release the example workflow pins (ACTION_RELEASE). */
+function verifyRelease(): string {
+  const { version } = ACTION_RELEASE;
+  return [
+    '```bash',
+    `git clone --branch v${version} https://github.com/DevXord/depcurfew.git`,
+    'cd depcurfew',
+    'npm ci --ignore-scripts',
+    'npm run build',
+    'npm pack --dry-run --json | grep shasum',
+    `npm view depcurfew@${version} dist.shasum`,
     '```',
   ].join('\n');
 }
@@ -281,9 +333,19 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
         const fact = tool.extra?.[key];
         const commandLine = fact === undefined ? undefined : (values(fact)[0] as CommandLineKnowledge | undefined);
         if (commandLine === undefined) return [];
-        const add = commandList(commandLine.add);
-        const run = commandList(commandLine.run.map((entry) => entry.command));
-        const create = commandList(commandLine.create.map((entry) => entry.command));
+        // The aliases of the tool's command names that stand for a listed command (bun a, bun c; decision D-162).
+        const namesFact = key === 'commandLine' ? tool.extra?.['commandNames'] : undefined;
+        const names = namesFact === undefined ? undefined : (values(namesFact)[0] as CommandNamesKnowledge | undefined);
+        const withAliases = (entries: readonly (readonly string[])[]) =>
+          entries.flatMap((entry) => {
+            const [executable, command] = entry;
+            if (names === undefined || executable === undefined || command === undefined || entry.length !== 2) return [entry];
+            const aliases = Object.entries(names.aliases).filter(([alias, target]) => target === command && !entries.some((other) => other[0] === executable && other[1] === alias));
+            return [entry, ...aliases.map(([alias]) => [executable, alias])];
+          });
+        const add = commandList(withAliases(commandLine.add));
+        const run = commandList(withAliases(commandLine.run.map((entry) => entry.command)));
+        const create = commandList(withAliases(commandLine.create.map((entry) => entry.command)));
         const name = key === 'commandLine' ? tool.name : (commandLine.add[0]?.[0] ?? commandLine.run[0]?.command[0] ?? key);
         return [`| ${name} | ${add === '' ? 'none' : add} | ${run === '' ? 'none' : run} | ${create === '' ? 'none' : create} |`];
       }),
@@ -301,7 +363,7 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
     '',
     ...bootstrap(environment),
     '',
-    'Commands the guard reads (an add subcommand of any npm package manager, such as `install` or `i`, is checked for all of them; Python commands are matched word for word, and `python -m pip` counts as `pip`):',
+    'Commands the guard reads (an add subcommand of any npm package manager, such as `install` or `i`, is checked for all of them; npm commands also count abbreviated or in camelCase, as npm resolves them (`npm exe`, `npm installTest`); pnpm, Yarn and Bun take their command names only as written, with the aliases in the table; Python commands are matched word for word, and `python -m pip` counts as `pip`):',
     '',
     '| Package manager | Add packages | Download and run | Starter kits |',
     '| --- | --- | --- | --- |',
@@ -416,15 +478,17 @@ function userTable(tools: readonly ToolKnowledge[]): string {
 export function readmeSections(inputs: ReadmeInputs): Record<string, string> {
   return {
     'user-config': userTable(inputs.tools),
-    'user-rules': rulesList(USER_RULES),
+    // doctor --user has no default policy to compare with.
+    'user-rules': rulesList(USER_RULES, '', ''),
     'default-policy': ['```json', renderPolicy(DEFAULT_POLICY).trimEnd(), '```'].join('\n'),
     'policy-fields': policyTable(),
-    tools: toolsTable(inputs.tools),
+    tools: toolsTable(inputs.tools, inputs.environment),
     rules: rulesList(),
     'apply-codes': applyCodes(),
     'init-codes': initCodes(),
     'action-reference': actionTables(inputs.action),
     'action-workflow': exampleWorkflow(inputs.environment, inputs.workflow),
+    'verify-release': verifyRelease(),
     'claude-code-hook': claudeCodeHook(inputs.environment, inputs.tools),
     'mcp-clients': mcpClients(inputs.environment),
   };

@@ -1,10 +1,13 @@
 // `depcurfew doctor [directory] [--json | --sarif] [--fail-on error|warning] [--strict] [--osv]`. Exit code 1 when any finding
 // is an error, and also for a warning when --fail-on (--strict is --fail-on warning) or else doctor.failOn of the
 // policy is "warning" (decision D-112); notes never fail. An invalid depcurfew.json is one (invalid-policy), in every
-// output format, and counts as "error" unless the option says otherwise. A directory that does not exist is a usage
-// error (exit code 2), also reported as a JSON document or a SARIF run that did not succeed.
+// output format, and counts as "error" unless the option says otherwise. Without depcurfew.json the rules that need a
+// policy compare the repository with the policy depcurfew init would write, and their findings are notes (decision
+// D-149). A directory that does not exist is a usage error (exit code 2), also reported as a JSON document or a SARIF
+// run that did not succeed.
 import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
-import { countLevels, makeNotice, renderText, RULES, runDoctor, toSarif, type DoctorReport } from '../doctor/index.ts';
+import { countLevels, makeNotice, renderText, RULES, toSarif, type DoctorReport, type Notice } from '../doctor/index.ts';
+import { projectsNotComparedNotice } from '../doctor/default-policy.ts';
 import { fails, policyFailOn, resolveFailOn, type FailOn, type FailOnSetting } from '../doctor/fail-on.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
@@ -19,7 +22,10 @@ import { loadUserPolicy } from '../user/policy.ts';
 import { toUserSarif } from '../user/sarif.ts';
 import { paint } from '../color.ts';
 import type { FetchLike } from '../check/registry.ts';
-import { runDoctorWithOsv } from '../doctor/osv.ts';
+import { runDoctorWithLocalOsv, runDoctorWithOsv } from '../doctor/osv.ts';
+import { LocalOsvData } from '../osv/data.ts';
+import { comparedPolicy } from './init-policy.ts';
+import { Detections } from '../detect/cache.ts';
 import { projectDirectory, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 
@@ -34,6 +40,18 @@ function json(report: Omit<DoctorReport, 'policy'> & { policy: DoctorReport['pol
 /** The exit code: 1 for an error finding, and with failOn "warning" also for a warning; notes never fail. */
 function exitCode(report: Pick<DoctorReport, 'findings'>, setting: FailOnSetting): number {
   return fails(countLevels(report.findings), setting.failOn) ? EXIT_FAILURE : EXIT_OK;
+}
+
+/**
+ * Without depcurfew.json: the policy init would write, which the rules that need one compare with (decision D-149).
+ * When init could not write a valid one, those rules do not run, as before D-149 (decision D-158).
+ */
+function defaultPolicyOf(directory: string, detections: Detections): ReturnType<typeof comparedPolicy> | undefined {
+  try {
+    return comparedPolicy(directory, detections);
+  } catch {
+    return undefined;
+  }
 }
 
 export interface DoctorFormat {
@@ -74,6 +92,12 @@ function doctorUser(format: DoctorFormat, user: NonNullable<DoctorFormat['user']
   return exitCode(report, setting);
 }
 
+/** The notices with `notice` after the first one of code `after` (at the end without one). */
+function withNotice(notices: readonly Notice[], after: string, notice: Notice): Notice[] {
+  const index = notices.findIndex((item) => item.code === after);
+  return index === -1 ? [...notices, notice] : [...notices.slice(0, index + 1), notice, ...notices.slice(index + 1)];
+}
+
 /** The project policy read once for doctor: the policy (undefined without one), or 'invalid', which runDoctor reports. */
 function projectPolicy(directory: string): ResolvedPolicy | undefined | 'invalid' {
   try {
@@ -84,11 +108,18 @@ function projectPolicy(directory: string): ResolvedPolicy | undefined | 'invalid
   }
 }
 
+export interface DoctorDependencies {
+  fetch: FetchLike;
+  /** The local OSV.dev data of depcurfew osv update (decision D-150); none when left out. */
+  local?: () => LocalOsvData;
+  now?: () => Date;
+}
+
 export async function doctor(
   directory: string | undefined,
   format: DoctorFormat,
   io: CliIo,
-  dependencies: { fetch: FetchLike } = { fetch: (url, init) => fetch(url, init) },
+  dependencies: DoctorDependencies = { fetch: (url, init) => fetch(url, init) },
 ): Promise<number> {
   if (format.json && format.sarif) {
     io.stderr("depcurfew: '--json' and '--sarif' cannot be used together; pick one\nRun 'depcurfew doctor --help' for usage.\n");
@@ -102,7 +133,7 @@ export async function doctor(
       const empty: DoctorReport = { schemaVersion: 1, policy: 'missing', findings: [], notices: [] };
       io.stdout(`${safeJson(toSarif(empty, RULES, getVersion(), undefined, [target.error]), 2)}\n`);
     } else if (format.json) {
-      io.stdout(json({ schemaVersion: 1, policy: null, findings: [], notices: [] }, [target.error], resolveFailOn(option, { failOn: undefined, file: POLICY_FILE })));
+      io.stdout(json({ schemaVersion: 1, policy: null, policySource: null, findings: [], notices: [] }, [target.error], resolveFailOn(option, { failOn: undefined, file: POLICY_FILE })));
     } else {
       reportInputError(target.error, io);
     }
@@ -110,11 +141,30 @@ export async function doctor(
   }
   // An invalid policy is read again by runDoctor, which reports it; it counts as failOn "error" unless the option says otherwise.
   const policy = projectPolicy(target.directory);
-  const options = policy === 'invalid' ? { invalidPolicy: 'report' as const } : { policy: policy ?? null };
-  // --osv: the locked versions go to OSV.dev before the rules run; nothing is sent without it.
-  const found = format.osv === true ? await runDoctorWithOsv(target.directory, options, { fetch: dependencies.fetch }) : runDoctor(target.directory, options);
+  // Without depcurfew.json the rules that need a policy run against the one init would write, as notes (decision D-149);
+  // failOn stays "error" unless the option says otherwise, since that policy is not the repository's. Every run of the
+  // rules and that policy share the detection of each directory, and at most MAX_COMPARED_PROJECTS of the projects init
+  // would list are compared (decision D-157).
+  const detections = new Detections();
+  const compared = policy === undefined ? defaultPolicyOf(target.directory, detections) : undefined;
+  const options =
+    policy === 'invalid'
+      ? { invalidPolicy: 'report' as const, detections }
+      : policy !== undefined
+        ? { policy, detections }
+        : { policy: null, ...(compared === undefined ? {} : { defaultPolicy: compared.policy }), detections };
+  // --osv: the locked versions go to OSV.dev before the rules run; nothing is sent without it. Without --osv they are
+  // looked up in the local OSV.dev data, when there is any (decision D-150); with --osv that answers only for the
+  // versions OSV.dev did not answer for.
+  const local = (dependencies.local ?? (() => new LocalOsvData(undefined)))();
+  const found =
+    format.osv === true
+      ? await runDoctorWithOsv(target.directory, options, { fetch: dependencies.fetch, local })
+      : runDoctorWithLocalOsv(target.directory, options, local, (dependencies.now ?? (() => new Date()))());
   // The directory came from the nearest depcurfew.json in a parent directory: said first, as a note (decision D-116).
-  const report: DoctorReport = target.notice === undefined ? found : { ...found, notices: [makeNotice('policy-from-parent', target.notice, POLICY_FILE), ...found.notices] };
+  // The projects init would list beyond those compared: said after the notice of the policy that was used.
+  const notices = compared === undefined || compared.notCompared.length === 0 ? found.notices : withNotice(found.notices, 'policy-missing', projectsNotComparedNotice(compared.policy.projects.length, compared.notCompared));
+  const report: DoctorReport = target.notice === undefined ? { ...found, notices } : { ...found, notices: [makeNotice('policy-from-parent', target.notice, POLICY_FILE), ...notices] };
   const setting = resolveFailOn(option, { failOn: policy === 'invalid' ? undefined : policyFailOn(policy), file: POLICY_FILE });
   if (format.sarif) {
     io.stdout(`${safeJson(toSarif(report, RULES, getVersion(), lineReader(target.directory)), 2)}\n`);

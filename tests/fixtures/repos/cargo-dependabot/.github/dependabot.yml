@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # The crates of the workspace
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # open-pull-requests-limit: 5
+  - package-ecosystem: "cargo"
+    directory: "/tools/xtask"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 1
+      semver-major-days: 2
+      semver-patch-days: 7
+      exclude:
+        - "tokio*"
+        # - "serde*"

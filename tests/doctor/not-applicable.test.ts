@@ -37,6 +37,7 @@ describe('rules that do not concern the project', () => {
       'pnpm-shared-workspace-lockfile': 'passed',
       'python-config-ignored': 'not-applicable',
       'composer-config-weakens': 'not-applicable',
+      'bundler-config-weakens': 'not-applicable',
       'runtime-end-of-life': 'not-applicable',
       'corepack-unavailable': 'not-applicable',
       'config-drift': 'skipped',
@@ -48,7 +49,7 @@ describe('rules that do not concern the project', () => {
       'known-malicious': 'not-applicable',
       'unreadable-config': 'passed',
     });
-    expect(resultCounts(report.checked?.rules ?? [])).toBe('19 checks: 7 passed, 8 not applicable, 4 skipped');
+    expect(resultCounts(report.checked?.rules ?? [])).toBe('20 checks: 7 passed, 9 not applicable, 4 skipped');
   });
 
   it('are not applicable in a PDM project without bots: the npm, pnpm and bot rules', () => {
@@ -74,6 +75,7 @@ describe('rules that do not concern the project', () => {
       'pnpm-shared-workspace-lockfile': 'not-applicable',
       'python-config-ignored': 'not-applicable',
       'composer-config-weakens': 'not-applicable',
+      'bundler-config-weakens': 'not-applicable',
       'runtime-end-of-life': 'not-applicable',
       'corepack-unavailable': 'not-applicable',
       'config-drift': 'skipped',

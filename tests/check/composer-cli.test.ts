@@ -112,6 +112,7 @@ describe('depcurfew check with composer: packages', () => {
         code: 'known-malicious',
         message: 'composer:intercom/intercom-php:5.0.2 is a known malicious version: OSV.dev lists it as MAL-2026-3637 (https://osv.dev/vulnerability/MAL-2026-3637)',
         fix: 'Do not install it; pick another package or version. If it is installed anywhere already, remove it and read the record on OSV.dev for what it does',
+        source: 'osv-api',
       },
     ]);
     expect(fetch.requests).toEqual([[{ package: { name: 'intercom/intercom-php', ecosystem: 'Packagist' }, version: '5.0.2' }]]);

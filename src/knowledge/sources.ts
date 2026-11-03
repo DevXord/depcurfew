@@ -13,7 +13,8 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
     { host: 'github.blog', pathPrefix: '/changelog/' },
   ],
   pnpm: [{ host: 'pnpm.io' }, { host: 'github.com', pathPrefix: '/pnpm/' }],
-  yarn: [{ host: 'yarnpkg.com' }, { host: 'github.com', pathPrefix: '/yarnpkg/' }],
+  // Clipanion (arcanis) is the library Yarn parses its command line with (extra.runnerOptions).
+  yarn: [{ host: 'yarnpkg.com' }, { host: 'github.com', pathPrefix: '/yarnpkg/' }, { host: 'github.com', pathPrefix: '/arcanis/clipanion/' }],
   bun: [{ host: 'bun.com' }, { host: 'bun.sh' }, { host: 'github.com', pathPrefix: '/oven-sh/' }],
   deno: [{ host: 'docs.deno.com' }, { host: 'deno.com' }, { host: 'github.com', pathPrefix: '/denoland/' }],
   // jiff (BurntSushi) is the library uv reads and prints exclude-newer spans with (extra.spanSyntax).
@@ -40,6 +41,19 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
     // WPackagist serves the WordPress plugin and theme directories as a Composer repository (repositoryArchiveHosts).
     { host: 'github.com', pathPrefix: '/outlandishideas/wpackagist/' },
   ],
+  // bundler.io is built from the man pages of ruby/rubygems (formerly rubygems/rubygems), where RubyGems lives too; the
+  // RubyGems blog is built from rubygems/rubygems.github.io; rubygems.org serves the versions of the bundler gem.
+  bundler: [
+    { host: 'bundler.io' },
+    { host: 'github.com', pathPrefix: '/ruby/rubygems/' },
+    { host: 'github.com', pathPrefix: '/rubygems/' },
+    { host: 'blog.rubygems.org' },
+    { host: 'guides.rubygems.org' },
+    { host: 'rubygems.org', pathPrefix: '/api/' },
+    // Ruby's parser (parse.y, prism) decides which lines of a Gemfile are code, since Bundler runs it with instance_eval;
+    // Ruby's String#to_i reads the number settings of Bundler (rubySyntax, stringToInteger).
+    { host: 'github.com', pathPrefix: '/ruby/ruby/' },
+  ],
   renovate: [{ host: 'docs.renovatebot.com' }, { host: 'github.com', pathPrefix: '/renovatebot/' }],
   // Psych (ruby/psych) is the YAML library dependabot-core loads dependabot.yml with (extra.yamlScalars).
   dependabot: [
@@ -52,7 +66,7 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   ],
 };
 
-/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions, Claude Code, Python packaging, git, the Windows shells, Docker and the Node.js version managers. */
+/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions, Claude Code, Python packaging, git, the Windows shells, Docker, the Node.js version managers and the ecosystems updated by bots only. */
 export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'nodejs.org' },
   { host: 'github.com', pathPrefix: '/nodejs/' },
@@ -81,6 +95,8 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   // Third-party actions that install Poetry: their own repositories describe their inputs.
   { host: 'github.com', pathPrefix: '/snok/' },
   { host: 'github.com', pathPrefix: '/abatilo/' },
+  // ruby/setup-ruby, the action that installs Ruby and Bundler (decision D-152).
+  { host: 'github.com', pathPrefix: '/ruby/setup-ruby/' },
   // git: git-scm.com/docs is built from Documentation/ in git/git.
   { host: 'github.com', pathPrefix: '/git/' },
   // PowerShell and cmd.exe: learn.microsoft.com is built from MicrosoftDocs repositories such as PowerShell-Docs.
@@ -105,6 +121,16 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'github.com', pathPrefix: '/nvm-sh/' },
   { host: 'github.com', pathPrefix: '/nodenv/' },
   { host: 'github.com', pathPrefix: '/schniz/' },
+  // Ecosystems updated by bots only (decision D-151): Cargo, its book and the RFCs (rust-lang), the go command and
+  // go.dev (golang/go, golang/website), Maven and its site (apache/maven*), Gradle, NuGet with its designs and docs
+  // (NuGet/Home, NuGet/NuGet.Client, NuGet/docs.microsoft.com-nuget) and the .NET SDK (dotnet/dotnet, dotnet/core,
+  // dotnet/docs).
+  { host: 'github.com', pathPrefix: '/rust-lang/' },
+  { host: 'github.com', pathPrefix: '/golang/' },
+  { host: 'github.com', pathPrefix: '/apache/maven' },
+  { host: 'github.com', pathPrefix: '/gradle/' },
+  { host: 'github.com', pathPrefix: '/nuget/' },
+  { host: 'github.com', pathPrefix: '/dotnet/' },
   // npm packages whose install scripts are known (decision D-127): each package's own repository at a release tag.
   { host: 'github.com', pathPrefix: '/evanw/esbuild/' },
   { host: 'github.com', pathPrefix: '/evilmartians/lefthook/' },

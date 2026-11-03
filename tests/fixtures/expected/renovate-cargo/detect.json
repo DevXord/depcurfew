@@ -1,0 +1,28 @@
+{
+  "packageManagers": [],
+  "node": {
+    "versions": []
+  },
+  "bots": [
+    {
+      "id": "renovate",
+      "configFiles": [
+        "renovate.json"
+      ]
+    }
+  ],
+  "botEcosystems": [
+    {
+      "id": "cargo",
+      "files": [
+        "Cargo.toml"
+      ]
+    }
+  ],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
+  "warnings": []
+}

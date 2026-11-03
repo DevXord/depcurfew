@@ -50,7 +50,9 @@ describe('depcurfew doctor --strict', () => {
 
   it('does not fail on notes or a clean result', async () => {
     const note = await exec(['doctor', '--strict', '--json', NOTE_ONLY]);
-    expect(JSON.parse(note.stdout).summary).toMatchObject({ error: 0, warning: 0, note: 1 });
+    // The fixture has no depcurfew.json: besides its own note, two notes compare it with the default policy (decision
+    // D-149), and none of them fails doctor, also with --strict.
+    expect(JSON.parse(note.stdout).summary).toMatchObject({ error: 0, warning: 0, note: 3 });
     expect(note.code).toBe(EXIT_OK);
     expect((await exec(['doctor', '--strict', CLEAN])).code).toBe(EXIT_OK);
   });

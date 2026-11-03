@@ -46,7 +46,7 @@ describe('the input osv of the action', () => {
     expect(fetch.requests).toEqual([]);
     const { outputs, log } = runWith({ GITHUB_WORKSPACE: workspace() });
     expect(outputs.errors).toBe(0);
-    expect(log).toContain('not applicable  With --osv: no locked package version is a known malicious version in OSV.dev [known-malicious]');
+    expect(log).toContain('not applicable  With --osv or the local OSV.dev data of depcurfew osv update: no locked package version is a known malicious version in OSV.dev [known-malicious]');
   });
 
   it('reports the known malicious versions with osv: true', async () => {

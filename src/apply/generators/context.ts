@@ -2,11 +2,12 @@
 // version checks and the file edits. A failed edit is recorded as an error and stops only the tool that made it,
 // so every broken file is reported in one run.
 import { parseToml } from '../../detect/toml.ts';
+import type { BotEcosystemInfo } from '../../detect/types.ts';
 import type { Duration } from '../../policy/duration.ts';
 import type { ResolvedPolicy } from '../../policy/schema.ts';
 import type { ToolId, ToolKnowledge } from '../../knowledge/types.ts';
 import { blockStart } from '../block.ts';
-import { mergesYamlKeys, readsYamlLikePsych } from '../facts.ts';
+import { isRecord, mergesYamlKeys, readsYamlLikePsych, values } from '../facts.ts';
 import { writeIniBlock } from '../ini.ts';
 import { invalidJson, jsonArrayAppend, jsonArrayRemove, jsonArrayReplace, jsonGet, jsonObjectRemove, jsonSet } from '../json-edit.ts';
 import { writeRequirementsBlock } from '../pip-requirements.ts';
@@ -126,6 +127,13 @@ export interface Context {
   workspace: Workspace;
   /** Whether the file exists; a file that cannot be read stops the generator with an error. */
   exists(file: string): boolean;
+  /**
+   * Whether the path is a regular file (symlinks followed), without reading it: for a file the tool only looks for, so
+   * a directory or a symlink of that name stops nothing (decision D-159).
+   */
+  isFile(file: string): boolean;
+  /** Whether anything is at the path (symlinks followed), without reading it. */
+  present(file: string): boolean;
   /** The file's text (empty when missing); a file that cannot be read stops the generator with an error. */
   read(file: string): string;
   /** Reports a warning about this tool (the tool is filled in); the same warning twice is reported once. */
@@ -150,6 +158,13 @@ export interface Context {
   toml(file: string, table: string, entries: readonly string[], managedKeys: readonly string[], label?: string): void;
   /** A managed block of option lines in a pip requirements file. */
   requirements(file: string, entries: readonly string[], managedOptions: readonly string[]): void;
+  /** A change of a file read as plain text (the Gemfile of Bundler, decision D-152); the change must keep what it does not manage. */
+  text(file: string, change: (body: string) => string): void;
+  /**
+   * cooldown.exclude of the whole policy, for a tool of a registry the policy has no names for (Bundler): `policy` holds
+   * only the names of the tool's registry.
+   */
+  policyExclusions: readonly string[];
 }
 
 export interface JsonFile {
@@ -171,9 +186,13 @@ export interface YamlFile {
 
 /** A generator for a package manager returns the cooldown it wrote, in minutes, so bots can wait at least as long. */
 export type ManagerGenerator = (context: Context) => number | undefined;
-/** What a bot generator knows of the repository besides its files: the workflows whose actions it updates (decision D-130). */
+/**
+ * What a bot generator knows of the repository besides its files: the workflows whose actions it updates (decision
+ * D-130), and the ecosystems updated by bots only that detection found (decision D-151).
+ */
 export interface BotRepository {
   workflows: readonly string[];
+  botEcosystems?: readonly BotEcosystemInfo[];
 }
 
 export type BotGenerator = (context: Context, cooldown: Duration | undefined, repository: BotRepository) => void;
@@ -195,6 +214,10 @@ export function createContext(options: {
   failures: EditFailure[];
   /** apply --user, with the version as the installed tool states it when it was read from its files. */
   user?: { versionText?: string };
+  /** cooldown.exclude of the whole policy; `policy` may be one registry's view of it. */
+  policyExclusions?: readonly string[];
+  /** Where the pinned version is written, for version-too-old: BUNDLED WITH of a lockfile (decision D-159). */
+  versionAt?: { file: string; line?: number };
 }): Context {
   const { tool, workspace, warnings, failures } = options;
   const user = options.user !== undefined;
@@ -206,6 +229,8 @@ export function createContext(options: {
     return options.version === undefined || required === undefined || compareVersions(options.version, required) >= 0;
   };
   const unsupported: Requirement[] = [];
+  const lockfileVersion = tool.extra?.['lockfileVersion'] === undefined ? undefined : values(tool.extra['lockfileVersion'])[0];
+  const locked = isRecord(lockfileVersion) && typeof lockfileVersion['section'] === 'string' && typeof lockfileVersion['update'] === 'string' ? { section: lockfileVersion['section'], update: lockfileVersion['update'] } : undefined;
   const where = options.project === undefined ? {} : { project: options.project };
   const warn =(warning: Omit<ApplyWarning, 'tool'>) => {
     const { code, ...rest } = warning;
@@ -235,6 +260,8 @@ export function createContext(options: {
     user,
     workspace,
     exists: (file) => guard(file, () => workspace.exists(file)),
+    isFile: (file) => workspace.isFile(file),
+    present: (file) => workspace.present(file),
     read: (file) => guard(file, () => workspace.read(file)),
     warn,
     snippet: (file, text) => options.snippets.push({ tool: tool.id, file, text }),
@@ -260,9 +287,15 @@ export function createContext(options: {
       const needed = unsupported.map((item) => item.since).reduce((a, b) => (compareVersions(parseVersion(a) ?? [0, 0, 0], parseVersion(b) ?? [0, 0, 0]) >= 0 ? a : b));
       warn({
         code: 'version-too-old',
+        ...(options.versionAt === undefined ? {} : { location: options.versionAt }),
         message: `${tool.name} ${versionLabel} does not support ${describeRequirements(unsupported)}; not written`,
-        // A project pins the version; on this machine the installed tool is what has to change.
-        fix: user ? `Update ${tool.name} to ${needed} or later, then run depcurfew apply --user again` : `Require ${tool.name} ${needed} or later where the version is pinned`,
+        // A project pins the version; on this machine the installed tool is what has to change. A version a lockfile
+        // records changes with the tool's own command (BUNDLED WITH, bundle update --bundler; decision D-152).
+        fix: user
+          ? `Update ${tool.name} to ${needed} or later, then run depcurfew apply --user again`
+          : locked === undefined
+            ? `Require ${tool.name} ${needed} or later where the version is pinned`
+            : `Require ${tool.name} ${needed} or later where the version is pinned (${locked.section} of the lockfile changes with ${locked.update}), then run depcurfew apply again`,
       });
     },
     atLeast,
@@ -310,5 +343,7 @@ export function createContext(options: {
       ),
     requirements: (file, entries, managedOptions) =>
       guard(file, () => workspace.edit(file, (body) => writeRequirementsBlock(body, entries, managedOptions, requirementsLongOptions(requirementsFormatOf(tool))))),
+    text: (file, change) => guard(file, () => workspace.edit(file, change)),
+    policyExclusions: options.policyExclusions ?? options.policy.cooldown?.exclude ?? [],
   };
 }

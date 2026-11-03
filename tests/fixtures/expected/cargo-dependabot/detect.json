@@ -1,0 +1,29 @@
+{
+  "packageManagers": [],
+  "node": {
+    "versions": []
+  },
+  "bots": [
+    {
+      "id": "dependabot",
+      "configFiles": [
+        ".github/dependabot.yml"
+      ]
+    }
+  ],
+  "botEcosystems": [
+    {
+      "id": "cargo",
+      "files": [
+        "Cargo.lock",
+        "Cargo.toml"
+      ]
+    }
+  ],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
+  "warnings": []
+}
