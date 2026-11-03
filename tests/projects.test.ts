@@ -422,6 +422,26 @@ describe('init with projects', () => {
     expect(parsePolicy(read('depcurfew.json'))).toMatchObject({ ok: true, policy: { projects: ['Frontend', 'backend'] } });
   });
 
+  // The twins are told among the directories init can list: one left out for a policy of its own does not keep the
+  // other out (decision D-161).
+  it.skipIf(process.platform === 'darwin' || process.platform === 'win32')('lists a directory whose case twin is left out for a policy of its own', async () => {
+    mkdirSync(join(directory, 'Frontend'));
+    writeFileSync(join(directory, 'Frontend', 'package.json'), '{ "name": "frontend-two", "private": true }\n');
+    writeFileSync(join(directory, 'Frontend', 'depcurfew.json'), '{ "version": 1 }\n');
+    const doctor = await exec('doctor', '--json', directory);
+    expect(doctor.code).toBe(EXIT_OK);
+    const report = JSON.parse(doctor.stdout) as { policySource: string; notices: { code: string; message: string }[] };
+    expect(report.policySource).toBe('default');
+    expect(report.notices.find((notice) => notice.code === 'policy-missing')?.message).toContain('(with projects "backend" and "frontend")');
+    const result = await exec('init', directory);
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stdout).toContain(
+      'warning: Frontend is not in projects: Frontend/depcurfew.json is a policy of its own, and two policies for the same files are refused (project-left-out)\n',
+    );
+    expect(result.stdout).not.toContain('only in case');
+    expect(parsePolicy(read('depcurfew.json'))).toMatchObject({ ok: true, policy: { projects: ['backend', 'frontend'] } });
+  });
+
   it('adds no projects when the root has a manifest', async () => {
     writeFileSync(join(directory, 'package.json'), '{ "name": "root", "private": true }\n');
     const result = await exec('init', directory);

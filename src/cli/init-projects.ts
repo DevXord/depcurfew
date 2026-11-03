@@ -49,7 +49,8 @@ export interface LeftOutProject {
  * The direct subdirectories of `root` that hold a manifest or lockfile, sorted, when the root itself holds none; an
  * empty list otherwise. Symlinks are not followed: apply refuses a project reached through one. A directory that apply
  * would refuse as a project (projectProblems: one with a depcurfew.json of its own, or a git submodule or other
- * repository of its own) is left out, with the reason.
+ * repository of its own) is left out, with the reason, and so is one whose name differs only in case from another
+ * that can be listed.
  */
 export function proposedProjects(root: string): { projects: string[]; leftOut: LeftOutProject[] } {
   const files = projectFiles();
@@ -66,24 +67,8 @@ export function proposedProjects(root: string): { projects: string[]; leftOut: L
     .map((entry) => entry.name)
     .filter((name) => hasProject(join(root, name), files))
     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-  // Directories whose names differ only in case are one directory on Windows and macOS, and the policy refuses both
-  // (decision D-154): the first in sort order is listed, the others are left out with the reason.
-  const twins = candidates.flatMap((name, index): LeftOutProject[] => {
-    const first = candidates.find((other, at) => at < index && other.toLowerCase() === name.toLowerCase());
-    return first === undefined
-      ? []
-      : [
-          {
-            project: name,
-            file: name,
-            reason: `its name differs from "${first}" only in case, so both name the same directory on Windows and macOS, and projects in ${POLICY_FILE} cannot list both`,
-            fix: `Rename one of the two directories so that their names differ in more than case, then run depcurfew init --force to list both`,
-          },
-        ];
-  });
-  const named = candidates.filter((name) => !twins.some((twin) => twin.project === name));
   // The root has no manifest, so no workspaces either; what is left is a policy of its own, or a directory that changed.
-  const problems = projectProblems(root, named, undefined);
+  const problems = projectProblems(root, candidates, undefined);
   const leftOut = problems.map((problem): LeftOutProject => {
     const { project } = problem;
     const own = inProject(project, POLICY_FILE);
@@ -106,5 +91,24 @@ export function proposedProjects(root: string): { projects: string[]; leftOut: L
     // The fix of apply speaks of an entry of projects, which init did not write: what to do here instead.
     return { project, file: project, reason: `${problem.message}; depcurfew apply would refuse it`, fix: `Fix what the message describes, then run depcurfew init --force to list ${project}` };
   });
-  return { projects: named.filter((name) => !problems.some((problem) => problem.project === name)), leftOut: [...leftOut, ...twins].sort((a, b) => (a.project < b.project ? -1 : a.project > b.project ? 1 : 0)) };
+  // Directories whose names differ only in case are one directory on Windows and macOS, and the policy refuses both
+  // (decision D-158): of the directories init can list, the first in sort order is listed and the others are left out
+  // with the reason. One left out above does not count, so that its twin is listed (decision D-161).
+  const listable = candidates.filter((name) => !problems.some((problem) => problem.project === name));
+  const firsts = new Map<string, string>();
+  const twins = listable.flatMap((name): LeftOutProject[] => {
+    const first = firsts.get(name.toLowerCase());
+    if (first === undefined) firsts.set(name.toLowerCase(), name);
+    return first === undefined
+      ? []
+      : [
+          {
+            project: name,
+            file: name,
+            reason: `its name differs from "${first}" only in case, so both name the same directory on Windows and macOS, and projects in ${POLICY_FILE} cannot list both`,
+            fix: `Rename one of the two directories so that their names differ in more than case, then run depcurfew init --force to list both`,
+          },
+        ];
+  });
+  return { projects: listable.filter((name) => !twins.some((twin) => twin.project === name)), leftOut: [...leftOut, ...twins].sort((a, b) => (a.project < b.project ? -1 : a.project > b.project ? 1 : 0)) };
 }

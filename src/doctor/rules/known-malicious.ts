@@ -36,6 +36,9 @@ export const knownMalicious: Rule = {
   help: 'Remove or replace the package version and lock again; if it was installed anywhere, read the record on OSV.dev and treat that machine as exposed.',
   level: 'error',
   requiresPolicy: false,
+  // A known malicious locked version is a fact of the lockfile: without depcurfew.json the lockfiles of the projects
+  // init would list are looked up too, and a listed version is an error there as in the root (decision D-161).
+  alsoInComparedProjects: true,
   applies: (scope) => scope.osv !== undefined && !('unavailable' in scope.osv) && hasLockfile(scope),
   check(context) {
     const osv = context.osv;

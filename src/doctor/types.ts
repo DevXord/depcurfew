@@ -164,6 +164,12 @@ export interface Rule {
    */
   alsoWithDefaultPolicy?: true;
   /**
+   * A rule that runs without a policy and reports facts of the files, not differences from a policy (known-malicious):
+   * without depcurfew.json it also runs in the projects depcurfew init would list, the ones compared with the default
+   * policy, and what it finds there keeps its level, as in the root (decision D-161).
+   */
+  alsoInComparedProjects?: true;
+  /**
    * Whether the rule concerns the project at all, from detection: the Python rules without a Python tool, the bot rules
    * without a bot. false shows the rule as "not applicable" in the list of what doctor checked (decision D-098). It
    * never changes findings: check still runs, and a rule that reports one has problems. Absent: it always applies.

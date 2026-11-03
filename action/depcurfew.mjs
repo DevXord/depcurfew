@@ -8940,17 +8940,18 @@ var Repository = class {
 		this.warn("unreadable-file", `cannot read ${path} (${fileError(error)})`, [path]);
 	}
 	/**
-	* Whether a directory (absolute and normalized) is its own real path, with no symlink on the way: the root is, a
-	* directory under it is when its parent is and it is no symlink itself (one lstat each, remembered), and one above it
-	* (reached through ..) is resolved in full.
+	* Whether a directory (absolute and normalized) inside the root is its own real path, with no symlink on the way: the
+	* root is, and a directory under it is when its parent is and it is no symlink itself (one lstat each, remembered). A
+	* directory outside the root (reached through ..) never is: a path there is resolved in full, and only what leads
+	* back inside is used, so nothing outside is remembered, listed or read (decision D-161).
 	*/
 	#isPlain(directory) {
 		if (directory === this.root) return true;
+		if (!isInside(this.root, directory)) return false;
 		let plain = this.#plain.get(directory);
 		if (plain === void 0) {
-			const parent = dirname(directory);
 			try {
-				plain = parent !== directory && isInside(this.root, directory) ? this.#isPlain(parent) && lstatSync(directory, { throwIfNoEntry: false })?.isSymbolicLink() === false : realpathSync(directory) === directory;
+				plain = this.#isPlain(dirname(directory)) && lstatSync(directory, { throwIfNoEntry: false })?.isSymbolicLink() === false;
 			} catch {
 				plain = false;
 			}
@@ -8962,9 +8963,11 @@ var Repository = class {
 	* The real path of a repository-relative path with what stat says about it, or undefined if it is missing or leads
 	* outside. A path that is not a symlink, in a directory with no symlink on the way, is its own real path: it is not
 	* resolved again segment by segment (decision D-157). One that ends with a separator is: lstat follows a symlink there.
-	* A missing path costs one lstat without an exception.
+	* A missing path costs one lstat without an exception. With `read`, for a file whose content is read next, the path
+	* is resolved in full anyway: a directory remembered as plain may have been replaced with a symlink since (decision
+	* D-161), and one realpath per file read costs little next to the lookups the shortcut saves.
 	*/
-	#resolve(path, report) {
+	#resolve(path, report, read = false) {
 		const full = join(this.root, path);
 		let own;
 		try {
@@ -8975,7 +8978,7 @@ var Repository = class {
 		}
 		if (own === void 0) return void 0;
 		let real;
-		if (full === this.root || !own.isSymbolicLink() && !full.endsWith(sep) && this.#isPlain(dirname(full))) real = full;
+		if (full === this.root || !read && !own.isSymbolicLink() && !full.endsWith(sep) && this.#isPlain(dirname(full))) real = full;
 		else try {
 			real = realpathSync(full);
 		} catch {
@@ -9000,7 +9003,7 @@ var Repository = class {
 	}
 	/** The text of a file, without a byte order mark; undefined (with a warning when useful) if it cannot be read. */
 	readText(path, limit = MAX_FILE_SIZE) {
-		const resolved = this.#resolve(path, true);
+		const resolved = this.#resolve(path, true, true);
 		if (resolved === void 0) return void 0;
 		const { real, stats } = resolved;
 		if (!stats.isFile()) return void 0;
@@ -9020,7 +9023,7 @@ var Repository = class {
 	}
 	/** The first bytes of a file, e.g. to recognize a lockfile format without reading a large file. */
 	readHead(path, bytes = 4096) {
-		const resolved = this.#resolve(path, true);
+		const resolved = this.#resolve(path, true, true);
 		if (resolved === void 0 || !resolved.stats.isFile()) return void 0;
 		const { real } = resolved;
 		const buffer = Buffer.alloc(bytes);
@@ -9051,9 +9054,20 @@ var Repository = class {
 		return this.#entries(path, (name) => !SKIPPED_DIRECTORIES.has(name) && (accept === void 0 || accept(name))).filter((entry) => entry.isDirectory).map((entry) => entry.name);
 	}
 	/**
+	* The real path of a file or directory of the repository, or undefined if it is missing or leads outside. A directory
+	* known to have no symlink on the way, such as one just listed, costs nothing; the walk of workspace patterns keys
+	* the directories it visited by it, so that a symlink back up does not make it walk them again (decision D-161).
+	*/
+	realPath(path) {
+		const full = join(this.root, path);
+		if (full === this.root || this.#plain.get(full) === true) return full;
+		return this.#resolve(path, false)?.real;
+	}
+	/**
 	* The entries of a directory whose names `accept` accepts, sorted by name; nothing else is resolved. An entry that is
 	* not a symlink is what readdir says it is, inside the directory and so inside the repository; a symlink is resolved
-	* like any path. A directory already known to have no symlink on the way is not resolved again.
+	* like any path. A directory already known to have no symlink on the way, which is always one inside the root
+	* (decision D-161), is not resolved again.
 	*/
 	#entries(path, accept) {
 		const full = join(this.root, path);
@@ -18239,29 +18253,53 @@ function segmentsOf$1(pattern) {
 	return segments;
 }
 /**
-* Adds to `found` the directories under `directory` that match the segments from `index` on. Each pair of directory
-* and segment is visited once, so several ** in one pattern cannot multiply the walk.
+* The most directories one workspace declaration lists while its patterns are matched (decision D-161). `**` lists
+* every directory under it (the excluding patterns too), so a repository with more stops the walk there, with the
+* warning workspace-search-limit; the packages found until then are kept.
 */
-function matchDirectories(repository, segments, index, directory, found, visited) {
-	const key = `${index}\0${directory}`;
-	if (visited.has(key)) return;
-	visited.add(key);
-	const segment = segments[index];
+const MAX_WORKSPACE_DIRECTORIES = 2e4;
+/**
+* Adds to `found` the directories under `directory` that match the segments from `index` on. Each pair of segment and
+* directory is visited once, keyed by the real path of the directory (decision D-161): several ** in one pattern cannot
+* multiply the walk, and neither can a symlink that leads back up (s0 -> .), which would otherwise make every path
+* through it a new directory. A directory whose real path is the root is not a workspace package of itself.
+*/
+function matchDirectories(walk, index, directory) {
+	if (walk.budget.reached) return;
+	const real = walk.repository.realPath(directory);
+	if (real === void 0) return;
+	const key = `${index}\0${real}`;
+	if (walk.visited.has(key)) return;
+	walk.visited.add(key);
+	const segment = walk.segments[index];
 	if (segment === void 0) {
-		found.add(directory);
+		if (real !== walk.repository.root) walk.found.set(directory, real);
 		return;
 	}
+	if (walk.budget.left === 0) {
+		walk.budget.reached = true;
+		return;
+	}
+	walk.budget.left -= 1;
 	if (segment.kind === "any-depth") {
-		matchDirectories(repository, segments, index + 1, directory, found, visited);
-		for (const child of repository.listDirectories(directory)) matchDirectories(repository, segments, index, joinPath(directory, child), found, visited);
+		matchDirectories(walk, index + 1, directory);
+		for (const child of walk.repository.listDirectories(directory)) matchDirectories(walk, index, joinPath(directory, child));
 		return;
 	}
-	for (const child of repository.listDirectories(directory, (name) => wildcardMatch(name, segment.pattern))) matchDirectories(repository, segments, index + 1, joinPath(directory, child), found, visited);
+	for (const child of walk.repository.listDirectories(directory, (name) => wildcardMatch(name, segment.pattern))) matchDirectories(walk, index + 1, joinPath(directory, child));
 }
-/** Package directories (without the root) matched by the patterns that contain one of the manifests. */
-function expandWorkspaces(repository, patterns, manifests, declaredIn) {
-	const included = /* @__PURE__ */ new Set();
-	const excluded = /* @__PURE__ */ new Set();
+/**
+* Package directories (without the root) matched by the patterns that contain one of the manifests, each real
+* directory once, under the first of its paths in sort order. Together the patterns list at most `limit` directories
+* (MAX_WORKSPACE_DIRECTORIES).
+*/
+function expandWorkspaces(repository, patterns, manifests, declaredIn, limit = MAX_WORKSPACE_DIRECTORIES) {
+	const included = /* @__PURE__ */ new Map();
+	const excluded = /* @__PURE__ */ new Map();
+	const budget = {
+		left: limit,
+		reached: false
+	};
 	for (const raw of patterns) {
 		const negated = raw.startsWith("!");
 		const pattern = negated ? raw.slice(1) : raw;
@@ -18269,9 +18307,21 @@ function expandWorkspaces(repository, patterns, manifests, declaredIn) {
 			repository.warn("workspace-outside-repository", `workspace pattern "${raw}" points outside the repository`, [declaredIn]);
 			continue;
 		}
-		matchDirectories(repository, segmentsOf$1(pattern), 0, ".", negated ? excluded : included, /* @__PURE__ */ new Set());
+		matchDirectories({
+			repository,
+			segments: segmentsOf$1(pattern),
+			found: negated ? excluded : included,
+			visited: /* @__PURE__ */ new Set(),
+			budget
+		}, 0, ".");
 	}
-	return [...included].filter((directory) => directory !== "." && !excluded.has(directory)).filter((directory) => manifests.some((manifest) => repository.isFile(joinPath(directory, manifest)))).sort();
+	if (budget.reached) repository.warn("workspace-search-limit", `the workspace patterns in ${declaredIn} match more than ${limit} directories; depcurfew looked for workspace packages in the first ${limit} and not in the others`, [declaredIn]);
+	const packages = /* @__PURE__ */ new Map();
+	for (const directory of [...included.keys()].filter((path) => !excluded.has(path)).sort()) {
+		const real = included.get(directory);
+		if (!packages.has(real) && manifests.some((manifest) => repository.isFile(joinPath(directory, manifest)))) packages.set(real, directory);
+	}
+	return [...packages.values()];
 }
 
 // src/policy/python-names.ts
@@ -22057,13 +22107,15 @@ const WARNING_FIXES = {
 	"multiple-lockfiles": "Remove the lockfiles of the package managers the project does not use",
 	"package-manager-mismatch": "Commit the lockfile of the package manager that packageManager in package.json names, or correct packageManager",
 	"python-tool-unknown": `Commit the lockfile of the tool that installs the project, or name the tool in targets in ${POLICY_FILE}`,
-	"script-not-followed": "Split the script into shorter run steps or RUN instructions, or check by hand where the installs after that point run and with which variables"
+	"script-not-followed": "Split the script into shorter run steps or RUN instructions, or check by hand where the installs after that point run and with which variables",
+	"workspace-search-limit": `Narrow the workspace patterns (for example packages/* instead of **), so that they match at most ${MAX_WORKSPACE_DIRECTORIES} directories and depcurfew finds every workspace package`
 };
 /**
 * Warnings of detection that doctor shows as notices: what detection could not follow, so the rules did not check it
-* (decision D-121). The others are about what explain and apply configure.
+* (decision D-121), such as a script it stopped following or workspace patterns it stopped matching (decision D-161).
+* The others are about what explain and apply configure.
 */
-const DETECTION_NOTICES = /* @__PURE__ */ new Set(["script-not-followed"]);
+const DETECTION_NOTICES = /* @__PURE__ */ new Set(["script-not-followed", "workspace-search-limit"]);
 
 // src/check/semver.ts
 const VERSION = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
@@ -33903,6 +33955,7 @@ const knownMalicious = {
 	help: "Remove or replace the package version and lock again; if it was installed anywhere, read the record on OSV.dev and treat that machine as exposed.",
 	level: "error",
 	requiresPolicy: false,
+	alsoInComparedProjects: true,
 	applies: (scope) => scope.osv !== void 0 && !("unavailable" in scope.osv) && hasLockfile(scope),
 	check(context) {
 		const osv = context.osv;
@@ -35893,7 +35946,7 @@ function runRules(root, policy, rules, tools, where = {}) {
 					level: level ?? rule.level,
 					...finding
 				};
-				if (where.defaultPolicy !== true) {
+				if (where.defaultPolicy !== true || rule.alsoInComparedProjects === true) {
 					findings.push(found);
 					return;
 				}
@@ -35942,7 +35995,9 @@ function relocateRun(project, run, plan) {
 * depcurfew init would write (initialResolvedPolicy), which the rules that need a policy then run against; every
 * finding of theirs is a note with `policy: "default"` (decision D-149). Without it those rules do not run.
 * `detections`: the detections to share with the caller, e.g. with comparedPolicy; the runs of one call share
-* theirs anyway, so each directory is detected once (decision D-157).
+* theirs anyway, so each directory is detected once (decision D-157). With `defaultPolicy`, a rule with
+* alsoInComparedProjects (known-malicious) also runs in the projects of that policy, and its findings there keep their
+* level (decision D-161).
 */
 function runDoctor(root, options = {}) {
 	const tools = options.tools ?? knowledgeBase;
@@ -35958,7 +36013,9 @@ function runDoctor(root, options = {}) {
 	}
 	const rules = options.rules ?? RULES;
 	const needing = rules.filter((rule) => rule.requiresPolicy);
-	const fallback = policy === void 0 && !invalid && needing.length > 0 ? options.defaultPolicy : void 0;
+	const inProjects = rules.some((rule) => rule.alsoInComparedProjects === true);
+	const fallback = policy === void 0 && !invalid && (needing.length > 0 || inProjects) ? options.defaultPolicy : void 0;
+	const compares = fallback !== void 0 && needing.length > 0;
 	const report = examine(root, {
 		policy,
 		invalid,
@@ -35966,18 +36023,19 @@ function runDoctor(root, options = {}) {
 		tools,
 		detections,
 		osv: options.osv,
-		...fallback === void 0 ? {} : { fallback }
+		...compares ? { fallback } : {}
 	});
-	if (fallback === void 0) return report;
-	const again = rules.filter((rule) => rule.requiresPolicy || rule.alsoWithDefaultPolicy === true);
+	if (fallback === void 0 || !compares && fallback.projects.length === 0) return report;
+	const again = rules.filter((rule) => compares && (rule.requiresPolicy || rule.alsoWithDefaultPolicy === true) || rule.alsoInComparedProjects === true);
 	return withDefaultPolicy(report, examine(root, {
 		policy: fallback,
 		invalid: false,
 		rules: again,
 		tools,
 		detections,
+		osv: options.osv,
 		defaultPolicy: true
-	}), again);
+	}), again, compares);
 }
 /** Where and what a finding says, to tell the findings of a second run from those of the first. */
 function findingKey(finding) {
@@ -36006,20 +36064,27 @@ function newFindings(report, compared, rules) {
 * The report of a repository without depcurfew.json and the findings of the rules that need a policy against the
 * default policy (decision D-149): those come after the other findings, and those rules show their results with
 * `policy: "default"` instead of skipped. Their notices are kept when they say what such a rule could not check;
-* the other notices, those of the files and of detection, are in the report already.
+* the other notices, those of the files and of detection, are in the report already. What a rule with
+* alsoInComparedProjects found in the projects stands among the other findings at its own level, and its result
+* counts the root and the projects (decision D-161). `compares`: the rules that need a policy ran against it.
 */
-function withDefaultPolicy(report, compared, rules) {
-	const findings = shortened(newFindings(report, compared, rules));
+function withDefaultPolicy(report, compared, rules, compares) {
+	const facts = new Set(rules.filter((rule) => rule.alsoInComparedProjects === true).map((rule) => rule.id));
+	const found = compared.findings.filter((finding) => facts.has(finding.rule));
+	const findings = shortened(newFindings(report, {
+		...compared,
+		findings: compared.findings.filter((finding) => !facts.has(finding.rule))
+	}, rules));
 	const twice = new Set(rules.filter((rule) => !rule.requiresPolicy).map((rule) => rule.id));
-	const results = new Map(ruleResultsOf(compared.checked?.rules ?? [], findings).map((result) => [result.rule, result]));
+	const results = new Map((compared.checked?.rules ?? []).map((result) => [result.rule, facts.has(result.rule) ? result : ruleResultsOf([result], findings)[0]]));
 	const shown = new Set(report.notices.map((notice) => notice.message));
 	const notices = compared.notices.filter((notice) => results.has(notice.code) && !shown.has(notice.message));
 	const tools = report.checked?.tools ?? [];
 	const known = new Set(tools.map((tool) => `${tool.project ?? ""}\u0000${tool.id}`));
 	return {
 		...report,
-		policySource: "default",
-		findings: [...report.findings, ...findings],
+		...compares ? { policySource: "default" } : {},
+		findings: [...found.length === 0 ? report.findings : [...report.findings, ...found].sort(byLocation), ...findings],
 		notices: [...report.notices, ...notices],
 		...report.checked === void 0 ? {} : { checked: {
 			...report.checked,
@@ -36028,6 +36093,7 @@ function withDefaultPolicy(report, compared, rules) {
 			rules: report.checked.rules.map((result) => {
 				const own = results.get(result.rule);
 				if (own === void 0) return result;
+				if (facts.has(result.rule)) return bothResults(result, own);
 				if (!twice.has(result.rule)) return {
 					...own,
 					policy: "default"
@@ -36046,6 +36112,26 @@ function withDefaultPolicy(report, compared, rules) {
 			})
 		} }
 	};
+}
+/**
+* The result of a rule that ran in the root without a policy and again in the projects init would list (decision
+* D-161): the counts of both, problems when either found any, and else applicable when it applies anywhere.
+*/
+function bothResults(root, projects) {
+	const counts = {
+		errors: root.errors + projects.errors,
+		warnings: root.warnings + projects.warnings,
+		notes: root.notes + projects.notes
+	};
+	if (root.result === "problems" || projects.result === "problems") return {
+		...root,
+		result: "problems",
+		...counts
+	};
+	return root.result === "not-applicable" ? {
+		...root,
+		result: projects.result
+	} : root;
 }
 /** The results of the rules with the counts of `findings` (all of them notes), for the findings that are shown. */
 function ruleResultsOf(results, findings) {
@@ -36092,7 +36178,7 @@ function examine(root, options) {
 			...options.defaultPolicy === true ? { defaultPolicy: true } : {}
 		})
 	}));
-	const rootRun = runRules(root, policy, rules, tools, {
+	const rootRun = runRules(root, policy, options.defaultPolicy === true ? rules.filter((rule) => rule.alsoInComparedProjects !== true) : rules, tools, {
 		detection,
 		...views.length === 0 ? {} : { projects: views },
 		...rootPlan === void 0 ? {} : { plan: rootPlan },

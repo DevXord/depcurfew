@@ -53,20 +53,18 @@ export class Repository {
 
 
   /**
-   * Whether a directory (absolute and normalized) is its own real path, with no symlink on the way: the root is, a
-   * directory under it is when its parent is and it is no symlink itself (one lstat each, remembered), and one above it
-   * (reached through ..) is resolved in full.
+   * Whether a directory (absolute and normalized) inside the root is its own real path, with no symlink on the way: the
+   * root is, and a directory under it is when its parent is and it is no symlink itself (one lstat each, remembered). A
+   * directory outside the root (reached through ..) never is: a path there is resolved in full, and only what leads
+   * back inside is used, so nothing outside is remembered, listed or read (decision D-161).
    */
   #isPlain(directory: string): boolean {
     if (directory === this.root) return true;
+    if (!isInside(this.root, directory)) return false;
     let plain = this.#plain.get(directory);
     if (plain === undefined) {
-      const parent = dirname(directory);
       try {
-        plain =
-          parent !== directory && isInside(this.root, directory)
-            ? this.#isPlain(parent) && lstatSync(directory, { throwIfNoEntry: false })?.isSymbolicLink() === false
-            : realpathSync(directory) === directory;
+        plain = this.#isPlain(dirname(directory)) && lstatSync(directory, { throwIfNoEntry: false })?.isSymbolicLink() === false;
       } catch {
         plain = false;
       }
@@ -79,9 +77,11 @@ export class Repository {
    * The real path of a repository-relative path with what stat says about it, or undefined if it is missing or leads
    * outside. A path that is not a symlink, in a directory with no symlink on the way, is its own real path: it is not
    * resolved again segment by segment (decision D-157). One that ends with a separator is: lstat follows a symlink there.
-   * A missing path costs one lstat without an exception.
+   * A missing path costs one lstat without an exception. With `read`, for a file whose content is read next, the path
+   * is resolved in full anyway: a directory remembered as plain may have been replaced with a symlink since (decision
+   * D-161), and one realpath per file read costs little next to the lookups the shortcut saves.
    */
-  #resolve(path: string, report: boolean): { real: string; stats: Stats } | undefined {
+  #resolve(path: string, report: boolean, read = false): { real: string; stats: Stats } | undefined {
     const full = join(this.root, path);
     let own: Stats | undefined;
     try {
@@ -92,7 +92,7 @@ export class Repository {
     }
     if (own === undefined) return undefined;
     let real: string;
-    if (full === this.root || (!own.isSymbolicLink() && !full.endsWith(sep) && this.#isPlain(dirname(full)))) real = full;
+    if (full === this.root || (!read && !own.isSymbolicLink() && !full.endsWith(sep) && this.#isPlain(dirname(full)))) real = full;
     else {
       try {
         real = realpathSync(full);
@@ -119,7 +119,7 @@ export class Repository {
 
   /** The text of a file, without a byte order mark; undefined (with a warning when useful) if it cannot be read. */
   readText(path: string, limit = MAX_FILE_SIZE): string | undefined {
-    const resolved = this.#resolve(path, true);
+    const resolved = this.#resolve(path, true, true);
     if (resolved === undefined) return undefined;
     const { real, stats } = resolved;
     if (!stats.isFile()) return undefined;
@@ -140,7 +140,7 @@ export class Repository {
 
   /** The first bytes of a file, e.g. to recognize a lockfile format without reading a large file. */
   readHead(path: string, bytes = 4096): string | undefined {
-    const resolved = this.#resolve(path, true);
+    const resolved = this.#resolve(path, true, true);
     if (resolved === undefined || !resolved.stats.isFile()) return undefined;
     const { real } = resolved;
     const buffer = Buffer.alloc(bytes);
@@ -176,9 +176,21 @@ export class Repository {
   }
 
   /**
+   * The real path of a file or directory of the repository, or undefined if it is missing or leads outside. A directory
+   * known to have no symlink on the way, such as one just listed, costs nothing; the walk of workspace patterns keys
+   * the directories it visited by it, so that a symlink back up does not make it walk them again (decision D-161).
+   */
+  realPath(path: string): string | undefined {
+    const full = join(this.root, path);
+    if (full === this.root || this.#plain.get(full) === true) return full;
+    return this.#resolve(path, false)?.real;
+  }
+
+  /**
    * The entries of a directory whose names `accept` accepts, sorted by name; nothing else is resolved. An entry that is
    * not a symlink is what readdir says it is, inside the directory and so inside the repository; a symlink is resolved
-   * like any path. A directory already known to have no symlink on the way is not resolved again.
+   * like any path. A directory already known to have no symlink on the way, which is always one inside the root
+   * (decision D-161), is not resolved again.
    */
   #entries(path: string, accept?: (name: string) => boolean): { name: string; isFile: boolean; isDirectory: boolean }[] {
     const full = join(this.root, path);

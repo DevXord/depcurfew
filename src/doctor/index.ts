@@ -128,7 +128,8 @@ function runRules(
       ...(where.defaultPolicy === true ? { defaultPolicy: true as const } : {}),
       report: ({ level, ...finding }) => {
         const found: Finding = { rule: rule.id, level: level ?? rule.level, ...finding };
-        if (where.defaultPolicy !== true) {
+        // A fact of the files keeps its level in the projects init would list too (decision D-161).
+        if (where.defaultPolicy !== true || rule.alsoInComparedProjects === true) {
           findings.push(found);
           return;
         }
@@ -182,7 +183,9 @@ function relocateRun(project: string, run: DirectoryRun, plan: ApplyReport | und
  * depcurfew init would write (initialResolvedPolicy), which the rules that need a policy then run against; every
  * finding of theirs is a note with `policy: "default"` (decision D-149). Without it those rules do not run.
  * `detections`: the detections to share with the caller, e.g. with comparedPolicy; the runs of one call share
- * theirs anyway, so each directory is detected once (decision D-157).
+ * theirs anyway, so each directory is detected once (decision D-157). With `defaultPolicy`, a rule with
+ * alsoInComparedProjects (known-malicious) also runs in the projects of that policy, and its findings there keep their
+ * level (decision D-161).
  */
 export function runDoctor(
   root: string,
@@ -211,13 +214,17 @@ export function runDoctor(
   }
   const rules = options.rules ?? RULES;
   const needing = rules.filter((rule) => rule.requiresPolicy);
-  const fallback = policy === undefined && !invalid && needing.length > 0 ? options.defaultPolicy : undefined;
-  const report = examine(root, { policy, invalid, rules, tools, detections, osv: options.osv, ...(fallback === undefined ? {} : { fallback }) });
-  if (fallback === undefined) return report;
+  const inProjects = rules.some((rule) => rule.alsoInComparedProjects === true);
+  const fallback = policy === undefined && !invalid && (needing.length > 0 || inProjects) ? options.defaultPolicy : undefined;
+  // Whether the rules that need a policy compare the repository with the default policy (decision D-149).
+  const compares = fallback !== undefined && needing.length > 0;
+  const report = examine(root, { policy, invalid, rules, tools, detections, osv: options.osv, ...(compares ? { fallback } : {}) });
+  if (fallback === undefined || (!compares && fallback.projects.length === 0)) return report;
   // The rules that need a policy, once more against the policy init would write, with the rules that find more with
-  // one (decision D-154); nothing else runs twice.
-  const again = rules.filter((rule) => rule.requiresPolicy || rule.alsoWithDefaultPolicy === true);
-  return withDefaultPolicy(report, examine(root, { policy: fallback, invalid: false, rules: again, tools, detections, defaultPolicy: true }), again);
+  // one (decision D-154), and in the projects of that policy the rules that report facts of the files (decision
+  // D-161); nothing runs twice in one directory.
+  const again = rules.filter((rule) => (compares && (rule.requiresPolicy || rule.alsoWithDefaultPolicy === true)) || rule.alsoInComparedProjects === true);
+  return withDefaultPolicy(report, examine(root, { policy: fallback, invalid: false, rules: again, tools, detections, osv: options.osv, defaultPolicy: true }), again, compares);
 }
 
 /** Where and what a finding says, to tell the findings of a second run from those of the first. */
@@ -245,21 +252,25 @@ function newFindings(report: DoctorReport, compared: DoctorReport, rules: readon
  * The report of a repository without depcurfew.json and the findings of the rules that need a policy against the
  * default policy (decision D-149): those come after the other findings, and those rules show their results with
  * `policy: "default"` instead of skipped. Their notices are kept when they say what such a rule could not check;
- * the other notices, those of the files and of detection, are in the report already.
+ * the other notices, those of the files and of detection, are in the report already. What a rule with
+ * alsoInComparedProjects found in the projects stands among the other findings at its own level, and its result
+ * counts the root and the projects (decision D-161). `compares`: the rules that need a policy ran against it.
  */
-function withDefaultPolicy(report: DoctorReport, compared: DoctorReport, rules: readonly Rule[]): DoctorReport {
-  const findings = shortened(newFindings(report, compared, rules));
+function withDefaultPolicy(report: DoctorReport, compared: DoctorReport, rules: readonly Rule[], compares: boolean): DoctorReport {
+  const facts = new Set(rules.filter((rule) => rule.alsoInComparedProjects === true).map((rule) => rule.id));
+  const found = compared.findings.filter((finding) => facts.has(finding.rule));
+  const findings = shortened(newFindings(report, { ...compared, findings: compared.findings.filter((finding) => !facts.has(finding.rule)) }, rules));
   const twice = new Set(rules.filter((rule) => !rule.requiresPolicy).map((rule) => rule.id));
   // The results count the notes that are shown.
-  const results = new Map(ruleResultsOf(compared.checked?.rules ?? [], findings).map((result) => [result.rule, result]));
+  const results = new Map((compared.checked?.rules ?? []).map((result) => [result.rule, facts.has(result.rule) ? result : (ruleResultsOf([result], findings)[0] as RuleResult)]));
   const shown = new Set(report.notices.map((notice) => notice.message));
   const notices = compared.notices.filter((notice) => results.has(notice.code) && !shown.has(notice.message));
   const tools = report.checked?.tools ?? [];
   const known = new Set(tools.map((tool) => `${tool.project ?? ''}\u0000${tool.id}`));
   return {
     ...report,
-    policySource: 'default',
-    findings: [...report.findings, ...findings],
+    ...(compares ? { policySource: 'default' as const } : {}),
+    findings: [...(found.length === 0 ? report.findings : [...report.findings, ...found].sort(byLocation)), ...findings],
     notices: [...report.notices, ...notices],
     ...(report.checked === undefined
       ? {}
@@ -272,6 +283,7 @@ function withDefaultPolicy(report: DoctorReport, compared: DoctorReport, rules: 
             rules: report.checked.rules.map((result) => {
               const own = results.get(result.rule);
               if (own === undefined) return result;
+              if (facts.has(result.rule)) return bothResults(result, own);
               if (!twice.has(result.rule)) return { ...own, policy: 'default' as const };
               // A rule that ran without a policy too: its own result, with the notes only the default policy gave.
               const added = findings.filter((finding) => finding.rule === result.rule).length;
@@ -281,6 +293,16 @@ function withDefaultPolicy(report: DoctorReport, compared: DoctorReport, rules: 
           },
         }),
   };
+}
+
+/**
+ * The result of a rule that ran in the root without a policy and again in the projects init would list (decision
+ * D-161): the counts of both, problems when either found any, and else applicable when it applies anywhere.
+ */
+function bothResults(root: RuleResult, projects: RuleResult): RuleResult {
+  const counts = { errors: root.errors + projects.errors, warnings: root.warnings + projects.warnings, notes: root.notes + projects.notes };
+  if (root.result === 'problems' || projects.result === 'problems') return { ...root, result: 'problems', ...counts };
+  return root.result === 'not-applicable' ? { ...root, result: projects.result } : root;
 }
 
 /** The results of the rules with the counts of `findings` (all of them notes), for the findings that are shown. */
@@ -339,7 +361,10 @@ function examine(
       ...(options.defaultPolicy === true ? { defaultPolicy: true } : {}),
     }),
   }));
-  const rootRun = runRules(root, policy, rules, tools, {
+  // Against the default policy, a rule that reports facts of the files runs only in the projects: it ran in the root
+  // without a policy already (decision D-161).
+  const rootRules = options.defaultPolicy === true ? rules.filter((rule) => rule.alsoInComparedProjects !== true) : rules;
+  const rootRun = runRules(root, policy, rootRules, tools, {
     detection,
     ...(views.length === 0 ? {} : { projects: views }),
     ...(rootPlan === undefined ? {} : { plan: rootPlan }),
