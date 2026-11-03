@@ -29834,7 +29834,7 @@ const projectsShape = list$1(text$1({
 /** Which findings make depcurfew doctor exit with 1 (decision D-112). */
 const FAIL_ON_LEVELS = ["error", "warning"];
 const doctorShape = object({ failOn: optional(oneOfStrings(FAIL_ON_LEVELS, { description: "Which findings make depcurfew doctor exit with 1 and fail the GitHub Action: \"error\" (only errors, also when left out) or \"warning\" (warnings too). Notes never fail. doctor --fail-on and the input fail-on of the Action override it." })) }, { description: "How depcurfew doctor and the GitHub Action treat findings. Without this section only errors fail, as before; depcurfew init writes \"failOn\": \"warning\"." });
-const policyShape = object({
+const inferredPolicyShape = object({
 	$schema: optional(anyString({ description: "JSON Schema of this file, for editor support." })),
 	version: required(literal$1(1, { description: "Version of the policy format." })),
 	cooldown: optional(cooldownShape),
@@ -29844,6 +29844,7 @@ const policyShape = object({
 	projects: withDefault(projectsShape, []),
 	doctor: optional(doctorShape)
 }, { description: "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Composer, Bundler, Renovate and Dependabot." });
+const policyShape = inferredPolicyShape;
 
 // src/policy/validate.ts
 /** Parses one section on its own, so rules spanning several fields still run when another part of the file is invalid. */

@@ -2,6 +2,12 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-11-03 · Wydanie 1.5.0 i przykład Action z SHA wydania; typy polityki jawnie (D-174)
+
+- `depcurfew@1.5.0` opublikowana 21:20 UTC z tagu `v1.5.0` (commit 2c45b13, scalenie PR #37) przez trusted publishing, z proweniencją SLSA. Pierwszy etap 1.5.0 (z commita bd654e2, przed poprawkami z pełnego sprawdzenia) został odrzucony, a tag i GitHub Release postawione ponownie.
+- Sprawdzenie bajt w bajt: pliki JavaScript, `package.json`, `schema.json`, README i licencja są buildem taga; `dist/index.d.ts` różni się kolejnością właściwości typu polityki (D-174), więc suma paczki nie zgadza się z buildem taga. Typy polityki są teraz wypisane jawnie, a polecenia „Verifying a release” wskazują 1.4.1 do następnego wydania.
+- Przykład Action w README przypina `DevXord/depcurfew@2c45b13c38b5fbae4b3b7ce71d57e7cee084610e # v1.5.0` (`ACTION_RELEASE` w `src/docs/readme.ts`).
+
 ## 2026-11-03 · 1.5.0: doctor przed init, lokalne dane OSV.dev, Bundler, boty dla Cargo, Go, Mavena, Gradle'a i NuGet (D-149–D-173)
 
 - Wersja 1.5.0 w `package.json` i `package-lock.json`, sekcja 1.5.0 w `CHANGELOG.md`.
