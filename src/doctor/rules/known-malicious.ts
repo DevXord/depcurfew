@@ -32,7 +32,7 @@ export const knownMalicious: Rule = {
   checks: 'With --osv or the local OSV.dev data of depcurfew osv update: no locked package version is a known malicious version in OSV.dev',
   summary: 'With --osv or the local OSV.dev data of depcurfew osv update: a lockfile locks a package version that OSV.dev lists as malicious.',
   description:
-    'Doctor looks up the exact version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) and reports each version that has a record of the OpenSSF malicious-packages database (an id starting with MAL-): with --osv in api.osv.dev (which then gets the names and versions), else offline in the local OSV.dev data of depcurfew osv update. It looks up what the tool installs (for npm the registry tarball of resolved, for pnpm that of resolution.tarball, for Yarn the resolution); an entry that says otherwise gets a warning, as does a registry entry without an exact version. Local data older than 7 days gives a note, older than 30 days a warning; OSV.dev out of reach gives a warning. Only reported malware is found, and the database admits false positives. With neither --osv nor local data, a note says how to get them.',
+    'Doctor looks up the exact version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) and reports each version that has a record of the OpenSSF malicious-packages database (an id starting with MAL-): with --osv in api.osv.dev (which then gets the names and versions), else offline in the local OSV.dev data of depcurfew osv update. It looks up what the tool installs (for npm the registry tarball of resolved, for pnpm that of resolution.tarball, for Yarn the resolution); an entry that says otherwise gets a warning, as does a registry entry without an exact version. Local data older than 7 days gives a note; older than 30 days, or in a directory others can write, a warning; OSV.dev out of reach gives a warning. Only reported malware is found, and the database admits false positives. With neither --osv nor local data, a note says how to get them.',
   help: 'Remove or replace the package version and lock again; if it was installed anywhere, read the record on OSV.dev and treat that machine as exposed.',
   level: 'error',
   requiresPolicy: false,
@@ -109,6 +109,7 @@ export const knownMalicious: Rule = {
         if ('collect' in osv) continue;
         reportUnchecked(context, lockfile.file, locked, unchecked);
         if (data !== undefined && data.status === 'ready' && locked > 0) reportOldData(context, lockfile.file, ecosystem, data);
+        if (data !== undefined && data.status === 'ready' && locked > 0 && local?.shared !== undefined) reportSharedData(context, lockfile.file, local.shared);
         const count = unpinned.length;
         if (count > 0 && ecosystem === 'packagist') {
           // composer.lock locks a commit of a branch (dev-main, 1.x-dev); OSV.dev records list releases.
@@ -232,6 +233,16 @@ function reportNoLocalData(context: RuleContext, file: string, ecosystem: string
     file,
     `Run depcurfew osv update --ecosystem ${ecosystem} to write it again, then run depcurfew doctor again`,
   );
+}
+
+/** Local data in a directory other users can write: a warning per lockfile checked against it (decision D-156). */
+function reportSharedData(context: RuleContext, file: string, shared: { reason: string; fix: string }): void {
+  context.report({
+    level: 'warning',
+    location: { file },
+    message: `known-malicious checked ${file} against local OSV.dev data that other users may change, so a malicious version may pass: ${shared.reason}`,
+    fix: shared.fix,
+  });
 }
 
 /** Local data older than 7 days: a note per lockfile checked against it; older than 30 days a warning (decision D-150). */

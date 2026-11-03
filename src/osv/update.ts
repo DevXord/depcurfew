@@ -3,9 +3,10 @@
 // depcurfew mcp and doctor read. The request is one GET of the export file, the same for everyone; no package name and
 // nothing about the project is sent. The export goes to a temporary file in the directory of the local data, is read
 // there (src/osv/zip.ts) and removed; the new data replaces the old file with a rename, so a failed or partial download
-// leaves the old data as it was.
+// leaves the old data as it was. What it keeps is limited (OSV_DATA_LIMITS, decision D-156), and an export with fewer
+// than half of the records of the data it would replace is refused unless the user accepts it.
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, lstatSync, mkdirSync, openSync, readdirSync, renameSync, rmSync, statSync, writeSync } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { values } from '../apply/facts.ts';
@@ -13,7 +14,21 @@ import { osvEcosystem } from '../check/osv.ts';
 import { requestSignal, type FetchLike } from '../check/registry.ts';
 import { osv as facts } from '../knowledge/osv.ts';
 import type { OsvExportKnowledge } from '../knowledge/types.ts';
-import { OSV_DATA_FORMAT, OSV_DATA_FORMAT_VERSION, osvDataFile, readRecord, renderDataFile, type OsvDataEcosystem, type OsvDataRecord } from './data.ts';
+import {
+  compareNames,
+  LocalOsvData,
+  OSV_DATA_ECOSYSTEMS,
+  OSV_DATA_FORMAT,
+  OSV_DATA_FORMAT_VERSION,
+  OSV_DATA_LIMITS,
+  osvDataFile,
+  packageLine,
+  packageLineOverhead,
+  readRecord,
+  type OsvDataEcosystem,
+  type OsvDataHeader,
+  type OsvDataLimits,
+} from './data.ts';
 import { readEntries, sizeText, withFileSource, ZIP_LIMITS, ZipError, type ZipLimits } from './zip.ts';
 
 /** Largest export downloaded: npm's was 210 MiB on 2026-11-03 (dataExport). */
@@ -24,9 +39,17 @@ export const OSV_EXPORT_TIMEOUT_MS = 15 * 60 * 1000;
 const ABANDONED_MS = 24 * 60 * 60 * 1000;
 /** The ending of temporary files in the directory of the local data. */
 const PARTIAL = '.part';
+/** The random part of the name of a temporary file, in bytes (twice as many hexadecimal digits). */
+const RANDOM_BYTES = 6;
+/** The names of the temporary files osv update writes: .<ecosystem>.<pid>.<12 hexadecimal digits>.zip.part or .jsonl.part. */
+const TEMPORARY_NAME = new RegExp(`^\\.(?:${OSV_DATA_ECOSYSTEMS.join('|')})\\.[0-9]+\\.[0-9a-f]{${RANDOM_BYTES * 2}}\\.(?:zip|jsonl)\\.part$`, 'u');
+/** The new export must have at least this share of the records of the data it replaces, unless the user accepts fewer. */
+const KEPT_SHARE = 0.5;
+/** Text written to the data file at once. */
+const WRITE_CHUNK = 1024 * 1024;
 
 /** The codes of the errors of depcurfew osv update. */
-export type OsvUpdateCode = 'osv-download-failed' | 'osv-export-unreadable' | 'osv-data-not-written' | 'osv-cache-missing';
+export type OsvUpdateCode = 'osv-download-failed' | 'osv-export-unreadable' | 'osv-export-shrunk' | 'osv-data-not-written' | 'osv-cache-missing';
 
 export type OsvUpdateResult =
   | {
@@ -41,6 +64,8 @@ export type OsvUpdateResult =
       records: number;
       withdrawn: number;
       skipped: number;
+      /** MAL- records left out because they hold more than depcurfew keeps (OSV_DATA_LIMITS, decision D-156). */
+      tooLarge: number;
       /** The size of the export downloaded. */
       bytes: number;
     }
@@ -57,6 +82,10 @@ export interface OsvUpdateOptions {
   maxBytes?: number;
   timeoutMs?: number;
   zipLimits?: ZipLimits;
+  /** What is kept; OSV_DATA_LIMITS when left out. */
+  dataLimits?: Readonly<OsvDataLimits>;
+  /** Replace the data also with an export that has fewer than half of its records (--accept-fewer, decision D-156). */
+  acceptFewer?: boolean;
 }
 
 function exportFact(): OsvExportKnowledge {
@@ -86,7 +115,10 @@ function isMaliciousEntry(name: string): boolean {
 
 class DownloadError extends Error {}
 
-/** Removes temporary files of downloads that ended long ago without removing them. */
+/**
+ * Removes temporary files of downloads that ended long ago without removing them: only regular files with the names
+ * osv update gives them (TEMPORARY_NAME), never another file of the directory (decision D-156).
+ */
 function removeAbandoned(directory: string, now: Date): void {
   let names: string[];
   try {
@@ -95,10 +127,11 @@ function removeAbandoned(directory: string, now: Date): void {
     return;
   }
   for (const name of names) {
-    if (!name.startsWith('.') || !name.endsWith(PARTIAL)) continue;
+    if (!TEMPORARY_NAME.test(name)) continue;
     const path = join(directory, name);
     try {
-      if (now.getTime() - statSync(path).mtimeMs > ABANDONED_MS) rmSync(path, { force: true });
+      const stats = lstatSync(path);
+      if (stats.isFile() && now.getTime() - stats.mtimeMs > ABANDONED_MS) rmSync(path, { force: true });
     } catch {
       // Another run may have removed it.
     }
@@ -183,13 +216,35 @@ async function download(url: string, path: string, options: OsvUpdateOptions): P
   return { bytes, lastModified: exported };
 }
 
-/** The local data of an ecosystem from the export at `path`. */
-function buildData(path: string, ecosystem: OsvDataEcosystem, limits: ZipLimits): { packages: Map<string, OsvDataRecord[]>; records: number; withdrawn: number; skipped: number } {
-  const packages = new Map<string, OsvDataRecord[]>();
-  const ids = new Map<string, Set<string>>();
-  let records = 0;
-  let withdrawn = 0;
-  let skipped = 0;
+/** The data kept would be larger than the limit of the data file (OSV_DATA_LIMITS.fileBytes). */
+class DataTooLarge extends Error {}
+
+/** The records kept for a package, each as its JSON text, and the length of its line in bytes (without the newline). */
+interface KeptPackage {
+  records: string[];
+  bytes: number;
+}
+
+interface BuiltData {
+  packages: Map<string, KeptPackage>;
+  records: number;
+  withdrawn: number;
+  skipped: number;
+  tooLarge: number;
+  /** The bytes of the package lines with their newlines. */
+  body: number;
+}
+
+/**
+ * The local data of an ecosystem from the export at `path`, within `limits`: a record is kept whole for every package it
+ * names, or left out and counted in tooLarge when it is past a limit of a record or would give one of its packages more
+ * records or a longer line than allowed. Each record is kept as its JSON text, which takes a fraction of the memory of
+ * its parsed lists. Throws DataTooLarge as soon as the lines kept are larger than the data file may be.
+ */
+function buildData(path: string, ecosystem: OsvDataEcosystem, zipLimits: ZipLimits, limits: Readonly<OsvDataLimits>): BuiltData {
+  const built: BuiltData = { packages: new Map(), records: 0, withdrawn: 0, skipped: 0, tooLarge: 0, body: 0 };
+  // One record per id, also when the export holds a record twice.
+  const ids = new Set<string>();
   withFileSource(path, (source) =>
     readEntries(
       source,
@@ -199,29 +254,76 @@ function buildData(path: string, ecosystem: OsvDataEcosystem, limits: ZipLimits)
         try {
           document = JSON.parse(data.toString('utf8')) as unknown;
         } catch {
-          skipped += 1;
+          built.skipped += 1;
           return;
         }
-        const record = readRecord(document, ecosystem);
-        if (record.status === 'withdrawn') withdrawn += 1;
-        if (record.status === 'skipped') skipped += 1;
-        if (record.status !== 'kept') return;
-        records += 1;
+        const record = readRecord(document, ecosystem, limits);
+        if (record.status === 'withdrawn') built.withdrawn += 1;
+        if (record.status === 'skipped') built.skipped += 1;
+        if (record.status === 'too-large') built.tooLarge += 1;
+        if (record.status !== 'kept' || ids.has(record.id)) return;
+        // What the record adds to the line of each of its packages, checked for all of them before any line changes.
+        const additions: { name: string; known: KeptPackage | undefined; text: string; bytes: number }[] = [];
         for (const [name, affected] of record.packages) {
-          // One entry per record and package, also when the export holds a record twice.
-          const seen = ids.get(name) ?? new Set<string>();
-          if (seen.has(record.id)) continue;
-          seen.add(record.id);
-          ids.set(name, seen);
-          const list = packages.get(name) ?? [];
-          list.push([record.id, affected.versions, affected.ranges]);
-          packages.set(name, list);
+          const known = built.packages.get(name);
+          const text = JSON.stringify([record.id, affected.versions, affected.ranges]);
+          const length = Buffer.byteLength(text);
+          const bytes = known === undefined ? packageLineOverhead(name) + length : known.bytes + 1 + length;
+          if ((known?.records.length ?? 0) >= limits.recordsPerPackage || bytes > limits.lineBytes) {
+            built.tooLarge += 1;
+            return;
+          }
+          additions.push({ name, known, text, bytes });
         }
+        ids.add(record.id);
+        built.records += 1;
+        for (const { name, known, text, bytes } of additions) {
+          built.body += known === undefined ? bytes + 1 : bytes - known.bytes;
+          if (known === undefined) built.packages.set(name, { records: [text], bytes });
+          else {
+            known.records.push(text);
+            known.bytes = bytes;
+          }
+        }
+        if (built.body > limits.fileBytes) throw new DataTooLarge();
       },
-      limits,
+      zipLimits,
     ),
   );
-  return { packages, records, withdrawn, skipped };
+  return built;
+}
+
+/** Writes the data file at `path` (created, never overwritten), line by line, without one string of the whole file. */
+function writeData(path: string, header: OsvDataHeader, packages: ReadonlyMap<string, KeptPackage>, names: readonly string[]): void {
+  const fd = openSync(path, 'wx', 0o644);
+  try {
+    let chunk: string[] = [];
+    let length = 0;
+    const flush = () => {
+      const bytes = Buffer.from(chunk.join(''), 'utf8');
+      for (let written = 0; written < bytes.length; ) {
+        const count = writeSync(fd, bytes, written, bytes.length - written);
+        if (count === 0) throw new Error('the disk takes no more data');
+        written += count;
+      }
+      chunk = [];
+      length = 0;
+    };
+    const add = (line: string) => {
+      chunk.push(line, '\n');
+      length += line.length + 1;
+      if (length >= WRITE_CHUNK) flush();
+    };
+    add(JSON.stringify(header));
+    for (const name of names) add(packageLine(name, packages.get(name)?.records ?? []));
+    flush();
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function count(value: number, noun: string): string {
+  return `${value.toLocaleString('en-US')} ${value === 1 ? noun : `${noun}s`}`;
 }
 
 function reasonOf(error: unknown): string {
@@ -241,12 +343,13 @@ async function updateOne(ecosystem: OsvDataEcosystem, options: OsvUpdateOptions)
   const failure = (code: OsvUpdateCode, message: string, fix: string): OsvUpdateResult => ({ ecosystem, status: 'failed', file, url, code, message: `${message}; ${kept}`, fix });
   if (url === '') return failure('osv-export-unreadable', `depcurfew does not know where OSV.dev exports the data for ${name}`, 'Update depcurfew');
   try {
-    mkdirSync(options.directory, { recursive: true });
+    // Never writable by others, whatever the umask (decision D-156).
+    mkdirSync(options.directory, { recursive: true, mode: 0o755 });
   } catch (error) {
     return failure('osv-data-not-written', `depcurfew cannot create the directory ${options.directory} for the local OSV.dev data: ${reasonOf(error)}`, notWrittenFix(options.directory));
   }
   removeAbandoned(options.directory, options.now());
-  const suffix = `${process.pid}.${randomBytes(6).toString('hex')}`;
+  const suffix = `${process.pid}.${randomBytes(RANDOM_BYTES).toString('hex')}`;
   const archive = join(options.directory, `.${ecosystem}.${suffix}.zip${PARTIAL}`);
   const written = join(options.directory, `.${ecosystem}.${suffix}.jsonl${PARTIAL}`);
   try {
@@ -260,28 +363,43 @@ async function updateOne(ecosystem: OsvDataEcosystem, options: OsvUpdateOptions)
       if (options.signal?.aborted === true) throw error;
       return failure('osv-data-not-written', `depcurfew cannot write the OSV.dev export for ${name} to ${options.directory}: ${reasonOf(error)}`, notWrittenFix(options.directory));
     }
-    const downloadedAt = options.now().toISOString();
-    let built: ReturnType<typeof buildData>;
+    const now = options.now();
+    const downloadedAt = now.toISOString();
+    // An export is never written after its download (decision D-156): a Last-Modified after the download is not taken.
+    const exportedAt = downloaded.lastModified !== null && Date.parse(downloaded.lastModified) <= now.getTime() ? downloaded.lastModified : null;
+    const limits = options.dataLimits ?? OSV_DATA_LIMITS;
+    const unreadable = (reason: string) =>
+      failure('osv-export-unreadable', `the OSV.dev export for ${name} from ${url} ${reason}`, 'Run depcurfew osv update again; if it fails the same way, OSV.dev changed its export and a newer depcurfew may read it');
+    const tooLarge = () => unreadable(`holds more than depcurfew keeps: its local data would be larger than ${sizeText(limits.fileBytes)}`);
+    let built: BuiltData;
     try {
-      built = buildData(archive, ecosystem, options.zipLimits ?? ZIP_LIMITS);
+      built = buildData(archive, ecosystem, options.zipLimits ?? ZIP_LIMITS, limits);
     } catch (error) {
+      if (error instanceof DataTooLarge) return tooLarge();
       if (!(error instanceof ZipError)) throw error;
-      return failure(
-        'osv-export-unreadable',
-        `the OSV.dev export for ${name} from ${url} is not a zip file depcurfew reads: ${error.message}`,
-        'Run depcurfew osv update again; if it fails the same way, OSV.dev changed its export and a newer depcurfew may read it',
-      );
+      return unreadable(`is not a zip file depcurfew reads: ${error.message}`);
     }
     const { packages, records, withdrawn, skipped } = built;
-    const header = { format: OSV_DATA_FORMAT, formatVersion: OSV_DATA_FORMAT_VERSION, ecosystem, osvEcosystem: name, url, downloadedAt, exportedAt: downloaded.lastModified, records, withdrawn } as const;
+    // Far fewer records than the data it would replace: a broken or truncated export, unless the user accepts it.
+    const previous = new LocalOsvData(options.directory).state(ecosystem);
+    if (options.acceptFewer !== true && previous.status === 'ready' && Number.isSafeInteger(previous.records) && records < previous.records * KEPT_SHARE) {
+      return failure(
+        'osv-export-shrunk',
+        `the OSV.dev export for ${name} from ${url} has ${count(records, 'record')} of known malicious packages, fewer than half of the ${previous.records.toLocaleString('en-US')} in the local data it would replace`,
+        `Run depcurfew osv update again once OSV.dev has written a new export; if OSV.dev did remove that many records, run depcurfew osv update --ecosystem ${ecosystem} --accept-fewer to replace the local data`,
+      );
+    }
+    const names = [...packages.keys()].sort(compareNames);
+    const header: OsvDataHeader = { format: OSV_DATA_FORMAT, formatVersion: OSV_DATA_FORMAT_VERSION, ecosystem, osvEcosystem: name, url, downloadedAt, exportedAt, records, withdrawn, packages: names.length };
+    if (Buffer.byteLength(JSON.stringify(header)) + 1 + built.body > limits.fileBytes) return tooLarge();
     try {
-      writeFileSync(written, renderDataFile(header, packages), { flag: 'wx', mode: 0o644 });
+      writeData(written, header, packages, names);
       // The rename replaces the old data at once: a reader sees the old file or the new one, never a part.
       renameSync(written, file);
     } catch (error) {
       return failure('osv-data-not-written', `depcurfew cannot write the local OSV.dev data for ${name} to ${file}: ${reasonOf(error)}`, notWrittenFix(options.directory));
     }
-    return { ecosystem, status: 'updated', file, url, downloadedAt, exportedAt: downloaded.lastModified, records, withdrawn, skipped, bytes: downloaded.bytes };
+    return { ecosystem, status: 'updated', file, url, downloadedAt, exportedAt, records, withdrawn, skipped, tooLarge: built.tooLarge, bytes: downloaded.bytes };
   } finally {
     rmSync(archive, { force: true });
     rmSync(written, { force: true });

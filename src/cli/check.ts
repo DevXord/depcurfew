@@ -29,7 +29,7 @@ import { addLocalOsvFindings, addOsvFindings, checkedEcosystems, type OsvLocalLo
 import { addListedVersions, listedReports } from '../check/listed.ts';
 import { LocalOsvData } from '../osv/data.ts';
 import { localDataNotices } from '../osv/notices.ts';
-import { osvDataDirectory } from '../user/cache-path.ts';
+import { osvDataDirectories } from '../user/cache-path.ts';
 import { currentEnvironment } from '../user/environment.ts';
 import {
   composerProject,
@@ -91,10 +91,15 @@ export interface CheckDependencies {
   osvData?: () => string | undefined;
 }
 
-/** The local OSV.dev data of the user cache directory (or of the directory the dependencies name). */
+/**
+ * The local OSV.dev data of the user cache directory (or of the directory the dependencies name). In the user cache
+ * directory, that directory and depcurfew's folders in it must not be writable by other users (decision D-156); a
+ * directory the dependencies name is checked alone.
+ */
 export function localOsvData(dependencies: Pick<CheckDependencies, 'osvData' | 'userEnvironment'>): LocalOsvData {
-  const directory = dependencies.osvData === undefined ? osvDataDirectory(dependencies.userEnvironment?.() ?? currentEnvironment()) : dependencies.osvData();
-  return new LocalOsvData(directory);
+  if (dependencies.osvData !== undefined) return new LocalOsvData(dependencies.osvData());
+  const directories = osvDataDirectories(dependencies.userEnvironment?.() ?? currentEnvironment());
+  return new LocalOsvData(directories.at(-1), { guarded: directories });
 }
 
 export interface CheckFlags {

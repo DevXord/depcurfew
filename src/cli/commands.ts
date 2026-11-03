@@ -171,14 +171,15 @@ export const COMMANDS: readonly CommandInfo[] = [
     arguments: 'update',
     options: [
       { name: 'ecosystem', value: 'name', multiple: true, summary: 'Only this ecosystem: npm, pypi or packagist (default: all three); may be given more than once' },
+      { name: 'accept-fewer', summary: 'Replace the local data also with an export that has fewer than half of its records' },
       { name: 'json', summary: 'Print what was downloaded and the errors as JSON, each error with a code' },
     ],
     details:
-      "depcurfew osv update downloads the public export of OSV.dev for npm, PyPI and Packagist (one zip file each, from storage.googleapis.com), keeps the records of the OpenSSF malicious-packages database (ids starting with MAL-) that are not withdrawn, and writes them to depcurfew's user cache directory ($XDG_CACHE_HOME/depcurfew/osv when that is an absolute path, else ~/.cache/depcurfew/osv, ~/Library/Caches/depcurfew/osv on macOS, %LOCALAPPDATA%\\depcurfew\\osv on Windows). The request is the same for everyone: no package name and nothing about the project is sent. With that data, check, the Claude Code hook, depcurfew mcp and doctor report a known malicious version as an error (known-malicious) without --osv and without network access; data older than 7 days gives a note, older than 30 days a warning. The download goes to a temporary file next to the data, and the new data replaces the old in one rename, so a failed or partial download keeps the old data. Run it again to update the data, for example once a day.",
-    examples: ['depcurfew osv update', 'depcurfew osv update --ecosystem npm', 'depcurfew osv update --ecosystem pypi --ecosystem packagist --json'],
+      "depcurfew osv update downloads the public export of OSV.dev for npm, PyPI and Packagist (one zip file each, from storage.googleapis.com), keeps the records of the OpenSSF malicious-packages database (ids starting with MAL-) that are not withdrawn, and writes them to depcurfew's user cache directory ($XDG_CACHE_HOME/depcurfew/osv when that is an absolute path, else ~/.cache/depcurfew/osv, ~/Library/Caches/depcurfew/osv on macOS, %LOCALAPPDATA%\\depcurfew\\osv on Windows). The request is the same for everyone: no package name and nothing about the project is sent. With that data, check, the Claude Code hook, depcurfew mcp and doctor report a known malicious version as an error (known-malicious) without --osv and without network access; data older than 7 days gives a note, older than 30 days a warning. The download goes to a temporary file next to the data, and the new data replaces the old in one rename, so a failed or partial download keeps the old data. A record larger than depcurfew keeps is left out and counted; an export with fewer than half of the records of the data it would replace is refused (osv-export-shrunk) unless --accept-fewer is given; a directory of the data that other users can write gives a warning (osv-cache-shared). Run it again to update the data, for example once a day.",
+    examples: ['depcurfew osv update', 'depcurfew osv update --ecosystem npm', 'depcurfew osv update --ecosystem pypi --ecosystem packagist --json', 'depcurfew osv update --ecosystem npm --accept-fewer'],
     exitCodes: [
       [0, 'the data of every ecosystem asked for was downloaded and written'],
-      [1, 'the data of an ecosystem could not be downloaded, read or written (its old data is kept)'],
+      [1, 'the data of an ecosystem could not be downloaded, read or written, or its export has fewer than half of its records (its old data is kept)'],
       [2, 'a usage error, such as an unknown option, subcommand or ecosystem'],
     ],
   },

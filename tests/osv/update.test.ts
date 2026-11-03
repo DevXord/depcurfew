@@ -91,10 +91,12 @@ describe('depcurfew osv update', () => {
           records: 1,
           withdrawn: 0,
           skipped: 0,
+          tooLarge: 0,
           bytes: standardExports().pypi.length,
         },
       ],
       errors: [],
+      warnings: [],
     });
     expect(result.stderr).toBe('');
   });
@@ -120,6 +122,7 @@ describe('depcurfew osv update', () => {
           fix: 'Run depcurfew osv update again when storage.googleapis.com can be reached; it needs HTTPS access to it',
         },
       ],
+      warnings: [],
     });
     expect(readFileSync(osvDataFile(data, 'npm'))).toEqual(before);
     expect(readdirSync(data)).toEqual(['npm.jsonl']);
@@ -190,8 +193,8 @@ describe('depcurfew osv update', () => {
     const data = directory();
     await exec(['osv', 'update', '--ecosystem', 'npm'], exportFetch(standardExports()), data);
     expect(new LocalOsvData(data).lookup({ ecosystem: 'npm', name: 'new-malware', version: '1.0.0' })).toEqual([]);
-    const abandoned = join(data, '.npm.123.abcdef.zip.part');
-    const recent = join(data, '.npm.456.abcdef.zip.part');
+    const abandoned = join(data, '.npm.123.abcdef012345.zip.part');
+    const recent = join(data, '.npm.456.abcdef012345.zip.part');
     writeFileSync(abandoned, 'partial');
     writeFileSync(recent, 'partial');
     utimesSync(abandoned, new Date('2026-10-31T00:00:00Z'), new Date('2026-10-31T00:00:00Z'));

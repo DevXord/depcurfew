@@ -9,23 +9,63 @@
 // and parses only the lines of a binary search, because parsing the whole file of npm (17 MB, 222,666 packages on
 // 2026-11-03) takes most of a second, too long for a hook that runs before every install command. A file depcurfew did
 // not write, or one it cannot read, is never taken as an answer: the versions are then not looked up in it.
+//
+// What osv update keeps and what the lookups read is limited (OSV_DATA_LIMITS, decision D-156), so that a small but
+// crafted export cannot make a data file that takes the hook seconds to read.
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord, values } from '../apply/facts.ts';
 import { osvEcosystem, type OsvPackage } from '../check/osv.ts';
 import { osv as facts } from '../knowledge/osv.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
+import { cacheWriteProblem, currentUser, type CacheWriteProblem, type PosixUser } from '../user/cache-path.ts';
 import { affectedFields, affects } from './match.ts';
+import { sizeText } from './zip.ts';
 
 /** What the file is, so that no other file is taken for one. */
 export const OSV_DATA_FORMAT = 'depcurfew-osv-malicious';
 /** The version of the layout of the file; another one is not read. */
 export const OSV_DATA_FORMAT_VERSION = 1;
+/** The largest format version a message names; any other value of the field is "another format version". */
+const MAX_SHOWN_FORMAT_VERSION = 999;
 /** The ecosystems osv update downloads, in this order. */
 export const OSV_DATA_ECOSYSTEMS = ['npm', 'pypi', 'packagist'] as const;
 export type OsvDataEcosystem = (typeof OSV_DATA_ECOSYSTEMS)[number];
-/** Largest file read: the file of npm was 17 MB on 2026-11-03; a much larger one is not one depcurfew wrote. */
-export const MAX_OSV_DATA_BYTES = 512 * 1024 * 1024;
+
+/**
+ * What depcurfew osv update keeps of an export, and what the lookups read (decision D-156). The real exports of
+ * 2026-11-03 had at most 1 affected[] entry per MAL- record, 232 versions of a package in one record (npm; 86 for
+ * PyPI), 2 ranges and 4 events in a range, 2 records of one package, a package line of 3,320 bytes and a data file of
+ * 17.9 MB (npm), each far below its limit. A record past a limit of a record, or one that would give a package more
+ * records or a longer line than the limits allow, is left out whole and counted (tooLarge in the result of osv
+ * update), never kept in part; data larger than fileBytes is not written, and the old data stays.
+ */
+export interface OsvDataLimits {
+  /** Most affected[] entries of a record. */
+  affectedEntries: number;
+  /** Most versions of a record for one package, its entries together. */
+  versions: number;
+  /** Most ranges of a record for one package. */
+  ranges: number;
+  /** Most events of one range. */
+  events: number;
+  /** Most records of one package. */
+  recordsPerPackage: number;
+  /** Longest package line, in bytes, written and read. */
+  lineBytes: number;
+  /** Largest data file, in bytes, written and read. */
+  fileBytes: number;
+}
+
+export const OSV_DATA_LIMITS: Readonly<OsvDataLimits> = {
+  affectedEntries: 1000,
+  versions: 10_000,
+  ranges: 100,
+  events: 100,
+  recordsPerPackage: 1000,
+  lineBytes: 1024 * 1024,
+  fileBytes: 128 * 1024 * 1024,
+};
 /** Longest record id kept, as for the answers of the API (decision D-135). */
 const MAX_ID_LENGTH = 100;
 /** Longest version or event value kept; versions of the three ecosystems are far shorter. */
@@ -51,7 +91,7 @@ export interface OsvDataHeader {
   url: string;
   /** When depcurfew downloaded the export (ISO 8601). */
   downloadedAt: string;
-  /** When OSV.dev wrote the export (its Last-Modified), or null when the answer did not say. */
+  /** When OSV.dev wrote the export (its Last-Modified), or null when the answer did not say or gave a time after the download. */
   exportedAt: string | null;
   /** The MAL- records kept, and those left out because they are withdrawn. */
   records: number;
@@ -77,12 +117,17 @@ export function compareNames(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-/** The text of the file: the header, then the packages sorted by name. */
-export function renderDataFile(header: Omit<OsvDataHeader, 'packages'>, packages: ReadonlyMap<string, readonly OsvDataRecord[]>): string {
-  const names = [...packages.keys()].sort(compareNames);
-  const lines = [JSON.stringify({ ...header, packages: names.length })];
-  for (const name of names) lines.push(JSON.stringify([name, packages.get(name)]));
-  return `${lines.join('\n')}\n`;
+/**
+ * The line of a package from the JSON text of each of its records (JSON.stringify of an OsvDataRecord): the same text as
+ * JSON.stringify([name, records]), without parsing the records again.
+ */
+export function packageLine(name: string, records: readonly string[]): string {
+  return `[${JSON.stringify(name)},[${records.join(',')}]]`;
+}
+
+/** The bytes of a package line besides its records and the commas between them. */
+export function packageLineOverhead(name: string): number {
+  return Buffer.byteLength(JSON.stringify(name)) + 5;
 }
 
 function idPattern(): RegExp {
@@ -101,33 +146,52 @@ export function isMaliciousId(id: unknown, pattern: RegExp = idPattern()): id is
 const isVersionText = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= MAX_VERSION_LENGTH;
 
 /** What a record says about one ecosystem: its id and, by package name, its versions and ranges. */
-export type ReadRecord = { status: 'kept'; id: string; packages: Map<string, { versions: string[]; ranges: string[][] }> } | { status: 'withdrawn' } | { status: 'skipped' };
+export type ReadRecord =
+  | { status: 'kept'; id: string; packages: Map<string, { versions: string[]; ranges: string[][] }> }
+  | { status: 'withdrawn' }
+  | { status: 'skipped' }
+  | { status: 'too-large' };
 
 /**
  * The affected versions of a MAL- record for the packages of `ecosystem` (depcurfew's), or why it is not kept: it is
- * withdrawn, or it is no MAL- record of that ecosystem. Only ranges of type SEMVER and ECOSYSTEM whose every event is
- * one of the four the schema defines are kept; other ranges and malformed parts are left out.
+ * withdrawn, it is no MAL- record of that ecosystem, or it holds more than `limits` allow (too-large: more affected[]
+ * entries, or for one package more versions or ranges, or a range with more events, counted as the record gives them).
+ * Only ranges of type SEMVER and ECOSYSTEM whose every event is one of the four the schema defines are kept; other
+ * ranges and malformed parts are left out. The entries of one package are appended in place, so that the time is linear
+ * in the size of the record (decision D-156).
  */
-export function readRecord(record: unknown, ecosystem: string): ReadRecord {
+export function readRecord(record: unknown, ecosystem: string, limits: Readonly<OsvDataLimits> = OSV_DATA_LIMITS): ReadRecord {
   const fields = affectedFields();
   const withdrawnField = values(facts.withdrawn)[0]?.field ?? 'withdrawn';
   const name = osvEcosystem(ecosystem);
   if (!isRecord(record) || !isMaliciousId(record['id']) || name === undefined) return { status: 'skipped' };
   if (record[withdrawnField] !== undefined && record[withdrawnField] !== null) return { status: 'withdrawn' };
   const affected = record[fields.affectedField];
+  const entries = Array.isArray(affected) ? (affected as unknown[]) : [];
+  if (entries.length > limits.affectedEntries) return { status: 'too-large' };
   const packages = new Map<string, { versions: string[]; ranges: string[][] }>();
+  /** What the record gives for each package, before anything is left out. */
+  const given = new Map<string, { versions: number; ranges: number }>();
   const eventNames = new Set(Object.values(fields.events));
-  for (const entry of Array.isArray(affected) ? affected : []) {
+  for (const entry of entries) {
     if (!isRecord(entry)) continue;
     const pkg = entry[fields.packageField];
     if (!isRecord(pkg) || pkg[fields.ecosystemField] !== name || typeof pkg[fields.nameField] !== 'string' || pkg[fields.nameField] === '') continue;
     const key = comparedPackageName(ecosystem, pkg[fields.nameField] as string);
-    const versions = (Array.isArray(entry[fields.versionsField]) ? (entry[fields.versionsField] as unknown[]) : []).filter(isVersionText);
+    const listed = Array.isArray(entry[fields.versionsField]) ? (entry[fields.versionsField] as unknown[]) : [];
+    const rangeList = Array.isArray(entry[fields.rangesField]) ? (entry[fields.rangesField] as unknown[]) : [];
+    const counted = given.get(key) ?? { versions: 0, ranges: 0 };
+    counted.versions += listed.length;
+    counted.ranges += rangeList.length;
+    given.set(key, counted);
+    if (counted.versions > limits.versions || counted.ranges > limits.ranges) return { status: 'too-large' };
+    const versions = listed.filter(isVersionText);
     const ranges: string[][] = [];
-    for (const range of Array.isArray(entry[fields.rangesField]) ? (entry[fields.rangesField] as unknown[]) : []) {
+    for (const range of rangeList) {
       if (!isRecord(range) || typeof range[fields.typeField] !== 'string' || !fields.versionRangeTypes.includes(range[fields.typeField] as string)) continue;
       const events = range[fields.eventsField];
       if (!Array.isArray(events) || events.length === 0) continue;
+      if (events.length > limits.events) return { status: 'too-large' };
       const flat: string[] = [range[fields.typeField] as string];
       let usable = true;
       for (const event of events) {
@@ -144,8 +208,13 @@ export function readRecord(record: unknown, ecosystem: string): ReadRecord {
     }
     if (versions.length === 0 && ranges.length === 0) continue;
     const known = packages.get(key);
-    if (known === undefined) packages.set(key, { versions, ranges });
-    else packages.set(key, { versions: [...known.versions, ...versions], ranges: [...known.ranges, ...ranges] });
+    if (known === undefined) {
+      packages.set(key, { versions, ranges });
+      continue;
+    }
+    // In place: copying the lists for each entry took quadratic time (a record of 60,000 entries for one package).
+    for (const version of versions) known.versions.push(version);
+    for (const range of ranges) known.ranges.push(range);
   }
   if (packages.size === 0) return { status: 'skipped' };
   return { status: 'kept', id: record['id'] as string, packages };
@@ -166,14 +235,38 @@ interface Loaded {
   body?: number;
 }
 
+export interface LocalOsvDataOptions {
+  /**
+   * The directories other users must not be able to write, from the top (osvDataDirectories of src/user/cache-path.ts
+   * for the user cache directory); by default the directory of the data alone.
+   */
+  guarded?: readonly string[];
+  /** The user, for the owners of those directories: by default the user of this process, none on Windows. Tests replace it. */
+  user?: PosixUser | undefined;
+}
+
 /** Looks versions up in the local data; reads the file of an ecosystem once, when it is first needed. */
 export class LocalOsvData {
   readonly #loaded = new Map<string, Loaded>();
+  readonly #guarded: readonly string[];
+  readonly #user: PosixUser | undefined;
+  #problem: { found: CacheWriteProblem | undefined } | undefined;
   /** The directory of the local data; undefined when depcurfew has no user cache directory. */
   readonly directory: string | undefined;
 
-  constructor(directory: string | undefined) {
+  constructor(directory: string | undefined, options: LocalOsvDataOptions = {}) {
     this.directory = directory;
+    this.#guarded = options.guarded ?? (directory === undefined ? [] : [directory]);
+    this.#user = 'user' in options ? options.user : currentUser();
+  }
+
+  /**
+   * A directory of the data that other users can write (decision D-156), checked once; undefined when there is none.
+   * The lookups still use the data then: without it they would find nothing at all, and the warning says what to do.
+   */
+  writeProblem(): CacheWriteProblem | undefined {
+    this.#problem ??= { found: cacheWriteProblem(this.#guarded, this.#user) };
+    return this.#problem.found;
   }
 
   #load(ecosystem: string): Loaded {
@@ -209,9 +302,9 @@ export class LocalOsvData {
     let records: unknown;
     try {
       records = findLine(loaded.bytes, loaded.body, name);
-    } catch {
-      const unreadable: Loaded = { state: { status: 'unreadable', file: loaded.state.file, reason: 'a line of it is not one depcurfew osv update writes' } };
-      this.#loaded.set(pkg.ecosystem, unreadable);
+    } catch (error) {
+      const reason = error instanceof LineTooLong ? `a line of it is longer than ${sizeText(OSV_DATA_LIMITS.lineBytes)}, more than depcurfew osv update writes` : 'a line of it is not one depcurfew osv update writes';
+      this.#loaded.set(pkg.ecosystem, { state: { status: 'unreadable', file: loaded.state.file, reason } });
       return undefined;
     }
     if (!Array.isArray(records)) return [];
@@ -227,9 +320,12 @@ export class LocalOsvData {
   }
 }
 
+/** A line longer than osv update writes (OSV_DATA_LIMITS.lineBytes): it is not parsed. */
+class LineTooLong extends Error {}
+
 /**
  * The records of the package line for `name`, found by a binary search over the lines from `body` on; undefined when
- * there is none. Throws when a line it reads is not [name, records].
+ * there is none. Throws when a line it reads is not [name, records], or is longer than osv update writes.
  */
 function findLine(bytes: Buffer, body: number, name: string): unknown {
   let low = body;
@@ -240,6 +336,7 @@ function findLine(bytes: Buffer, body: number, name: string): unknown {
     const start = Math.max(low, bytes.lastIndexOf(NEWLINE, middle - 1) + 1);
     const newline = bytes.indexOf(NEWLINE, start);
     const end = newline === -1 || newline >= high ? high : newline;
+    if (end - start > OSV_DATA_LIMITS.lineBytes) throw new LineTooLong();
     const line = JSON.parse(bytes.toString('utf8', start, end)) as unknown;
     if (!Array.isArray(line) || line.length !== 2 || typeof line[0] !== 'string' || !Array.isArray(line[1])) throw new Error('not a package line');
     const order = compareNames(line[0], name);
@@ -263,7 +360,7 @@ function readDataFile(directory: string | undefined, ecosystem: string): Loaded 
   } catch (error) {
     return { state: { status: 'unreadable', file, reason: reasonOf(error) } };
   }
-  if (size > MAX_OSV_DATA_BYTES) return { state: { status: 'unreadable', file, reason: `it is larger than ${MAX_OSV_DATA_BYTES / (1024 * 1024)} MiB` } };
+  if (size > OSV_DATA_LIMITS.fileBytes) return { state: { status: 'unreadable', file, reason: `it is larger than ${sizeText(OSV_DATA_LIMITS.fileBytes)}` } };
   let bytes: Buffer;
   try {
     bytes = readFileSync(file);
@@ -280,13 +377,18 @@ function readDataFile(directory: string | undefined, ecosystem: string): Loaded 
     return notOurs;
   }
   if (!isRecord(header) || header['format'] !== OSV_DATA_FORMAT || header['ecosystem'] !== ecosystem) return notOurs;
-  if (header['formatVersion'] !== OSV_DATA_FORMAT_VERSION) {
-    return { state: { status: 'unreadable', file, reason: `it has the format version ${JSON.stringify(header['formatVersion'])}, and this depcurfew reads ${OSV_DATA_FORMAT_VERSION}` } };
+  const version = header['formatVersion'];
+  if (version !== OSV_DATA_FORMAT_VERSION) {
+    // No text of the file reaches the reason (decision D-156): at most a small whole number.
+    const shown = typeof version === 'number' && Number.isInteger(version) && version >= 0 && version <= MAX_SHOWN_FORMAT_VERSION ? `the format version ${version}` : 'another format version';
+    return { state: { status: 'unreadable', file, reason: `it has ${shown}, and this depcurfew reads ${OSV_DATA_FORMAT_VERSION}` } };
   }
   const { downloadedAt, exportedAt, records } = header;
   const time = (value: unknown): value is string => typeof value === 'string' && !Number.isNaN(Date.parse(value));
   if (!time(downloadedAt) || !(exportedAt === null || time(exportedAt)) || typeof records !== 'number') return notOurs;
-  return { state: { status: 'ready', file, downloadedAt, exportedAt, records }, bytes, body: newline + 1 };
+  // An export is never written after its download (decision D-156): such a date is not taken, and the age counts from the download.
+  const exported = exportedAt !== null && Date.parse(exportedAt) > Date.parse(downloadedAt) ? null : exportedAt;
+  return { state: { status: 'ready', file, downloadedAt, exportedAt: exported, records }, bytes, body: newline + 1 };
 }
 
 function reasonOf(error: unknown): string {

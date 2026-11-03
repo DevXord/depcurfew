@@ -115,6 +115,11 @@ export type OsvDoctor = { collect: OsvPackage[] } | { answers: ReadonlyMap<strin
 /** The local OSV.dev data of each ecosystem, as known-malicious reports it (decision D-150). */
 export interface OsvLocalDoctor {
   ecosystems: Readonly<Record<string, OsvLocalEcosystem>>;
+  /**
+   * Other users can write a directory of the data (decision D-156): which one and how, and what to do. The rule warns
+   * for each lockfile it checks against the data, which it still uses.
+   */
+  shared?: { reason: string; fix: string };
 }
 
 /** missing, unreadable with the reason, or ready with its date, its age in days and whether that gives a note or a warning. */

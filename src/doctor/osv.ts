@@ -5,6 +5,7 @@
 // answers. Both runs read the same files the same way, the projects of depcurfew.json included.
 import { osvKey, queryOsv, withLocalAnswer, type OsvLocalLookup, type OsvOptions, type OsvPackage, type OsvVerdict } from '../check/osv.ts';
 import { dataAgeDays, dataDate, dataStaleness, OSV_DATA_ECOSYSTEMS, type LocalOsvData } from '../osv/data.ts';
+import { writeProblemFix, writeProblemReason } from '../osv/notices.ts';
 import { runDoctor } from './index.ts';
 import { knownMalicious } from './rules/known-malicious.ts';
 import type { DoctorReport, OsvDoctor, OsvLocalDoctor, OsvLocalEcosystem } from './types.ts';
@@ -49,7 +50,9 @@ export function localDoctorState(local: LocalOsvData, now: Date): OsvLocalDoctor
           ? { status: 'unreadable', reason: state.reason }
           : { status: 'missing' };
   }
-  return { ecosystems };
+  const problem = local.writeProblem();
+  if (problem === undefined) return { ecosystems };
+  return { ecosystems, shared: { reason: writeProblemReason(problem), fix: writeProblemFix(problem, 'depcurfew osv update and depcurfew doctor again') } };
 }
 
 /**

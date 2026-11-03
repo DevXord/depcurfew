@@ -264,7 +264,7 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
     }
     const ecosystems = parseEcosystems(Array.isArray(values['ecosystem']) ? values['ecosystem'] : []);
     if (!ecosystems.ok) return usage(ecosystems.message, "Run 'depcurfew osv --help' for usage.");
-    return osvUpdate({ ecosystems: ecosystems.ecosystems, json: values['json'] === true }, io, dependencies);
+    return osvUpdate({ ecosystems: ecosystems.ecosystems, json: values['json'] === true, ...(values['accept-fewer'] === true ? { acceptFewer: true } : {}) }, io, dependencies);
   }
 
   io.stderr(`error: '${command.name}' is not implemented yet\n`);

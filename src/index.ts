@@ -19,7 +19,7 @@ export { runDoctorWithLocalOsv, runDoctorWithOsv } from './doctor/osv.ts';
 export { queryOsv } from './check/osv.ts';
 export type { OsvOptions, OsvPackage, OsvSource, OsvVerdict } from './check/osv.ts';
 export { LocalOsvData } from './osv/data.ts';
-export type { OsvDataState } from './osv/data.ts';
+export type { LocalOsvDataOptions, OsvDataLimits, OsvDataState } from './osv/data.ts';
 export { updateOsvData } from './osv/update.ts';
 export type { OsvUpdateOptions, OsvUpdateResult } from './osv/update.ts';
 export type { Detection, DetectionWarning, PackageManagerInfo, VersionDeclaration } from './detect/types.ts';

@@ -6668,7 +6668,7 @@ const osv = {
 		},
 		recordEntry: "{id}.json",
 		withdrawnIncluded: true
-	}, `${OSV_DOCS}/data.md`, "The sources \"are aggregated and continuously exported to a GCS bucket maintained by OSV: gs://osv-vulnerabilities\"; \"Individual vulnerability records can be found at gs://osv-vulnerabilities/<ECOSYSTEM>/<ID>.json\" and \"A zip containing all vulnerabilities for each ecosystem is available at gs://osv-vulnerabilities/<ECOSYSTEM>/all.zip\", with the example \"download over HTTP via https://storage.googleapis.com/osv-vulnerabilities/PyPI/all.zip\"; the zip of all ecosystems holds withdrawn records too. The folder of an ecosystem is its name: gs://osv-vulnerabilities/ecosystems.txt lists npm, PyPI and Packagist, and ecosystems with a :suffix are exported only under the main ecosystem. Read on 2026-11-03 from the bucket itself: npm/all.zip 219,811,588 bytes with 231,076 entries (223,001 MAL- records, 334 of them withdrawn; more than 65,535 entries, so the end of its central directory is in the ZIP64 format), PyPI/all.zip 37,606,501 bytes with 26,779 entries (11,976 MAL-, 25 withdrawn), Packagist/all.zip 11,087,467 bytes with 7,397 entries (1 MAL-); every entry is a file <ID>.json at the top of the zip, deflated, without encryption, data descriptor or extra field; the largest MAL- entry is 1,148,610 bytes. The bucket answers with Last-Modified, the time the zip was written."),
+	}, `${OSV_DOCS}/data.md`, "The sources \"are aggregated and continuously exported to a GCS bucket maintained by OSV: gs://osv-vulnerabilities\"; \"Individual vulnerability records can be found at gs://osv-vulnerabilities/<ECOSYSTEM>/<ID>.json\" and \"A zip containing all vulnerabilities for each ecosystem is available at gs://osv-vulnerabilities/<ECOSYSTEM>/all.zip\", with the example \"download over HTTP via https://storage.googleapis.com/osv-vulnerabilities/PyPI/all.zip\"; the zip of all ecosystems holds withdrawn records too. The folder of an ecosystem is its name: gs://osv-vulnerabilities/ecosystems.txt lists npm, PyPI and Packagist, and ecosystems with a :suffix are exported only under the main ecosystem. Read on 2026-11-03 from the bucket itself: npm/all.zip 219,811,588 bytes with 231,076 entries (223,001 MAL- records, 334 of them withdrawn; more than 65,535 entries, so the end of its central directory is in the ZIP64 format), PyPI/all.zip 37,606,501 bytes with 26,779 entries (11,976 MAL-, 25 withdrawn), Packagist/all.zip 11,087,467 bytes with 7,397 entries (1 MAL-); every entry is a file <ID>.json at the top of the zip, deflated, without encryption, data descriptor or extra field; the largest MAL- entry is 1,148,610 bytes. The bucket answers with Last-Modified, the time the zip was written. Every MAL- record of the exports written at 08:33 UTC the same day (npm 219,814,610 bytes with 223,004 MAL- entries, PyPI 11,976, Packagist 1), read in full: at most 1 affected[] entry per record; for one package in one record at most 232 versions (PyPI 86), 2 ranges and 4 events in a range; at most 2 records of one package (PyPI 1); the longest version 74 characters; the data depcurfew writes from them is 17,911,745 bytes for npm with a longest package line of 3,320 bytes (PyPI 794,277 and 789 bytes)."),
 	affected: verifiedLater({
 		affectedField: "affected",
 		packageField: "package",
@@ -33829,7 +33829,7 @@ const knownMalicious = {
 	id: "known-malicious",
 	checks: "With --osv or the local OSV.dev data of depcurfew osv update: no locked package version is a known malicious version in OSV.dev",
 	summary: "With --osv or the local OSV.dev data of depcurfew osv update: a lockfile locks a package version that OSV.dev lists as malicious.",
-	description: "Doctor looks up the exact version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) and reports each version that has a record of the OpenSSF malicious-packages database (an id starting with MAL-): with --osv in api.osv.dev (which then gets the names and versions), else offline in the local OSV.dev data of depcurfew osv update. It looks up what the tool installs (for npm the registry tarball of resolved, for pnpm that of resolution.tarball, for Yarn the resolution); an entry that says otherwise gets a warning, as does a registry entry without an exact version. Local data older than 7 days gives a note, older than 30 days a warning; OSV.dev out of reach gives a warning. Only reported malware is found, and the database admits false positives. With neither --osv nor local data, a note says how to get them.",
+	description: "Doctor looks up the exact version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) and reports each version that has a record of the OpenSSF malicious-packages database (an id starting with MAL-): with --osv in api.osv.dev (which then gets the names and versions), else offline in the local OSV.dev data of depcurfew osv update. It looks up what the tool installs (for npm the registry tarball of resolved, for pnpm that of resolution.tarball, for Yarn the resolution); an entry that says otherwise gets a warning, as does a registry entry without an exact version. Local data older than 7 days gives a note; older than 30 days, or in a directory others can write, a warning; OSV.dev out of reach gives a warning. Only reported malware is found, and the database admits false positives. With neither --osv nor local data, a note says how to get them.",
 	help: "Remove or replace the package version and lock again; if it was installed anywhere, read the record on OSV.dev and treat that machine as exposed.",
 	level: "error",
 	requiresPolicy: false,
@@ -33909,6 +33909,7 @@ const knownMalicious = {
 				if ("collect" in osv) continue;
 				reportUnchecked(context, lockfile.file, locked, unchecked);
 				if (data !== void 0 && data.status === "ready" && locked > 0) reportOldData(context, lockfile.file, ecosystem, data);
+				if (data !== void 0 && data.status === "ready" && locked > 0 && local?.shared !== void 0) reportSharedData(context, lockfile.file, local.shared);
 				const count = unpinned.length;
 				if (count > 0 && ecosystem === "packagist") context.notice(`known-malicious did not check ${plural(count, "package")} of ${lockfile.file}, which locks a branch of ${count === 1 ? "it" : "them"} (a dev- or -dev version), not a release`, lockfile.file, `Require tagged releases of ${count === 1 ? "this package" : "these packages"} in composer.json and run composer update, so that ${checker} can check ${count === 1 ? "it" : "them"}`);
 				else if (count > 0 && lockfile.requirements === true) context.notice(`known-malicious did not check ${plural(count, "package")} of ${lockfile.file}, which pins no exact version of ${count === 1 ? "it" : "them"}`, lockfile.file, `Pin exact versions (name==version), for example with a lockfile exported by the tool that resolves them, so that ${checker} can check them`);
@@ -34005,6 +34006,15 @@ function reportNoLocalData(context, file, ecosystem, data) {
 		return;
 	}
 	context.notice(`known-malicious did not check ${file}: the local OSV.dev data for ${name} cannot be read (${data.reason})`, file, `Run depcurfew osv update --ecosystem ${ecosystem} to write it again, then run depcurfew doctor again`);
+}
+/** Local data in a directory other users can write: a warning per lockfile checked against it (decision D-156). */
+function reportSharedData(context, file, shared) {
+	context.report({
+		level: "warning",
+		location: { file },
+		message: `known-malicious checked ${file} against local OSV.dev data that other users may change, so a malicious version may pass: ${shared.reason}`,
+		fix: shared.fix
+	});
 }
 /** Local data older than 7 days: a note per lockfile checked against it; older than 30 days a warning (decision D-150). */
 function reportOldData(context, file, ecosystem, data) {
