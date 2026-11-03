@@ -1,0 +1,60 @@
+# Checks that the newest depcurfew on npm is exactly the build of its git tag: the tag is checked out and built as the
+# Release workflow builds it, and the checksum of its pack is compared with the one the registry serves. It runs every
+# day and on demand, and its runs are public. See "Verifying a release" in README.md.
+name: Verify release
+
+on:
+  schedule:
+    - cron: '41 4 * * *'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'The version to verify, such as 1.4.1 (empty: the latest on npm)'
+        required: false
+        default: ''
+
+permissions: {}
+
+jobs:
+  verify:
+    name: The package on npm equals the build of its tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: The version to verify
+        id: version
+        env:
+          REQUESTED: ${{ inputs.version }}
+        run: |
+          version="${REQUESTED:-$(npm view depcurfew version)}"
+          case "$version" in
+            '' | *[!0-9.]*) echo "::error::depcurfew: '$version' is not a version such as 1.4.1"; exit 1 ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: v${{ steps.version.outputs.version }}
+      # The npm of packageManager in package.json, as in the Release workflow (decision D-099).
+      - run: npm install -g npm@11.19.1
+      # The project .npmrc sets ignore-scripts, so no dependency script runs.
+      - run: npm ci
+      - run: npm run build
+      - name: The checksum of the pack equals the one on npm
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          built="$(npm pack --dry-run --json | node -e 'let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => console.log(JSON.parse(s)[0].shasum))')"
+          published="$(npm view "depcurfew@$VERSION" dist.shasum)"
+          echo "build of v$VERSION: $built"
+          echo "depcurfew@$VERSION on npm: $published"
+          if [ -z "$built" ] || [ "$built" != "$published" ]; then
+            echo "::error::depcurfew@$VERSION on npm is not the build of the tag v$VERSION"
+            exit 1
+          fi

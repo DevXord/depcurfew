@@ -8,6 +8,15 @@ Package managers and update bots now each protect you against freshly published 
 
 depcurfew keeps one policy file, `depcurfew.json`, writes it into the configuration of every tool in the repository, and checks that the result really works.
 
+What it stops and finds:
+
+- **Versions that are too new.** Every package manager and update bot in the repository waits `cooldown.minimum` before it takes a new version, each in its own setting, unit and file.
+- **Install scripts** of dependencies that the policy does not allow, and Composer plugins.
+- **Git and tarball dependencies** where the policy denies them.
+- **Look-alike and made-up names.** `depcurfew check`, the [Claude Code hook](#claude-code) and the [MCP server](#mcp-server) stop a name one or two letters away from a popular npm package or PyPI project, the usual form of typosquatting and of package names an AI model invents.
+- **Known malicious versions.** After `depcurfew osv update`, the same checks and `doctor` block the versions OSV.dev lists as malicious, offline, without sending a package name anywhere: see [Known malicious versions](#known-malicious-versions-osv).
+- **Settings that do nothing.** `doctor` finds a pinned package manager too old for a setting, a bot that waits less than the package manager, a CI job or Dockerfile that installs with another version, and more: see [doctor rules](#doctor-rules).
+
 ## Five-minute start
 
 1. `npx depcurfew doctor` works before `init`: without `depcurfew.json` it compares the repository with the policy `init` would write and shows, as notes in a block of their own, what `init` and `apply` would change, for example a package manager that installs new versions without a release-age delay, with the settings `apply` would write for it. These notes never make it fail.
@@ -79,6 +88,41 @@ npm ci
 npm run build
 node dist/cli.js doctor /path/to/your/repository
 ```
+
+### Verifying a release
+
+Every release is built and published from its git tag by the [Release workflow](https://github.com/DevXord/depcurfew/blob/main/.github/workflows/release.yml) with npm trusted publishing, so the npm page of each version shows its provenance: the repository, the workflow and the commit it was built from. After installing, `npm audit signatures` checks the registry signature and the provenance attestation of every installed package, depcurfew included.
+
+The package contains nothing but the build of that commit, and anyone can check it: check out the tag, build it and compare the checksum with the one the registry serves, here for the release the [GitHub Action](#github-action) example uses:
+
+<!-- BEGIN GENERATED: verify-release -->
+```bash
+git clone --branch v1.4.1 https://github.com/DevXord/depcurfew.git
+cd depcurfew
+npm ci --ignore-scripts
+npm run build
+npm pack --dry-run --json | grep shasum
+npm view depcurfew@1.4.1 dist.shasum
+```
+<!-- END GENERATED: verify-release -->
+
+The two checksums are the same. The [Verify release workflow](https://github.com/DevXord/depcurfew/blob/main/.github/workflows/verify-release.yml) does this for the newest version on npm every day and on demand, and its runs are public in the Actions tab of the repository.
+
+## Step-by-step guide
+
+The [five-minute start](#five-minute-start) lists the commands; this guide goes through them once, in a repository you know, with what to look at in each step.
+
+1. **See what is missing.** Run `npx depcurfew doctor` in the root of the repository. Without `depcurfew.json` it compares the repository with the policy `init` would write and lists, under "Compared with the default policy (no depcurfew.json):", every file `apply` would create or change and why: a package manager that installs new versions without a release-age delay, dependencies whose install scripts would run, an update bot that proposes versions sooner than the package manager would install them. Nothing fails yet; these are notes.
+2. **Write the policy.** `npx depcurfew init` writes `depcurfew.json` and says what it found. Read its notes: it keeps a longer release-age delay the repository already has, puts well-known packages whose install scripts are not needed into `installScripts.deny`, and lists the packages with install scripts to review. Allow the ones the project needs in `installScripts.allow`; every other entry of [the policy file](#the-policy-file) has a safe default.
+3. **Look before writing.** `npx depcurfew explain` shows the tools it detected and what the policy means for each one, including the tools that cannot enforce a part of it. `npx depcurfew apply --dry-run` prints the changes as a diff.
+4. **Apply and commit.** `npx depcurfew apply` writes the configuration into the files each tool reads, keeps their comments and formatting, and marks the parts it manages. Commit `depcurfew.json` and the changed files together: from now on the team and CI get the protection from those files, whether or not they run depcurfew.
+5. **Check that it works.** `npx depcurfew doctor` now compares the repository with `depcurfew.json`. Fix what it reports; each finding says where it is and how to fix it, and [doctor rules](#doctor-rules) explains every rule. A typical first finding is a CI job or Dockerfile that installs with an older package manager than the one the setting needs.
+6. **Block known malicious versions.** `npx depcurfew osv update` downloads the public OSV.dev data of known malicious packages for npm, PyPI and Packagist; `check`, the hook, `depcurfew mcp` and `doctor` then block those versions offline. Run it again regularly; `doctor` says when the copy is more than a week old.
+7. **Keep it in CI.** Add the [GitHub Action](#github-action), pinned to a release commit, so that `doctor` runs on every push and pull request and reports to code scanning. On other CI systems, run the project's own copy (see [Other CI systems](#other-ci-systems)).
+8. **Guard installs by coding agents.** With Claude Code, add the [hook](#claude-code), which checks every install command before it runs; for other agents, add the [MCP server](#mcp-server).
+9. **Protect the whole machine (optional).** `npx depcurfew init --user` and `npx depcurfew apply --user` give every project on the computer the same release-age delay and script blocking, also projects without depcurfew: see [Protecting the whole machine](#protecting-the-whole-machine).
+
+When `depcurfew.json` changes later, run `npx depcurfew apply` again and commit the result; a second run with the same policy changes nothing.
 
 ## The policy file
 
@@ -673,6 +717,15 @@ depcurfew:
 ## What depcurfew does not do
 
 depcurfew makes the package managers' own protections work and checks a package's age, name, install scripts and source before it is installed. It does not scan package contents, and it has no malware database until you download one: after `depcurfew osv update`, `check`, the Claude Code hook, `depcurfew mcp` and `doctor` block the versions that a local copy of the OpenSSF malicious-packages data of OSV.dev lists, offline; with `--osv` (also the input `osv` of the Action) they ask OSV.dev itself. Without either, a malicious version older than the cooldown passes. Both catch only malware someone has found and reported, and the database admits false positives: see [Known malicious versions](#known-malicious-versions-osv). Keep `npm audit` or an equivalent for known vulnerabilities, which neither reports. depcurfew also does not run or sandbox anything: the protection comes from the configuration the package managers read.
+
+## Alongside other supply-chain tools
+
+depcurfew configures and checks the protections that package managers and update bots already have, so it works without a service, an account or a proxy, and sends nothing unless asked. Tools that inspect the packages themselves cover what it cannot: they look at the code of new versions and block malware before anyone has reported it to OSV.dev. The two kinds work together, each on a different layer:
+
+- **depcurfew** holds new versions back until `cooldown.minimum` has passed, blocks install scripts, git and tarball dependencies the policy denies, look-alike names and versions with an OSV.dev malicious-packages record, and checks that the configuration really does this in every package manager, update bot, CI job and Dockerfile of the repository.
+- **A malware-blocking proxy or wrapper**, such as [Aikido Safe Chain](https://github.com/AikidoSec/safe-chain), [Socket Firewall](https://github.com/SocketDev/firewall-release) or [StepSecurity Secure Registry](https://www.stepsecurity.io/secure-registry), checks each package an install downloads against its vendor's malware analysis, also for versions older than the release-age delay and, depending on the product, for ecosystems depcurfew does not configure. Read each product's terms for its license, the data it sends and the ecosystems it covers.
+
+Running both: apply depcurfew as described above, and install the other tool as its documentation says. depcurfew's configuration stays in the repository's own files, so a wrapper that calls the package manager, or a registry proxy that the package manager reaches through its registry setting, finds the release-age delay and script blocking already in place. When the proxy is a registry of its own, the project's registry setting names it; `check` and the hook then ask about installs from it, because they did not check that registry, until you pass it to them with `--registry` or `--index` (see [Guarding installs](#guarding-installs)).
 
 ## Guarding installs
 

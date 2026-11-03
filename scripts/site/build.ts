@@ -100,6 +100,8 @@ export const README_PAGES: readonly ReadmePage[] = [
   { file: 'check.html', nav: 'Guarding installs', title: 'Guarding installs', summary: 'depcurfew check before a package is installed.', sections: ['guarding-installs'] },
   { file: 'claude-code.html', nav: 'Claude Code', title: 'Claude Code', summary: 'The Claude Code hook and how to set it up.', sections: ['claude-code'] },
   { file: 'mcp.html', nav: 'MCP server', title: 'MCP server', summary: 'depcurfew mcp and how to add it to an MCP client.', sections: ['mcp-server'] },
+  { file: 'guide.html', nav: 'Step-by-step guide', title: 'Step-by-step guide', summary: 'From the first doctor run to CI, coding agents and the whole machine, one step at a time.', sections: ['step-by-step-guide'] },
+  { file: 'other-tools.html', nav: 'Other tools', title: 'Alongside other supply-chain tools', summary: 'How depcurfew works together with tools that inspect the packages themselves.', sections: ['alongside-other-supply-chain-tools'] },
   {
     file: 'about.html',
     nav: 'About',
@@ -168,10 +170,10 @@ export interface PageGroup {
  * knowledge base gets a start page `<ecosystem>.html`, which has to be added here.
  */
 export const PAGE_GROUPS: readonly PageGroup[] = [
-  { title: 'Start', files: ['index.html', 'npm.html', 'python.html', 'php.html', 'bots.html'] },
+  { title: 'Start', files: ['index.html', 'guide.html', 'npm.html', 'python.html', 'php.html', 'bots.html'] },
   { title: 'Reference', files: ['policy.html', 'commands.html', 'codes.html', 'doctor.html', 'tools.html', 'knowledge.html'] },
   { title: 'Integrations', files: ['action.html', 'check.html', 'claude-code.html', 'mcp.html', 'machine.html'] },
-  { title: 'Project', files: ['about.html', 'versions.html'] },
+  { title: 'Project', files: ['about.html', 'other-tools.html', 'versions.html'] },
 ];
 
 /** The pages in their groups, in the order of PAGE_GROUPS, without empty groups; a page in no group stops the build. */

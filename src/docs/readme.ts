@@ -239,6 +239,21 @@ function exampleWorkflow(environment: EnvironmentKnowledge, workflow: string): s
   ].join('\n');
 }
 
+/** The commands that check a release against its tag, for the release the example workflow pins (ACTION_RELEASE). */
+function verifyRelease(): string {
+  const { version } = ACTION_RELEASE;
+  return [
+    '```bash',
+    `git clone --branch v${version} https://github.com/DevXord/depcurfew.git`,
+    'cd depcurfew',
+    'npm ci --ignore-scripts',
+    'npm run build',
+    'npm pack --dry-run --json | grep shasum',
+    `npm view depcurfew@${version} dist.shasum`,
+    '```',
+  ].join('\n');
+}
+
 function commandList(entries: readonly (readonly string[])[]): string {
   return entries.map((entry) => `\`${entry.join(' ')}\``).join(', ');
 }
@@ -460,6 +475,7 @@ export function readmeSections(inputs: ReadmeInputs): Record<string, string> {
     'init-codes': initCodes(),
     'action-reference': actionTables(inputs.action),
     'action-workflow': exampleWorkflow(inputs.environment, inputs.workflow),
+    'verify-release': verifyRelease(),
     'claude-code-hook': claudeCodeHook(inputs.environment, inputs.tools),
     'mcp-clients': mcpClients(inputs.environment),
   };
