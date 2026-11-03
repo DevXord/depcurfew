@@ -1,11 +1,12 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, EnvironmentNameRule, SourceKnowledge, ToolKnowledge, Versioned } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, RunnerOptionsKnowledge, SourceKnowledge, ToolKnowledge, Versioned } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const user = verifiedOn('2026-10-31');
 const runtimes = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
+const runners = verifiedOn('2026-11-03');
 const BUN_V1_4_4 = 'https://github.com/oven-sh/bun/blob/bun-v1.4.4';
 const BUNFIG_PARSER = `${BUN_V1_4_4}/src/bunfig/bunfig.rs`;
 
@@ -207,6 +208,11 @@ export const bun: ToolKnowledge = {
       },
       'https://github.com/oven-sh/bun/tree/da867c60bf0bcbf9d6d36994f8ca0efa42075115/docs/snippets/cli',
       'Options of bun add (snippets/cli/add.mdx) and bunx (snippets/cli/bunx.mdx) typed string or number; --catalog takes its name only after =. -p is --package for bunx but the flag --production for bun add, so it is listed with bunx only. The short forms -F (--filter) and -c (--config) of bun add are left out because bunx does not document them, and an option wrongly read as taking a value would hide the package after it. bunx is an alias for bun x (docs/pm/bunx.mdx). bun create <template> runs the create-<template> package from npm unless a local template has that name; it also takes GitHub repositories and local paths (docs/runtime/templating/create.mdx).',
+    ),
+    runnerOptions: runners.verified<RunnerOptionsKnowledge>(
+      { beforeCommand: [{ command: ['bun', 'x'], values: 'attached' }] },
+      'https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/runtime/cli/bunx_command.rs',
+      'bun x reads every option before the package name, also those before x: Options::parse gets the command line after bun, with x as the subcommand name, and takes --package <name>, --package=<name>, -p <name> and -p=<name> wherever they stand before it, so bun --package=x x y and bun -p=x x y download x. bun finds its command by skipping each word that starts with - (which in src/runtime/cli/mod.rs at bun-v1.4.4), so in bun --package x x y it takes the value x for the command, and bun x runs only when that value is x. Decision D-160.',
     ),
     packageSpecs: checked.verified(
       { git: ['github:', 'git+ssh://', 'git+https://'], local: [], workspace: [], scp: true },

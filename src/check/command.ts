@@ -39,6 +39,7 @@ import type {
   PythonInterpreterKnowledge,
   PythonSelectionKnowledge,
   RegistryOverridesKnowledge,
+  RunnerOptionsKnowledge,
   SelectionSwitches,
   ToolId,
 } from '../knowledge/types.ts';
@@ -144,8 +145,9 @@ export interface CommandScan {
   unreadable: string | undefined;
   /**
    * scanCommandLine: the packages of the line read once more with the options that point a tool at another registry,
-   * index or configuration file read like any other option, when such an option left a command out (decision D-155).
-   * They are not checked against a registry; the hook looks up the versions they name exactly in the local OSV.dev data.
+   * index or configuration file read like any other option (decision D-155) and the words the shell expands among the
+   * arguments of an install passed over (decision D-160), when such an option or word left a command out. They are not
+   * checked against a registry; the hook looks up the versions they name exactly in the local OSV.dev data.
    */
   aside?: InstallRequest[];
   /** Options and variables that weaken what depcurfew apply configured, to be compared with the policy. */
@@ -740,6 +742,8 @@ interface ToolCommands {
   composer: ComposerCommandsKnowledge | undefined;
   /** Composer: the options of the application, which it binds before it knows the command (decision D-136). */
   applicationOptions: readonly ApplicationOption[] | undefined;
+  /** Where the tool reads the options of its download commands besides after the subcommand (decision D-160). */
+  runnerOptions: RunnerOptionsKnowledge | undefined;
 }
 
 interface Commands {
@@ -868,6 +872,7 @@ function commands(): Commands {
             directories: factOf<DirectoryOptionsKnowledge>(tool, sibling(key, 'directoryOptions')),
             composer: factOf<ComposerCommandsKnowledge>(tool, sibling(key, 'commandArguments')),
             applicationOptions: factOf<ApplicationOption[]>(tool, sibling(key, 'applicationOptions')),
+            runnerOptions: factOf<RunnerOptionsKnowledge>(tool, sibling(key, 'runnerOptions')),
           },
         ];
       }),
@@ -1242,6 +1247,8 @@ const ENV_NAME_UNREAD =
   'uses an environment variable whose name depcurfew does not read, which may point the package manager at another registry or weaken the release-age delay or the install-script settings of the project';
 /** More specs than the hook checks for one command. */
 export const TOO_MANY = 'depcurfew checks at most';
+/** Specs past the most the hook looks up in the local OSV.dev data (decision D-160). */
+export const NOT_LOOKED_UP = 'could be looked up in the local OSV.dev data';
 /** composer global update of a name without a constraint (decision D-136). */
 const GLOBAL_CONSTRAINT = 'from the constraint in COMPOSER_HOME/composer.json, which depcurfew does not read';
 /** How the reason starts for an install whose directory cannot be told (decision D-118). */
@@ -1304,19 +1311,33 @@ export function unreadableFix(reason: string): string {
     return 'Run the install without that option or variable, so it keeps the release-age delay and install-script settings of the project; if the change is intended, the user decides';
   }
   if (reason.includes(CMD_READS_AGAIN)) return 'Leave & | < > and " out of the arguments of the package manager, so depcurfew can check the command';
-  if (reason.includes(TOO_MANY)) return 'Install the packages in smaller groups, so depcurfew can check each of them';
+  if (reason.includes(AMONG_ARGUMENTS)) return 'Put -- before the command that npm exec or npm x runs (npm exec -- <command> …), so npm does not read its arguments as its own options';
+  if (reason.includes(TOO_MANY) || reason.includes(NOT_LOOKED_UP)) return 'Install the packages in smaller groups, so depcurfew can check each of them';
   if (reason.includes(GLOBAL_CONSTRAINT)) return 'Name the version to install (composer global require vendor/name:1.2.3), so depcurfew can check it';
   return 'Write the package names out in the command, so depcurfew can check them';
 }
 
 /**
  * While set, the scan reads an option that points a tool at another registry, index or configuration file like any
- * other option, so that the packages of its command are known (decision D-155): scanCommandLine sets it for a second
- * reading of a line whose first reading left such a command out.
+ * other option (decision D-155), and reads the arguments of an install past a word the shell expands (decision D-160),
+ * so that the packages its command names as written are known: scanCommandLine sets it for a second reading of a line
+ * whose first reading left such a command out.
  */
 let readingAside = false;
-/** The first reading left out a command for such an option. */
+/** The first reading left out a command for such an option or such a word. */
 let leftAside = false;
+
+/**
+ * Why a word the shell expands among the arguments of an install leaves its command unreadable; the second reading of
+ * the line reads the other words of the command (decision D-160).
+ */
+function expandedArgument(reason: string): { unreadable: string } {
+  leftAside = true;
+  return { unreadable: reason };
+}
+
+/** The words of a reason for a word the shell expands where the tool reads options among the arguments (decision D-160). */
+const AMONG_ARGUMENTS = 'reads the options among its arguments up to --';
 
 /** Why an option may change where the tool fetches packages from; undefined when it does not. */
 function registryOption(tool: ToolCommands, name: string, value: string | undefined): string | undefined {
@@ -1704,15 +1725,59 @@ function scriptDownload(text: string): string {
   return `it ${SCRIPT_DOWNLOAD} ${shown(text)}, whose dependencies depcurfew cannot see`;
 }
 
+/** The options of a download command whose value names its packages or a command line that runs with them. */
+function downloadOptions(entry: DownloadCommand): string[] {
+  return [...entry.packageOptions, ...(entry.extraPackageOptions ?? []), ...(entry.lineOptions ?? [])];
+}
+
+const DASHES: Word = { text: '--', dynamic: false };
+
+/**
+ * The words of a download command whose tool reads its options among the arguments up to -- (npm exec y
+ * --package=x; decision D-160): those options first, then --, then the arguments and what follows --. A word the shell
+ * expands after the first argument may be such an option, so it makes the command unreadable.
+ */
+function optionsFirst(words: readonly Word[], tool: ToolCommands, takes: (name: string) => boolean, command: string): { words: Word[] } | { unreadable: string } {
+  const options: Word[] = [];
+  const positionals: Word[] = [];
+  for (let index = 0; index < words.length; index++) {
+    const word = words[index] as Word;
+    if (word.text === '--') return { words: [...options, DASHES, ...positionals, ...words.slice(index + 1)] };
+    if (isOption(word.text)) {
+      // readArguments says why one the shell expands cannot be read.
+      options.push(word);
+      const next = word.dynamic ? undefined : readOption(words, index, tool, takes).next;
+      if (next !== undefined) {
+        options.push(next);
+        index += 1;
+      }
+      continue;
+    }
+    if (word.dynamic && positionals.length > 0) {
+      if (readingAside) continue;
+      return expandedArgument(`${expanded(word)}, and ${command} ${AMONG_ARGUMENTS}`);
+    }
+    positionals.push(word);
+  }
+  return { words: [...options, DASHES, ...positionals] };
+}
+
 /**
  * The package arguments after the subcommand, the command lines given to options and, for run and create commands,
- * the words left for the package; or why they cannot be read.
+ * the words left for the package; or why they cannot be read. While the line is read aside (decision D-160), a word
+ * the shell expands is passed over, and the package word of a run or create command that the shell expands ends it.
  */
-function readArguments(words: readonly Word[], mode: 'add' | 'run' | 'create', tool: ToolCommands, entry: DownloadCommand | undefined, context: CommandContext): Outcome {
+function readArguments(given: readonly Word[], mode: 'add' | 'run' | 'create', tool: ToolCommands, entry: DownloadCommand | undefined, context: CommandContext): Outcome {
   const packageOptions = entry?.packageOptions ?? [];
   const extraOptions = mode === 'add' ? (tool.facts.addPackageOptions ?? []) : (entry?.extraPackageOptions ?? []);
   const lineOptions = entry?.lineOptions ?? [];
   const takes = (name: string) => context.values.has(name) || packageOptions.includes(name) || extraOptions.includes(name) || lineOptions.includes(name);
+  let words = given;
+  if (mode === 'run' && entry !== undefined && tool.runnerOptions?.amongArguments?.some((command) => sameCommand(command, entry.command)) === true) {
+    const ordered = optionsFirst(given, tool, takes, entry.command.join(' '));
+    if ('unreadable' in ordered) return ordered;
+    words = ordered.words;
+  }
   const specs: string[] = [];
   const lines: string[] = [];
   const events: SelectionEvent[] = [];
@@ -1728,7 +1793,10 @@ function readArguments(words: readonly Word[], mode: 'add' | 'run' | 'create', t
     }
     if (!positional && isOption(word.text)) {
       // Options are read too: one the shell expands may name a package or change how the rest is read.
-      if (word.dynamic) return { unreadable: expanded(word) };
+      if (word.dynamic) {
+        if (readingAside) continue;
+        return expandedArgument(expanded(word));
+      }
       const option = readOption(words, index, tool, takes);
       const { name, value, next } = option;
       // The arguments are local files (deno install --entrypoint), so no package is named.
@@ -1740,11 +1808,17 @@ function readArguments(words: readonly Word[], mode: 'add' | 'run' | 'create', t
       if (next !== undefined) index += 1;
       if (lineOptions.includes(name)) {
         // A command line that runs with the packages: read like the rest, expansions included.
-        if (next?.input === true) return { unreadable: expanded(next) };
+        if (next?.input === true) {
+          if (readingAside) continue;
+          return expandedArgument(expanded(next));
+        }
         if (value !== undefined) lines.push(value);
         continue;
       }
-      if (next?.dynamic === true) return { unreadable: `"${shown(`${word.text} ${next.text}`)}" is expanded by the shell` };
+      if (next?.dynamic === true) {
+        if (readingAside) continue;
+        return expandedArgument(`"${shown(`${word.text} ${next.text}`)}" is expanded by the shell`);
+      }
       const setting = registryOption(tool, name, value);
       if (setting !== undefined) return { unreadable: setting };
       const override = overrideOption(tool, name, value, next === undefined ? word.text : `${word.text} ${next.text}`);
@@ -1761,11 +1835,15 @@ function readArguments(words: readonly Word[], mode: 'add' | 'run' | 'create', t
     }
     if (shell) {
       // Shell mode: the argument is a command line that runs with the packages.
-      if (word.input === true) return { unreadable: expanded(word) };
+      if (word.input === true) return readingAside ? { specs, lines, rest: [], events, overrides } : expandedArgument(expanded(word));
       lines.push(word.text);
       return { specs, lines, rest: [], events, overrides };
     }
-    if (word.dynamic) return { unreadable: expanded(word) };
+    if (word.dynamic) {
+      if (!readingAside) return expandedArgument(expanded(word));
+      if (mode === 'add') continue;
+      return { specs, lines, rest: [], events, overrides };
+    }
     if (mode === 'add') {
       specs.push(word.text);
       continue;
@@ -1830,7 +1908,7 @@ function finish(
     return request;
   });
   const scan: CommandScan = managerScan(line, [...overridesBefore, ...outcome.overrides]);
-  scan.requests.push(...requests);
+  appendAll(scan.requests, requests);
   for (const nested of outcome.lines) merge(scan, scanLine(nested, depth + 1));
   // The package may run a package manager in turn (npx cross-env NODE_ENV=x npm install …).
   merge(scan, laterCommand(outcome.rest, depth));
@@ -3050,9 +3128,16 @@ function commandWords(
     const word = rest[index] as Word;
     if (word.text === '--') break;
     if (isOption(word.text)) {
-      if (word.dynamic) return { unreadable: `${shown(line)}: ${expanded(word)}` };
+      if (word.dynamic) {
+        if (readingAside) continue;
+        return { unreadable: `${shown(line)}: ${expandedArgument(expanded(word)).unreadable}` };
+      }
       const option = readOption(rest, index, tool, (name) => context.values.has(name));
-      if (option.next?.dynamic === true) return { unreadable: `${shown(line)}: "${shown(`${word.text} ${option.next.text}`)}" is expanded by the shell` };
+      if (option.next?.dynamic === true) {
+        index += 1;
+        if (readingAside) continue;
+        return { unreadable: `${shown(line)}: ${expandedArgument(`"${shown(`${word.text} ${option.next.text}`)}" is expanded by the shell`).unreadable}` };
+      }
       const setting = registryOption(tool, option.name, option.value);
       if (setting !== undefined) return { unreadable: `${shown(line)}: ${setting}` };
       const override = overrideOption(tool, option.name, option.value, option.next === undefined ? word.text : `${word.text} ${option.next.text}`);
@@ -3580,15 +3665,33 @@ function scanToolCommand(tool: ToolCommands, command: SimpleCommand, first: Word
   }
   if (tool.composer !== undefined) return scanComposer(tool, tool.composer, rest, line, depth);
   if (tool.ecosystem !== 'npm') return scanPythonTool(tool, executable, rest, line, depth);
+  // Download commands whose options the tool reads before the subcommand too (pnpm --package=x dlx y; decision D-160);
+  // where such an option takes the next word as its value, the subcommand comes after that word.
+  const early = (tool.runnerOptions?.beforeCommand ?? []).filter((entry) => entry.command.length === 2 && entry.command[0] === executable);
+  const separate = new Set(
+    early.filter((entry) => entry.values === 'separate').flatMap((entry) => {
+      const download = [...facts.run, ...facts.create].find((item) => sameCommand(item.command, entry.command));
+      return download === undefined ? [] : downloadOptions(download);
+    }),
+  );
+  const takesBefore = (name: string) => tool.valueOptions.has(name) || separate.has(name);
   // The subcommand is the first word that is not an option or an option's value.
   let index = 0;
   const before: SelectionEvent[] = [];
   const overridesBefore: Found[] = [];
   while (index < rest.length && isOption(rest[index]?.text ?? '')) {
     const word = rest[index] as Word;
-    if (word.dynamic) return unreadable(`${shown(line)}: ${expanded(word)}`);
-    const option = readOption(rest, index, tool, (name) => tool.valueOptions.has(name));
-    if (option.next?.dynamic === true) return unreadable(`${shown(line)}: "${shown(`${word.text} ${option.next.text}`)}" is expanded by the shell`);
+    if (word.dynamic) {
+      if (!readingAside) return unreadable(`${shown(line)}: ${expandedArgument(expanded(word)).unreadable}`);
+      index += 1;
+      continue;
+    }
+    const option = readOption(rest, index, tool, takesBefore);
+    if (option.next?.dynamic === true) {
+      if (!readingAside) return unreadable(`${shown(line)}: ${expandedArgument(`"${shown(`${word.text} ${option.next.text}`)}" is expanded by the shell`).unreadable}`);
+      index += 2;
+      continue;
+    }
     const setting = registryOption(tool, option.name, option.value);
     if (setting !== undefined) return unreadable(`${shown(line)}: ${setting}`);
     const override = overrideOption(tool, option.name, option.value, option.next === undefined ? word.text : `${word.text} ${option.next.text}`);
@@ -3604,12 +3707,16 @@ function scanToolCommand(tool: ToolCommands, command: SimpleCommand, first: Word
   const find = (list: readonly DownloadCommand[]) => list.find((entry) => entry.command[0] === executable && entry.command[1] === subcommand.text);
   const workspace = facts.workspaceCommands?.find((entry) => entry.command[0] === executable && entry.command[1] === subcommand.text);
   if (workspace !== undefined) return scanCommand({ ...command, words: [first, ...after.slice(workspace.operands)] }, depth);
+  // The options before the subcommand of such a command are read with its own, as the tool reads them.
+  const readsBefore = (entry: DownloadCommand) => early.some((item) => sameCommand(item.command, entry.command));
   const runEntry = find(facts.run);
   if (runEntry !== undefined) {
     const own = contextOf(tool, runEntry.command);
+    if (readsBefore(runEntry)) return finish(tool, line, readArguments([...rest.slice(0, index), ...after], 'run', tool, runEntry, own), depth, [], own);
     return finish(tool, line, readArguments(after, 'run', tool, runEntry, own), depth, before, own, overridesBefore);
   }
   const createEntry = find(facts.create);
+  if (createEntry !== undefined && readsBefore(createEntry)) return finish(tool, line, readArguments([...rest.slice(0, index), ...after], 'create', tool, createEntry, context), depth, [], context);
   if (createEntry !== undefined) return finish(tool, line, readArguments(after, 'create', tool, createEntry, context), depth, before, context, overridesBefore);
   if (add.has(subcommand.text)) return finish(tool, line, readArguments(after, 'add', tool, undefined, context), depth, before, context, overridesBefore);
   // A package manager's script run by its path (bun /usr/bin/npx …, bun ./npm-cli.js …) is that package manager.
@@ -3674,9 +3781,16 @@ function scanComposer(tool: ToolCommands, facts: ComposerCommandsKnowledge, rest
       continue;
     }
     if (arguments_ || !isOption(word.text)) continue;
-    if (word.dynamic) return unreadable(`${shown(line)}: ${expanded(word)}`);
+    if (word.dynamic) {
+      if (readingAside) continue;
+      return unreadable(`${shown(line)}: ${expandedArgument(expanded(word)).unreadable}`);
+    }
     const option = readOption(rest, index, tool, (name) => tool.valueOptions.has(name));
-    if (option.next?.dynamic === true) return unreadable(`${shown(line)}: "${shown(`${word.text} ${option.next.text}`)}" is expanded by the shell`);
+    if (option.next?.dynamic === true) {
+      index += 1;
+      if (readingAside) continue;
+      return unreadable(`${shown(line)}: ${expandedArgument(`"${shown(`${word.text} ${option.next.text}`)}" is expanded by the shell`).unreadable}`);
+    }
     const setting = registryOption(tool, option.name, option.value);
     if (setting !== undefined) return unreadable(`${shown(line)}: ${setting}`);
     const override = overrideOption(tool, option.name, option.value, option.next === undefined ? word.text : `${word.text} ${option.next.text}`);
@@ -3740,11 +3854,22 @@ function scanComposer(tool: ToolCommands, facts: ComposerCommandsKnowledge, rest
     });
   };
   const option = (names: readonly string[]) => names.flatMap((name) => values.get(name) ?? []);
+  // Read aside, the words between those the shell expands are paired on their own (decision D-160).
+  const literal = (words: readonly Word[]): string[][] => {
+    const runs: string[][] = [[]];
+    for (const word of words) {
+      if (word.dynamic) runs.push([]);
+      else runs.at(-1)?.push(word.text);
+    }
+    return runs;
+  };
+  if (dynamic !== undefined && !readingAside && (command === facts.require || command === facts.update || command === facts.createProject)) {
+    return unreadable(`${shown(line)}: ${expandedArgument(expanded(dynamic)).unreadable}`);
+  }
   if (command === facts.require) {
-    if (dynamic !== undefined) return unreadable(`${shown(line)}: ${expanded(dynamic)}`);
-    for (const pair of composerPairs(operands.map((word) => word.text), facts)) request(pair.name, pair.constraint);
+    for (const run of literal(operands)) for (const pair of composerPairs(run, facts)) request(pair.name, pair.constraint);
   } else if (command === facts.update) {
-    if (dynamic !== undefined) return unreadable(`${shown(line)}: ${expanded(dynamic)}`);
+    operands = operands.filter((word) => !word.dynamic);
     const constrained = new RegExp(`^(\\S+?)[${facts.pairSeparators.map((separator) => separator.replace(/[\\\]^-]/gu, '\\$&')).join('')}](\\S.*)$`, 'su');
     for (const text of [...operands.map((word) => word.text), ...option([facts.withOption])]) {
       if (facts.updateLockWords.includes(text) || text.includes('*')) continue;
@@ -3756,9 +3881,8 @@ function scanComposer(tool: ToolCommands, facts: ComposerCommandsKnowledge, rest
       else request(text, undefined, { fromManifest: true });
     }
   } else if (command === facts.createProject) {
-    if (dynamic !== undefined) return unreadable(`${shown(line)}: ${expanded(dynamic)}`);
     readsManifest = false;
-    const [pkg, , version] = operands;
+    const [pkg, , version] = operands.map((word) => (word.dynamic ? undefined : word));
     const stability = option(facts.stabilityOptions).at(-1);
     if (pkg !== undefined) {
       const [root] = composerPairs([pkg.text], facts);
@@ -3772,7 +3896,7 @@ function scanComposer(tool: ToolCommands, facts: ComposerCommandsKnowledge, rest
     merge(scan, laterCommand(operands, depth));
     return scan;
   }
-  scan.requests.push(...requests);
+  appendAll(scan.requests, requests);
   return scan;
 }
 
@@ -4139,8 +4263,9 @@ export interface ScanOptions {
 
 /**
  * The packages a command line installs or downloads to run with npm, pnpm, Yarn, Bun, Deno, pip, uv, Poetry, PDM, Pipenv
- * or pipx. When an option that points a tool at another registry, index or configuration file left a command out, the
- * line is read once more with such options read like any other, and its packages are `aside` (decision D-155).
+ * or pipx. When an option that points a tool at another registry, index or configuration file, or a word the shell
+ * expands among the arguments of an install, left a command out, the line is read once more with such options read like
+ * any other and such words passed over, and its packages are `aside` (decisions D-155 and D-160).
  */
 export function scanCommandLine(line: string, options: ScanOptions = {}): CommandScan {
   const first = scanOnce(line, options, false);

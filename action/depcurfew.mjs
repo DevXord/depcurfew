@@ -71,6 +71,7 @@ const checked$6 = verifiedOn("2026-10-29");
 const user$9 = verifiedOn("2026-10-31");
 const runtimes$3 = verifiedOn("2026-11-01");
 const release14$6 = verifiedOn("2026-11-02");
+const runners$3 = verifiedOn("2026-11-03");
 const BUN_V1_4_4 = "https://github.com/oven-sh/bun/blob/bun-v1.4.4";
 const BUNFIG_PARSER = `${BUN_V1_4_4}/src/bunfig/bunfig.rs`;
 const BUNFIG = "https://bun.com/docs/runtime/bunfig";
@@ -242,6 +243,10 @@ const bun$1 = {
 				"--minimum-release-age"
 			]
 		}, "https://github.com/oven-sh/bun/tree/da867c60bf0bcbf9d6d36994f8ca0efa42075115/docs/snippets/cli", "Options of bun add (snippets/cli/add.mdx) and bunx (snippets/cli/bunx.mdx) typed string or number; --catalog takes its name only after =. -p is --package for bunx but the flag --production for bun add, so it is listed with bunx only. The short forms -F (--filter) and -c (--config) of bun add are left out because bunx does not document them, and an option wrongly read as taking a value would hide the package after it. bunx is an alias for bun x (docs/pm/bunx.mdx). bun create <template> runs the create-<template> package from npm unless a local template has that name; it also takes GitHub repositories and local paths (docs/runtime/templating/create.mdx)."),
+		runnerOptions: runners$3.verified({ beforeCommand: [{
+			command: ["bun", "x"],
+			values: "attached"
+		}] }, "https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/runtime/cli/bunx_command.rs", "bun x reads every option before the package name, also those before x: Options::parse gets the command line after bun, with x as the subcommand name, and takes --package <name>, --package=<name>, -p <name> and -p=<name> wherever they stand before it, so bun --package=x x y and bun -p=x x y download x. bun finds its command by skipping each word that starts with - (which in src/runtime/cli/mod.rs at bun-v1.4.4), so in bun --package x x y it takes the value x for the command, and bun x runs only when that value is x. Decision D-160."),
 		packageSpecs: checked$6.verified({
 			git: [
 				"github:",
@@ -1659,6 +1664,7 @@ const rechecked$4 = verifiedOn("2026-10-31");
 const runtimes$2 = verifiedOn("2026-11-01");
 const finalReview$3 = verifiedOn("2026-11-01");
 const release14$5 = verifiedOn("2026-11-02");
+const runners$2 = verifiedOn("2026-11-03");
 const CONFIG$2 = "https://docs.npmjs.com/cli/v12/using-npm/config";
 const NPMRC$1 = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
 const release$4 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
@@ -2109,6 +2115,16 @@ const npm$1 = {
 			createNames: "prefix",
 			valueOptions: []
 		}, CMD_LIST, "Aliases of install (add, i and the typo aliases in, ins, inst, insta, instal, isnt, isnta, isntal, isntall), install-test (it), exec (x) and init (create, innit), the same in 11.19.1. install-test takes the same arguments as install (docs/lib/content/commands/npm-install-test.md). npm exec and npx take the packages to download from --package; -p means --package only in npx (in npm it is --parseable); without --package the first positional argument names the package, and -c/--call takes a command string that runs with the packages, shell operators included (npm-exec.md). npm init <initializer> runs npm exec create-<initializer>: foo → create-foo, @usr → @usr/create, @usr/foo@2.0.0 → @usr/create-foo@2.0.0 (npm-init.md)."),
+		runnerOptions: runners$2.verified({
+			beforeCommand: [{
+				command: ["npm", "exec"],
+				values: "separate"
+			}, {
+				command: ["npm", "x"],
+				values: "separate"
+			}],
+			amongArguments: [["npm", "exec"], ["npm", "x"]]
+		}, `${NPM_GITHUB_V12}/docs/lib/content/commands/npm-exec.md`, "npm parses its whole command line with nopt and the types of every setting (load in workspaces/config/lib/index.js at v12.2.1), and lib/commands/exec.js takes the packages from the setting package and the command line from call, so --package and --call count wherever they stand before --: before exec (npm --package=x exec y) and after the arguments. npm-exec.md (\"npx vs npm exec\"): \"npm exec foo@latest bar --package=@npmcli/foo\" resolves @npmcli/foo and runs foo@latest bar, and \"a double-hyphen -- flag can be used to suppress npm's parsing of switches and options that should be sent to the executed command\". npx puts -- before its first positional argument (bin/npx-cli.js), so there the options after it belong to the command. npm init and npm create do not pass --package on (lib/commands/init.js). Decision D-160."),
 		valueOptions: checked$5.verified([
 			"--access",
 			"--allow-directory",
@@ -4032,6 +4048,7 @@ const rechecked$1 = verifiedOn("2026-10-31");
 const user$3 = verifiedOn("2026-10-31");
 const runtimes$1 = verifiedOn("2026-11-01");
 const release14$3 = verifiedOn("2026-11-02");
+const runners$1 = verifiedOn("2026-11-03");
 const PNPM_V12 = "https://github.com/pnpm/pnpm/blob/v12.16.1";
 const PNPM_V11_CODE = "https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/config/reader/src";
 /** A file in pnpm's config directory (getConfigDir): $XDG_CONFIG_HOME/pnpm when set, else the platform's own place. */
@@ -4423,7 +4440,11 @@ const pnpm$1 = {
 				"--reporter",
 				"--loglevel"
 			]
-		}, "https://github.com/pnpm/pnpm.io/tree/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/cli", "From cli/add.md, cli/pnx.md, cli/create.md and pnpm-cli.md at that commit. pnx (pnpm 12) has the aliases pnpm dlx and pnpx; pnpm 10 documents pnpm dlx with the alias pnpx (versioned_docs/version-10.x/cli/dlx.md). --shell-mode (-c) runs the command inside a shell, e.g. pnx --package cowsay -c 'echo hi | cowsay'. pnpm create maps foo and create-foo to create-foo, @scope to @scope/create and @scope/foo to @scope/create-foo, and runs it with pnx. --registry and --allow-build are shown with =, the other value options with a separate value. --package belongs to pnx only and is listed there. -F is the short form of --filter (filtering.md). --reporter takes the name of a reporter (cli/install.md) and --loglevel a level (the loglevel setting in settings/cli.md, given as a flag); both take a separate value too."),
+		}, "https://github.com/pnpm/pnpm.io/tree/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/cli", "From cli/add.md, cli/pnx.md, cli/create.md and pnpm-cli.md at that commit. pnx (pnpm 12) has the aliases pnpm dlx and pnpx; pnpm 10 documents pnpm dlx with the alias pnpx (versioned_docs/version-10.x/cli/dlx.md). --shell-mode (-c) runs the command inside a shell, e.g. pnx --package cowsay -c 'echo hi | cowsay'. pnpm create maps foo and create-foo to create-foo, @scope to @scope/create and @scope/foo to @scope/create-foo, and runs it with pnx. --registry and --allow-build are shown with =, the other value options with a separate value. --package belongs to pnx (pnpm dlx) only and is listed there; before dlx it counts too (runnerOptions). -F is the short form of --filter (filtering.md). --reporter takes the name of a reporter (cli/install.md) and --loglevel a level (the loglevel setting in settings/cli.md, given as a flag); both take a separate value too."),
+		runnerOptions: runners$1.verified({ beforeCommand: [{
+			command: ["pnpm", "dlx"],
+			values: "separate"
+		}] }, "https://github.com/pnpm/pnpm/blob/v10.34.9/cli/parse-cli-args/src/index.ts", "pnpm 10 parses the command line twice with @pnpm/nopt: first with the universal options and those of add and install, to find the command (there --package is taken for package-import-method, its only unambiguous expansion, so the word after it is its value), then the whole line with the options of that command, so the options of dlx count before dlx too, up to the first argument after dlx, from which on every word goes to the command (SPECIALLY_ESCAPED_CMDS). pnpm 11 does the same (https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/cli/parse-cli-args/src/index.ts; package-import-method is still the only option of add and install that starts with package). pnpm 12 moves the options of the invoked subcommand that stand before it to right after it (relocate_pre_subcommand_flags, https://github.com/pnpm/pnpm/blob/v12.17.0/pnpm/crates/cli/src/flag_relocation.rs), and its dlx has --package and -c (pnpm/crates/cli/src/cli_args/dlx.rs). The documentation shows pnpm --package=@pnpm/meta-updater dlx meta-updater --help and pnpm --package cowsay --package lolcatjs -c dlx 'echo \"hi pnpm\" | cowsay | lolcatjs' (versioned_docs/version-10.x/cli/dlx.md in pnpm/pnpm.io). pnpm exec has no --package (exec/plugin-commands-script-runners/src/exec.ts at v10.34.9), and pnpm stops at an option the command does not know (pnpm/src/main.ts), so pnpm --package=x exec y downloads nothing. Decision D-160."),
 		packageSpecs: checked$4.verified({
 			git: [
 				"github:",
@@ -6257,6 +6278,7 @@ const user = verifiedOn("2026-10-31");
 const leftovers$1 = verifiedOn("2026-11-01");
 const novemberSecond = verifiedOn("2026-11-02");
 const release14$1 = verifiedOn("2026-11-02");
+const runners = verifiedOn("2026-11-03");
 const BERRY = "https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1";
 const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
 /** Variables for settings with a single value, which both the docs and the code accept. */
@@ -6508,6 +6530,13 @@ const yarn$1 = {
 			}],
 			valueOptions: ["--mode"]
 		}, "https://github.com/yarnpkg/berry/tree/master/packages/plugin-dlx/sources/commands", "dlx.ts (documented at https://yarnpkg.com/cli/dlx) downloads the package named by the command, or the ones given with -p/--package, into a temporary environment and runs it. create.ts (yarn create, not on yarnpkg.com) takes -p/--package as well and runs create-<name>: @foo becomes @foo/create, @foo/app becomes @foo/create-app, foo becomes create-foo, and a name that already matches ^create(-|$) is kept (so is create alone). yarn add (https://yarnpkg.com/cli/add) takes packages as arguments; of its options only --mode takes a value. yarn workspace <workspaceName> <commandName> … runs a command within that workspace, e.g. yarn workspace components add -D react (https://yarnpkg.com/cli/workspace)."),
+		runnerOptions: runners.verified({ beforeCommand: [{
+			command: ["yarn", "dlx"],
+			values: "separate"
+		}, {
+			command: ["yarn", "create"],
+			values: "separate"
+		}] }, "https://github.com/arcanis/clipanion/blob/434b5a6e0063c58b5e2f0a62498a7de0b308308f/sources/core.ts", "Clipanion, the command-line parser of Yarn, registers the options of a command with a path also before that path (\"We allow options to be specified before the path\"), so yarn -p x dlx y and yarn --package=x dlx y download x, as yarn dlx -p x y does; the words after the command go to it (Option.Proxy in packages/plugin-dlx/sources/commands/dlx.ts). lib/core.js of clipanion 4.0.0-rc.2, the version yarn.lock of @yarnpkg/cli/4.18.1 resolves, does the same; Clipanion has no release tags for its 4.0.0 releases, so the source is the commit of master that is 4.0.0-rc.4. Yarn passes its command line to Clipanion after taking a leading --cwd (checkCwd in packages/yarnpkg-cli/sources/lib.ts at @yarnpkg/cli/4.18.1). Decision D-160."),
 		packageSpecs: checked$3.verified({
 			git: [],
 			local: [

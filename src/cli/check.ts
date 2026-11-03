@@ -22,11 +22,11 @@ import { findComposerCommand, type FoundCommand, type ScriptCommands } from '../
 import { packagistUrl } from '../check/packagist.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import { blockingExitCode, decide, formatDecision, hookEventExample, readHookEvent, reasonText, requestedSpecs, UNREAD_REGISTRY_FIX_START, type HookDecision, type PlacedRequest } from '../check/hook.ts';
-import { missingDirectory, notVirtualEnvironment, overrideDoubt, TOO_MANY, unknownDirectory, type CommandDirectory, type Override } from '../check/command.ts';
+import { missingDirectory, notVirtualEnvironment, overrideDoubt, TOO_MANY, unknownDirectory, unreadableFix, type CommandDirectory, type Override } from '../check/command.ts';
 import { defaultRegistry, type FetchLike, isLinkLocal, type LookupCache } from '../check/registry.ts';
 import { defaultIndex } from '../check/pypi.ts';
 import { addLocalOsvFindings, addOsvFindings, checkedEcosystems, type OsvLocalLookup } from '../check/osv.ts';
-import { addListedVersions, listedReports } from '../check/listed.ts';
+import { addListedVersions, listedReports, MAX_LISTED_SPECS } from '../check/listed.ts';
 import { LocalOsvData } from '../osv/data.ts';
 import { localDataNotices } from '../osv/notices.ts';
 import { osvDataDirectories } from '../user/cache-path.ts';
@@ -938,15 +938,19 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
   // looked up in the local OSV.dev data before anything can answer early, without the network, also with --osv.
   let listed: PackageReport[] = [];
   let local: LocalOsvData | undefined;
+  /** Why specs past the most that are looked up in the local data were not, which every answer says (decision D-160). */
+  let unlisted: string | undefined;
   const dataNotes = (checked: readonly PackageReport[]) =>
     flags.osv === true || local === undefined ? [] : localDataNotices(local, checkedEcosystems(checked), dependencies.now(), 'agent').map((notice) => `${notice.message}. ${notice.fix}`);
   /** When depcurfew cannot check the command: deny for a listed version, with why the rest was not checked, else ask. */
   const cannotCheckAll = (text: string): HookDecision =>
     listed.length === 0
-      ? { decision: 'ask', reason: `depcurfew cannot check this command: ${reasonText(text)}` }
-      : decide(listed, undefined, [`depcurfew cannot check the rest of this command: ${text}`], dataNotes(listed));
+      ? { decision: 'ask', reason: `depcurfew cannot check this command: ${reasonText(text)}${unlisted === undefined ? '' : `\n- ${reasonText(unlisted)}. Fix: ${unreadableFix(unlisted)}`}` }
+      : decide(listed, unlisted, [`depcurfew cannot check the rest of this command: ${text}`], dataNotes(listed));
   try {
-    const { specs, unreadable, overrides, listable } = requestedSpecs(event.command, event.shell, (dependencies.platform?.() ?? process.platform) === 'win32');
+    const requested = requestedSpecs(event.command, event.shell, (dependencies.platform?.() ?? process.platform) === 'win32');
+    const { specs, unreadable, overrides, listable } = requested;
+    unlisted = requested.unlisted;
     if (specs.length === 0 && unreadable === undefined && overrides.length === 0) return EXIT_OK;
     local = localOsvData(dependencies);
     listed = listedReports(listable, local);
@@ -1026,7 +1030,8 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
     else addLocalOsvFindings(reports, local);
     addListedVersions(reports, listed);
     const warned = [...skipped.map(skippedNotice), ...dataNotes([...reports, ...listed])];
-    io.stdout(formatDecision(decide(reports, unreadable ?? doubt, [...new Set(notes)], warned)) ?? '');
+    const doubts = [unreadable ?? doubt, unlisted].filter((reason): reason is string => reason !== undefined);
+    io.stdout(formatDecision(decide(reports, doubts, [...new Set(notes)], warned)) ?? '');
   } catch (error) {
     io.stdout(formatDecision(cannotCheckAll(messageOf(error))) ?? '');
   }
@@ -1057,7 +1062,6 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
   // Nothing is checked without a directory or with a policy that cannot be used, except the versions the local OSV.dev
   // data lists (decision D-155).
   for (const error of document.errors) reportInputError(error, io);
-  if (outcome.status !== 'checked' && document.packages.length === 0) return code;
   // Each notice starts with its level and ends with its code, as in doctor; what to do follows on its own line.
   const colors = paint(io.colors?.stderr);
   for (const notice of document.notices) {
@@ -1065,6 +1069,7 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     io.stderr(`${level} ${printable(notice.message)} ${colors.dim(`(${notice.code})`)}\n`);
     if (notice.fix !== undefined) io.stderr(`  ${colors.green('fix:')} ${printable(notice.fix)}\n`);
   }
+  if (outcome.status !== 'checked' && document.packages.length === 0) return code;
   io.stdout(render(document.packages, paint(io.colors?.stdout)));
   return code;
 }
@@ -1227,10 +1232,23 @@ export async function checkDocument(specs: readonly string[], settings: CheckSet
   // OSV.dev data without the network, are reported also when nothing else is checked.
   const listed = settings.local === undefined ? [] : listedReports(specs, settings.local);
   const data = (reports: readonly PackageReport[]) => localNotices(settings.local, reports, settings.now, { osv: settings.osv, audience: settings.audience });
+  // Only they are looked up then, so the specs past the most that are looked up in the local data are not (decision D-160).
+  const distinct = settings.local === undefined ? 0 : new Set(specs).size;
+  const unlisted: CheckNotice[] =
+    distinct > MAX_LISTED_SPECS
+      ? [
+          {
+            level: 'warning',
+            code: 'too-many-packages',
+            message: `the check names ${distinct} package specs, and only the first ${MAX_LISTED_SPECS} could be looked up in the local OSV.dev data`,
+            fix: `Check the packages in groups of at most ${MAX_LISTED_SPECS}`,
+          },
+        ]
+      : [];
   // The same error shape as apply --json; nothing else is checked without a directory or with a policy that cannot be used.
   const failed = (status: 'directory-error' | 'policy-error', policy: string | null, error: InputError): CheckOutcome => ({
     status,
-    document: { schemaVersion: 1, policy, packages: listed, notices: data(listed), errors: [error] },
+    document: { schemaVersion: 1, policy, packages: listed, notices: [...unlisted, ...data(listed)], errors: [error] },
   });
   const target = checkDirectory(settings.dir, settings.cwd);
   if (!target.ok) return failed('directory-error', null, target.error);

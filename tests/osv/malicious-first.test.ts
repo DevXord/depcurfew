@@ -344,8 +344,9 @@ describe('the Claude Code hook denies a listed version before it would ask', () 
     const specs = Array.from({ length: MAX_LISTED_SPECS }, (_, index) => `filler-${index}@1.0.0`);
     const answer = await hook(`npm install ${specs.join(' ')} cutekitten-test@1.0.1`, PKG_WITH_POLICY, registry(), await data());
     expect(answer.decision).toBe('ask');
+    // The specs that were not looked up are a reason of their own, which every answer gives (decision D-160).
     expect(answer.reason).toContain(
-      `- the command names ${MAX_LISTED_SPECS + 1} packages and depcurfew checks at most 50 in one command; the first 50 were checked, and only the first ${MAX_LISTED_SPECS} could be looked up in the local OSV.dev data. Fix: Install the packages in smaller groups`,
+      `- the command names ${MAX_LISTED_SPECS + 1} packages and depcurfew checks at most 50 in one command; the first 50 were checked. Fix: Install the packages in smaller groups, so depcurfew can check each of them\n- the command names ${MAX_LISTED_SPECS + 1} packages, and only the first ${MAX_LISTED_SPECS} could be looked up in the local OSV.dev data. Fix: Install the packages in smaller groups`,
     );
     specs[MAX_LISTED_SPECS - 1] = 'cutekitten-test@1.0.1';
     const within = await hook(`npm install ${specs.join(' ')}`, PKG_WITH_POLICY, registry(), await data());

@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, EnvironmentNameRule, RootLifecycleScriptsKnowledge, SourceKnowledge, ToolKnowledge, UserLocation } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, RootLifecycleScriptsKnowledge, RunnerOptionsKnowledge, SourceKnowledge, ToolKnowledge, UserLocation } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -8,6 +8,7 @@ const rechecked = verifiedOn('2026-10-31');
 const user = verifiedOn('2026-10-31');
 const runtimes = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
+const runners = verifiedOn('2026-11-03');
 const PNPM_V12 = 'https://github.com/pnpm/pnpm/blob/v12.16.1';
 const PNPM_V11_CODE = 'https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/config/reader/src';
 
@@ -284,7 +285,12 @@ export const pnpm: ToolKnowledge = {
         ],
       },
       'https://github.com/pnpm/pnpm.io/tree/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/cli',
-      'From cli/add.md, cli/pnx.md, cli/create.md and pnpm-cli.md at that commit. pnx (pnpm 12) has the aliases pnpm dlx and pnpx; pnpm 10 documents pnpm dlx with the alias pnpx (versioned_docs/version-10.x/cli/dlx.md). --shell-mode (-c) runs the command inside a shell, e.g. pnx --package cowsay -c \'echo hi | cowsay\'. pnpm create maps foo and create-foo to create-foo, @scope to @scope/create and @scope/foo to @scope/create-foo, and runs it with pnx. --registry and --allow-build are shown with =, the other value options with a separate value. --package belongs to pnx only and is listed there. -F is the short form of --filter (filtering.md). --reporter takes the name of a reporter (cli/install.md) and --loglevel a level (the loglevel setting in settings/cli.md, given as a flag); both take a separate value too.',
+      'From cli/add.md, cli/pnx.md, cli/create.md and pnpm-cli.md at that commit. pnx (pnpm 12) has the aliases pnpm dlx and pnpx; pnpm 10 documents pnpm dlx with the alias pnpx (versioned_docs/version-10.x/cli/dlx.md). --shell-mode (-c) runs the command inside a shell, e.g. pnx --package cowsay -c \'echo hi | cowsay\'. pnpm create maps foo and create-foo to create-foo, @scope to @scope/create and @scope/foo to @scope/create-foo, and runs it with pnx. --registry and --allow-build are shown with =, the other value options with a separate value. --package belongs to pnx (pnpm dlx) only and is listed there; before dlx it counts too (runnerOptions). -F is the short form of --filter (filtering.md). --reporter takes the name of a reporter (cli/install.md) and --loglevel a level (the loglevel setting in settings/cli.md, given as a flag); both take a separate value too.',
+    ),
+    runnerOptions: runners.verified<RunnerOptionsKnowledge>(
+      { beforeCommand: [{ command: ['pnpm', 'dlx'], values: 'separate' }] },
+      'https://github.com/pnpm/pnpm/blob/v10.34.9/cli/parse-cli-args/src/index.ts',
+      'pnpm 10 parses the command line twice with @pnpm/nopt: first with the universal options and those of add and install, to find the command (there --package is taken for package-import-method, its only unambiguous expansion, so the word after it is its value), then the whole line with the options of that command, so the options of dlx count before dlx too, up to the first argument after dlx, from which on every word goes to the command (SPECIALLY_ESCAPED_CMDS). pnpm 11 does the same (https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/cli/parse-cli-args/src/index.ts; package-import-method is still the only option of add and install that starts with package). pnpm 12 moves the options of the invoked subcommand that stand before it to right after it (relocate_pre_subcommand_flags, https://github.com/pnpm/pnpm/blob/v12.17.0/pnpm/crates/cli/src/flag_relocation.rs), and its dlx has --package and -c (pnpm/crates/cli/src/cli_args/dlx.rs). The documentation shows pnpm --package=@pnpm/meta-updater dlx meta-updater --help and pnpm --package cowsay --package lolcatjs -c dlx \'echo "hi pnpm" | cowsay | lolcatjs\' (versioned_docs/version-10.x/cli/dlx.md in pnpm/pnpm.io). pnpm exec has no --package (exec/plugin-commands-script-runners/src/exec.ts at v10.34.9), and pnpm stops at an option the command does not know (pnpm/src/main.ts), so pnpm --package=x exec y downloads nothing. Decision D-160.',
     ),
     packageSpecs: checked.verified(
       {

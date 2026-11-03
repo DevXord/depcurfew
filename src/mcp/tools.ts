@@ -22,7 +22,7 @@ import { osvBatchUrl } from '../check/osv.ts';
 import type { LocalOsvData } from '../osv/data.ts';
 import { packagistUrl } from '../check/packagist.ts';
 import { appliedPolicy, checkDocument, localNotices, policyNotices, type CheckDocument, type CheckNotice, type Lookups } from '../cli/check.ts';
-import { listedReports } from '../check/listed.ts';
+import { listedReports, MAX_LISTED_SPECS } from '../check/listed.ts';
 import { checkDirectory, type InputError } from '../cli/directory.ts';
 import { safeJson } from '../json-safe.ts';
 import { isInside } from '../paths.ts';
@@ -171,10 +171,12 @@ function listedBeyondTheCap(packages: readonly unknown[], context: ToolContext):
   const specs = packages.filter((spec): spec is string => typeof spec === 'string' && spec !== '' && spec.length <= MAX_SPEC_LENGTH);
   const listed = listedReports(specs, local);
   if (listed.length === 0) return undefined;
+  // Past the most that are looked up in the local data, the specs are not (decision D-160).
+  const which = new Set(specs).size > MAX_LISTED_SPECS ? `the first ${MAX_LISTED_SPECS} of them` : 'they';
   const tooMany: CheckNotice = {
     level: 'warning',
     code: 'too-many-packages',
-    message: `packages lists ${packages.length} package specs, and check_packages checks at most ${MAX_PACKAGES} in one call: only the versions they name exactly were looked up, in the local OSV.dev data`,
+    message: `packages lists ${packages.length} package specs, and check_packages checks at most ${MAX_PACKAGES} in one call: only the versions ${which} name exactly were looked up, in the local OSV.dev data`,
     fix: `Split them into calls of at most ${MAX_PACKAGES}`,
   };
   const notices = [tooMany, ...localNotices(local, listed, context.now(), { osv: context.osv, audience: 'agent' })];

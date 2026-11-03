@@ -315,6 +315,25 @@ export interface DownloadCommand {
   binaryPath?: boolean;
 }
 
+/**
+ * Where a tool reads the options of its download commands besides between the subcommand and the first argument, in a
+ * fact of its own (`runnerOptions`) next to the command-line fact (decision D-160).
+ */
+export interface RunnerOptionsKnowledge {
+  /**
+   * Download commands whose options the tool also reads between the executable and the subcommand (pnpm --package=x
+   * dlx y). `separate`: an option there takes its value from the next word as after the subcommand; `attached`: only
+   * an option with its value in the same word (--package=x), since the tool takes the word after an option there for
+   * the subcommand.
+   */
+  beforeCommand?: readonly { command: readonly string[]; values: 'separate' | 'attached' }[];
+  /**
+   * Download commands whose options the tool also reads after the first argument, up to --: npm exec y --package=x
+   * downloads x and runs y. A word the shell expands there may be such an option.
+   */
+  amongArguments?: readonly (readonly string[])[];
+}
+
 /** How a tool reads its options. A fact of its own (`parsing`) next to the command-line fact adds to these. */
 export interface CommandLineParsing {
   /**

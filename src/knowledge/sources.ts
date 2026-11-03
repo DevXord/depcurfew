@@ -13,7 +13,8 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
     { host: 'github.blog', pathPrefix: '/changelog/' },
   ],
   pnpm: [{ host: 'pnpm.io' }, { host: 'github.com', pathPrefix: '/pnpm/' }],
-  yarn: [{ host: 'yarnpkg.com' }, { host: 'github.com', pathPrefix: '/yarnpkg/' }],
+  // Clipanion (arcanis) is the library Yarn parses its command line with (extra.runnerOptions).
+  yarn: [{ host: 'yarnpkg.com' }, { host: 'github.com', pathPrefix: '/yarnpkg/' }, { host: 'github.com', pathPrefix: '/arcanis/clipanion/' }],
   bun: [{ host: 'bun.com' }, { host: 'bun.sh' }, { host: 'github.com', pathPrefix: '/oven-sh/' }],
   deno: [{ host: 'docs.deno.com' }, { host: 'deno.com' }, { host: 'github.com', pathPrefix: '/denoland/' }],
   // jiff (BurntSushi) is the library uv reads and prints exclude-newer spans with (extra.spanSyntax).

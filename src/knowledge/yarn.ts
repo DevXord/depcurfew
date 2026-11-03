@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, EnvironmentNameRule, SourceKnowledge, ToolKnowledge, UserVariable } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, RunnerOptionsKnowledge, SourceKnowledge, ToolKnowledge, UserVariable } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -8,6 +8,7 @@ const user = verifiedOn('2026-10-31');
 const leftovers = verifiedOn('2026-11-01');
 const novemberSecond = verifiedOn('2026-11-02');
 const release14 = verifiedOn('2026-11-02');
+const runners = verifiedOn('2026-11-03');
 const BERRY = 'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1';
 const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
 
@@ -277,6 +278,16 @@ export const yarn: ToolKnowledge = {
       },
       'https://github.com/yarnpkg/berry/tree/master/packages/plugin-dlx/sources/commands',
       'dlx.ts (documented at https://yarnpkg.com/cli/dlx) downloads the package named by the command, or the ones given with -p/--package, into a temporary environment and runs it. create.ts (yarn create, not on yarnpkg.com) takes -p/--package as well and runs create-<name>: @foo becomes @foo/create, @foo/app becomes @foo/create-app, foo becomes create-foo, and a name that already matches ^create(-|$) is kept (so is create alone). yarn add (https://yarnpkg.com/cli/add) takes packages as arguments; of its options only --mode takes a value. yarn workspace <workspaceName> <commandName> … runs a command within that workspace, e.g. yarn workspace components add -D react (https://yarnpkg.com/cli/workspace).',
+    ),
+    runnerOptions: runners.verified<RunnerOptionsKnowledge>(
+      {
+        beforeCommand: [
+          { command: ['yarn', 'dlx'], values: 'separate' },
+          { command: ['yarn', 'create'], values: 'separate' },
+        ],
+      },
+      'https://github.com/arcanis/clipanion/blob/434b5a6e0063c58b5e2f0a62498a7de0b308308f/sources/core.ts',
+      'Clipanion, the command-line parser of Yarn, registers the options of a command with a path also before that path ("We allow options to be specified before the path"), so yarn -p x dlx y and yarn --package=x dlx y download x, as yarn dlx -p x y does; the words after the command go to it (Option.Proxy in packages/plugin-dlx/sources/commands/dlx.ts). lib/core.js of clipanion 4.0.0-rc.2, the version yarn.lock of @yarnpkg/cli/4.18.1 resolves, does the same; Clipanion has no release tags for its 4.0.0 releases, so the source is the commit of master that is 4.0.0-rc.4. Yarn passes its command line to Clipanion after taking a leading --cwd (checkCwd in packages/yarnpkg-cli/sources/lib.ts at @yarnpkg/cli/4.18.1). Decision D-160.',
     ),
     packageSpecs: checked.verified(
       { git: [], local: ['link:', 'portal:', 'file:'], workspace: ['workspace:'] },

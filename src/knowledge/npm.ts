@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, EnvironmentNameRule, OmitOptionalKnowledge, RootLifecycleScriptsKnowledge, ToolKnowledge } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, OmitOptionalKnowledge, RootLifecycleScriptsKnowledge, RunnerOptionsKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -8,6 +8,7 @@ const rechecked = verifiedOn('2026-10-31');
 const runtimes = verifiedOn('2026-11-01');
 const finalReview = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
+const runners = verifiedOn('2026-11-03');
 
 const CONFIG = 'https://docs.npmjs.com/cli/v12/using-npm/config';
 const CONFIG_V11 = 'https://docs.npmjs.com/cli/v11/using-npm/config';
@@ -357,6 +358,20 @@ export const npm: ToolKnowledge = {
       },
       CMD_LIST,
       'Aliases of install (add, i and the typo aliases in, ins, inst, insta, instal, isnt, isnta, isntal, isntall), install-test (it), exec (x) and init (create, innit), the same in 11.19.1. install-test takes the same arguments as install (docs/lib/content/commands/npm-install-test.md). npm exec and npx take the packages to download from --package; -p means --package only in npx (in npm it is --parseable); without --package the first positional argument names the package, and -c/--call takes a command string that runs with the packages, shell operators included (npm-exec.md). npm init <initializer> runs npm exec create-<initializer>: foo → create-foo, @usr → @usr/create, @usr/foo@2.0.0 → @usr/create-foo@2.0.0 (npm-init.md).',
+    ),
+    runnerOptions: runners.verified<RunnerOptionsKnowledge>(
+      {
+        beforeCommand: [
+          { command: ['npm', 'exec'], values: 'separate' },
+          { command: ['npm', 'x'], values: 'separate' },
+        ],
+        amongArguments: [
+          ['npm', 'exec'],
+          ['npm', 'x'],
+        ],
+      },
+      `${NPM_GITHUB_V12}/docs/lib/content/commands/npm-exec.md`,
+      'npm parses its whole command line with nopt and the types of every setting (load in workspaces/config/lib/index.js at v12.2.1), and lib/commands/exec.js takes the packages from the setting package and the command line from call, so --package and --call count wherever they stand before --: before exec (npm --package=x exec y) and after the arguments. npm-exec.md ("npx vs npm exec"): "npm exec foo@latest bar --package=@npmcli/foo" resolves @npmcli/foo and runs foo@latest bar, and "a double-hyphen -- flag can be used to suppress npm\'s parsing of switches and options that should be sent to the executed command". npx puts -- before its first positional argument (bin/npx-cli.js), so there the options after it belong to the command. npm init and npm create do not pass --package on (lib/commands/init.js). Decision D-160.',
     ),
     valueOptions: checked.verified(
       [
