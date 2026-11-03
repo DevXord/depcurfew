@@ -1,0 +1,13 @@
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          composer config policy.cooldown false
+          composer config secure-http 0
+          composer config policy.cooldown.period "1 hour"
+          composer config allow-plugins true
+          echo "COMPOSER_NO_BLOCKING=1" >> "$GITHUB_ENV"
+          COMPOSER_POLICY=0 composer update
+      - run: composer update --no-cooldown

@@ -38,6 +38,7 @@ describe('rules that do not concern the project', () => {
       // pnpm-config-unverifiable (decision D-164) concerns every pnpm project.
       'pnpm-config-unverifiable': 'passed',
       'python-config-ignored': 'not-applicable',
+      'ci-weakens-policy': 'not-applicable',
       'composer-config-weakens': 'not-applicable',
       'bundler-config-weakens': 'not-applicable',
       'runtime-end-of-life': 'not-applicable',
@@ -51,7 +52,7 @@ describe('rules that do not concern the project', () => {
       'known-malicious': 'not-applicable',
       'unreadable-config': 'passed',
     });
-    expect(resultCounts(report.checked?.rules ?? [])).toBe('21 checks: 8 passed, 9 not applicable, 4 skipped');
+    expect(resultCounts(report.checked?.rules ?? [])).toBe('22 checks: 8 passed, 10 not applicable, 4 skipped');
   });
 
   it('are not applicable in a PDM project without bots: the npm, pnpm and bot rules', () => {
@@ -77,6 +78,7 @@ describe('rules that do not concern the project', () => {
       'pnpm-shared-workspace-lockfile': 'not-applicable',
       'pnpm-config-unverifiable': 'not-applicable',
       'python-config-ignored': 'not-applicable',
+      'ci-weakens-policy': 'not-applicable',
       'composer-config-weakens': 'not-applicable',
       'bundler-config-weakens': 'not-applicable',
       'runtime-end-of-life': 'not-applicable',

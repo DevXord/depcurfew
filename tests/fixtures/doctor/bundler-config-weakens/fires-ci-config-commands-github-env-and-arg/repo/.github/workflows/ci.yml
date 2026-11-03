@@ -1,0 +1,11 @@
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          bundle config set --local cooldown 0
+          bundle config cooldown 1
+          bundle config set --global cooldown "2 days"
+          echo "BUNDLE_COOLDOWN=0" >> "$GITHUB_ENV"
+      - run: bundle install

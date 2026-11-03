@@ -21,6 +21,7 @@ import type {
 } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-11-02');
+const ciOverrides = verifiedOn('2026-11-03');
 
 // getcomposer.org/doc is built from doc/ in the repository; the code is read at the same tag.
 const COMPOSER = 'https://github.com/composer/composer/blob/2.11.1';
@@ -484,6 +485,19 @@ export const composer: ToolKnowledge = {
       ],
       `${CLI}#config`,
       'composer config [options] [setting-key] [setting-value1] ... changes a setting of composer.json (with --global, -g, of COMPOSER_HOME/config.json; with --file, -f, of that file), --unset removes one and --editor (-e) opens the file; with a key alone it shows the value (src/Composer/Command/ConfigCommand.php at 2.11.1). composer repository (repo) add, remove (rm, delete), set-url (seturl), enable and disable change the repositories, list (ls, show) and get-url (geturl) only read them (RepositoryCommand.php). composer policy add-source changes config.policy (PolicyCommand.php). config, repository and policy all take --global (-g, "Apply command to the global config file") and --file (-f, "If you want to choose a different composer.json or config.json"). The same commands after composer global change the files of COMPOSER_HOME: GlobalCommand runs them in the home directory, where composer.json is the one of composer global and config.json the configuration that Factory::createConfig merges under that of every project. depcurfew reads neither file (decision D-133), so a change there counts also without an install next to it (unread).',
+    ),
+    configCommandValues: ciOverrides.verified(
+      {
+        command: ['composer', 'config'],
+        section: 'config',
+        booleans: ['policy', 'secure-http', 'disable-tls', 'allow-plugins'],
+        accepted: ['true', 'false', '1', '0'],
+        falseValues: ['false', '0'],
+        period: 'policy.cooldown.period',
+        otherFile: ['--global', '-g', '--file', '-f'],
+      },
+      `${SRC}/Command/ConfigCommand.php`,
+      'composer config KEY VALUE writes the setting into config of composer.json (JsonConfigSource::addConfigSetting at 2.11.1; --global, -g, --file and -f write another file, configCommands). ConfigCommand::execute at 2.11.1 takes a key of the form policy.<list> (policy.cooldown, policy.malware) and the block keys (policy.cooldown.block, policy.malware.block), secure-http, disable-tls and allow-plugins only with true, false, 1 or 0 ($booleanValidator) and stores $val !== \'false\' && (bool) $val ($booleanNormalizer), so false and 0 are false; policy.cooldown.period takes a duration CooldownPolicyConfig::parseDuration reads, or null or the empty text for none, a number as an integer; policy.malware.block-scope one of all, update and install, as written. addConfigSetting nests a key that starts with policy. at its dots under config (policy.cooldown false gives "config": {"policy": {"cooldown": false}}), replacing the object that was there. So composer config policy.cooldown false in CI turns the cooldown off in the composer.json the later commands read.',
     ),
     applicationOptions: verified<readonly ApplicationOption[]>(
       [

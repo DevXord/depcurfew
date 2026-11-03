@@ -244,7 +244,8 @@ function denyListSince(context: Context): string | undefined {
 /** composer.lock hashes config.policy (2.11.0+): after a change there composer install warns and composer validate fails until it is locked again. */
 function relockWarning(context: Context, file: string, before: unknown, after: unknown): void {
   const hash = extraOf(context.tool, 'contentHash', isContentHash);
-  if (JSON.stringify(before) === JSON.stringify(after) || !context.exists(hash.file) || !context.atLeast(hash.since)) return;
+  // Only whether composer.lock is there counts: it is not read, so its size does not matter (decision D-166).
+  if (JSON.stringify(before) === JSON.stringify(after) || !context.isFile(hash.file) || !context.atLeast(hash.since)) return;
   context.warn({
     code: 'lockfile-out-of-date',
     location: { file: hash.file },

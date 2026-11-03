@@ -1,0 +1,20 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 6
+    },
+    "message": "job lock in .github/workflows/ci.yml (line 6) runs PDM with --exclude-newer 1h, which sets the release-age delay of PDM to 1 hour, shorter than the 3d of depcurfew.json",
+    "fix": "Remove --exclude-newer 1h from that command in .github/workflows/ci.yml; for a package that cannot wait, add it to cooldown.exclude in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 7
+    },
+    "message": "POETRY_SOLVER_MIN_RELEASE_AGE=0 is set for poetry in a run step of job lock in .github/workflows/ci.yml, reaches the Poetry commands it runs, and turns off the release-age delay of Poetry (3d in depcurfew.json)",
+    "fix": "Remove POETRY_SOLVER_MIN_RELEASE_AGE from that command in .github/workflows/ci.yml; for a package that cannot wait, add it to cooldown.exclude in depcurfew.json and run depcurfew apply"
+  }
+]

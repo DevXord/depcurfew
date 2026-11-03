@@ -1,0 +1,13 @@
+{
+  "require": {
+    "monolog/monolog": "^3.12"
+  },
+  "config": {
+    "allow-plugins": {},
+    "policy": {
+      "cooldown": {
+        "period": "3 days"
+      }
+    }
+  }
+}

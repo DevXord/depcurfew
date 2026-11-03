@@ -180,7 +180,7 @@ function splitWithDepth(script: string): { words: Word[]; depth: number }[] {
 }
 
 /** The program name of a word: without its directory, in lower case, without .exe, .cmd, .bat or .ps1. */
-function programName(word: string): string {
+export function programName(word: string): string {
   const base = word.slice(Math.max(word.lastIndexOf('/'), word.lastIndexOf('\\')) + 1).toLowerCase();
   return base.replace(/\.(?:exe|cmd|bat|ps1)$/u, '');
 }
@@ -191,7 +191,7 @@ function commandWords(words: readonly Word[]): Word[] {
 }
 
 /** The program and its arguments, and the variables the command line sets for it (NAME=value, env NAME=value). */
-function commandParts(words: readonly Word[]): { command: Word[]; assignments: [string, string][] } {
+export function commandParts(words: readonly Word[]): { command: Word[]; assignments: [string, string][] } {
   const assignments: [string, string][] = [];
   let index = 0;
   while (index < words.length) {

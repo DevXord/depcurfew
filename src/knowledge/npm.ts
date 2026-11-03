@@ -526,6 +526,22 @@ export const npm: ToolKnowledge = {
       NPM_DEFINITIONS,
       'Settings that a single npm command can change on its command line or in its environment: "Putting --foo bar on the command line sets the foo configuration parameter", "--flag without specifying any value will set the value to true", "Any environment variables that start with npm_config_ will be interpreted as a configuration parameter", case-insensitive, and an environment configuration without a value is true (docs/lib/content/using-npm/config.md at v12.2.1). Types in definitions.js at v12.2.1: ignore-scripts Boolean, default false ("If true, npm does not run scripts specified in package.json files"); min-release-age null or Number of days; before null or Date; min-release-age-exclude a list exempt from min-release-age and before; dangerously-allow-all-scripts Boolean, which bypasses the allowScripts policy; allow-scripts a list of packages whose install scripts may run. A value other than true for ignore-scripts, any true value of dangerously-allow-all-scripts (the false values as in user.variables), any allow-scripts, before or min-release-age-exclude, and a min-release-age shorter than the policy weaken what depcurfew apply wrote.',
     ),
+    settingOverrides: runners.verified(
+      {
+        optionPrefix: '--',
+        negation: '--no-',
+        variablePrefix: 'npm_config_',
+        settings: [
+          { setting: 'strict-allow-scripts', weakens: 'scripts', values: ['false', 'null', 'undefined'], when: 'written' },
+          { setting: 'allow-git', weakens: 'sources', source: 'git', values: { except: ['none'] } },
+          { setting: 'allow-remote', weakens: 'sources', source: 'remoteTarball', values: { except: ['none'] } },
+          { setting: 'allow-file', weakens: 'sources', source: 'file', values: { except: ['none'] } },
+          { setting: 'allow-directory', weakens: 'sources', source: 'directory', values: { except: ['none'] } },
+        ],
+      },
+      `${NPM_GITHUB_V12}/docs/lib/content/using-npm/config.md`,
+      'The settings depcurfew apply writes into .npmrc for installScripts and sources that installOverrides (the options and variables the install guard asks about) does not list, for doctor (decision D-166). npm takes its configuration from, "sorted by priority", the command line ("Putting --foo bar on the command line sets the foo configuration parameter", "Using --flag without specifying any value will set the value to true"), then the environment ("Any environment variables that start with npm_config_ will be interpreted as a configuration parameter", "Config values are case-insensitive", with underscores instead of dashes), then the .npmrc files, so either replaces a key of the project .npmrc for the commands it reaches; a --no- prefix sets false (booleanWords). In definitions.js at v12.2.1 strict-allow-scripts is a Boolean (default false), and parseField (workspaces/config/lib/parse-field.js) turns only "false", "null" and "undefined" into values that turn it off, so those weaken it where .npmrc sets it to true (apply writes it for an npm 11.16 to 11.x in use, which runs uncovered scripts without it). allow-git, allow-remote, allow-file and allow-directory take all, none or root; apply writes none for a source the policy denies, root allows the dependencies listed in the root package.json, and a value npm does not accept is reported as invalid and replaced by the default (all before npm 12; user.invalidValueFails), so every value but none weakens a denied source.',
+    ),
     directoryOptions: runtimes.verified<DirectoryOptionsKnowledge>(
       { options: [{ name: '--prefix', moves: 'directory', localPrefix: true }], variables: [] },
       NPM_DEFINITIONS,

@@ -1,0 +1,29 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 6
+    },
+    "message": "YARN_ENABLE_SCRIPTS=true is set in the env of job build in .github/workflows/ci.yml, reaches every Yarn (Berry) command there, and lets dependency install scripts run that depcurfew.json denies for Yarn (Berry)",
+    "fix": "Remove YARN_ENABLE_SCRIPTS from that env in .github/workflows/ci.yml; to let a package run its install scripts, add it to installScripts.allow in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 7
+    },
+    "message": "YARN_NPM_MINIMAL_AGE_GATE=60 is set in the env of job build in .github/workflows/ci.yml, reaches every Yarn (Berry) command there, and sets the release-age delay of Yarn (Berry) to 1 hour, shorter than the 3d of depcurfew.json",
+    "fix": "Remove YARN_NPM_MINIMAL_AGE_GATE from that env in .github/workflows/ci.yml; for a package that cannot wait, add it to cooldown.exclude in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 9
+    },
+    "message": "job build in .github/workflows/ci.yml (line 9) runs Yarn (Berry) with --no-time-gate, which weakens the release-age delay of Yarn (Berry) (3d in depcurfew.json)",
+    "fix": "Remove --no-time-gate from that command in .github/workflows/ci.yml; for a package that cannot wait, add it to cooldown.exclude in depcurfew.json and run depcurfew apply"
+  }
+]

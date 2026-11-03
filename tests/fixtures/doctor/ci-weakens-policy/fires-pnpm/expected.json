@@ -1,0 +1,38 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 7
+    },
+    "message": "pnpm_config_minimum_release_age=0 is exported in a run step of job build in .github/workflows/ci.yml, reaches the pnpm commands after it in that step, and turns off the release-age delay of pnpm (3d in depcurfew.json)",
+    "fix": "Remove that export of pnpm_config_minimum_release_age from .github/workflows/ci.yml; for a package that cannot wait, add it to cooldown.exclude in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 8
+    },
+    "message": "job build in .github/workflows/ci.yml (line 8) runs pnpm with --config.minimum-release-age=60, which sets the release-age delay of pnpm to 1 hour, shorter than the 3d of depcurfew.json",
+    "fix": "Remove --config.minimum-release-age=60 from that command in .github/workflows/ci.yml; for a package that cannot wait, add it to cooldown.exclude in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 8
+    },
+    "message": "job build in .github/workflows/ci.yml (line 8) runs pnpm with --config.dangerously-allow-all-builds=true, which lets dependency install scripts run that depcurfew.json denies for pnpm",
+    "fix": "Remove --config.dangerously-allow-all-builds=true from that command in .github/workflows/ci.yml; to let a package run its install scripts, add it to installScripts.allow in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 8
+    },
+    "message": "job build in .github/workflows/ci.yml (line 8) runs pnpm with --no-minimum-release-age-strict, which weakens the release-age delay of pnpm (3d in depcurfew.json)",
+    "fix": "Remove --no-minimum-release-age-strict from that command in .github/workflows/ci.yml; for a package that cannot wait, add it to cooldown.exclude in depcurfew.json and run depcurfew apply"
+  }
+]

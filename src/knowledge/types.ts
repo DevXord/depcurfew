@@ -1618,6 +1618,12 @@ export interface EnvironmentKnowledge {
     copySources: Fact<{ relativeTo: 'context'; parentNavigation: 'removed'; trailingSlash: 'ignored' }>;
     /** ENV: variables for the later instructions of the stage and the stages that start from it (decision D-115). */
     environment: Fact<{ instruction: string; inheritedByStages: boolean; spaceForm: boolean }>;
+    /**
+     * ARG: a variable of the later RUN instructions of the stage and of the stages that start from it, with its default
+     * when no --build-arg gives one; one declared before the first FROM only through an ARG without a value in a stage;
+     * an ENV of the same name wins (decision D-166).
+     */
+    buildArguments: Fact<{ instruction: string; runEnvironment: boolean; inheritedByStages: boolean; globalNeedsDeclaration: boolean; environmentWins: boolean }>;
     /** The default file name, and the suffix of other Dockerfiles (build.Dockerfile). */
     dockerfileNames: Fact<{ defaultName: string; suffix: string }>;
     /** Dockerfile.<name>: a common convention without an official source. */
@@ -1656,6 +1662,11 @@ export interface EnvironmentKnowledge {
     jobContainer: Fact<{ key: string; imageKey: string; envKey: string }>;
     /** The env maps of a workflow, a job and a step; the most specific one wins (decision D-115). */
     environmentKeys: Fact<{ key: string; levels: readonly ('workflow' | 'job' | 'step')[] }>;
+    /**
+     * The GITHUB_ENV file: NAME=value lines a run step writes there are variables of the later steps of the job, over
+     * the env of the workflow and the job, under the env of a step (decision D-166).
+     */
+    environmentFile: Fact<{ variable: string; format: string; multilineMarker: string; laterSteps: boolean; stepEnvironmentWins: boolean }>;
     /** Whether workflows may use YAML anchors and aliases, which GitHub expands (decision D-141). */
     yamlAliases: Fact<{ accepted: boolean }>;
     pnpmActionSetup: Fact<SetupActionKnowledge>;

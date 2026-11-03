@@ -254,7 +254,9 @@ export function createContext(options: {
       if (error instanceof EditFailed) throw error;
       // Parsers put a code frame after the first line; the first line says what is wrong.
       const message = (error instanceof Error ? error.message : String(error)).split('\n', 1)[0]?.replace(/:$/u, '') ?? '';
-      failures.push({ tool: tool.id, file, message, ...(error instanceof RefusedEdit ? { fix: error.fix } : {}) });
+      // A refused edit says what to do (RefusedEdit, and the workspace for a result over the limit of reading it).
+      const fix = error instanceof RefusedEdit ? error.fix : (error as { fix?: unknown } | undefined)?.fix;
+      failures.push({ tool: tool.id, file, message, ...(typeof fix === 'string' ? { fix } : {}) });
       throw new EditFailed(message);
     }
   };

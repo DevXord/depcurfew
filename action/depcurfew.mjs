@@ -732,6 +732,13 @@ const bundler$1 = {
 			file: ".bundle/config",
 			ignoredBy: "bundle gem"
 		}, `${LIB}/templates/newgem/gitignore.tt`, "bundle config set --local writes <project_root>/.bundle/config, which also holds machine paths such as path (bundle-config(1)); the .gitignore that bundle gem writes for a new gem ignores /.bundle/."),
+		configCommand: verified$15({
+			command: ["bundle", "config"],
+			set: "set",
+			scopes: ["--local", "--global"],
+			legacyArguments: 2,
+			keyAnyCase: true
+		}, `${LIB}/cli/config.rb`, "bundle config set [--local|--global] NAME VALUE (bundle-config(1)): set \"defaults to setting local configuration if executing from within a local application, otherwise it will set global configuration\"; --local writes <project_root>/.bundle/config (or $BUNDLE_APP_CONFIG/config), --global ~/.bundle/config. CLI::Config#set joins the value words with spaces (value_.unshift(value), then join(\" \")), and the hidden base command still runs bundle config NAME VALUE (two arguments, or one with --local or --global) as set, with a deprecation warning. Settings#set_key stores the key as key_for gives it (lib/bundler/settings.rb: dots to __, dashes to ___, upper case, BUNDLE_ in front), so cooldown in any case is BUNDLE_COOLDOWN. Both files replace the cooldown: of every Gemfile source (extra.cooldownSetting), so a 0 written there turns the delay off for the later bundle commands on that machine."),
 		updateCommand: verified$15("bundle update GEM --cooldown 0 --conservative", UPDATE, "--cooldown 0 disables the cooldown \"for this run, overriding any per-source or global configuration. Combine with --conservative to minimize transitive churn when bypassing cooldown for an urgent update.\""),
 		dependencySources: verified$15(["git", "directory"], GEMFILE, "Of the kinds of sources a policy names, a Gemfile can declare git sources (GIT, GITHUB and the other git sources) and path sources (PATH), with no setting that forbids them; it has no source for an archive URL or a local archive.")
 	}
@@ -739,6 +746,7 @@ const bundler$1 = {
 
 // src/knowledge/composer.ts
 const { verified: verified$14, uncertain: uncertain$12 } = verifiedOn("2026-11-02");
+const ciOverrides$1 = verifiedOn("2026-11-03");
 const COMPOSER = "https://github.com/composer/composer/blob/2.11.1";
 const CONFIG$3 = `${COMPOSER}/doc/06-config.md`;
 const CLI$1 = `${COMPOSER}/doc/03-cli.md`;
@@ -1446,6 +1454,30 @@ const composer$3 = {
 				unread: { file: HOME_FILES }
 			}
 		], `${CLI$1}#config`, "composer config [options] [setting-key] [setting-value1] ... changes a setting of composer.json (with --global, -g, of COMPOSER_HOME/config.json; with --file, -f, of that file), --unset removes one and --editor (-e) opens the file; with a key alone it shows the value (src/Composer/Command/ConfigCommand.php at 2.11.1). composer repository (repo) add, remove (rm, delete), set-url (seturl), enable and disable change the repositories, list (ls, show) and get-url (geturl) only read them (RepositoryCommand.php). composer policy add-source changes config.policy (PolicyCommand.php). config, repository and policy all take --global (-g, \"Apply command to the global config file\") and --file (-f, \"If you want to choose a different composer.json or config.json\"). The same commands after composer global change the files of COMPOSER_HOME: GlobalCommand runs them in the home directory, where composer.json is the one of composer global and config.json the configuration that Factory::createConfig merges under that of every project. depcurfew reads neither file (decision D-133), so a change there counts also without an install next to it (unread)."),
+		configCommandValues: ciOverrides$1.verified({
+			command: ["composer", "config"],
+			section: "config",
+			booleans: [
+				"policy",
+				"secure-http",
+				"disable-tls",
+				"allow-plugins"
+			],
+			accepted: [
+				"true",
+				"false",
+				"1",
+				"0"
+			],
+			falseValues: ["false", "0"],
+			period: "policy.cooldown.period",
+			otherFile: [
+				"--global",
+				"-g",
+				"--file",
+				"-f"
+			]
+		}, `${SRC}/Command/ConfigCommand.php`, "composer config KEY VALUE writes the setting into config of composer.json (JsonConfigSource::addConfigSetting at 2.11.1; --global, -g, --file and -f write another file, configCommands). ConfigCommand::execute at 2.11.1 takes a key of the form policy.<list> (policy.cooldown, policy.malware) and the block keys (policy.cooldown.block, policy.malware.block), secure-http, disable-tls and allow-plugins only with true, false, 1 or 0 ($booleanValidator) and stores $val !== 'false' && (bool) $val ($booleanNormalizer), so false and 0 are false; policy.cooldown.period takes a duration CooldownPolicyConfig::parseDuration reads, or null or the empty text for none, a number as an integer; policy.malware.block-scope one of all, update and install, as written. addConfigSetting nests a key that starts with policy. at its dots under config (policy.cooldown false gives \"config\": {\"policy\": {\"cooldown\": false}}), replacing the object that was there. So composer config policy.cooldown false in CI turns the cooldown off in the composer.json the later commands read."),
 		applicationOptions: verified$14([
 			{
 				name: "help",
@@ -2955,6 +2987,47 @@ const npm$1 = {
 				}
 			]
 		}, NPM_DEFINITIONS, "Settings that a single npm command can change on its command line or in its environment: \"Putting --foo bar on the command line sets the foo configuration parameter\", \"--flag without specifying any value will set the value to true\", \"Any environment variables that start with npm_config_ will be interpreted as a configuration parameter\", case-insensitive, and an environment configuration without a value is true (docs/lib/content/using-npm/config.md at v12.2.1). Types in definitions.js at v12.2.1: ignore-scripts Boolean, default false (\"If true, npm does not run scripts specified in package.json files\"); min-release-age null or Number of days; before null or Date; min-release-age-exclude a list exempt from min-release-age and before; dangerously-allow-all-scripts Boolean, which bypasses the allowScripts policy; allow-scripts a list of packages whose install scripts may run. A value other than true for ignore-scripts, any true value of dangerously-allow-all-scripts (the false values as in user.variables), any allow-scripts, before or min-release-age-exclude, and a min-release-age shorter than the policy weaken what depcurfew apply wrote."),
+		settingOverrides: runners$2.verified({
+			optionPrefix: "--",
+			negation: "--no-",
+			variablePrefix: "npm_config_",
+			settings: [
+				{
+					setting: "strict-allow-scripts",
+					weakens: "scripts",
+					values: [
+						"false",
+						"null",
+						"undefined"
+					],
+					when: "written"
+				},
+				{
+					setting: "allow-git",
+					weakens: "sources",
+					source: "git",
+					values: { except: ["none"] }
+				},
+				{
+					setting: "allow-remote",
+					weakens: "sources",
+					source: "remoteTarball",
+					values: { except: ["none"] }
+				},
+				{
+					setting: "allow-file",
+					weakens: "sources",
+					source: "file",
+					values: { except: ["none"] }
+				},
+				{
+					setting: "allow-directory",
+					weakens: "sources",
+					source: "directory",
+					values: { except: ["none"] }
+				}
+			]
+		}, `${NPM_GITHUB_V12}/docs/lib/content/using-npm/config.md`, "The settings depcurfew apply writes into .npmrc for installScripts and sources that installOverrides (the options and variables the install guard asks about) does not list, for doctor (decision D-166). npm takes its configuration from, \"sorted by priority\", the command line (\"Putting --foo bar on the command line sets the foo configuration parameter\", \"Using --flag without specifying any value will set the value to true\"), then the environment (\"Any environment variables that start with npm_config_ will be interpreted as a configuration parameter\", \"Config values are case-insensitive\", with underscores instead of dashes), then the .npmrc files, so either replaces a key of the project .npmrc for the commands it reaches; a --no- prefix sets false (booleanWords). In definitions.js at v12.2.1 strict-allow-scripts is a Boolean (default false), and parseField (workspaces/config/lib/parse-field.js) turns only \"false\", \"null\" and \"undefined\" into values that turn it off, so those weaken it where .npmrc sets it to true (apply writes it for an npm 11.16 to 11.x in use, which runs uncovered scripts without it). allow-git, allow-remote, allow-file and allow-directory take all, none or root; apply writes none for a source the policy denies, root allows the dependencies listed in the root package.json, and a value npm does not accept is reported as invalid and replaced by the default (all before npm 12; user.invalidValueFails), so every value but none weakens a denied source."),
 		directoryOptions: runtimes$2.verified({
 			options: [{
 				name: "--prefix",
@@ -7337,6 +7410,7 @@ const recheck = verifiedOn("2026-11-01");
 const finalReview = verifiedOn("2026-11-01");
 const release14 = verifiedOn("2026-11-02");
 const ruby = verifiedOn("2026-11-03");
+const ciOverrides = verifiedOn("2026-11-03");
 const COREPACK_README = "https://github.com/nodejs/corepack/blob/v0.36.0/README.md";
 const COREPACK_CHANGELOG = "https://github.com/nodejs/corepack/blob/v0.36.0/CHANGELOG.md";
 const COREPACK_V0_36_0 = "https://github.com/nodejs/corepack/blob/v0.36.0";
@@ -8213,6 +8287,13 @@ const environment = {
 			inheritedByStages: true,
 			spaceForm: true
 		}, `${DOCKERFILE_REFERENCE}#env`, "ENV <key>=<value> [<key>=<value>...]: \"This value will be in the environment for all subsequent instructions in the build stage\", and \"A stage inherits any environment variables that were set using ENV by its parent stage or any ancestor\". \"Like command line parsing, quotes and backslashes can be used to include spaces within values\". The alternative \"ENV <key> <value>, omitting the =\" sets one variable, and is discouraged. RUN commands see these variables, and ENV wins over an ARG of the same name."),
+		buildArguments: ciOverrides.verified({
+			instruction: "ARG",
+			runEnvironment: true,
+			inheritedByStages: true,
+			globalNeedsDeclaration: true,
+			environmentWins: true
+		}, `${DOCKERFILE_REFERENCE}#arg`, "ARG <name>[=<default value>]: the variable \"is also passed to all subsequent RUN instructions as a build-time environment variable\"; \"If an ARG instruction has a default value and if there is no value passed at build-time, the builder uses the default\" (--build-arg can give another). \"An ARG variable declared within a build stage is automatically inherited by other stages based on that stage. Unrelated build stages do not have access to the variable.\" \"An ARG declared before a FROM is outside of a build stage, so it can't be used in any instruction after a FROM. To use the default value of an ARG declared before the first FROM use an ARG instruction without a value inside of a build stage.\" \"Environment variables defined using the ENV instruction always override an ARG instruction of the same name.\" (Using ARG variables; Impact on build caching: \"all RUN instructions following an ARG instruction use the ARG variable implicitly (as an environment variable)\".)"),
 		dockerfileNames: runtimes.verified({
 			defaultName: "Dockerfile",
 			suffix: ".Dockerfile"
@@ -8340,6 +8421,13 @@ const environment = {
 				"step"
 			]
 		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env", "Read from the page source in github/docs (content/actions/reference/workflows-and-actions/workflow-syntax.md and data/reusables/repositories/actions-env-var-note.md, main on 2026-11-01): env is \"A map of variables that are available to the steps of all jobs in the workflow\", jobs.<job_id>.env \"A map of variables that are available to all steps in the job\", and jobs.<job_id>.steps[*].env \"Sets variables for steps to use in the runner environment\"; for the same name GitHub \"uses the most specific variable\": the step's over the job's over the workflow's."),
+		environmentFile: ciOverrides.verified({
+			variable: "GITHUB_ENV",
+			format: "NAME=value",
+			multilineMarker: "<<",
+			laterSteps: true,
+			stepEnvironmentWins: true
+		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable", "Read from the page source in github/docs (content/actions/reference/workflows-and-actions/workflow-commands.md, commit 9e46fa1 of main on 2026-11-03): echo \"{environment_variable_name}={value}\" >> \"$GITHUB_ENV\"; \"You can make an environment variable available to any subsequent steps in a workflow job by defining or updating the environment variable and writing this to the GITHUB_ENV environment file. The step that creates or updates the environment variable does not have access to the new value, but all subsequent steps in a job will have access.\" Multiline values use {name}<<{delimiter}. In actions/runner v2.338.2, SetEnvFileCommand writes each pair into Global.EnvironmentVariables (src/Runner.Worker/FileCommandManager.cs), which holds the env of the workflow and the job, and StepsRunner merges that global env first and the env of the step over it (\"Merge global env\", then \"Evaluate and merge step env\" in src/Runner.Worker/StepsRunner.cs), so a value written there replaces the env of the workflow and the job for the later steps, and the env of a step still wins."),
 		yamlAliases: release14.verified({ accepted: true }, "https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations#yaml-anchors-and-aliases", "Read from the page source in github/docs (content/actions/reference/workflows-and-actions/reusing-workflow-configurations.md, commit 23809bf of main on 2026-11-02), for GitHub.com and GitHub Enterprise Cloud: \"You can use YAML anchors and aliases to reduce repetition in your workflows. An anchor (marked with &) identifies a piece of content that you want to reuse, while an alias (marked with *) repeats that content in another location.\" Its examples reuse the env map of a job (env: *env_vars) and a whole job (alt-test: *base_job), and say that this \"is equivalent to writing the following YAML without anchors and aliases\". The page does not mention merge keys (<<), so depcurfew does not apply them in workflows."),
 		pnpmActionSetup: d170.verified({
 			action: "pnpm/action-setup",
@@ -9192,14 +9280,14 @@ function extraString(tool, key) {
 	if (typeof value !== "string") throw new Error(`knowledge base: ${tool.id} extra.${key} must be a string`);
 	return value;
 }
-function extraValue(tool, key) {
+function extraValue$1(tool, key) {
 	const fact = tool.extra?.[key];
 	return fact === void 0 ? void 0 : first$1(fact);
 }
 /** Where yarnPath is set and how yarn set version names the release (decision D-165). */
 function yarnPathFacts(tool) {
-	const runs = extraValue(tool, "yarnPathRuns");
-	const release = extraValue(tool, "yarnPath");
+	const runs = extraValue$1(tool, "yarnPathRuns");
+	const release = extraValue$1(tool, "yarnPath");
 	if (!isRecord(runs) || typeof runs["file"] !== "string" || typeof runs["key"] !== "string") return null;
 	if (!isRecord(release) || typeof release["releaseFile"] !== "string") return null;
 	return {
@@ -9210,10 +9298,10 @@ function yarnPathFacts(tool) {
 }
 /** required-version in [tool.uv] of pyproject.toml and at the top of uv.toml; requires-poetry in [tool.poetry]. */
 function requiredVersions(tool, pythonProject) {
-	const required = extraValue(tool, "requiredVersion");
+	const required = extraValue$1(tool, "requiredVersion");
 	if (!isRecord(required) || typeof required["table"] !== "string" || typeof required["key"] !== "string") return [];
 	const key = required["key"];
-	const tables = extraValue(tool, "configTables");
+	const tables = extraValue$1(tool, "configTables");
 	return (isRecord(tables) ? Object.entries(tables).filter((entry) => typeof entry[1] === "string") : [[pythonProject, required["table"]]]).map(([file, table]) => ({
 		file,
 		path: [...table === "" ? [] : table.split("."), key]
@@ -9239,13 +9327,13 @@ function detectionFacts(tools, environment) {
 		if (project === void 0) throw new Error(`knowledge base: ${id} has no project facts`);
 		const manifests = unique(values(project.manifests).flat());
 		const ownConfig = values(entry.cooldown.configFiles).flat();
-		const pyprojectTable = extraValue(entry, "pyprojectTable");
-		const order = extraValue(entry, "configFileOrder");
-		const pattern = extraValue(entry, "lockfilePattern");
-		const lockfileFormat = extraValue(entry, "lockfileFormat");
+		const pyprojectTable = extraValue$1(entry, "pyprojectTable");
+		const order = extraValue$1(entry, "configFileOrder");
+		const pattern = extraValue$1(entry, "lockfilePattern");
+		const lockfileFormat = extraValue$1(entry, "lockfileFormat");
 		const createdBy = isRecord(lockfileFormat) ? lockfileFormat["createdBy"] : void 0;
-		const pylockCreatedBy = extraValue(entry, "pylockCreatedBy");
-		const lockfileVersion = extraValue(entry, "lockfileVersion");
+		const pylockCreatedBy = extraValue$1(entry, "pylockCreatedBy");
+		const lockfileVersion = extraValue$1(entry, "lockfileVersion");
 		return {
 			id,
 			ecosystem: entry.ecosystem ?? "npm",
@@ -9276,31 +9364,31 @@ function detectionFacts(tools, environment) {
 	const actions = environment.githubActions;
 	const npm = tool$1(tools, "npm");
 	const pip = tool$1(tools, "pip");
-	const installs = extraValue(npm, "installCommands");
+	const installs = extraValue$1(npm, "installCommands");
 	const installCommands = isRecord(installs) ? Object.values(installs).flatMap((list) => Array.isArray(list) ? list.filter((item) => typeof item === "string") : []) : [];
-	const globalOptions = extraValue(npm, "globalOption");
-	const npmValues = extraValue(npm, "valueOptions");
-	const pipLine = extraValue(pip, "commandLine");
+	const globalOptions = extraValue$1(npm, "globalOption");
+	const npmValues = extraValue$1(npm, "valueOptions");
+	const pipLine = extraValue$1(pip, "commandLine");
 	const interpreter = first$1(environment.python.interpreter);
-	const scope = extraValue(npm, "npmrcScope");
-	const clean = extraValue(npm, "cleanInstall");
+	const scope = extraValue$1(npm, "npmrcScope");
+	const clean = extraValue$1(npm, "cleanInstall");
 	const pipFlag = pip.cooldown.cliFlag === void 0 ? void 0 : first$1(pip.cooldown.cliFlag);
-	const pipVariable = extraValue(pip, "environmentVariable");
-	const pipConfig = extraValue(pip, "configFileVariable");
-	const pipConfigCommand = extraValue(pip, "configCommand");
-	const pipConfigFiles = extraValue(pip, "configFileNames");
+	const pipVariable = extraValue$1(pip, "environmentVariable");
+	const pipConfig = extraValue$1(pip, "configFileVariable");
+	const pipConfigCommand = extraValue$1(pip, "configCommand");
+	const pipConfigFiles = extraValue$1(pip, "configFileNames");
 	const poetryTool = tools.find((candidate) => candidate.id === "poetry");
-	const poetryPackage = poetryTool === void 0 ? void 0 : extraValue(poetryTool, "installedPackage");
-	const off = extraValue(npm, "scriptsOff");
-	const omitOptional = npm.extra?.["omitOptional"] === void 0 ? void 0 : extraValue(npm, "omitOptional");
-	const localPrefix = npm.extra?.["localPrefix"] === void 0 ? void 0 : extraValue(npm, "localPrefix");
+	const poetryPackage = poetryTool === void 0 ? void 0 : extraValue$1(poetryTool, "installedPackage");
+	const off = extraValue$1(npm, "scriptsOff");
+	const omitOptional = npm.extra?.["omitOptional"] === void 0 ? void 0 : extraValue$1(npm, "omitOptional");
+	const localPrefix = npm.extra?.["localPrefix"] === void 0 ? void 0 : extraValue$1(npm, "localPrefix");
 	const corepackInstall = first$1(environment.corepack.manualInstall);
 	const bundlerTool = tools.find((candidate) => candidate.id === "bundler");
-	const resolve = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "resolveCommands");
-	const bundlerSetting = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "cooldownSetting");
-	const gemInstall = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "gemInstall");
-	const bundlerCli = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "cliCommands");
-	const versionSelector = bundlerTool === void 0 ? void 0 : extraValue(bundlerTool, "versionSelector");
+	const resolve = bundlerTool === void 0 ? void 0 : extraValue$1(bundlerTool, "resolveCommands");
+	const bundlerSetting = bundlerTool === void 0 ? void 0 : extraValue$1(bundlerTool, "cooldownSetting");
+	const gemInstall = bundlerTool === void 0 ? void 0 : extraValue$1(bundlerTool, "gemInstall");
+	const bundlerCli = bundlerTool === void 0 ? void 0 : extraValue$1(bundlerTool, "cliCommands");
+	const versionSelector = bundlerTool === void 0 ? void 0 : extraValue$1(bundlerTool, "versionSelector");
 	const isStringMap = (value) => isRecord(value) && Object.values(value).every((item) => typeof item === "string");
 	const strings = (value) => Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
 	const others = [
@@ -9309,8 +9397,8 @@ function detectionFacts(tools, environment) {
 		"bun"
 	].flatMap((id) => {
 		const entry = tools.find((candidate) => candidate.id === id);
-		const install = entry === void 0 ? void 0 : extraValue(entry, "projectInstall");
-		const line = entry === void 0 ? void 0 : extraValue(entry, "commandLine");
+		const install = entry === void 0 ? void 0 : extraValue$1(entry, "projectInstall");
+		const line = entry === void 0 ? void 0 : extraValue$1(entry, "commandLine");
 		if (!isRecord(install)) return [];
 		const add = (line?.add ?? []).filter((command) => command[0] === id && command.length === 2).map((command) => command[1] ?? "");
 		return [{
@@ -9413,6 +9501,7 @@ function detectionFacts(tools, environment) {
 		workflows: first$1(actions.workflows),
 		jobContainer: first$1(actions.jobContainer),
 		workflowEnvironment: { key: first$1(actions.environmentKeys).key },
+		environmentFile: first$1(actions.environmentFile).variable,
 		setupActions: [
 			actions.setupNode,
 			actions.pnpmActionSetup,
@@ -9449,6 +9538,7 @@ function detectionFacts(tools, environment) {
 			pythonTags: first$1(docker.pythonImageTags).tags,
 			codenames: first$1(environment.node.releaseSchedule).flatMap((line) => line.codename === void 0 ? [] : [line.codename]),
 			environment: first$1(docker.environment),
+			buildArguments: first$1(docker.buildArguments),
 			commands
 		},
 		commands
@@ -9476,6 +9566,23 @@ function isAbsoluteAnywhere(path) {
 
 // src/detect/repository.ts
 const MAX_FILE_SIZE = 1048576;
+/** Lockfiles are often larger than configuration files. */
+const MAX_LOCKFILE_SIZE = 67108864;
+/** The names of lockfiles in the knowledge base (project.lockfiles of every tool), and the pattern of named pylock files. */
+const LOCKFILE_NAMES = new Set(knowledgeBase.flatMap((tool) => tool.project === void 0 ? [] : evidenceOf(tool.project.lockfiles).flatMap((entry) => entry.value.flatMap((version) => [...version.value]))));
+const LOCKFILE_PATTERNS = knowledgeBase.flatMap((tool) => {
+	const pattern = tool.extra?.["lockfilePattern"] === void 0 ? void 0 : evidenceOf(tool.extra["lockfilePattern"])[0]?.value;
+	return typeof pattern === "string" ? [new RegExp(pattern, "u")] : [];
+});
+/**
+* The most a read of the file takes: the limit of lockfiles for a file named as a lockfile of a tool (in any directory),
+* the limit of configuration files otherwise. Every reader of a lockfile then uses the same limit, so that a lockfile a
+* lockfile rule reads is not reported as too large by another reader (decision D-166).
+*/
+function readLimitFor(path) {
+	const name = path.slice(path.lastIndexOf("/") + 1);
+	return LOCKFILE_NAMES.has(name) || LOCKFILE_PATTERNS.some((pattern) => pattern.test(name)) ? MAX_LOCKFILE_SIZE : MAX_FILE_SIZE;
+}
 /** Directories never searched for workspace packages or configuration. */
 const SKIPPED_DIRECTORIES = /* @__PURE__ */ new Set(["node_modules", ".git"]);
 function errorMessage(error) {
@@ -9579,8 +9686,11 @@ var Repository = class {
 		const stats = this.#resolve(path, false)?.stats;
 		return stats !== void 0 && !stats.isFile() && !stats.isDirectory();
 	}
-	/** The text of a file, without a byte order mark; undefined (with a warning when useful) if it cannot be read. */
-	readText(path, limit = MAX_FILE_SIZE) {
+	/**
+	* The text of a file, without a byte order mark; undefined (with a warning when useful) if it cannot be read. The
+	* limit is that of lockfiles for a lockfile and that of configuration files for the rest (readLimitFor).
+	*/
+	readText(path, limit = readLimitFor(path)) {
 		const resolved = this.#resolve(path, true, true);
 		if (resolved === void 0) return void 0;
 		const { real, stats } = resolved;
@@ -17017,24 +17127,24 @@ function parseYamlDocuments(text, lineCounter = new import_dist.LineCounter()) {
 	return (Array.isArray(parsed) ? parsed : []).map((document) => checked$1(document, lineCounter, false));
 }
 /** Parsed documents for reading, newest last: detection and the rules read the same file several times in one run. */
-const READ_CACHE = /* @__PURE__ */ new Map();
-const READ_CACHE_SIZE = 4;
+const READ_CACHE$1 = /* @__PURE__ */ new Map();
+const READ_CACHE_SIZE$1 = 4;
 /**
 * A parsed document and its line counter for reading only, shared by every reader of the same text in a run, so that
 * a large file is parsed once. Nothing may change the document; apply parses its own copy to edit.
 */
 function readYamlDocument(text, options = {}) {
 	const key = `${options.merge === true ? "merge" : "plain"}${options.psychScalars === true ? " psych" : ""}\n${text}`;
-	const cached = READ_CACHE.get(key);
+	const cached = READ_CACHE$1.get(key);
 	if (cached !== void 0) return cached;
 	const lineCounter = new import_dist.LineCounter();
 	const entry = {
 		document: parseYamlDocument(text, lineCounter, options),
 		lineCounter
 	};
-	READ_CACHE.set(key, entry);
-	const oldest = READ_CACHE.keys().next().value;
-	if (READ_CACHE.size > READ_CACHE_SIZE && oldest !== void 0) READ_CACHE.delete(oldest);
+	READ_CACHE$1.set(key, entry);
+	const oldest = READ_CACHE$1.keys().next().value;
+	if (READ_CACHE$1.size > READ_CACHE_SIZE$1 && oldest !== void 0) READ_CACHE$1.delete(oldest);
 	return entry;
 }
 /** One YAML document as plain values; throws its first error, like parse from the yaml package. */
@@ -17089,6 +17199,13 @@ const RESERVED = /* @__PURE__ */ new Set([
 	"}"
 ]);
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/u;
+/**
+* Splits a script into simple commands of words, in one pass over the text. Quotes are removed, a backslash before a
+* line break joins the lines, and `#` at the start of a word starts a comment.
+*/
+function splitCommands(script) {
+	return splitWithDepth(script).map((command) => command.words);
+}
 /**
 * The same, with how deep in ( ) and $( ) each command is: a cd in a subshell does not change the directory of the
 * commands after it (decision D-115).
@@ -17953,6 +18070,25 @@ function heredocMarkers(text) {
 	endCommand();
 	return markers;
 }
+/** Dockerfiles already read in this process, newest last: detection and doctor read the same file (decision D-166). */
+const READ_CACHE = /* @__PURE__ */ new Map();
+const READ_CACHE_SIZE = 4;
+/**
+* readDockerfile, shared by every reader of the same text in a run, so that a large Dockerfile is read once. Nothing may
+* change the instructions it returns.
+*/
+function readDockerfileOnce(source, syntax) {
+	const cached = READ_CACHE.get(source);
+	if (cached !== void 0 && cached.syntax === syntax) return cached.instructions;
+	const instructions = readDockerfile(source, syntax);
+	READ_CACHE.set(source, {
+		syntax,
+		instructions
+	});
+	const oldest = READ_CACHE.keys().next().value;
+	if (READ_CACHE.size > READ_CACHE_SIZE && oldest !== void 0) READ_CACHE.delete(oldest);
+	return instructions;
+}
 /** Reads the instructions of a Dockerfile. Every line is looked at once, so the time grows with the size of the file. */
 function readDockerfile(source, syntax) {
 	const lines = source.split(/\r?\n/u);
@@ -18362,13 +18498,14 @@ function copySources(text) {
 }
 /** Reads one Dockerfile. */
 function readDockerStages(file, text, facts) {
-	const instructions = readDockerfile(text, facts.syntax);
+	const instructions = readDockerfileOnce(text, facts.syntax);
 	const escape = facts.syntax.escapeCharacters[0] ?? "\\";
 	const args = /* @__PURE__ */ new Map();
 	const unreadable = /* @__PURE__ */ new Map();
 	const stages = [];
 	const named = /* @__PURE__ */ new Map();
 	const environments = [];
+	const buildArguments = [];
 	const versions = [];
 	const notices = [];
 	for (const instruction of instructions) {
@@ -18432,6 +18569,8 @@ function readDockerStages(file, text, facts) {
 			if (alias !== void 0 && !named.has(alias)) named.set(alias, stages.length);
 			const parent = stage.from === void 0 || !facts.environment.inheritedByStages ? void 0 : environments[stage.from];
 			environments.push(parent ?? /* @__PURE__ */ new Map());
+			const parentArguments = stage.from === void 0 || !facts.buildArguments.inheritedByStages ? void 0 : buildArguments[stage.from];
+			buildArguments.push(parentArguments ?? /* @__PURE__ */ new Map());
 			stages.push({
 				...fields,
 				commands: []
@@ -18440,6 +18579,14 @@ function readDockerStages(file, text, facts) {
 		}
 		const stage = stages.at(-1);
 		const environment = environments.at(-1);
+		if (instruction.keyword === facts.buildArguments.instruction && facts.buildArguments.runEnvironment && buildArguments.length > 0) {
+			const declared = argDeclarations(instruction.text).flatMap(([name, value]) => {
+				const given = value ?? (facts.buildArguments.globalNeedsDeclaration ? args.get(name) : void 0);
+				return given === void 0 ? [] : [[name, given]];
+			});
+			buildArguments[buildArguments.length - 1] = withVariables(facts.commands, buildArguments.at(-1), declared);
+			continue;
+		}
 		if (instruction.keyword === facts.environment.instruction && environment !== void 0) {
 			environments[environments.length - 1] = withVariables(facts.commands, environment, envDeclarations(instruction.text, facts.environment.spaceForm));
 			continue;
@@ -18450,7 +18597,7 @@ function readDockerStages(file, text, facts) {
 			continue;
 		}
 		if (instruction.keyword !== "RUN" || stage === void 0) continue;
-		const run = runCommands(instruction, facts, environment ?? /* @__PURE__ */ new Map());
+		const run = runCommands(instruction, facts, facts.buildArguments.environmentWins ? withVariables(facts.commands, buildArguments.at(-1), environment) : withVariables(facts.commands, environment, buildArguments.at(-1)));
 		if (run.pipConfig === true) stage.pipConfig = true;
 		const seenCorepack = stage.corepack !== void 0;
 		if (run.corepack !== void 0) stage.corepack ??= run.corepack;
@@ -18496,6 +18643,114 @@ function dockerfileCandidates(repository, facts, manifests, packages) {
 	return [...new Set(files)].sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
 }
 
+// src/detect/script-variables.ts
+const NAME$2 = /^[A-Za-z_][A-Za-z0-9_]*$/u;
+const REDIRECTION = /^\d?>>?$/u;
+/** Whether a word, with the quotes the splitter removed, is the variable of the environment file: $GITHUB_ENV or ${GITHUB_ENV}. */
+function namesFile(text, variable) {
+	return text === `$${variable}` || text === `\${${variable}}`;
+}
+/**
+* The index of the words that redirect the output of a command into the environment file (`>> "$GITHUB_ENV"`, also
+* written as one word), and how many words the redirection takes; undefined when it writes elsewhere.
+*/
+function fileRedirection(words, variable) {
+	for (let index = 0; index < words.length; index++) {
+		const text = words[index]?.text ?? "";
+		if (REDIRECTION.test(text) && namesFile(words[index + 1]?.text ?? "", variable)) return {
+			index,
+			count: 2
+		};
+		const attached = /^\d?>>?(.+)$/u.exec(text)?.[1];
+		if (attached !== void 0 && namesFile(attached, variable)) return {
+			index,
+			count: 1
+		};
+	}
+}
+/**
+* The lines echo or printf write: echo joins its arguments with spaces (-e reads \n as a line break); printf writes its
+* format, with \n as a line break, or each argument on a line of its own for the format %s\n. undefined for another
+* program or another format.
+*/
+function writtenLines(words) {
+	const program = words[0]?.text;
+	const args = words.slice(1).map((word) => word.text);
+	if (program === "echo") {
+		let escapes = false;
+		while (args.length > 0 && /^-[neE]+$/u.test(args[0] ?? "")) {
+			if ((args[0] ?? "").includes("e")) escapes = true;
+			args.shift();
+		}
+		const text = args.join(" ");
+		return escapes ? text.split("\\n") : [text];
+	}
+	if (program === "printf") {
+		const format = args[0];
+		if (format === void 0) return void 0;
+		if (format === "%s\\n") return args.slice(1);
+		return format.includes("%") ? void 0 : format.split("\\n");
+	}
+}
+/**
+* The variables a script sets and the commands it runs. `environmentFile` names the variable of the environment file
+* (GITHUB_ENV) in a CI run step; a Dockerfile has none. A name=value line written there with a name that is not a
+* variable name, or a multiline value (NAME<<DELIMITER), is not read.
+*/
+function readScript(script, environmentFile) {
+	const variables = [];
+	const commands = [];
+	for (const words of splitCommands(script)) {
+		const { command, assignments } = commandParts(words);
+		const first = command[0];
+		const offset = first?.offset ?? words[0]?.offset ?? 0;
+		if (first === void 0) continue;
+		if (first.text === "export") {
+			for (const word of command.slice(1)) {
+				const equals = word.text.indexOf("=");
+				const name = word.text.slice(0, equals);
+				if (equals > 0 && NAME$2.test(name)) variables.push({
+					name,
+					value: word.text.slice(equals + 1),
+					offset: word.offset,
+					how: "export"
+				});
+			}
+			continue;
+		}
+		for (const [name, value] of assignments) variables.push({
+			name,
+			value,
+			offset,
+			how: "command",
+			program: first.text
+		});
+		commands.push({
+			words: command,
+			assignments,
+			offset
+		});
+		if (environmentFile === void 0) continue;
+		const redirection = fileRedirection(command, environmentFile);
+		if (redirection === void 0) continue;
+		const lines = writtenLines([...command.slice(0, redirection.index), ...command.slice(redirection.index + redirection.count)]);
+		for (const line of lines ?? []) {
+			const equals = line.indexOf("=");
+			const name = line.slice(0, equals);
+			if (equals > 0 && NAME$2.test(name)) variables.push({
+				name,
+				value: line.slice(equals + 1),
+				offset,
+				how: "environment-file"
+			});
+		}
+	}
+	return {
+		variables,
+		commands
+	};
+}
+
 // src/detect/workflows.ts
 const MATRIX_VALUE = /^\$\{\{\s*matrix\.([A-Za-z_][A-Za-z0-9_-]*)\s*\}\}$/u;
 /** At most this many values of one matrix key are checked; a longer list is reported as not checked (a notice). */
@@ -18516,7 +18771,7 @@ function declarationJob(declaration, jobs) {
 	const job = jobs.find((entry) => entry.file === declaration.file && entry.id === declaration.job);
 	return jobLabel(declaration.job, job?.line);
 }
-function scalarText(node) {
+function scalarText$1(node) {
 	if (!(0, import_dist.isScalar)(node) || node.value === null || node.value === void 0) return void 0;
 	return String(node.value);
 }
@@ -18535,7 +18790,7 @@ function matrixValues(job, key) {
 	if (!(0, import_dist.isMap)(matrix)) return void 0;
 	const values = /* @__PURE__ */ new Map();
 	const add = (item) => {
-		const text = scalarText(item);
+		const text = scalarText$1(item);
 		if (text === void 0 || values.has(text)) return true;
 		if (values.size >= 256) return false;
 		values.set(text, item);
@@ -18554,11 +18809,11 @@ function matrixValues(job, key) {
 	}
 	const exclude = matrix.get("exclude");
 	if ((0, import_dist.isSeq)(exclude) && (0, import_dist.isSeq)(list)) {
-		const included = new Set((0, import_dist.isSeq)(include) ? include.items.map((item) => (0, import_dist.isMap)(item) ? scalarText(item.get(key, true)) : void 0) : []);
+		const included = new Set((0, import_dist.isSeq)(include) ? include.items.map((item) => (0, import_dist.isMap)(item) ? scalarText$1(item.get(key, true)) : void 0) : []);
 		for (const entry of exclude.items) {
 			if (!(0, import_dist.isMap)(entry) || entry.items.length !== 1) continue;
 			const value = entry.get(key, true);
-			const text = (0, import_dist.isScalar)(value) ? scalarText(value) : void 0;
+			const text = (0, import_dist.isScalar)(value) ? scalarText$1(value) : void 0;
 			if (text !== void 0 && !included.has(text)) values.delete(text);
 		}
 	}
@@ -18566,7 +18821,7 @@ function matrixValues(job, key) {
 }
 /** A working directory as written, without ./ and a trailing /; undefined for the root. */
 function workingDirectory(node) {
-	const text = scalarText(node)?.trim();
+	const text = scalarText$1(node)?.trim();
 	if (text === void 0) return void 0;
 	let value = text.replace(/\\/gu, "/");
 	while (value.startsWith("./")) value = value.slice(2);
@@ -18596,9 +18851,9 @@ function environmentOf(node, resolve = (item) => item, asWritten = /* @__PURE__ 
 	const map = resolve(node);
 	if (!(0, import_dist.isMap)(map)) return found;
 	for (const pair of map.items) {
-		const key = scalarText(pair.key);
+		const key = scalarText$1(pair.key);
 		const item = resolve(pair.value);
-		const value = (key !== void 0 && asWritten.has(key) && (0, import_dist.isScalar)(item) && item.type === "PLAIN" && typeof item.source === "string" ? item.source : void 0) ?? scalarText(item);
+		const value = (key !== void 0 && asWritten.has(key) && (0, import_dist.isScalar)(item) && item.type === "PLAIN" && typeof item.source === "string" ? item.source : void 0) ?? scalarText$1(item);
 		if (key !== void 0 && value !== void 0) found.set(key, value);
 	}
 	return found;
@@ -18610,7 +18865,7 @@ function defaultDirectory(node) {
 	return (0, import_dist.isMap)(run) ? workingDirectory(run.get("working-directory", true)) : void 0;
 }
 /** Whether GitHub expands YAML aliases in workflows (environment.githubActions.yamlAliases, decision D-141). */
-const EXPANDS_ALIASES = evidenceOf(environment.githubActions.yamlAliases)[0]?.value.accepted === true;
+const EXPANDS_ALIASES$1 = evidenceOf(environment.githubActions.yamlAliases)[0]?.value.accepted === true;
 /**
 * Reads an alias (*name) as the node of its anchor, as GitHub expands aliases in workflows (decision D-141): at most
 * MAX_YAML_ALIASES of them in a file, after which the others are not followed and a notice says so.
@@ -18618,7 +18873,7 @@ const EXPANDS_ALIASES = evidenceOf(environment.githubActions.yamlAliases)[0]?.va
 function aliasResolver(document, file, repository, lineOf) {
 	let left = 100;
 	return (node) => {
-		if (!EXPANDS_ALIASES || !(0, import_dist.isAlias)(node)) return node;
+		if (!EXPANDS_ALIASES$1 || !(0, import_dist.isAlias)(node)) return node;
 		if (left <= 0) {
 			if (left === 0) {
 				const line = lineOf(node);
@@ -18644,8 +18899,7 @@ function readWorkflows(repository, facts) {
 	for (const file of files) {
 		const text = repository.readText(file);
 		if (text === void 0) continue;
-		const lineCounter = new import_dist.LineCounter();
-		const document = parseYamlDocument(text, lineCounter);
+		const { document, lineCounter } = readYamlDocument(text);
 		if (document.errors.length > 0) {
 			const message = document.errors[0]?.message.split("\n", 1)[0] ?? "invalid YAML";
 			repository.warn("invalid-file", `cannot parse ${file}: ${message}`, [file]);
@@ -18659,7 +18913,7 @@ function readWorkflows(repository, facts) {
 		const { key: envKey } = facts.workflowEnvironment;
 		const workflowEnvironment = withVariables(facts.commands, environmentOf((0, import_dist.isMap)(document.contents) ? document.contents.get(envKey) : void 0, resolve, asWritten));
 		for (const pair of jobs.items) {
-			const id = scalarText(pair.key);
+			const id = scalarText$1(pair.key);
 			const job = resolve(pair.value);
 			if (id === void 0 || !(0, import_dist.isMap)(job)) continue;
 			const keyLine = (0, import_dist.isScalar)(pair.key) ? lineOf(pair.key) : void 0;
@@ -18686,7 +18940,7 @@ function readWorkflows(repository, facts) {
 				}
 				if (matrix !== void 0 && Array.isArray(expanded)) {
 					for (const item of expanded) {
-						const version = scalarText(item);
+						const version = scalarText$1(item);
 						const line = lineOf(item);
 						if (version !== void 0) findings.versions.push({
 							tool,
@@ -18728,7 +18982,7 @@ function readWorkflows(repository, facts) {
 			const { key: containerKey, imageKey, envKey: containerEnvKey } = facts.jobContainer;
 			const container = resolve(job.get(containerKey, true));
 			const imageNode = (0, import_dist.isMap)(container) ? container.get(imageKey, true) : container;
-			const image = scalarText(imageNode);
+			const image = scalarText$1(imageNode);
 			if (image !== void 0 && (0, import_dist.isScalar)(imageNode) && !image.includes("${{")) {
 				const runtime = imageRuntime(image.trim(), facts.docker);
 				const line = lineOf(imageNode);
@@ -18752,12 +19006,13 @@ function readWorkflows(repository, facts) {
 				}
 			}
 			const jobEnvironment = withVariables(facts.commands, environmentOf((0, import_dist.isMap)(container) ? container.get(containerEnvKey) : void 0, resolve, asWritten), workflowEnvironment, environmentOf(job.get(envKey), resolve, asWritten));
+			let written = /* @__PURE__ */ new Map();
 			const steps = resolve(job.get("steps"));
 			if (!(0, import_dist.isSeq)(steps)) continue;
 			for (const item of steps.items) {
 				const step = resolve(item);
 				if (!(0, import_dist.isMap)(step)) continue;
-				const uses = scalarText(step.get("uses", true));
+				const uses = scalarText$1(step.get("uses", true));
 				const action = uses === void 0 ? void 0 : findAction(facts.setupActions, uses);
 				if (action !== void 0) {
 					const stepLine = lineOf(step);
@@ -18768,7 +19023,7 @@ function readWorkflows(repository, facts) {
 					const inputs = step.get("with");
 					if ((0, import_dist.isMap)(inputs)) for (const input of action.inputs) {
 						const node = inputs.get(input.name, true);
-						const value = scalarText(node);
+						const value = scalarText$1(node);
 						if (value === void 0 || !(0, import_dist.isScalar)(node)) continue;
 						if (input.kind === "version" && input.tool !== void 0 && input.keywords?.includes(value) !== true) declare(input.tool, { version: value }, node, stepLine);
 						if (input.kind === "version-file" && input.tool !== void 0) declare(input.tool, { versionFile: value }, node, stepLine);
@@ -18781,8 +19036,13 @@ function readWorkflows(repository, facts) {
 				const run = resolve(step.get("run", true));
 				if ((0, import_dist.isScalar)(run) && typeof run.value === "string" && run.range !== void 0 && run.range !== null) {
 					const start = run.range[0];
-					const environment = withVariables(facts.commands, jobEnvironment, environmentOf(step.get(envKey), resolve, asWritten));
-					const found = findToolCommands(text.slice(start, run.range[1]), facts.commands, 0, environment);
+					const environment = withVariables(facts.commands, jobEnvironment, written, environmentOf(step.get(envKey), resolve, asWritten));
+					const script = text.slice(start, run.range[1]);
+					const found = findToolCommands(script, facts.commands, 0, environment);
+					if (script.includes(facts.environmentFile)) {
+						const writes = readScript(script, facts.environmentFile).variables.filter((variable) => variable.how === "environment-file");
+						if (writes.length > 0) written = withVariables(facts.commands, written, writes.map((variable) => [variable.name, variable.value]));
+					}
 					const runLine = lineCounter.linePos(start).line;
 					for (const message of overLimitMessages(found.overLimit, `the run step of ${jobLabel(id, keyLine)} in ${file} (line ${runLine})`)) repository.warn("script-not-followed", message, [file], runLine);
 					record.runsNode ||= found.runsNode;
@@ -18958,7 +19218,7 @@ function normalizePythonName(name) {
 }
 
 // src/apply/expected.ts
-function isObject$3(value) {
+function isObject$4(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 /** A copy of `data` with `value` at `path`; missing objects on the way, or values that are not objects, become objects. */
@@ -18970,7 +19230,7 @@ function withValue(data, path, value) {
 		copy[segment] = withValue(data[segment], rest, value);
 		return copy;
 	}
-	const copy = isObject$3(data) ? { ...data } : {};
+	const copy = isObject$4(data) ? { ...data } : {};
 	const key = String(segment);
 	const current = Object.hasOwn(copy, key) ? copy[key] : void 0;
 	Object.defineProperty(copy, key, {
@@ -18999,7 +19259,7 @@ function withValues(data, edits) {
 			root = value;
 			continue;
 		}
-		if (!(Array.isArray(root) && typeof path[0] === "number") && !isObject$3(root)) root = {};
+		if (!(Array.isArray(root) && typeof path[0] === "number") && !isObject$4(root)) root = {};
 		let container = root;
 		for (const [index, segment] of path.entries()) {
 			const last = index === path.length - 1;
@@ -19009,7 +19269,7 @@ function withValues(data, edits) {
 				else {
 					const next = container[segment];
 					const nextSegment = path[index + 1];
-					if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject$3(next)) container[segment] = {};
+					if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject$4(next)) container[segment] = {};
 					container = container[segment];
 				}
 				continue;
@@ -19021,7 +19281,7 @@ function withValues(data, edits) {
 			}
 			const next = Object.hasOwn(object, key) ? object[key] : void 0;
 			const nextSegment = path[index + 1];
-			if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject$3(next)) define(object, key, {});
+			if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject$4(next)) define(object, key, {});
 			container = object[key];
 		}
 	}
@@ -19030,8 +19290,8 @@ function withValues(data, edits) {
 /** A copy of `data` without the key `key` of the object at `path`; `data` itself when there is no object there. */
 function withoutKey(data, path, key) {
 	let current = data;
-	for (const segment of path) current = (isObject$3(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
-	if (!isObject$3(current)) return data;
+	for (const segment of path) current = (isObject$4(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
+	if (!isObject$4(current)) return data;
 	const copy = {};
 	for (const [name, value] of Object.entries(current)) if (name !== key) Object.defineProperty(copy, name, {
 		value,
@@ -19044,7 +19304,7 @@ function withoutKey(data, path, key) {
 /** A copy of `data` with the array at `path` changed by `change`. */
 function withArray(data, path, change) {
 	let current = data;
-	for (const segment of path) current = (isObject$3(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
+	for (const segment of path) current = (isObject$4(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
 	return withValue(data, path, change(Array.isArray(current) ? [...current] : []));
 }
 /** Whether two parsed documents hold the same data, keys in the same order. */
@@ -19498,35 +19758,35 @@ const isSyntax = (value) => isRecord(value) && isRecord(value["endOfScript"]) &&
 	"closing"
 ].every((key) => isRecord(value["keywords"]) && isStrings$7(value["keywords"][key])) && value["keywords"]["closing"].length === 1;
 const isParsers = (value) => isRecord(value) && isRecord(value["differences"]) && typeof value["differences"]["characterBeyondAscii"] === "boolean" && isStrings$7(value["differences"]["embeddedDocumentAfter"]) && typeof value["differences"]["globalZeroWithName"] === "boolean";
-const SYNTAX$1 = extraOf(bundler$1, "rubySyntax", isSyntax);
+const SYNTAX$2 = extraOf(bundler$1, "rubySyntax", isSyntax);
 const DIFFERENCES = extraOf(bundler$1, "rubyParsers", isParsers).differences;
-const [EMBEDDED_BEGIN, EMBEDDED_END] = SYNTAX$1.embeddedDocument;
-const END_CHARACTERS = new Set(SYNTAX$1.endOfScript.characters);
-const PAIRS = new Map(Object.entries(SYNTAX$1.pairedDelimiters).filter((entry) => typeof entry[1] === "string"));
-const EXPANDING = new Set(SYNTAX$1.percentLiterals.expanding);
-const PERCENT_TYPES = /* @__PURE__ */ new Set([...SYNTAX$1.percentLiterals.expanding, ...SYNTAX$1.percentLiterals.plain]);
-const HEREDOC_INDENT = new Set(SYNTAX$1.heredocIndent);
-const GLOBAL_PUNCTUATION = new Set(SYNTAX$1.globalPunctuation);
+const [EMBEDDED_BEGIN, EMBEDDED_END] = SYNTAX$2.embeddedDocument;
+const END_CHARACTERS = new Set(SYNTAX$2.endOfScript.characters);
+const PAIRS = new Map(Object.entries(SYNTAX$2.pairedDelimiters).filter((entry) => typeof entry[1] === "string"));
+const EXPANDING = new Set(SYNTAX$2.percentLiterals.expanding);
+const PERCENT_TYPES = /* @__PURE__ */ new Set([...SYNTAX$2.percentLiterals.expanding, ...SYNTAX$2.percentLiterals.plain]);
+const HEREDOC_INDENT = new Set(SYNTAX$2.heredocIndent);
+const GLOBAL_PUNCTUATION = new Set(SYNTAX$2.globalPunctuation);
 /** The characters after =begin that start a comment for parse.y only (extra.rubyParsers). */
 const EMBEDDED_PARSE_Y_ONLY = new Set(DIFFERENCES.embeddedDocumentAfter);
 /** Keywords whose code end closes, the loops whose condition may end with do, and end. */
-const OPENING = new Set(SYNTAX$1.keywords.opening);
-const LOOPS = new Set(SYNTAX$1.keywords.loops);
-const CLOSING = new Set(SYNTAX$1.keywords.closing);
-const END_KEYWORD = SYNTAX$1.keywords.closing.join(" ");
+const OPENING = new Set(SYNTAX$2.keywords.opening);
+const LOOPS = new Set(SYNTAX$2.keywords.loops);
+const CLOSING = new Set(SYNTAX$2.keywords.closing);
+const END_KEYWORD = SYNTAX$2.keywords.closing.join(" ");
 /** The brackets that nest code: ( [ { and what closes them (pairedDelimiters without <). */
 const BRACKETS = new Map([...PAIRS].filter(([open]) => open !== "<"));
 const KEYWORD_STATES = new Map([
-	...SYNTAX$1.keywords.end.map((word) => [word, "end"]),
-	...SYNTAX$1.keywords.statement.map((word) => [word, "stmt"]),
-	...SYNTAX$1.keywords.value.map((word) => [word, "beg"]),
-	...SYNTAX$1.keywords.mid.map((word) => [word, "mid"]),
-	...SYNTAX$1.keywords.argument.map((word) => [word, "arg"]),
-	...SYNTAX$1.keywords.methodName.map((word) => [word, "def"]),
-	...SYNTAX$1.keywords.className.map((word) => [word, "class"]),
-	...SYNTAX$1.keywords.names.map((word) => [word, "names"])
+	...SYNTAX$2.keywords.end.map((word) => [word, "end"]),
+	...SYNTAX$2.keywords.statement.map((word) => [word, "stmt"]),
+	...SYNTAX$2.keywords.value.map((word) => [word, "beg"]),
+	...SYNTAX$2.keywords.mid.map((word) => [word, "mid"]),
+	...SYNTAX$2.keywords.argument.map((word) => [word, "arg"]),
+	...SYNTAX$2.keywords.methodName.map((word) => [word, "def"]),
+	...SYNTAX$2.keywords.className.map((word) => [word, "class"]),
+	...SYNTAX$2.keywords.names.map((word) => [word, "names"])
 ]);
-const MODIFIERS = new Set(SYNTAX$1.keywords.modifiers);
+const MODIFIERS = new Set(SYNTAX$2.keywords.modifiers);
 /** Where an expression begins: %, / and << start literals there, ? a character literal. */
 const BEGINS = /* @__PURE__ */ new Set([
 	"stmt",
@@ -19760,7 +20020,7 @@ var Scanner = class {
 			if ((text[j] === "e" || text[j] === "E") && (isDigit(text[j + 1]) || (text[j + 1] === "+" || text[j + 1] === "-") && isDigit(text[j + 2]))) j = run(text[j + 1] === "+" || text[j + 1] === "-" ? j + 2 : j + 1, isDigit);
 		}
 		let k = j;
-		for (const suffix of SYNTAX$1.numberSuffixes) if (text[k] === suffix) k++;
+		for (const suffix of SYNTAX$2.numberSuffixes) if (text[k] === suffix) k++;
 		if (!isIdentChar(text[k])) return k;
 		let end = j;
 		while (isIdentChar(text[end])) end++;
@@ -19912,8 +20172,8 @@ var Scanner = class {
 			this.#atLineStart = true;
 			return true;
 		}
-		if (text.startsWith(SYNTAX$1.endOfScript.marker, this.#i) && this.#lineText(this.#i) === SYNTAX$1.endOfScript.marker) {
-			if (this.#stack.length > 1) this.#syntaxError(`${SYNTAX$1.endOfScript.marker} inside an interpolation`);
+		if (text.startsWith(SYNTAX$2.endOfScript.marker, this.#i) && this.#lineText(this.#i) === SYNTAX$2.endOfScript.marker) {
+			if (this.#stack.length > 1) this.#syntaxError(`${SYNTAX$2.endOfScript.marker} inside an interpolation`);
 			this.#endOfScript();
 		}
 		if (this.#stack.length === 1) this.#maybeRecord(frame);
@@ -20806,7 +21066,7 @@ var Scanner = class {
 };
 /** Reads a Gemfile as Ruby's lexer does (see the comment at the top). */
 function scanRuby(text, options = {}) {
-	const read = options.newlinesRead === true || !text.includes(SYNTAX$1.lineEnding) ? text : text.replaceAll(SYNTAX$1.lineEnding, "\n");
+	const read = options.newlinesRead === true || !text.includes(SYNTAX$2.lineEnding) ? text : text.replaceAll(SYNTAX$2.lineEnding, "\n");
 	return new Scanner(read).run();
 }
 /**
@@ -20827,9 +21087,9 @@ function originalPosition(crs, at) {
 function lineEndingPositions(original) {
 	const positions = [];
 	let removed = 0;
-	for (let at = original.indexOf(SYNTAX$1.lineEnding); at !== -1; at = original.indexOf(SYNTAX$1.lineEnding, at + SYNTAX$1.lineEnding.length)) {
+	for (let at = original.indexOf(SYNTAX$2.lineEnding); at !== -1; at = original.indexOf(SYNTAX$2.lineEnding, at + SYNTAX$2.lineEnding.length)) {
 		positions.push(at - removed);
-		removed += SYNTAX$1.lineEnding.length - 1;
+		removed += SYNTAX$2.lineEnding.length - 1;
 	}
 	return positions;
 }
@@ -21996,7 +22256,7 @@ const SOURCE_ORDER = [
 	"github-actions",
 	"dockerfile"
 ];
-function isObject$2(value) {
+function isObject$3(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function stringList(value) {
@@ -22004,7 +22264,7 @@ function stringList(value) {
 }
 /** devEngines entries may be one object or a list of objects with a name and an optional version. */
 function devEngineEntries(value) {
-	return (Array.isArray(value) ? value : [value]).flatMap((entry) => isObject$2(entry) && typeof entry["name"] === "string" ? [{
+	return (Array.isArray(value) ? value : [value]).flatMap((entry) => isObject$3(entry) && typeof entry["name"] === "string" ? [{
 		name: entry["name"],
 		...typeof entry["version"] === "string" ? { version: entry["version"] } : {}
 	}] : []);
@@ -22096,7 +22356,7 @@ var Collector = class {
 function readPackageJson(repository) {
 	if (!repository.isFile("package.json")) return void 0;
 	const parsed = repository.parse("package.json", (text) => JSON.parse(text));
-	return isObject$2(parsed) ? parsed : void 0;
+	return isObject$3(parsed) ? parsed : void 0;
 }
 function readPackageManagerField(repository, facts, manifest, collector) {
 	const value = manifest[facts.packageManagerKey];
@@ -22122,7 +22382,7 @@ function readPackageManagerField(repository, facts, manifest, collector) {
 }
 function readDevEngines(facts, manifest, collector) {
 	const devEngines = manifest[facts.devEngines.key];
-	if (!isObject$2(devEngines)) return;
+	if (!isObject$3(devEngines)) return;
 	for (const entry of devEngineEntries(devEngines[facts.devEngines.packageManagerKey])) {
 		const manager = facts.managers.find((item) => item.id === entry.name);
 		if (manager === void 0) continue;
@@ -22141,7 +22401,7 @@ function readDevEngines(facts, manifest, collector) {
 }
 function readVolta(facts, manifest, collector) {
 	const volta = manifest[facts.volta.key];
-	if (!isObject$2(volta)) return;
+	if (!isObject$3(volta)) return;
 	for (const tool of facts.volta.tools) {
 		const version = volta[tool];
 		if (typeof version === "string") collector.addVersion(tool, {
@@ -22196,7 +22456,7 @@ function readNodeFiles(repository, facts, manifest, collector) {
 		}
 	}
 	const engines = manifest?.[facts.nodeFiles.engines.key];
-	const range = isObject$2(engines) ? engines[facts.nodeFiles.engines.runtimeKey] : void 0;
+	const range = isObject$3(engines) ? engines[facts.nodeFiles.engines.runtimeKey] : void 0;
 	if (typeof range === "string") collector.addVersion("node", {
 		version: range,
 		source: "engines",
@@ -22210,15 +22470,15 @@ function versionFromFile(repository, facts, path, manifest) {
 	if (file === "" || !repository.isFile(file)) return void 0;
 	if (file.endsWith(".json")) {
 		const json = file === versionFile.packageJson ? manifest : repository.parse(file, (text) => JSON.parse(text));
-		if (!isObject$2(json)) return void 0;
+		if (!isObject$3(json)) return void 0;
 		for (const key of versionFile.packageJsonOrder) {
 			if (key === `${facts.devEngines.key}.${facts.devEngines.runtimeKey}`) {
 				const devEngines = json[facts.devEngines.key];
-				const entry = (isObject$2(devEngines) ? devEngineEntries(devEngines[facts.devEngines.runtimeKey]) : []).find((item) => item.name.toLowerCase() === "node" && item.version !== void 0);
+				const entry = (isObject$3(devEngines) ? devEngineEntries(devEngines[facts.devEngines.runtimeKey]) : []).find((item) => item.name.toLowerCase() === "node" && item.version !== void 0);
 				if (entry?.version !== void 0) return entry.version;
 				continue;
 			}
-			const value = key.split(".").reduce((node, part) => isObject$2(node) ? node[part] : void 0, json);
+			const value = key.split(".").reduce((node, part) => isObject$3(node) ? node[part] : void 0, json);
 			if (typeof value === "string") return value;
 		}
 		return;
@@ -22291,10 +22551,10 @@ function readWorkspaces(repository, facts, manifest) {
 			if (seen.has(id) || !repository.isFile(file)) continue;
 			seen.add(id);
 			const document = file.endsWith(".toml") ? readToml(repository, file)?.root : readDocument(repository, file, manifest);
-			if (!isObject$2(document)) continue;
-			const value = key.split(".").reduce((node, part) => isObject$2(node) && Object.hasOwn(node, part) ? node[part] : void 0, document);
-			const patterns = stringList(value) ?? (objectKey !== null && isObject$2(value) ? stringList(value[objectKey]) : void 0);
-			const excluded = excludeKey !== void 0 && isObject$2(value) ? stringList(value[excludeKey]) ?? [] : [];
+			if (!isObject$3(document)) continue;
+			const value = key.split(".").reduce((node, part) => isObject$3(node) && Object.hasOwn(node, part) ? node[part] : void 0, document);
+			const patterns = stringList(value) ?? (objectKey !== null && isObject$3(value) ? stringList(value[objectKey]) : void 0);
+			const excluded = excludeKey !== void 0 && isObject$3(value) ? stringList(value[excludeKey]) ?? [] : [];
 			const manifests = [...new Set(facts.managers.filter((other) => other.ecosystem === manager.ecosystem).flatMap((other) => other.manifests))];
 			if (patterns !== void 0) declarations.push({
 				file,
@@ -23419,7 +23679,7 @@ function ignoreOutsideText(entry, where, line = false) {
 /** plugin-api-version of composer.lock: the plugin API of the Composer that wrote it. */
 function lockedPluginApi(repository, tool, lockfile) {
 	const fact = extraOf(tool, "pluginApiVersion", (value) => isRecord(value) && typeof value["key"] === "string");
-	const text = repository.readText(lockfile, 67108864);
+	const text = repository.readText(lockfile);
 	if (text === void 0) return void 0;
 	const found = jsonSetting(text, [fact.key]);
 	return typeof found?.value === "string" ? {
@@ -24190,8 +24450,6 @@ function requirementsEntries(input, format) {
 }
 
 // src/doctor/lockfiles.ts
-/** Lockfiles are often larger than configuration files. */
-const MAX_LOCKFILE_SIZE = 67108864;
 /**
 * YAML lockfiles (pnpm-lock.yaml, Yarn Berry's yarn.lock) are parsed into a syntax tree that takes about 60 times the
 * size of the file in memory: a 16 MiB one about 1 GiB of the 2 GiB that Node.js gives itself on a CI runner with
@@ -24748,13 +25006,13 @@ function entryLines(text, start, entries) {
 	};
 }
 /** Lockfiles already read in a doctor run (one Repository): both lockfile rules read the same ones. */
-const READ = /* @__PURE__ */ new WeakMap();
+const READ$1 = /* @__PURE__ */ new WeakMap();
 /** The lockfiles a package manager uses, each read and parsed once per Repository. */
 function readLockfiles(repository, manager, tool, workspaces, tools = []) {
-	let read = READ.get(repository);
+	let read = READ$1.get(repository);
 	if (read === void 0) {
 		read = /* @__PURE__ */ new Map();
-		READ.set(repository, read);
+		READ$1.set(repository, read);
 	}
 	let results = read.get(manager);
 	if (results === void 0) {
@@ -25403,12 +25661,12 @@ const UNIT_MINUTES = {
 function word(unit) {
 	return MINUTES$2[unit.toLowerCase().replace(/s$/u, "")];
 }
-const SYNTAX = {
+const SYNTAX$1 = {
 	compact: (text) => {
 		const match = /^(\d+)(ms|s|m|h|d|w)$/u.exec(text);
 		return match === null ? void 0 : Number(match[1]) * (MINUTES$2[match[2] ?? ""] ?? NaN);
 	},
-	"compact-or-words": (text) => SYNTAX["compact"]?.(text) ?? SYNTAX["words"]?.(text),
+	"compact-or-words": (text) => SYNTAX$1["compact"]?.(text) ?? SYNTAX$1["words"]?.(text),
 	words: (text) => {
 		const parts = [...text.matchAll(/(\d+)\s*([a-z]+)/giu)];
 		if (parts.length === 0 || parts.map((part) => part[0]).join(" ").replaceAll(/\s+/gu, "") !== text.replaceAll(/\s+/gu, "")) return void 0;
@@ -25424,7 +25682,7 @@ const SYNTAX = {
 		const match = /^(\d+)\s*(second|minute|hour|day|week)s?$/u.exec(text);
 		return match === null ? void 0 : Number(match[1]) * (MINUTES$2[match[2] ?? ""] ?? NaN);
 	},
-	"words-or-iso8601": (text) => SYNTAX["iso8601"]?.(text) ?? SYNTAX["words"]?.(text),
+	"words-or-iso8601": (text) => SYNTAX$1["iso8601"]?.(text) ?? SYNTAX$1["words"]?.(text),
 	iso8601: (text) => {
 		const match = /^P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/u.exec(text);
 		if (match === null || text === "P" || text.endsWith("T")) return void 0;
@@ -25481,7 +25739,7 @@ function delayMinutes(tool, value, version) {
 		ok: false,
 		reason: `${tool.name} accepts duration strings only since ${format["since"]}`
 	};
-	const minutes = SYNTAX[format["syntax"]]?.(text);
+	const minutes = SYNTAX$1[format["syntax"]]?.(text);
 	return minutes === void 0 ? {
 		ok: false,
 		reason: `"${text}" is not a duration ${tool.name} understands`
@@ -26402,7 +26660,7 @@ const SOURCE_LABEL = {
 	"github-actions": "GitHub Actions",
 	dockerfile: "Dockerfile"
 };
-const RULE$4 = "manager-version-too-old";
+const RULE$5 = "manager-version-too-old";
 /** Where developers choose their Node.js; anyone can install another npm, so these give warnings. */
 const DEVELOPER_SOURCES = /* @__PURE__ */ new Set([
 	"nvmrc",
@@ -26549,7 +26807,7 @@ function nodeSubject(declaration, label, jobs = []) {
 	return `Node.js ${declaration.version}${matrix}${container}${from} in ${label === where ? label : `${label} (${where})`}`;
 }
 /** nodeBundledNpm with the result kept per text, for a matrix that repeats one version in many steps. */
-function resolver(facts) {
+function resolver$1(facts) {
 	const known = /* @__PURE__ */ new Map();
 	return (text, naming) => {
 		const key = `${naming}\u0000${text}`;
@@ -26831,7 +27089,7 @@ function upgradeEntry(spec, where, location, nodes = []) {
 * strict-allow-scripts from this list, and doctor promises it from the same list.
 */
 function npmInUse(detection, manifest, label, options = {}) {
-	const resolve = resolver(sharedFacts());
+	const resolve = resolver$1(sharedFacts());
 	const found = [];
 	const keys = /* @__PURE__ */ new Set();
 	const push = (entry) => {
@@ -27120,7 +27378,7 @@ function report(context, helpers, check, place, resolution, facts) {
 	});
 }
 function unknown(context, subject, reason, file) {
-	context.notice(`${RULE$4} cannot tell which npm or pip comes with ${subject}: ${reason}`, file);
+	context.notice(`${RULE$5} cannot tell which npm or pip comes with ${subject}: ${reason}`, file);
 }
 /**
 * The npm an npm install -g npm@X puts in place, checked against the settings of the directory its installs run in, as
@@ -27134,7 +27392,7 @@ function checkUpgrade(context, helpers, check, place, facts) {
 	const where = place.label === place.file ? place.label : `${place.label} (${place.file})`;
 	const lowest = lowestVersion(spec);
 	if (lowest.kind === "unknown") {
-		context.notice(`${RULE$4} cannot evaluate ${name} version "${spec}" in ${place.file}`, place.file);
+		context.notice(`${RULE$5} cannot evaluate ${name} version "${spec}" in ${place.file}`, place.file);
 		return;
 	}
 	const missing = helpers.missing(placeFeatures(check.features, place.of), (since) => belowVersion(lowest, since));
@@ -27166,7 +27424,7 @@ function checkUpgrade(context, helpers, check, place, facts) {
 */
 function checkJobs(context, helpers, checkFor, facts) {
 	const projects = (context.projects ?? []).map((view) => view.directory);
-	const resolve = resolver(facts);
+	const resolve = resolver$1(facts);
 	for (const place of jobPlaces(context.detection, projects)) {
 		const { job, project, installs } = place;
 		const check = checkFor(project);
@@ -27261,7 +27519,7 @@ function checkDockerfiles(context, helpers, checkFor, tool, facts) {
 					file: file.file,
 					line: root.line
 				},
-				message: `${RULE$4} cannot tell which ${tool} comes with ${subject}: ${runtime.unknown ?? "the tag names no version"}`,
+				message: `${RULE$5} cannot tell which ${tool} comes with ${subject}: ${runtime.unknown ?? "the tag names no version"}`,
 				fix: `Use a ${runtimeTool} image tag that names the ${runtimeName} version (such as ${runtimeTool}:${runtimeTool === "node" ? "24-alpine" : "3.13-slim"}, with the digest after it: ${runtimeTool}:<tag>@sha256:…), or check by hand that the ${tool} of that image supports ${list}`
 			});
 			continue;
@@ -27934,10 +28192,10 @@ function parseDuration(input) {
 
 // src/version.ts
 const PACKAGE_JSON = new URL("../package.json", import.meta.url);
-let cached;
+let cached$1;
 function getVersion() {
-	cached ??= JSON.parse(readFileSync(PACKAGE_JSON, "utf8")).version;
-	return cached;
+	cached$1 ??= JSON.parse(readFileSync(PACKAGE_JSON, "utf8")).version;
+	return cached$1;
 }
 
 // src/self-version.ts
@@ -28471,7 +28729,7 @@ const MINUTES = {
 	days: 1440,
 	weeks: 10080
 };
-const SOURCE_LABELS = {
+const SOURCE_LABELS$1 = {
 	npm: {
 		git: "git",
 		remoteTarball: "remote tarball",
@@ -28662,7 +28920,7 @@ function eachSource(context, apply) {
 		if (setting === null) {
 			if (access === "deny") context.warn({
 				code: "source-not-enforceable",
-				message: `${context.name} has no setting for ${SOURCE_LABELS[ecosystemOfTool(context.tool)][kind]} dependencies, so "deny" cannot be enforced`,
+				message: `${context.name} has no setting for ${SOURCE_LABELS$1[ecosystemOfTool(context.tool)][kind]} dependencies, so "deny" cannot be enforced`,
 				fix: lockfileShowsSources(context.tool) ? `Run depcurfew doctor, which reports such dependencies in ${dependencyFiles(context)}` : "Review new dependencies by hand; depcurfew doctor cannot see them in the lockfile either"
 			});
 			continue;
@@ -29599,7 +29857,7 @@ function parseIgnoreFile(text, file, base, ignoreCase = false) {
 function foldCase(text) {
 	return text.replaceAll(/[A-Z]/gu, (letter) => letter.toLowerCase());
 }
-function matches(rule, path, directory) {
+function matches$1(rule, path, directory) {
 	if (rule.base !== "" && !path.startsWith(`${rule.base}/`)) return false;
 	if (rule.directoryOnly && !directory) return false;
 	if (rule.glob === void 0) return void 0;
@@ -29610,7 +29868,7 @@ function matches(rule, path, directory) {
 function decide(rules, path, directory) {
 	let decided;
 	for (const rule of rules) {
-		const result = matches(rule, path, directory);
+		const result = matches$1(rule, path, directory);
 		if (result === void 0) {
 			if (rule.negate) return "unknown";
 			continue;
@@ -30219,7 +30477,7 @@ function denyListSince(context) {
 /** composer.lock hashes config.policy (2.11.0+): after a change there composer install warns and composer validate fails until it is locked again. */
 function relockWarning$1(context, file, before, after) {
 	const hash = extraOf(context.tool, "contentHash", isContentHash$1);
-	if (JSON.stringify(before) === JSON.stringify(after) || !context.exists(hash.file) || !context.atLeast(hash.since)) return;
+	if (JSON.stringify(before) === JSON.stringify(after) || !context.isFile(hash.file) || !context.atLeast(hash.since)) return;
 	context.warn({
 		code: "lockfile-out-of-date",
 		location: { file: hash.file },
@@ -30612,11 +30870,12 @@ function createContext(options) {
 		} catch (error) {
 			if (error instanceof EditFailed) throw error;
 			const message = (error instanceof Error ? error.message : String(error)).split("\n", 1)[0]?.replace(/:$/u, "") ?? "";
+			const fix = error instanceof RefusedEdit ? error.fix : error?.fix;
 			failures.push({
 				tool: tool.id,
 				file,
 				message,
-				...error instanceof RefusedEdit ? { fix: error.fix } : {}
+				...typeof fix === "string" ? { fix } : {}
 			});
 			throw new EditFailed(message);
 		}
@@ -31071,7 +31330,7 @@ function relockWarning(context, file, table, edit) {
 	const { tool } = context;
 	if (tool.extra?.["lockedSettings"] === void 0) return;
 	const locked = extraOf(tool, "lockedSettings", isLockedSettings$1);
-	const lockfile = (tool.project === void 0 ? [] : values$1(tool.project.lockfiles)).flatMap((versions) => versions.flatMap((entry) => entry.value)).find((name) => context.exists(name));
+	const lockfile = (tool.project === void 0 ? [] : values$1(tool.project.lockfiles)).flatMap((versions) => versions.flatMap((entry) => entry.value)).find((name) => context.isFile(name));
 	if (lockfile === void 0) return;
 	const body = context.exists(file) ? context.read(file) : "";
 	let before;
@@ -32693,6 +32952,10 @@ function fileSystemReason(error) {
 	if (code !== void 0 && reasons[code] !== void 0) return reasons[code];
 	return code ?? (error instanceof Error ? error.message : String(error));
 }
+/** A limit in MiB, as messages give it: 1 MiB, 64 MiB. */
+function mebibytes(bytes) {
+	return `${bytes / 1048576} MiB`;
+}
 /** Decodes UTF-8 strictly: a byte sequence that is not UTF-8 would otherwise become U+FFFD and be written back so. */
 const UTF8 = new TextDecoder("utf-8", {
 	fatal: true,
@@ -32769,10 +33032,11 @@ var Workspace = class {
 			const blocked = this.#notADirectory(file);
 			if (blocked !== void 0) throw blocked;
 		} else {
-			const read = readLimited$1(path, MAX_FILE_SIZE, { noFollow: true });
+			const limit = readLimitFor(file);
+			const read = readLimited$1(path, limit, { noFollow: true });
 			if (read.ok) bytes = read.bytes;
 			else if (read.problem === "symlink") throw symlink();
-			else if (read.problem === "too-large") throw this.#fail(file, { kind: "too-large" }, `${name} is larger than 1 MiB, so depcurfew does not edit it`);
+			else if (read.problem === "too-large") throw this.#fail(file, { kind: "too-large" }, `${name} is larger than ${mebibytes(limit)}, so depcurfew does not edit it`);
 			else if (read.problem === "not-a-file") {
 				const directory = stats.isDirectory();
 				throw this.#fail(file, { kind: directory ? "directory" : "not-a-file" }, `${name} cannot be read: ${directory ? "it is a directory" : "it is not a regular file"}`);
@@ -32826,10 +33090,25 @@ var Workspace = class {
 	read(file) {
 		return this.#load(file).body;
 	}
-	/** Applies an edit to the file's text (LF line endings); a missing file starts empty. */
+	/**
+	* Applies an edit to the file's text (LF line endings); a missing file starts empty. An edit after which the file would
+	* be larger than the limit of reading it is refused (decision D-166): neither the next apply nor doctor could read the
+	* file it wrote, so apply would not be idempotent and doctor would report the file as unreadable.
+	*/
 	edit(file, change) {
 		const entry = this.#load(file);
-		entry.body = change(entry.body);
+		const body = change(entry.body);
+		const limit = readLimitFor(file);
+		const over = () => {
+			const bytes = Buffer.byteLength(body);
+			if (entry.style.eol === "\n" && bytes + 3 <= limit) return false;
+			return Buffer.byteLength(restoreStyle(body, entry.style, entry.original ?? void 0)) > limit;
+		};
+		if (body.length > limit / 4 && over()) {
+			const name = this.#name(file);
+			throw Object.assign(this.#fail(file, { kind: "result-too-large" }, `${name} would be larger than ${mebibytes(limit)} after this change, more than depcurfew reads, so depcurfew does not edit it`), { fix: `Make ${name} smaller (for example by removing entries or comments it no longer needs), so that it stays under ${mebibytes(limit)} with the settings depcurfew adds, then run depcurfew apply again` });
+		}
+		entry.body = body;
 	}
 	changes() {
 		const changes = [];
@@ -35803,8 +36082,307 @@ function bundleConfigValue(text, key) {
 	};
 }
 
+// src/doctor/ci-settings.ts
+const ENV_KEY = evidenceOf(environment.githubActions.environmentKeys)[0]?.value.key ?? "env";
+const CONTAINER = evidenceOf(environment.githubActions.jobContainer)[0]?.value ?? {
+	key: "container",
+	imageKey: "image",
+	envKey: "env"
+};
+const ENVIRONMENT_FILE = evidenceOf(environment.githubActions.environmentFile)[0]?.value.variable ?? "GITHUB_ENV";
+const EXPANDS_ALIASES = evidenceOf(environment.githubActions.yamlAliases)[0]?.value.accepted === true;
+const SYNTAX = evidenceOf(environment.docker.syntax)[0]?.value;
+const DOCKER_ENV = evidenceOf(environment.docker.environment)[0]?.value;
+const BUILD_ARGUMENTS = evidenceOf(environment.docker.buildArguments)[0]?.value;
+const READ = /* @__PURE__ */ new WeakMap();
+/** An extra fact of a tool as its value, or undefined. */
+function extraValue(key) {
+	return knowledgeBase.flatMap((tool) => tool.extra?.[key] === void 0 ? [] : evidenceOf(tool.extra[key]).map((entry) => entry.value));
+}
+const isObject$2 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+const listOf = (value) => Array.isArray(value) ? value : [];
+/**
+* The variables the rules look at, in lower case (a superset of each tool's spellings): those of installOverrides,
+* Composer's environmentOverrides, Bundler's cooldownSetting and npm's settingOverrides. Others are not kept, so that a
+* workflow or a Dockerfile with thousands of other variables costs little (decision D-121).
+*/
+const WATCHED_VARIABLES = new Set([...extraValue("installOverrides").flatMap((value) => isObject$2(value) ? listOf(value["variables"]) : []), ...extraValue("environmentOverrides").flatMap(listOf)].flatMap((entry) => isObject$2(entry) && typeof entry["name"] === "string" ? [entry["name"]] : []).concat(extraValue("cooldownSetting").flatMap((value) => isObject$2(value) && typeof value["variable"] === "string" ? [value["variable"]] : [])).concat(extraValue("settingOverrides").flatMap((value) => isObject$2(value) && typeof value["variablePrefix"] === "string" ? listOf(value["settings"]).flatMap((entry) => isObject$2(entry) && typeof entry["setting"] === "string" ? [`${String(value["variablePrefix"])}${entry["setting"].replaceAll("-", "_")}`] : []) : [])).map((name) => name.toLowerCase()));
+/** The programs the rules look at: those of each tool's commandLine, Bundler's executables and composer. */
+const WATCHED_PROGRAMS = /* @__PURE__ */ new Set([...extraValue("commandLine").flatMap((value) => isObject$2(value) ? [...listOf(value["add"]), ...listOf(value["run"]).map((entry) => isObject$2(entry) ? entry["command"] : void 0)].flatMap((command) => Array.isArray(command) && typeof command[0] === "string" ? [command[0]] : []) : []), ...extraValue("resolveCommands").flatMap((value) => isObject$2(value) ? listOf(value["executables"]).filter((item) => typeof item === "string") : [])]);
+const watchedVariable = (name) => WATCHED_VARIABLES.has(name.toLowerCase());
+const watchedProgram = (word) => word !== void 0 && WATCHED_PROGRAMS.has(programName(word));
+/** The settings of the workflows and Dockerfiles detection found, read once per repository. */
+function ciSettings(repository, detection) {
+	let found = READ.get(repository);
+	if (found === void 0) {
+		found = {
+			variables: [],
+			commands: []
+		};
+		for (const file of detection.workflows) readWorkflow(repository, file, found);
+		for (const dockerfile of detection.dockerfiles) readDockerfileSettings(repository, dockerfile.file, found);
+		READ.set(repository, found);
+	}
+	return found;
+}
+function scalarText(node) {
+	if (!(0, import_dist.isScalar)(node) || node.value === null || node.value === void 0) return void 0;
+	return String(node.value);
+}
+/** Reads an alias as the node of its anchor, as GitHub does (decision D-141), at most MAX_YAML_ALIASES of them in a file. */
+function resolver(document) {
+	let left = 100;
+	return (node) => {
+		if (!(0, import_dist.isAlias)(node)) return node;
+		if (!EXPANDS_ALIASES || left <= 0) return void 0;
+		left -= 1;
+		return node.resolve(document);
+	};
+}
+function readWorkflow(repository, file, found) {
+	const text = repository.readText(file);
+	if (text === void 0) return;
+	const { document, lineCounter } = readYamlDocument(text);
+	if (document.errors.length > 0) return;
+	const resolve = resolver(document);
+	const lineOf = (node) => node === null || node === void 0 || node.range === void 0 || node.range === null ? void 0 : lineCounter.linePos(node.range[0]).line;
+	const envMap = (node, where) => {
+		const map = resolve(node);
+		if (!(0, import_dist.isMap)(map)) return;
+		for (const pair of map.items) {
+			const name = scalarText(pair.key);
+			const value = scalarText(resolve(pair.value));
+			if (name === void 0 || value === void 0 || !watchedVariable(name)) continue;
+			const line = lineOf(pair.key);
+			found.variables.push({
+				name,
+				value,
+				kind: "env",
+				file,
+				...line === void 0 ? {} : { line },
+				where
+			});
+		}
+	};
+	const root = document.contents;
+	if (!(0, import_dist.isMap)(root)) return;
+	envMap(root.get(ENV_KEY, true), "the workflow");
+	const jobs = resolve(root.get("jobs", true));
+	if (!(0, import_dist.isMap)(jobs)) return;
+	for (const pair of jobs.items) {
+		const id = scalarText(pair.key);
+		const job = resolve(pair.value);
+		if (id === void 0 || !(0, import_dist.isMap)(job)) continue;
+		const label = jobLabel(id, lineOf(pair.key));
+		envMap(job.get(ENV_KEY, true), label);
+		const container = resolve(job.get(CONTAINER.key, true));
+		if ((0, import_dist.isMap)(container)) envMap(container.get(CONTAINER.envKey, true), `the container of ${label}`);
+		const steps = resolve(job.get("steps", true));
+		if (!(0, import_dist.isSeq)(steps)) continue;
+		steps.items.forEach((item, index) => {
+			const step = resolve(item);
+			if (!(0, import_dist.isMap)(step)) return;
+			envMap(step.get(ENV_KEY, true), `step ${index + 1} of ${label}`);
+			const run = resolve(step.get("run", true));
+			if (!(0, import_dist.isScalar)(run) || typeof run.value !== "string" || run.range === void 0 || run.range === null) return;
+			const start = run.range[0];
+			const script = readScript(text.slice(start, run.range[1]), ENVIRONMENT_FILE);
+			const at = (offset) => lineCounter.linePos(start + offset).line;
+			for (const variable of script.variables) {
+				if (!watchedVariable(variable.name)) continue;
+				const kind = variable.how === "environment-file" ? "environment-file" : variable.how === "export" ? "export" : "command";
+				const program = kind === "command" ? variable.program : void 0;
+				found.variables.push({
+					name: variable.name,
+					value: variable.value,
+					kind,
+					file,
+					line: at(variable.offset),
+					where: label,
+					...program === void 0 ? {} : { program }
+				});
+			}
+			for (const command of script.commands) if (watchedProgram(command.words[0]?.text)) found.commands.push({
+				words: command.words.map((word) => word.text),
+				file,
+				line: at(command.offset),
+				where: label,
+				dockerfile: false
+			});
+		});
+	}
+}
+/** A stage as messages name it, as bundler-config-weakens does: "stage build", or "the stage at line 1". */
+function stageName(name, line) {
+	return name === void 0 ? `the stage at line ${line}` : `stage ${name}`;
+}
+function readDockerfileSettings(repository, file, found) {
+	if (SYNTAX === void 0 || DOCKER_ENV === void 0) return;
+	const text = repository.readText(file);
+	if (text === void 0) return;
+	const global = /* @__PURE__ */ new Map();
+	let stage;
+	const fromScript = (script, line, where) => {
+		const reading = readScript(script);
+		for (const variable of reading.variables) {
+			if (!watchedVariable(variable.name)) continue;
+			const kind = variable.how === "export" ? "run-export" : "run-command";
+			const program = kind === "run-command" ? variable.program : void 0;
+			found.variables.push({
+				name: variable.name,
+				value: variable.value,
+				kind,
+				file,
+				line: line(variable.offset),
+				where,
+				...program === void 0 ? {} : { program }
+			});
+		}
+		for (const command of reading.commands) if (watchedProgram(command.words[0]?.text)) found.commands.push({
+			words: command.words.map((word) => word.text),
+			file,
+			line: line(command.offset),
+			where,
+			dockerfile: true
+		});
+	};
+	for (const instruction of readDockerfileOnce(text, SYNTAX)) {
+		if (instruction.keyword === "FROM") {
+			const words = instruction.text.split(/\s+/u).filter(Boolean);
+			const position = words.findIndex((word) => !word.startsWith("--"));
+			stage = stageName(words[position + 1]?.toLowerCase() === "as" ? words[position + 2]?.toLowerCase() : void 0, instruction.line);
+			continue;
+		}
+		if (instruction.keyword === SYNTAX.globalArgInstruction && stage === void 0) {
+			for (const [name, value] of argDeclarations(instruction.text)) global.set(name, value);
+			continue;
+		}
+		if (stage === void 0) continue;
+		if (instruction.keyword === DOCKER_ENV.instruction) {
+			for (const [name, value] of envDeclarations(instruction.text, DOCKER_ENV.spaceForm)) if (watchedVariable(name)) found.variables.push({
+				name,
+				value,
+				kind: "dockerfile-env",
+				file,
+				line: instruction.line,
+				where: stage
+			});
+			continue;
+		}
+		if (BUILD_ARGUMENTS !== void 0 && BUILD_ARGUMENTS.runEnvironment && instruction.keyword === BUILD_ARGUMENTS.instruction) {
+			for (const [name, value] of argDeclarations(instruction.text)) {
+				const given = value ?? (BUILD_ARGUMENTS.globalNeedsDeclaration ? global.get(name) : void 0);
+				if (given !== void 0 && watchedVariable(name)) found.variables.push({
+					name,
+					value: given,
+					kind: "dockerfile-arg",
+					file,
+					line: instruction.line,
+					where: stage
+				});
+			}
+			continue;
+		}
+		if (instruction.keyword !== "RUN") continue;
+		const where = stage;
+		const { text: body, offset } = withoutOptions(instruction.text);
+		const exec = execWords(body);
+		if (exec !== void 0) {
+			const { command, assignments } = commandParts(exec.map((word) => ({
+				text: word,
+				offset: 0
+			})));
+			for (const [name, value] of assignments) if (watchedVariable(name)) found.variables.push({
+				name,
+				value,
+				kind: "run-command",
+				file,
+				line: instruction.line,
+				where,
+				...command[0] === void 0 ? {} : { program: command[0].text }
+			});
+			if (watchedProgram(command[0]?.text)) found.commands.push({
+				words: command.map((word) => word.text),
+				file,
+				line: instruction.line,
+				where,
+				dockerfile: true
+			});
+			continue;
+		}
+		fromScript(body, (at) => lineAt$2(instruction, offset + at), where);
+		for (const heredoc of instruction.heredocs) {
+			if (!isScript(heredoc.command)) continue;
+			const starts = [0];
+			for (let index = heredoc.body.indexOf("\n"); index >= 0; index = heredoc.body.indexOf("\n", index + 1)) starts.push(index + 1);
+			fromScript(heredoc.body, (at) => heredoc.line + lastAtOrBefore(starts, at), where);
+		}
+	}
+}
+/** The index of the last start at or before an offset, by binary search. */
+function lastAtOrBefore(starts, offset) {
+	let low = 0;
+	let high = starts.length - 1;
+	while (low < high) {
+		const middle = Math.ceil((low + high) / 2);
+		if ((starts[middle] ?? 0) <= offset) low = middle;
+		else high = middle - 1;
+	}
+	return low;
+}
+/**
+* Where a variable is set and what it reaches, for the message of a rule ("X=0 is set in the env of job build in
+* ci.yml, reaches every npm command there, and ..."), and how to remove it, by the kind of place.
+*/
+function variablePlace(variable, tool) {
+	const { file, where, name } = variable;
+	const name_ = tool;
+	switch (variable.kind) {
+		case "env": return {
+			place: `is set in the env of ${where} in ${file}`,
+			reach: `reaches every ${name_} command there`,
+			remove: `Remove ${name} from that env in ${file}`
+		};
+		case "export": return {
+			place: `is exported in a run step of ${where} in ${file}`,
+			reach: `reaches the ${name_} commands after it in that step`,
+			remove: `Remove that export of ${name} from ${file}`
+		};
+		case "command": return {
+			place: `is set for ${variable.program ?? "a command"} in a run step of ${where} in ${file}`,
+			reach: `reaches the ${name_} commands it runs`,
+			remove: `Remove ${name} from that command in ${file}`
+		};
+		case "environment-file": return {
+			place: `is written to $GITHUB_ENV in a run step of ${where} in ${file}`,
+			reach: `reaches every ${name_} command of the later steps of the job`,
+			remove: `Remove the line that writes ${name} to $GITHUB_ENV in ${file}`
+		};
+		case "dockerfile-env": return {
+			place: `is set with ENV in ${where} of ${file}`,
+			reach: `reaches every ${name_} command of the later RUN instructions there and of the stages built from it`,
+			remove: `Remove ${name} from that ENV instruction in ${file}`
+		};
+		case "dockerfile-arg": return {
+			place: `is the default of an ARG instruction in ${where} of ${file}`,
+			reach: `reaches every ${name_} command of the later RUN instructions there, which get build arguments as variables`,
+			remove: `Remove the default of ${name} from that ARG instruction in ${file} (or the ARG)`
+		};
+		case "run-export": return {
+			place: `is exported in a RUN instruction of ${where} in ${file}`,
+			reach: `reaches the ${name_} commands after it in that instruction`,
+			remove: `Remove that export of ${name} from ${file}`
+		};
+		case "run-command": return {
+			place: `is set for ${variable.program ?? "a command"} in a RUN instruction of ${where} in ${file}`,
+			reach: `reaches the ${name_} commands it runs`,
+			remove: `Remove ${name} from that command in ${file}`
+		};
+	}
+}
+
 // src/doctor/rules/bundler-config.ts
-const RULE$3 = "bundler-config-weakens";
+const RULE$4 = "bundler-config-weakens";
 /** Workflows as GitHub reads them: with their aliases expanded (environment.githubActions.yamlAliases, decision D-141). */
 const WORKFLOW_YAML$1 = evidenceOf(environment.githubActions.yamlAliases)[0]?.value.accepted === true ? { aliases: true } : {};
 const isSettingFacts = (value) => isRecord(value) && typeof value["key"] === "string" && typeof value["variable"] === "string" && typeof value["localFile"] === "string";
@@ -35924,7 +36502,7 @@ function checkWorkflowEnv(context, facts, wanted) {
 		if (text === void 0) continue;
 		const aliases = WORKFLOW_YAML$1.aliases === true ? yamlAliasProblem(text) : void 0;
 		if (aliases !== void 0) {
-			context.notice(`${RULE$3} could not read the env of ${file}: its YAML aliases cannot be expanded (${aliases})`, file, `Write the values out in place of the aliases in ${file}, then run depcurfew doctor again`);
+			context.notice(`${RULE$4} could not read the env of ${file}: its YAML aliases cannot be expanded (${aliases})`, file, `Write the values out in place of the aliases in ${file}, then run depcurfew doctor again`);
 			continue;
 		}
 		const label = (id) => jobLabel(id, yamlSetting(text, ["jobs", id], WORKFLOW_YAML$1)?.line);
@@ -35982,11 +36560,65 @@ function reportCommand(context, facts, wanted, command, file, where) {
 	});
 }
 const isBundle = (command) => command.tool === "bundler" && command.kind === "install";
+const isConfigCommandFacts = (value) => isRecord(value) && Array.isArray(value["command"]) && typeof value["set"] === "string" && Array.isArray(value["scopes"]) && typeof value["legacyArguments"] === "number";
+/**
+* The setting and value of a bundle config command that sets one (bundle config set [--local|--global] NAME VALUE, and
+* the older bundle config NAME VALUE; extra.configCommand), with the scope option given; undefined for another command.
+*/
+function configSetting(words, facts, executables) {
+	const [program, subcommand, ...rest] = words;
+	if (program === void 0 || !executables.includes(programName(program)) || subcommand !== facts.command[1]) return void 0;
+	const scope = rest.find((word) => facts.scopes.includes(word));
+	const args = rest.filter((word) => !word.startsWith("-"));
+	if (rest.includes("--delete")) return void 0;
+	const [first, ...more] = args;
+	if (first === facts.set) {
+		const [name, ...value] = more;
+		return name === void 0 || value.length === 0 ? void 0 : {
+			name,
+			value: value.join(" "),
+			...scope === void 0 ? {} : { scope }
+		};
+	}
+	if (first === void 0 || [
+		"get",
+		"unset",
+		"list"
+	].includes(first) || args.length !== facts.legacyArguments && scope === void 0 || more.length === 0) return void 0;
+	return {
+		name: first,
+		value: more.join(" "),
+		...scope === void 0 ? {} : { scope }
+	};
+}
+/** bundle config set cooldown N in run steps and RUN instructions: it writes the setting for the later bundle commands (decision D-166). */
+function checkConfigCommands$1(context, tool, facts, wanted) {
+	if (tool.extra?.["configCommand"] === void 0) return;
+	const config = extraOf(tool, "configCommand", isConfigCommandFacts);
+	const resolve = tool.extra["resolveCommands"] === void 0 ? void 0 : extraOf(tool, "resolveCommands", isRecord);
+	const executables = Array.isArray(resolve?.["executables"]) ? resolve["executables"].filter((item) => typeof item === "string") : ["bundle"];
+	for (const command of ciSettings(context.repository, context.detection).commands) {
+		const setting = configSetting(command.words, config, executables);
+		if (setting === void 0 || setting.name.toLowerCase() !== facts.key) continue;
+		const days = settingDays(setting.value);
+		const what = effect(context, days, wanted, "for the later bundle commands");
+		if (what === void 0 || days === "unset") continue;
+		const target = setting.scope === "--global" ? "~/.bundle/config" : setting.scope === "--local" ? facts.localFile : `${facts.localFile} (or ~/.bundle/config outside a project)`;
+		context.report({
+			location: {
+				file: command.file,
+				line: command.line
+			},
+			message: `${command.where} in ${command.file} (line ${command.line}) runs ${command.words.join(" ")}, which writes ${facts.key} ${setting.value} into ${target}${readAs(setting.value, days)} and ${what}`,
+			fix: `Remove that bundle config command from ${command.file}, so that the cooldown: of the Gemfile applies; for a gem that cannot wait, run bundle update GEM --cooldown 0 by hand after reviewing it`
+		});
+	}
+}
 const bundlerConfigWeakens = {
-	id: RULE$3,
-	checks: ".bundle/config, the env of CI workflows and the bundle commands of CI jobs and Dockerfiles keep the cooldown of Bundler",
+	id: RULE$4,
+	checks: ".bundle/config, the env of CI workflows and the bundle commands and bundle config of CI jobs and Dockerfiles keep the cooldown of Bundler",
 	summary: ".bundle/config, the env of a CI workflow or a bundle command in a CI job or a Dockerfile turns the cooldown of Bundler off or makes it shorter than the policy.",
-	description: "Bundler 4.0.13 and later hold back gem versions younger than the cooldown: of the Gemfile source, but the cooldown setting and the --cooldown option take its place for every source. BUNDLE_COOLDOWN in .bundle/config (which Bundler reads first, line by line and not as YAML: quotes stay unless they enclose the whole value, and # starts a comment), in the env of a CI workflow, before a bundle command or in a Dockerfile ENV, and --cooldown on bundle install, update, lock, add or cache (also bundle i, bundle package and bundle _VERSION_ install), with fewer days than depcurfew.json or 0, turn the delay off or shorten it while the Gemfile still looks configured. Bundler reads the value with to_i: one that does not start with a digit counts as 0, and 1e3 as 1. A value with a ${{ }} expression gives a warning.",
+	description: "Bundler 4.0.13 and later hold back gem versions younger than the cooldown: of the Gemfile source, but the cooldown setting and the --cooldown option take its place for every source. BUNDLE_COOLDOWN with fewer days than depcurfew.json, or 0, in .bundle/config (read line by line as Bundler reads it, not as YAML: quotes stay unless they enclose the whole value, and # starts a comment), in a CI workflow (env, $GITHUB_ENV, before a bundle command) or a Dockerfile (ENV, ARG), bundle config set cooldown N in a run step or a RUN instruction, and a shorter --cooldown on bundle install, update, lock, add or cache (also bundle i, bundle package and bundle _VERSION_ install) turn the delay off or shorten it while the Gemfile still looks configured. Bundler reads the value with to_i: one that does not start with a digit counts as 0, and 1e3 as 1. A value with a ${{ }} expression gives a warning.",
 	help: "Remove the setting, the variable or the option, or give it at least the days of the policy; take a newer version of one gem by hand with bundle update GEM --cooldown 0 after reviewing it.",
 	level: "error",
 	requiresPolicy: true,
@@ -36003,6 +36635,7 @@ const bundlerConfigWeakens = {
 		const commands = context.detection.jobs.some((job) => job.commands.some(isBundle)) || context.detection.dockerfiles.some((file) => file.stages.some((stage) => stage.commands.some(isBundle)));
 		if (!used && !commands) return;
 		if (used) checkLocalConfig(context, facts, wanted);
+		checkConfigCommands$1(context, tool, facts, wanted);
 		const reported = checkWorkflowEnv(context, facts, wanted);
 		for (const job of context.detection.jobs) {
 			const fromEnv = reported.get(`${job.file}\u0000${job.id}`) ?? /* @__PURE__ */ new Set();
@@ -36016,6 +36649,306 @@ const bundlerConfigWeakens = {
 			const name = stage.name === void 0 ? `the stage at line ${stage.line}` : `stage ${stage.name}`;
 			for (const command of stage.commands.filter(isBundle)) reportCommand(context, facts, wanted, command, dockerfile.file, `${name} in ${dockerfile.file} (line ${command.line})`);
 		}
+	}
+};
+
+// src/doctor/rules/ci-weakens-policy.ts
+const RULE$3 = "ci-weakens-policy";
+/** The tools this rule covers; pip, Composer and Bundler have rules of their own. */
+const TOOLS$1 = [
+	"npm",
+	"pnpm",
+	"yarn",
+	"bun",
+	"deno",
+	"uv",
+	"poetry",
+	"pdm"
+];
+const SOURCE_LABELS = {
+	git: "git",
+	remoteTarball: "remote tarball",
+	file: "local tarball",
+	directory: "local directory"
+};
+const isList$1 = (value) => Array.isArray(value);
+/** A tool's extra fact, or undefined when it has none. */
+function extra(tool, key) {
+	const fact = tool.extra?.[key];
+	return fact === void 0 ? void 0 : values$1(fact)[0];
+}
+/** The switch turns the tool's own switch that turns every install script off back on; apply never writes that one. */
+function reEnablesAll(tool, entry) {
+	const disable = evidenceOf(tool.installScripts.disableAll)[0]?.value;
+	if (typeof disable !== "string" || entry.weakens !== "scripts" || typeof entry.values !== "object" || !("except" in entry.values) || !entry.values.except.includes("true")) return false;
+	const bare = (name) => name.replace(/^--/u, "").replace(/^(?:npm|pnpm)_config_/iu, "").replace(/[-_]/gu, "").toLowerCase();
+	return bare(entry.name) === bare(disable.split(/[:=]/u)[0] ?? "");
+}
+/** The options and variables of one tool that weaken the policy, from the knowledge base. */
+function switchesOf(tool) {
+	const overrides = extra(tool, "installOverrides");
+	const options = /* @__PURE__ */ new Map();
+	const variables = [];
+	for (const entry of overrides?.options ?? []) {
+		if (entry.weakens === "protection") continue;
+		const item = {
+			name: entry.name,
+			weakens: entry.weakens,
+			values: entry.values
+		};
+		if (!reEnablesAll(tool, item)) options.set(entry.name, item);
+	}
+	for (const entry of overrides?.variables ?? []) {
+		if (entry.weakens === "protection") continue;
+		const item = {
+			name: entry.name,
+			weakens: entry.weakens,
+			values: entry.values
+		};
+		if (!reEnablesAll(tool, item)) variables.push(item);
+	}
+	const flag = tool.cooldown.cliFlag === void 0 ? void 0 : evidenceOf(tool.cooldown.cliFlag)[0]?.value;
+	if (typeof flag === "string" && flag.startsWith("--") && !options.has(flag)) options.set(flag, {
+		name: flag,
+		weakens: "delay",
+		values: "delay"
+	});
+	const settings = extra(tool, "settingOverrides");
+	if (isRecord(settings) && isList$1(settings["settings"]) && typeof settings["optionPrefix"] === "string" && typeof settings["variablePrefix"] === "string") for (const entry of settings["settings"]) {
+		if (!isRecord(entry) || typeof entry["setting"] !== "string") continue;
+		const base = {
+			weakens: entry["weakens"] === "sources" ? "sources" : "scripts",
+			values: entry["values"],
+			...typeof entry["source"] === "string" ? { source: entry["source"] } : {},
+			...entry["when"] === "written" ? { setting: entry["setting"] } : {}
+		};
+		options.set(`${settings["optionPrefix"]}${entry["setting"]}`, {
+			name: `${settings["optionPrefix"]}${entry["setting"]}`,
+			...base
+		});
+		variables.push({
+			name: `${settings["variablePrefix"]}${entry["setting"].replaceAll("-", "_")}`,
+			...base
+		});
+	}
+	const line = extra(tool, "commandLine");
+	const commands = isRecord(line) ? [...isList$1(line["add"]) ? line["add"] : [], ...isList$1(line["run"]) ? line["run"].map((entry) => isRecord(entry) ? entry["command"] : void 0) : []] : [];
+	const executables = new Set(commands.flatMap((command) => isList$1(command) && typeof command[0] === "string" ? [command[0]] : []));
+	const parsing = extra(tool, "parsing");
+	const negationFact = isRecord(settings) && typeof settings["negation"] === "string" ? settings["negation"] : isRecord(parsing) && typeof parsing["negation"] === "string" ? parsing["negation"] : void 0;
+	return {
+		tool,
+		executables,
+		options,
+		variables,
+		byName: namesOf(variables, extra(tool, "environmentNames") ?? []),
+		...isRecord(parsing) && typeof parsing["settingPrefix"] === "string" ? { settingPrefix: parsing["settingPrefix"] } : {},
+		...negationFact === void 0 ? {} : { negation: negationFact }
+	};
+}
+/** The variables by their names in lower case, each with the rule of the longest prefix it starts with (decision D-143). */
+function namesOf(variables, rules) {
+	const names = /* @__PURE__ */ new Map();
+	for (const entry of variables) {
+		const lower = entry.name.toLowerCase();
+		const rule = rules.filter((item) => lower.startsWith(item.prefix.toLowerCase())).sort((a, b) => b.prefix.length - a.prefix.length)[0];
+		names.set(lower, [...names.get(lower) ?? [], {
+			entry,
+			match: rule?.match ?? "exact",
+			prefix: rule?.prefix.length ?? 0
+		}]);
+	}
+	return names;
+}
+/** The switch a variable set under the name `written` is, as the tool tells names apart (extra.environmentNames). */
+function variableSwitch(tools, written) {
+	const lower = written.toLowerCase();
+	return tools.byName.get(lower)?.find(({ entry, match, prefix }) => {
+		if (match === "exact") return written === entry.name;
+		if (match === "lower-or-upper") return written === lower || written === entry.name.toUpperCase();
+		if (match === "prefix-then-any-case") return written.startsWith(entry.name.slice(0, prefix));
+		return true;
+	})?.entry;
+}
+/** Whether a value is one of those that weaken: any, the listed ones (without regard to case), or all but those. */
+function matches(values, value) {
+	if (values === "any" || values === "delay") return true;
+	if ("except" in values) return !values.except.includes(value.trim());
+	return values.some((wanted) => wanted.toLowerCase() === value.trim().toLowerCase());
+}
+/** What a value of a switch does against the policy, or undefined when it does not weaken it. */
+function effectOf(context, tools, entry, value, written) {
+	const { policy } = context;
+	const { tool } = tools;
+	if (policy === void 0) return void 0;
+	if (entry.weakens === "delay" && policy.cooldown === void 0) return void 0;
+	if (entry.weakens === "scripts" && policy.installScripts?.default !== "deny") return void 0;
+	if (entry.weakens === "sources" && (entry.source === void 0 || policy.sources?.[entry.source] !== "deny")) return void 0;
+	if (entry.setting !== void 0 && !written(entry.setting)) return void 0;
+	const minimum = policy.cooldown?.minimum;
+	const what = entry.weakens === "delay" ? `the release-age delay of ${tool.name} (${minimum?.text ?? ""} in ${POLICY_FILE})` : entry.weakens === "scripts" ? `the rule of ${POLICY_FILE} on dependency install scripts for ${tool.name}` : `the ban of ${POLICY_FILE} on ${SOURCE_LABELS[entry.source ?? "git"]} dependencies for ${tool.name}`;
+	const base = {
+		weakens: entry.weakens,
+		...entry.source === void 0 ? {} : { source: entry.source }
+	};
+	if (value !== void 0 && value.includes("$")) return {
+		...base,
+		level: "warning",
+		text: `may weaken ${what}: depcurfew does not expand the value`
+	};
+	if (entry.values === "delay") {
+		if (value === void 0 || value.trim() === "") return void 0;
+		const delay = delayMinutes(tool, value.trim(), void 0);
+		if (!delay.ok) return {
+			...base,
+			level: "warning",
+			text: `sets the release-age delay of ${tool.name} to a value depcurfew cannot compare with the ${minimum?.text ?? ""} of ${POLICY_FILE} (a date, false or another form), and may weaken it`
+		};
+		if (minimum === void 0 || delay.minutes >= minimum.minutes) return void 0;
+		return {
+			...base,
+			level: "error",
+			text: delay.minutes === 0 ? `turns off the release-age delay of ${tool.name} (${minimum.text} in ${POLICY_FILE})` : `sets the release-age delay of ${tool.name} to ${formatMinutes(delay.minutes)}, shorter than the ${minimum.text} of ${POLICY_FILE}`
+		};
+	}
+	if (!matches(entry.values, value ?? "true")) return void 0;
+	if (entry.weakens === "delay") return {
+		...base,
+		level: "error",
+		text: `weakens ${what}`
+	};
+	if (entry.weakens === "scripts") return {
+		...base,
+		level: "error",
+		text: `lets dependency install scripts run that ${POLICY_FILE} denies for ${tool.name}`
+	};
+	return {
+		...base,
+		level: "error",
+		text: `allows ${SOURCE_LABELS[entry.source ?? "git"]} dependencies, although ${POLICY_FILE} denies them for ${tool.name}`
+	};
+}
+/** What to do instead, after the removal: the part of the policy that lets one package through. */
+function instead(effect) {
+	if (effect.level === "warning") return `, or make sure its value never weakens what ${POLICY_FILE} requires`;
+	if (effect.weakens === "delay") return `; for a package that cannot wait, add it to cooldown.exclude in ${POLICY_FILE} and run depcurfew apply`;
+	if (effect.weakens === "scripts") return `; to let a package run its install scripts, add it to installScripts.allow in ${POLICY_FILE} and run depcurfew apply`;
+	return `; if such dependencies are wanted, set sources.${effect.source ?? "git"} to "allow" in ${POLICY_FILE} and run depcurfew apply`;
+}
+/** The value of a setting in the .npmrc of the project after apply: the planned .npmrc, else the one there. */
+function npmrcSetting(context, setting) {
+	const text = plannedApply(context)?.changes.find((change) => change.file === ".npmrc")?.after ?? context.repository.readText(".npmrc");
+	return text === void 0 ? void 0 : iniEntries(text).filter((entry) => entry.key === setting).at(-1)?.value;
+}
+/** The value of an option on a command line, and how it is written: --name=value, --name value, --no-name, a flag. */
+function optionValue(entry, words, index, attached, negated) {
+	const word = words[index] ?? "";
+	if (negated) return {
+		value: "false",
+		written: word
+	};
+	if (attached !== void 0) return {
+		value: attached,
+		written: word
+	};
+	const next = words[index + 1];
+	if (next !== void 0 && !next.startsWith("-") && (entry.values === "delay" || next === "true" || next === "false")) return {
+		value: next,
+		written: `${word} ${next}`
+	};
+	return {
+		value: entry.values === "any" ? void 0 : "true",
+		written: word
+	};
+}
+function checkTool(context, tools) {
+	const { tool } = tools;
+	const settings = ciSettings(context.repository, context.detection);
+	const known = /* @__PURE__ */ new Map();
+	const strict = (setting) => {
+		let value = known.get(setting);
+		if (value === void 0) {
+			value = npmrcSetting(context, setting) === "true";
+			known.set(setting, value);
+		}
+		return value;
+	};
+	for (const variable of settings.variables) {
+		const entry = variableSwitch(tools, variable.name);
+		if (entry === void 0) continue;
+		const effect = effectOf(context, tools, entry, variable.value, strict);
+		if (effect === void 0) continue;
+		const text = variablePlace(variable, tool.name);
+		context.report({
+			level: effect.level,
+			location: variable.line === void 0 ? { file: variable.file } : {
+				file: variable.file,
+				line: variable.line
+			},
+			message: `${variable.name}=${variable.value} ${text.place}, ${text.reach}, and ${effect.text}`,
+			fix: `${text.remove}${instead(effect)}`
+		});
+	}
+	for (const command of settings.commands) {
+		if (!tools.executables.has(programName(command.words[0] ?? ""))) continue;
+		for (let index = 1; index < command.words.length; index++) {
+			const word = command.words[index] ?? "";
+			if (word === "--") break;
+			if (!word.startsWith("--")) continue;
+			const equals = word.indexOf("=");
+			let name = equals < 0 ? word : word.slice(0, equals);
+			const attached = equals < 0 ? void 0 : word.slice(equals + 1);
+			if (tools.settingPrefix !== void 0 && name.startsWith(tools.settingPrefix) && name.length > tools.settingPrefix.length) name = `--${name.slice(tools.settingPrefix.length)}`;
+			let entry = tools.options.get(name);
+			let negated = false;
+			if (entry === void 0 && tools.negation !== void 0 && name.startsWith(tools.negation)) {
+				entry = tools.options.get(`--${name.slice(tools.negation.length)}`);
+				negated = entry !== void 0 && entry.values !== "delay" && entry.values !== "any";
+				if (!negated) entry = void 0;
+			}
+			if (entry === void 0) continue;
+			const { value, written } = optionValue(entry, command.words, index, attached, negated);
+			const effect = effectOf(context, tools, entry, value, strict);
+			if (effect === void 0) continue;
+			context.report({
+				level: effect.level,
+				location: {
+					file: command.file,
+					line: command.line
+				},
+				message: `${command.where} in ${command.file} (line ${command.line}) runs ${tool.name} with ${written}, which ${effect.text}`,
+				fix: `Remove ${written} from that command in ${command.file}${instead(effect)}`
+			});
+		}
+	}
+}
+let cached;
+let cachedFor;
+function allSwitches(tools) {
+	if (cached === void 0 || cachedFor !== tools) {
+		cached = tools.filter((tool) => TOOLS$1.includes(tool.id)).map(switchesOf);
+		cachedFor = tools;
+	}
+	return cached;
+}
+/** The tools of this rule the repository (or a project listed in projects) uses and the policy configures. */
+function usedTools(context) {
+	const policy = context.policy;
+	const detections = [context.detection, ...(context.projects ?? []).map((project) => project.detection)];
+	return allSwitches(context.tools).filter(({ tool }) => detections.some((detection) => detection.packageManagers.some((manager) => manager.supported && manager.id === tool.id)) && (policy?.targets === "auto" || policy?.targets.includes(tool.id) === true));
+}
+const ciWeakensPolicy = {
+	id: RULE$3,
+	checks: "CI workflows and Dockerfiles keep the release-age delay, the rule on install scripts and the source bans of npm, pnpm, Yarn, Bun, Deno, uv, Poetry and PDM",
+	summary: "A CI workflow or a Dockerfile turns off or weakens, for the commands it runs, a protection depcurfew apply wrote for npm, pnpm, Yarn, Bun, Deno, uv, Poetry or PDM.",
+	description: "Package managers take settings from the command line and the environment over their configuration files, so a workflow or a Dockerfile can undo what depcurfew apply wrote for every install it runs: NPM_CONFIG_MIN_RELEASE_AGE=0, npm_config_strict_allow_scripts=false, npm_config_allow_git=all, pnpm_config_minimum_release_age=0, YARN_ENABLE_SCRIPTS=true or UV_EXCLUDE_NEWER in the env of the workflow, a job, its container or a step, exported or set before a command in a run step, written to $GITHUB_ENV, or set with ENV or ARG in a Dockerfile; and npm --min-release-age=0 or --allow-git=all, pnpm --config.dangerously-allow-all-builds=true, uv lock --exclude-newer or pdm lock --exclude-newer on a command there. A shorter delay and install scripts or sources the policy denies are errors; a value with $ or ${{ }}, or a delay depcurfew cannot compare (a date), gives a warning. pip has python-config-ignored, Composer composer-config-weakens and Bundler bundler-config-weakens.",
+	help: "Remove the variable or the option, or give it a value that keeps what depcurfew.json requires; let a single package through with cooldown.exclude, installScripts.allow or sources in depcurfew.json and depcurfew apply instead.",
+	level: "error",
+	requiresPolicy: true,
+	applies: (scope) => usesManager(scope, TOOLS$1) && (scope.detection.workflows.length > 0 || scope.detection.dockerfiles.length > 0),
+	check(context) {
+		if (context.detection.workflows.length === 0 && context.detection.dockerfiles.length === 0) return;
+		for (const tools of usedTools(context)) checkTool(context, tools);
 	}
 };
 
@@ -36217,11 +37150,135 @@ function checkWorkflows(context, tool) {
 		}
 	}
 }
+const isConfigValues = (value) => isRecord(value) && Array.isArray(value["command"]) && typeof value["section"] === "string" && Array.isArray(value["accepted"]) && Array.isArray(value["falseValues"]) && typeof value["period"] === "string" && Array.isArray(value["otherFile"]);
+/** The variables of environmentOverrides set outside the env maps of workflows: run steps, $GITHUB_ENV and Dockerfiles (decision D-166). */
+function checkCiVariables(context, tool) {
+	const variables = extraOf(tool, "environmentOverrides", isList((item) => isRecord(item) && typeof item["name"] === "string"));
+	for (const place of ciSettings(context.repository, context.detection).variables) {
+		if (place.kind === "env") continue;
+		const variable = variables.find((entry) => entry.name === place.name);
+		if (variable === void 0 || variable.name.includes("COOLDOWN") && !cooldownInPolicy(context)) continue;
+		const effect = variableEffect(context, tool, variable, place.value.includes("$") ? "${{" : place.value);
+		if (effect === void 0) continue;
+		const verb = effect.detail === "may" ? `may ${variable.effect.replace(/^(\w+)s\b/u, "$1")}` : effect.detail === void 0 ? variable.effect : `${variable.effect} with ${effect.detail}, shorter than the ${context.policy?.cooldown?.minimum.text ?? ""} of ${POLICY_FILE}`;
+		const text = variablePlace(place, "Composer");
+		context.report({
+			level: effect.level,
+			location: place.line === void 0 ? { file: place.file } : {
+				file: place.file,
+				line: place.line
+			},
+			message: `${place.name}=${place.value} ${text.place}, ${text.reach}, and ${verb}`,
+			fix: `${text.remove}, or set it only for a run that needs it after reviewing the packages`
+		});
+	}
+}
+/**
+* What composer config KEY VALUE writes (extra.configCommandValues): the path under config and the value as Composer
+* stores it; undefined for a command that writes another file, removes a setting or does not set one.
+*/
+function configWrite(words, facts) {
+	const [program, subcommand, ...rest] = words;
+	if (program === void 0 || programName(program) !== facts.command[0] || subcommand !== facts.command[1]) return void 0;
+	const otherFile = (word) => facts.otherFile.includes(word) || facts.otherFile.some((option) => option.startsWith("--") && word.startsWith(`${option}=`));
+	if (rest.some((word) => otherFile(word) || word === "--unset" || word === "--editor" || word === "-e")) return void 0;
+	const [key, written] = rest.filter((word) => !word.startsWith("-"));
+	if (key === void 0 || written === void 0) return void 0;
+	const path = [facts.section, ...key.startsWith("policy.") ? key.split(".") : [key]];
+	if (key === facts.period) return {
+		key,
+		path,
+		written,
+		value: written === "" || written === "null" ? null : /^\d+$/u.test(written) ? Number(written) : written
+	};
+	if (!facts.accepted.includes(written)) return {
+		key,
+		path,
+		written,
+		value: written
+	};
+	return {
+		key,
+		path,
+		written,
+		value: !facts.falseValues.includes(written)
+	};
+}
+/** composer config commands in run steps and RUN instructions that write a setting turning a protection off (decision D-166). */
+function checkConfigCommands(context, tool) {
+	if (tool.extra?.["configCommandValues"] === void 0) return;
+	const facts = extraOf(tool, "configCommandValues", isConfigValues);
+	const settings = extraOf(tool, "weakeningSettings", isList((item) => isRecord(item) && isPath$1(item["path"]) && typeof item["when"] === "string"));
+	const transport = extraOf(tool, "transportSettings", isList((item) => isRecord(item) && isPath$1(item["path"]) && typeof item["weakensWhen"] === "boolean"));
+	const all = extraOf(tool, "allowAllPlugins", (value) => isRecord(value) && typeof value["setting"] === "string");
+	const same = (a, b) => a.length === b.length && a.every((part, index) => part === b[index]);
+	for (const command of ciSettings(context.repository, context.detection).commands) {
+		const write = configWrite(command.words, facts);
+		if (write === void 0) continue;
+		let found;
+		const weakening = settings.find((entry) => same(entry.path, write.path));
+		if (weakening !== void 0 && weakens(weakening.when, write.value) && (!write.path.includes("cooldown") || cooldownInPolicy(context))) found = {
+			level: write.path.includes("malware") ? "warning" : "error",
+			effect: weakening.effect
+		};
+		const unsafe = transport.find((entry) => same(entry.path, write.path));
+		if (unsafe !== void 0 && typeof write.value === "boolean" && write.value === unsafe.weakensWhen) found = {
+			level: "error",
+			effect: `${unsafe.effect}: a package or its metadata can be changed on the way`
+		};
+		if (same(all.setting.split("."), write.path) && write.value === true && context.policy?.installScripts?.default === "deny") found = {
+			level: "error",
+			effect: `lets every Composer plugin run its code, but installScripts in ${POLICY_FILE} denies dependency code by default`
+		};
+		if (write.key === facts.period && cooldownInPolicy(context)) {
+			const minutes = delayMinutes(tool, write.value, latestVersion$1(tool));
+			const wanted = context.policy?.cooldown?.minimum.minutes ?? 0;
+			if (minutes.ok && minutes.minutes < wanted) found = {
+				level: "error",
+				effect: minutes.minutes === 0 ? "turns off the cooldown" : `shortens the cooldown to ${formatMinutes(minutes.minutes)}, shorter than the ${context.policy?.cooldown?.minimum.text ?? ""} of ${POLICY_FILE}`
+			};
+		}
+		if (found === void 0) continue;
+		context.report({
+			level: found.level,
+			location: {
+				file: command.file,
+				line: command.line
+			},
+			message: `${command.where} in ${command.file} (line ${command.line}) runs composer config ${write.key} ${write.written}, which writes ${write.path.join(".")}: ${JSON.stringify(write.value)} into ${COMPOSER_MANIFEST} for the later Composer commands and ${found.effect}`,
+			fix: `Remove that composer config command from ${command.file}, so that the settings depcurfew apply wrote into ${COMPOSER_MANIFEST} apply`
+		});
+	}
+}
+/** Options of composer commands in run steps and RUN instructions that turn a protection off (installOverrides, decision D-166). */
+function checkCommandOptions(context, tool) {
+	if (tool.extra?.["installOverrides"] === void 0 || tool.extra["configCommandValues"] === void 0) return;
+	const fact = extraOf(tool, "installOverrides", isRecord);
+	const options = Array.isArray(fact["options"]) ? fact["options"] : [];
+	const executable = extraOf(tool, "configCommandValues", isConfigValues).command[0];
+	for (const command of ciSettings(context.repository, context.detection).commands) {
+		if (programName(command.words[0] ?? "") !== executable) continue;
+		for (const word of command.words.slice(1)) {
+			if (word === "--") break;
+			const option = options.find((entry) => entry.name === word);
+			if (option === void 0 || option.weakens === "delay" && !cooldownInPolicy(context)) continue;
+			const effect = option.weakens === "delay" ? "turns off the cooldown for that command" : option.effect ?? "turns a protection of Composer off";
+			context.report({
+				location: {
+					file: command.file,
+					line: command.line
+				},
+				message: `${command.where} in ${command.file} (line ${command.line}) runs composer with ${word}, which ${effect}`,
+				fix: `Remove ${word} from that command in ${command.file}; for a package that cannot wait, run the command with it by hand after reviewing the package`
+			});
+		}
+	}
+}
 const composerConfigWeakens = {
 	id: RULE$2,
-	checks: "composer.json and the env of CI workflows keep Composer protections on",
-	summary: "composer.json or the env of a CI workflow turns a Composer protection off: the cooldown, malware blocking, allow-plugins, secure-http or TLS.",
-	description: "Composer 2.11 withholds new versions with config.policy.cooldown and runs only the plugins config.allow-plugins allows. \"policy\": false, \"cooldown\": false or \"block\": false under it, a repository with \"require-published-time\": false (the cooldown then counts from the time the package author wrote) or \"filter\": false (no malware list), \"allow-plugins\": true (or a \"*\" or \"*/*\" key) and \"secure-http\": false or \"disable-tls\": true turn such a protection off while the configuration still looks right; so do COMPOSER_POLICY=0, COMPOSER_NO_BLOCKING or COMPOSER_NO_SECURITY_BLOCKING set to 1, true, on, false or off, COMPOSER_POLICY_COOLDOWN_PERIOD with a shorter period and COMPOSER_POLICY_COOLDOWN_BLOCK=0 in the env of a CI workflow. Settings of the cooldown are reported when depcurfew.json sets one, allow-plugins when it denies dependency code; malware blocking and filter give warnings, because depcurfew.json does not manage them. COMPOSER_HOME/config.json on a machine is not read.",
+	checks: "composer.json, CI workflows and Dockerfiles keep Composer protections on",
+	summary: "composer.json, a CI workflow or a Dockerfile turns a Composer protection off: the cooldown, malware blocking, allow-plugins, secure-http or TLS.",
+	description: "Composer 2.11 withholds new versions with config.policy.cooldown and runs only the plugins config.allow-plugins allows. \"policy\", \"cooldown\" or \"block\" under it set to false, a repository with \"require-published-time\": false or \"filter\": false, \"allow-plugins\": true (or a \"*\" or \"*/*\" key), \"secure-http\": false and \"disable-tls\": true turn such a protection off while the configuration looks right; so do COMPOSER_POLICY=0, COMPOSER_NO_BLOCKING or COMPOSER_NO_SECURITY_BLOCKING set to 1, true, on, false or off, a shorter COMPOSER_POLICY_COOLDOWN_PERIOD and COMPOSER_POLICY_COOLDOWN_BLOCK=0 in a CI workflow (env, run step, $GITHUB_ENV) or a Dockerfile (ENV, ARG, RUN), composer config policy.cooldown false and the like run there, and --no-cooldown or --no-blocking on a composer command there. Cooldown settings count when depcurfew.json sets a cooldown, allow-plugins when it denies dependency code; malware blocking and filter give warnings. COMPOSER_HOME/config.json is not read.",
 	help: "Remove the setting or the variable, or limit it to the repository or the run that needs it.",
 	level: "error",
 	requiresPolicy: false,
@@ -36235,6 +37292,9 @@ const composerConfigWeakens = {
 			checkRepositories(context, tool);
 		}
 		checkWorkflows(context, tool);
+		checkCiVariables(context, tool);
+		checkConfigCommands(context, tool);
+		checkCommandOptions(context, tool);
 	}
 };
 
@@ -39415,6 +40475,7 @@ const RULES = [
 	pnpmSharedWorkspaceLockfile,
 	pnpmConfigUnverifiable,
 	pythonConfigIgnored,
+	ciWeakensPolicy,
 	composerConfigWeakens,
 	bundlerConfigWeakens,
 	configDrift,

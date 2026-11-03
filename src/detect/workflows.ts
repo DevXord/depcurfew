@@ -1,13 +1,14 @@
 // Reads GitHub Actions workflows: versions passed to the setup actions known to the knowledge base (a
 // ${{ matrix.<key> }} value stands for each value of that matrix key), and what the run steps of each job do with
 // npm and pip (installs, npm install -g npm@<version>).
-import { isAlias, isMap, isScalar, isSeq, LineCounter, type Document, type Node, type YAMLMap } from 'yaml';
-import { MAX_YAML_ALIASES, parseYamlDocument } from '../yaml-parse.ts';
+import { isAlias, isMap, isScalar, isSeq, type Document, type Node, type YAMLMap } from 'yaml';
+import { MAX_YAML_ALIASES, readYamlDocument } from '../yaml-parse.ts';
 import { environment as knowledge } from '../knowledge/environment.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import type { RuntimeOrTool, SetupActionKnowledge } from '../knowledge/types.ts';
 import { findToolCommands, overLimitMessages, UNKNOWN_DIRECTORY, withVariables } from './commands.ts';
 import { imageRuntime } from './dockerfiles.ts';
+import { readScript } from './script-variables.ts';
 import type { DetectionFacts } from './knowledge.ts';
 import { joinPath, type Repository } from './repository.ts';
 import type { ToolCommand, VersionDeclaration, WorkflowJob } from './types.ts';
@@ -188,8 +189,8 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
   for (const file of files) {
     const text = repository.readText(file);
     if (text === undefined) continue;
-    const lineCounter = new LineCounter();
-    const document = parseYamlDocument(text, lineCounter);
+    // Read through the shared cache, so that the rules that read the workflow again do not parse it again (decision D-166).
+    const { document, lineCounter } = readYamlDocument(text);
     if (document.errors.length > 0) {
       const message = document.errors[0]?.message.split('\n', 1)[0] ?? 'invalid YAML';
       repository.warn('invalid-file', `cannot parse ${file}: ${message}`, [file]);
@@ -250,6 +251,9 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
       }
       // The container's env, then the workflow's and the job's, which docker exec passes over it, then each step's.
       const jobEnvironment = withVariables(facts.commands, environmentOf(isMap(container) ? container.get(containerEnvKey) : undefined, resolve, asWritten), workflowEnvironment, environmentOf(job.get(envKey), resolve, asWritten));
+      // NAME=value lines a run step writes to $GITHUB_ENV, for the later steps: over the env of the workflow and the job,
+      // under the env of a step (environment.githubActions.environmentFile, decision D-166).
+      let written: Map<string, string> = new Map();
       const steps = resolve(job.get('steps'));
       if (!isSeq(steps)) continue;
       for (const item of steps.items) {
@@ -282,8 +286,13 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
         if (isScalar(run) && typeof run.value === 'string' && run.range !== undefined && run.range !== null) {
           // Read the source text of the step, so that commands inside block scalars get their own line.
           const start = run.range[0];
-          const environment = withVariables(facts.commands, jobEnvironment, environmentOf(step.get(envKey), resolve, asWritten));
-          const found = findToolCommands(text.slice(start, run.range[1]), facts.commands, 0, environment);
+          const environment = withVariables(facts.commands, jobEnvironment, written, environmentOf(step.get(envKey), resolve, asWritten));
+          const script = text.slice(start, run.range[1]);
+          const found = findToolCommands(script, facts.commands, 0, environment);
+          if (script.includes(facts.environmentFile)) {
+            const writes = readScript(script, facts.environmentFile).variables.filter((variable) => variable.how === 'environment-file');
+            if (writes.length > 0) written = withVariables(facts.commands, written, writes.map((variable) => [variable.name, variable.value] as const));
+          }
           const runLine = lineCounter.linePos(start).line;
           for (const message of overLimitMessages(found.overLimit, `the run step of ${jobLabel(id, keyLine)} in ${file} (line ${runLine})`)) repository.warn('script-not-followed', message, [file], runLine);
           record.runsNode ||= found.runsNode;

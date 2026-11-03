@@ -1,0 +1,11 @@
+on: push
+env:
+  UV_EXCLUDE_NEWER: 1 hour
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          uv lock --exclude-newer "2 hours"
+          uv sync --exclude-newer 2026-11-01T00:00:00Z
+          uv pip install --exclude-newer-package requests=2026-11-01 requests

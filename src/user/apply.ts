@@ -138,6 +138,8 @@ export function userFileFix(problem: FileProblem | { kind: 'syntax'; format: Use
       return `Replace the symlink ${shown} with the file it points to, so that ${COMMAND} can write it, or add the settings of the user policy to that file by hand`;
     case 'too-large':
       return `Make ${shown} smaller than 1 MiB, ${again}; or add the settings of the user policy by hand`;
+    case 'result-too-large':
+      return `Make ${shown} smaller, so that it stays under 1 MiB with the settings ${COMMAND} adds, ${again}`;
     case 'not-utf8':
       return `Save ${shown} as UTF-8, ${again}`;
     case 'directory':

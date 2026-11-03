@@ -88,7 +88,8 @@ export function relockWarning(context: Context, file: string, table: string, edi
   const locked = extraOf(tool, 'lockedSettings', isLockedSettings);
   const lockfile = (tool.project === undefined ? [] : values(tool.project.lockfiles))
     .flatMap((versions) => versions.flatMap((entry) => entry.value))
-    .find((name) => context.exists(name));
+    // Only whether the lockfile is there counts: it is not read, so its size does not matter (decision D-166).
+    .find((name) => context.isFile(name));
   if (lockfile === undefined) return;
   const body = context.exists(file) ? context.read(file) : '';
   let before: TomlDocument;

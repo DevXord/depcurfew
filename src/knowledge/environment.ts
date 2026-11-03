@@ -22,6 +22,7 @@ const recheck = verifiedOn('2026-11-01');
 const finalReview = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
 const ruby = verifiedOn('2026-11-03');
+const ciOverrides = verifiedOn('2026-11-03');
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/v0.36.0/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/v0.36.0/CHANGELOG.md';
@@ -288,6 +289,11 @@ export const environment: EnvironmentKnowledge = {
       `${DOCKERFILE_REFERENCE}#env`,
       'ENV <key>=<value> [<key>=<value>...]: "This value will be in the environment for all subsequent instructions in the build stage", and "A stage inherits any environment variables that were set using ENV by its parent stage or any ancestor". "Like command line parsing, quotes and backslashes can be used to include spaces within values". The alternative "ENV <key> <value>, omitting the =" sets one variable, and is discouraged. RUN commands see these variables, and ENV wins over an ARG of the same name.',
     ),
+    buildArguments: ciOverrides.verified(
+      { instruction: 'ARG', runEnvironment: true, inheritedByStages: true, globalNeedsDeclaration: true, environmentWins: true },
+      `${DOCKERFILE_REFERENCE}#arg`,
+      'ARG <name>[=<default value>]: the variable "is also passed to all subsequent RUN instructions as a build-time environment variable"; "If an ARG instruction has a default value and if there is no value passed at build-time, the builder uses the default" (--build-arg can give another). "An ARG variable declared within a build stage is automatically inherited by other stages based on that stage. Unrelated build stages do not have access to the variable." "An ARG declared before a FROM is outside of a build stage, so it can\'t be used in any instruction after a FROM. To use the default value of an ARG declared before the first FROM use an ARG instruction without a value inside of a build stage." "Environment variables defined using the ENV instruction always override an ARG instruction of the same name." (Using ARG variables; Impact on build caching: "all RUN instructions following an ARG instruction use the ARG variable implicitly (as an environment variable)".)',
+    ),
     dockerfileNames: runtimes.verified(
       { defaultName: 'Dockerfile', suffix: '.Dockerfile' },
       `${DOCKER_DOCS}/content/manuals/build/concepts/dockerfile.md`,
@@ -391,6 +397,11 @@ export const environment: EnvironmentKnowledge = {
       { key: 'env', levels: ['workflow', 'job', 'step'] },
       'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env',
       'Read from the page source in github/docs (content/actions/reference/workflows-and-actions/workflow-syntax.md and data/reusables/repositories/actions-env-var-note.md, main on 2026-11-01): env is "A map of variables that are available to the steps of all jobs in the workflow", jobs.<job_id>.env "A map of variables that are available to all steps in the job", and jobs.<job_id>.steps[*].env "Sets variables for steps to use in the runner environment"; for the same name GitHub "uses the most specific variable": the step\'s over the job\'s over the workflow\'s.',
+    ),
+    environmentFile: ciOverrides.verified(
+      { variable: 'GITHUB_ENV', format: 'NAME=value', multilineMarker: '<<', laterSteps: true, stepEnvironmentWins: true },
+      'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable',
+      'Read from the page source in github/docs (content/actions/reference/workflows-and-actions/workflow-commands.md, commit 9e46fa1 of main on 2026-11-03): echo "{environment_variable_name}={value}" >> "$GITHUB_ENV"; "You can make an environment variable available to any subsequent steps in a workflow job by defining or updating the environment variable and writing this to the GITHUB_ENV environment file. The step that creates or updates the environment variable does not have access to the new value, but all subsequent steps in a job will have access." Multiline values use {name}<<{delimiter}. In actions/runner v2.338.2, SetEnvFileCommand writes each pair into Global.EnvironmentVariables (src/Runner.Worker/FileCommandManager.cs), which holds the env of the workflow and the job, and StepsRunner merges that global env first and the env of the step over it ("Merge global env", then "Evaluate and merge step env" in src/Runner.Worker/StepsRunner.cs), so a value written there replaces the env of the workflow and the job for the later steps, and the env of a step still wins.',
     ),
     yamlAliases: release14.verified(
       { accepted: true },

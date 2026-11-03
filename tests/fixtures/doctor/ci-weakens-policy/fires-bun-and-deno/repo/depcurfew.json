@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "cooldown": {
+    "minimum": "3d"
+  },
+  "installScripts": {
+    "default": "deny"
+  },
+  "sources": {
+    "git": "deny",
+    "remoteTarball": "deny"
+  }
+}

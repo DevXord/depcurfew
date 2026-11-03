@@ -1,0 +1,16 @@
+on: push
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          bundle config set --local cooldown 7
+          bundle config get cooldown
+          bundle config unset cooldown
+          bundle config set --local path vendor/bundle
+          echo "BUNDLE_COOLDOWN=0" >> other.env
+          echo "BUNDLE_COOLDOWN=0" >> "$GITHUB_ENV"
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: bundle install

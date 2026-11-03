@@ -61,7 +61,7 @@ export const APPLY_WARNINGS = {
 } as const satisfies Record<string, string>;
 
 export const APPLY_ERRORS = {
-  'cannot-edit': 'A file cannot be read or edited safely (invalid syntax, a symlink, a style depcurfew does not edit), so nothing is written.',
+  'cannot-edit': 'A file cannot be read or edited safely (invalid syntax, a symlink, a style depcurfew does not edit, a file over the size depcurfew reads, 1 MiB for configuration and 64 MiB for lockfiles, also one that the change would make larger than that), so nothing is written.',
   'cannot-write': 'A file cannot be written (no permission, a read-only file system, a full disk, a directory or symlink in its place); the files already written are put back, so nothing changes.',
   'policy-missing': 'The directory has no depcurfew.json.',
   'policy-invalid': 'depcurfew.json does not follow the schema; issues lists the problems.',

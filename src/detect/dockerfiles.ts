@@ -2,7 +2,7 @@
 // and pip install packages or are replaced. File names, image names and tags come from the knowledge base.
 import type { DockerfileSyntaxKnowledge, ImageReferenceKnowledge, RuntimeImageKnowledge } from '../knowledge/types.ts';
 import { findExecCommands, findToolCommands, overLimitMessages, withVariables, type CommandFacts, type Environment, type ScriptCommands, type Word } from './commands.ts';
-import { argDeclarations, lineAt, readDockerfile, substitute, type Instruction } from './dockerfile.ts';
+import { argDeclarations, lineAt, readDockerfileOnce, substitute, type Instruction } from './dockerfile.ts';
 import { joinPath, type Repository } from './repository.ts';
 import type { DockerfileInfo, DockerStage, StageRuntime, ToolCommand, VersionDeclaration } from './types.ts';
 
@@ -20,6 +20,8 @@ export interface DockerFacts {
   codenames: readonly string[];
   /** ENV and how stages inherit it (decision D-115). */
   environment: { instruction: string; inheritedByStages: boolean; spaceForm: boolean };
+  /** ARG in a stage: a variable of the later RUN instructions, under ENV (decision D-166). */
+  buildArguments: { instruction: string; runEnvironment: boolean; inheritedByStages: boolean; globalNeedsDeclaration: boolean; environmentWins: boolean };
   commands: CommandFacts;
 }
 
@@ -83,7 +85,7 @@ function runtimeOf(reference: string, facts: DockerFacts): StageRuntime | undefi
 }
 
 /** Words of a RUN instruction in exec form (RUN ["npm", "ci"]), or undefined for the shell form. */
-function execWords(text: string): string[] | undefined {
+export function execWords(text: string): string[] | undefined {
   if (!text.startsWith('[')) return undefined;
   try {
     const parsed: unknown = JSON.parse(text);
@@ -94,7 +96,7 @@ function execWords(text: string): string[] | undefined {
 }
 
 /** The text of a RUN instruction without its options (--mount=..., --network=...). */
-function withoutOptions(text: string): { text: string; offset: number } {
+export function withoutOptions(text: string): { text: string; offset: number } {
   let offset = 0;
   for (;;) {
     const option = /^--\S*\s*/u.exec(text.slice(offset));
@@ -107,7 +109,7 @@ function withoutOptions(text: string): { text: string; offset: number } {
  * A here-document body is a script when it is fed to a shell: RUN <<EOF, or RUN <<EOF bash, or RUN bash -e <<EOF. The
  * other words of its command are few (the reader keeps at most 16), so the test is short.
  */
-function isScript(command: string | undefined): boolean {
+export function isScript(command: string | undefined): boolean {
   return command !== undefined && (command === '' || /^(?:\S*\/)?(?:sh|bash|ash|dash|zsh)(?: -\S+)*$/u.test(command));
 }
 
@@ -222,7 +224,7 @@ export interface DockerfileReading {
 
 /** Reads one Dockerfile. */
 export function readDockerStages(file: string, text: string, facts: DockerFacts): DockerfileReading {
-  const instructions = readDockerfile(text, facts.syntax);
+  const instructions = readDockerfileOnce(text, facts.syntax);
   const escape = facts.syntax.escapeCharacters[0] ?? '\\';
   const args = new Map<string, string | undefined>();
   // ARGs whose value depcurfew does not read (too long after substitution), with the reason.
@@ -233,6 +235,9 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
   // The variables ENV sets in each stage, which the stages that start from it inherit (docker.environment); only those
   // that commands read are kept (decision D-121).
   const environments: Environment[] = [];
+  // The variables ARG declares in each stage, which RUN gets as environment variables under those of ENV, inherited the
+  // same way (docker.buildArguments, decision D-166): the default written, or that of an ARG before the first FROM.
+  const buildArguments: Environment[] = [];
   const versions: DockerfileReading['versions'] = [];
   const notices: DockerfileReading['notices'] = [];
   for (const instruction of instructions) {
@@ -283,11 +288,21 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
       if (alias !== undefined && !named.has(alias)) named.set(alias, stages.length);
       const parent = stage.from === undefined || !facts.environment.inheritedByStages ? undefined : environments[stage.from];
       environments.push(parent ?? new Map());
+      const parentArguments = stage.from === undefined || !facts.buildArguments.inheritedByStages ? undefined : buildArguments[stage.from];
+      buildArguments.push(parentArguments ?? new Map());
       stages.push({ ...fields, commands: [] });
       continue;
     }
     const stage = stages.at(-1);
     const environment = environments.at(-1);
+    if (instruction.keyword === facts.buildArguments.instruction && facts.buildArguments.runEnvironment && buildArguments.length > 0) {
+      const declared = argDeclarations(instruction.text).flatMap(([name, value]): [string, string][] => {
+        const given = value ?? (facts.buildArguments.globalNeedsDeclaration ? args.get(name) : undefined);
+        return given === undefined ? [] : [[name, given]];
+      });
+      buildArguments[buildArguments.length - 1] = withVariables(facts.commands, buildArguments.at(-1), declared);
+      continue;
+    }
     if (instruction.keyword === facts.environment.instruction && environment !== undefined) {
       environments[environments.length - 1] = withVariables(facts.commands, environment, envDeclarations(instruction.text, facts.environment.spaceForm));
       continue;
@@ -298,7 +313,8 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
       continue;
     }
     if (instruction.keyword !== 'RUN' || stage === undefined) continue;
-    const run = runCommands(instruction, facts, environment ?? new Map());
+    // ENV wins over an ARG of the same name (docker.buildArguments.environmentWins), whichever comes first.
+    const run = runCommands(instruction, facts, facts.buildArguments.environmentWins ? withVariables(facts.commands, buildArguments.at(-1), environment) : withVariables(facts.commands, environment, buildArguments.at(-1)));
     if (run.pipConfig === true) stage.pipConfig = true;
     const seenCorepack = stage.corepack !== undefined;
     if (run.corepack !== undefined) stage.corepack ??= run.corepack;

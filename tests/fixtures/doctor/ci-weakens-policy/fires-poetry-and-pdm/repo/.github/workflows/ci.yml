@@ -1,0 +1,7 @@
+on: push
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      - run: pdm lock --exclude-newer 1h
+      - run: POETRY_SOLVER_MIN_RELEASE_AGE=0 poetry lock

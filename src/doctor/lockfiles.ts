@@ -4,7 +4,7 @@
 import { posix } from 'node:path';
 import { isRecord, values } from '../apply/facts.ts';
 import { parseJsonc } from '../detect/jsonc.ts';
-import type { Repository } from '../detect/repository.ts';
+import { MAX_LOCKFILE_SIZE, type Repository } from '../detect/repository.ts';
 import type { PackageManagerInfo } from '../detect/types.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import { listing } from '../apply/requirements.ts';
@@ -14,8 +14,8 @@ import { composerEntries, composerManifest, declaredRepositories } from './compo
 import { classicYarnEntries, UnsupportedClassicLockfile, type ClassicTarballs } from './yarn-classic-lockfile.ts';
 import { pdmEntries, pipfileLockEntries, poetryEntries, pylockEntries, requirementsEntries, requirementsFormatOf, requirementsIncludes, uvEntries } from './python-lockfiles.ts';
 
-/** Lockfiles are often larger than configuration files. */
-export const MAX_LOCKFILE_SIZE = 64 * 1024 * 1024;
+/** The limit of lockfiles, which every reader of a lockfile uses (Repository.readText, decision D-166). */
+export { MAX_LOCKFILE_SIZE };
 
 /**
  * YAML lockfiles (pnpm-lock.yaml, Yarn Berry's yarn.lock) are parsed into a syntax tree that takes about 60 times the

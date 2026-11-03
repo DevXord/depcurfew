@@ -1,0 +1,9 @@
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      YARN_ENABLE_SCRIPTS: "true"
+      YARN_NPM_MINIMAL_AGE_GATE: "60"
+    steps:
+      - run: yarn add --no-time-gate left-pad

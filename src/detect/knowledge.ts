@@ -76,6 +76,8 @@ export interface DetectionFacts {
   /** jobs.<id>.container and the env maps of workflows, jobs and steps (decision D-115). */
   jobContainer: { key: string; imageKey: string; envKey: string };
   workflowEnvironment: { key: string };
+  /** The variable of the environment file whose NAME=value lines the later steps of a job get (GITHUB_ENV, decision D-166). */
+  environmentFile: string;
   setupActions: SetupActionKnowledge[];
   /** The action whose version inputs set up Node.js, and how it reads node-version-file. */
   setupNode: { action: string; versionFile: SetupNodeVersionFileKnowledge };
@@ -317,6 +319,7 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
     workflows: first(actions.workflows),
     jobContainer: first(actions.jobContainer),
     workflowEnvironment: { key: first(actions.environmentKeys).key },
+    environmentFile: first(actions.environmentFile).variable,
     setupActions: [
       actions.setupNode,
       actions.pnpmActionSetup,
@@ -341,6 +344,7 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
       pythonTags: first(docker.pythonImageTags).tags,
       codenames: first(environment.node.releaseSchedule).flatMap((line) => (line.codename === undefined ? [] : [line.codename])),
       environment: first(docker.environment),
+      buildArguments: first(docker.buildArguments),
       commands,
     },
     commands,
