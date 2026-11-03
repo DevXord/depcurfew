@@ -1,8 +1,10 @@
 // `depcurfew doctor [directory] [--json | --sarif] [--fail-on error|warning] [--strict] [--osv]`. Exit code 1 when any finding
 // is an error, and also for a warning when --fail-on (--strict is --fail-on warning) or else doctor.failOn of the
 // policy is "warning" (decision D-112); notes never fail. An invalid depcurfew.json is one (invalid-policy), in every
-// output format, and counts as "error" unless the option says otherwise. A directory that does not exist is a usage
-// error (exit code 2), also reported as a JSON document or a SARIF run that did not succeed.
+// output format, and counts as "error" unless the option says otherwise. Without depcurfew.json the rules that need a
+// policy compare the repository with the policy depcurfew init would write, and their findings are notes (decision
+// D-149). A directory that does not exist is a usage error (exit code 2), also reported as a JSON document or a SARIF
+// run that did not succeed.
 import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
 import { countLevels, makeNotice, renderText, RULES, runDoctor, toSarif, type DoctorReport } from '../doctor/index.ts';
 import { fails, policyFailOn, resolveFailOn, type FailOn, type FailOnSetting } from '../doctor/fail-on.ts';
@@ -20,6 +22,7 @@ import { toUserSarif } from '../user/sarif.ts';
 import { paint } from '../color.ts';
 import type { FetchLike } from '../check/registry.ts';
 import { runDoctorWithOsv } from '../doctor/osv.ts';
+import { initialResolvedPolicy } from './init-policy.ts';
 import { projectDirectory, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 
@@ -110,7 +113,14 @@ export async function doctor(
   }
   // An invalid policy is read again by runDoctor, which reports it; it counts as failOn "error" unless the option says otherwise.
   const policy = projectPolicy(target.directory);
-  const options = policy === 'invalid' ? { invalidPolicy: 'report' as const } : { policy: policy ?? null };
+  // Without depcurfew.json the rules that need a policy run against the one init would write, as notes (decision D-149);
+  // failOn stays "error" unless the option says otherwise, since that policy is not the repository's.
+  const options =
+    policy === 'invalid'
+      ? { invalidPolicy: 'report' as const }
+      : policy === undefined
+        ? { policy: null, defaultPolicy: initialResolvedPolicy(target.directory) }
+        : { policy };
   // --osv: the locked versions go to OSV.dev before the rules run; nothing is sent without it.
   const found = format.osv === true ? await runDoctorWithOsv(target.directory, options, { fetch: dependencies.fetch }) : runDoctor(target.directory, options);
   // The directory came from the nearest depcurfew.json in a parent directory: said first, as a note (decision D-116).

@@ -1,0 +1,23 @@
+[
+  {
+    "rule": "config-drift",
+    "level": "note",
+    "location": {
+      "file": ".npmrc"
+    },
+    "message": ".npmrc does not exist; npm installs new versions without a release-age delay; with the default policy of depcurfew init, depcurfew apply would create it and set `min-release-age=3`, `strict-allow-scripts=true`, `allow-git=none`, `allow-remote=none`, `allow-file=all` and `allow-directory=all`",
+    "fix": "Run depcurfew init to write depcurfew.json with the default policy, then depcurfew apply (depcurfew apply --dry-run shows the changes first)",
+    "policy": "default"
+  },
+  {
+    "rule": "lockfile-install-scripts",
+    "level": "note",
+    "location": {
+      "file": "package-lock.json",
+      "line": 14
+    },
+    "message": "core-js has install scripts and npm 11.17.0 (packageManager in package.json) runs them, but the default policy of depcurfew init does not allow it",
+    "fix": "Run depcurfew init to write depcurfew.json with the default policy; then review its scripts and add core-js to installScripts.allow in depcurfew.json, or replace the package; then run depcurfew apply (depcurfew apply --dry-run shows the changes first)",
+    "policy": "default"
+  }
+]

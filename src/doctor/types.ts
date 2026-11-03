@@ -26,6 +26,11 @@ export interface Finding {
   location: Location;
   /** A fix for this finding; the rule's general help applies when absent. */
   fix?: string;
+  /**
+   * "default": the repository has no depcurfew.json, and a rule that needs a policy found this by comparing it with the
+   * policy depcurfew init would write (decision D-149). Such a finding is always a note. Absent otherwise.
+   */
+  policy?: 'default';
 }
 
 /**
@@ -65,8 +70,14 @@ export interface RuleContext {
   root: string;
   repository: Repository;
   detection: Detection;
-  /** undefined when the repository has no depcurfew.json. */
+  /** undefined when the repository has no depcurfew.json (and the rule does not need one). */
   policy: ResolvedPolicy | undefined;
+  /**
+   * true when `policy` is the policy depcurfew init would write, because the repository has no depcurfew.json (decision
+   * D-149): every finding becomes a note that says so, and a rule may word its findings for that (config-drift groups
+   * them by file).
+   */
+  defaultPolicy?: true;
   tools: readonly ToolKnowledge[];
   report(finding: Omit<Finding, 'rule' | 'level'> & { level?: Level }): void;
   /** Something the rule could not check; its code is the rule's id (decision D-116). */
@@ -158,6 +169,8 @@ export interface RuleResult {
   errors: number;
   warnings: number;
   notes: number;
+  /** "default": the rule needs a policy and ran against the policy depcurfew init would write (decision D-149). */
+  policy?: 'default';
 }
 
 /** What doctor looked at, shown below the result, so that a clean report says what it covers. */
@@ -175,6 +188,11 @@ export interface DoctorReport {
   schemaVersion: 1;
   /** invalid: depcurfew.json does not follow the schema or cannot be read (only with invalidPolicy: 'report'). */
   policy: 'valid' | 'missing' | 'invalid';
+  /**
+   * The policy the rules that need one ran against (decision D-149): "file" for depcurfew.json, "default" for the policy
+   * depcurfew init would write when there is no depcurfew.json, null when they did not run. Absent in doctor --user.
+   */
+  policySource?: 'file' | 'default' | null;
   findings: Finding[];
   notices: Notice[];
   /** What was checked. */

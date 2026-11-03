@@ -11,12 +11,13 @@ import { POLICY_FILE } from '../policy/defaults.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { values } from '../apply/facts.ts';
 import { plannedFor } from './plan.ts';
+import { asDefaultFinding, defaultPolicyNotice, shortened } from './default-policy.ts';
 import { ruleResults } from './render.ts';
 import { RULES } from './rules/index.ts';
 import { UNREADABLE_WARNINGS, unreadableConfig } from './rules/unreadable-config.ts';
 import { DETECTION_NOTICES, WARNING_FIXES } from './unreadable-warnings.ts';
 import type { Detection } from '../detect/types.ts';
-import { makeNotice, relocatedNotice, type Checked, type DoctorReport, type Finding, type Notice, type OsvDoctor, type ProjectView, type Rule } from './types.ts';
+import { makeNotice, relocatedNotice, type Checked, type DoctorReport, type Finding, type Notice, type OsvDoctor, type ProjectView, type Rule, type RuleResult } from './types.ts';
 
 export type { Checked, CheckedTool, DoctorReport, Finding, Level, Location, Notice, OsvDoctor, ProjectView, Rule, RuleResult, RuleScope } from './types.ts';
 export { makeNotice } from './types.ts';
@@ -69,6 +70,7 @@ export function condensed(findings: readonly Finding[]): Finding[] {
       location: first.location,
       message: `${hidden} more ${first.rule} ${hidden === 1 ? 'finding' : 'findings'} at this place ${hidden === 1 ? 'differs' : 'differ'} from the ones above only in numbers (line numbers or versions) and ${hidden === 1 ? 'is' : 'are'} not shown`,
       ...(first.fix === undefined ? {} : { fix: `Fix the ones above the same way, then run depcurfew doctor again to see the rest` }),
+      ...(first.policy === undefined ? {} : { policy: first.policy }),
     });
   }
   return kept;
@@ -98,7 +100,7 @@ function runRules(
   policy: ResolvedPolicy | undefined,
   rules: readonly Rule[],
   tools: readonly ToolKnowledge[],
-  where: { detection?: Detection; project?: string; projects?: readonly ProjectView[]; plan?: PlanOptions; repository?: Repository; osv?: OsvDoctor | undefined } = {},
+  where: { detection?: Detection; project?: string; projects?: readonly ProjectView[]; plan?: PlanOptions; repository?: Repository; osv?: OsvDoctor | undefined; defaultPolicy?: boolean } = {},
 ): DirectoryRun {
   const detection = where.detection ?? detectProject(root, tools);
   const repository = where.repository ?? new Repository(root);
@@ -122,7 +124,12 @@ function runRules(
       ...(where.projects === undefined ? {} : { projects: where.projects }),
       ...(where.plan === undefined ? {} : { plan: where.plan }),
       ...(where.osv === undefined ? {} : { osv: where.osv }),
-      report: ({ level, ...finding }) => findings.push({ rule: rule.id, level: level ?? rule.level, ...finding }),
+      ...(where.defaultPolicy === true ? { defaultPolicy: true as const } : {}),
+      report: ({ level, ...finding }) => {
+        const found: Finding = { rule: rule.id, level: level ?? rule.level, ...finding };
+        // Against the default policy every finding is a note that says so (decision D-149).
+        findings.push(where.defaultPolicy === true ? asDefaultFinding(found, rule) : found);
+      },
       notice: (message, file, fix) => notice(rule.id, message, file, fix),
     });
   }
@@ -163,11 +170,13 @@ function relocateRun(project: string, run: DirectoryRun, plan: ApplyReport | und
  * invalidPolicy: 'report' runs the rules that need no policy and reports the problems as an invalid-policy finding.
  * `policy` passes the policy in instead of reading depcurfew.json (null: run as without one). With projects in the
  * policy, the rules also run on every listed directory with the same policy, and the report covers them all, with
- * paths relative to the root (decision D-100).
+ * paths relative to the root (decision D-100). `defaultPolicy`, for a repository without depcurfew.json: the policy
+ * depcurfew init would write (initialResolvedPolicy), which the rules that need a policy then run against; every
+ * finding of theirs is a note with `policy: "default"` (decision D-149). Without it those rules do not run.
  */
 export function runDoctor(
   root: string,
-  options: { rules?: readonly Rule[]; tools?: readonly ToolKnowledge[]; invalidPolicy?: 'throw' | 'report'; policy?: ResolvedPolicy | null; osv?: OsvDoctor } = {},
+  options: { rules?: readonly Rule[]; tools?: readonly ToolKnowledge[]; invalidPolicy?: 'throw' | 'report'; policy?: ResolvedPolicy | null; osv?: OsvDoctor; defaultPolicy?: ResolvedPolicy } = {},
 ): DoctorReport {
   const tools = options.tools ?? knowledgeBase;
   let policy: ResolvedPolicy | undefined;
@@ -182,6 +191,68 @@ export function runDoctor(
     }
   }
   const rules = options.rules ?? RULES;
+  const needing = rules.filter((rule) => rule.requiresPolicy);
+  const fallback = policy === undefined && !invalid && needing.length > 0 ? options.defaultPolicy : undefined;
+  const report = examine(root, { policy, invalid, rules, tools, osv: options.osv, ...(fallback === undefined ? {} : { fallback }) });
+  if (fallback === undefined) return report;
+  // The rules that need a policy, once more against the policy init would write; nothing else runs twice.
+  return withDefaultPolicy(report, examine(root, { policy: fallback, invalid: false, rules: needing, tools, defaultPolicy: true }));
+}
+
+/**
+ * The report of a repository without depcurfew.json and the findings of the rules that need a policy against the
+ * default policy (decision D-149): those come after the other findings, and those rules show their results with
+ * `policy: "default"` instead of skipped. Their notices are kept when they say what such a rule could not check;
+ * the other notices, those of the files and of detection, are in the report already.
+ */
+function withDefaultPolicy(report: DoctorReport, compared: DoctorReport): DoctorReport {
+  const findings = shortened(compared.findings);
+  // The results count the notes that are shown.
+  const results = new Map(ruleResultsOf(compared.checked?.rules ?? [], findings).map((result) => [result.rule, result]));
+  const shown = new Set(report.notices.map((notice) => notice.message));
+  const notices = compared.notices.filter((notice) => results.has(notice.code) && !shown.has(notice.message));
+  const tools = report.checked?.tools ?? [];
+  const known = new Set(tools.map((tool) => `${tool.project ?? ''}\u0000${tool.id}`));
+  return {
+    ...report,
+    policySource: 'default',
+    findings: [...report.findings, ...findings],
+    notices: [...report.notices, ...notices],
+    ...(report.checked === undefined
+      ? {}
+      : {
+          checked: {
+            ...report.checked,
+            // The projects init would list are checked only against the default policy, so their tools come from that run.
+            tools: [...tools, ...(compared.checked?.tools ?? []).filter((tool) => tool.project !== undefined && !known.has(`${tool.project}\u0000${tool.id}`))],
+            files: [...new Set([...report.checked.files, ...(compared.checked?.files ?? [])])].sort(),
+            rules: report.checked.rules.map((result) => {
+              const own = results.get(result.rule);
+              return own === undefined ? result : { ...own, policy: 'default' as const };
+            }),
+          },
+        }),
+  };
+}
+
+/** The results of the rules with the counts of `findings` (all of them notes), for the findings that are shown. */
+function ruleResultsOf(results: readonly RuleResult[], findings: readonly Finding[]): RuleResult[] {
+  return results.map((result) => {
+    const notes = findings.filter((finding) => finding.rule === result.rule).length;
+    return result.result === 'problems' ? { ...result, notes } : result;
+  });
+}
+
+/**
+ * The rules on the repository with one policy: depcurfew.json (`policy`), none (undefined, `invalid` when the file is
+ * there but cannot be used), or the policy init would write (`defaultPolicy`, decision D-149). `fallback`: there is no
+ * depcurfew.json, and the rules that need one run against this policy next, which the notice policy-missing says.
+ */
+function examine(
+  root: string,
+  options: { policy: ResolvedPolicy | undefined; invalid: boolean; rules: readonly Rule[]; tools: readonly ToolKnowledge[]; osv?: OsvDoctor | undefined; fallback?: ResolvedPolicy; defaultPolicy?: true },
+): DoctorReport {
+  const { policy, invalid, rules, tools } = options;
   // The listed directories that can be read; invalid-project reports the others.
   const listed = policy?.projects ?? [];
   // A package manager the root's CI sets up only for the projects is not the root's (decision D-137).
@@ -202,9 +273,22 @@ export function runDoctor(
 
   const projectRuns = views.map((view) => ({
     view,
-    run: runRules(view.root, policy, rules, tools, { detection: view.detection, repository: view.repository, project: view.directory, plan: projectPlanOptions(detection, view.directory, view.detection), osv: options.osv }),
+    run: runRules(view.root, policy, rules, tools, {
+      detection: view.detection,
+      repository: view.repository,
+      project: view.directory,
+      plan: projectPlanOptions(detection, view.directory, view.detection),
+      osv: options.osv,
+      ...(options.defaultPolicy === true ? { defaultPolicy: true } : {}),
+    }),
   }));
-  const rootRun = runRules(root, policy, rules, tools, { detection, ...(views.length === 0 ? {} : { projects: views }), ...(rootPlan === undefined ? {} : { plan: rootPlan }), osv: options.osv });
+  const rootRun = runRules(root, policy, rules, tools, {
+    detection,
+    ...(views.length === 0 ? {} : { projects: views }),
+    ...(rootPlan === undefined ? {} : { plan: rootPlan }),
+    osv: options.osv,
+    ...(options.defaultPolicy === true ? { defaultPolicy: true } : {}),
+  });
 
   const notices: Notice[] = [];
   const shown = new Set<string>();
@@ -215,6 +299,7 @@ export function runDoctor(
   };
   // The policy's state, with the codes of apply's errors for it; the invalid-policy finding says how to fix an invalid one.
   if (invalid) addNotice(makeNotice('policy-invalid', `${POLICY_FILE} is invalid: only the rules that do not need a policy ran`, POLICY_FILE, 'Fix what the invalid-policy finding lists, then run depcurfew doctor again'));
+  else if (policy === undefined && options.fallback !== undefined) addNotice(defaultPolicyNotice(options.fallback));
   else if (policy === undefined) addNotice(makeNotice('policy-missing', `no ${POLICY_FILE}: only the rules that do not need a policy ran`, undefined, `Run depcurfew init to write ${POLICY_FILE}, so that the rules that compare the repository with it run too`));
   const findings = [...rootRun.findings];
   for (const item of rootRun.notices) addNotice(item);
@@ -224,7 +309,7 @@ export function runDoctor(
     for (const item of relocated.notices) addNotice(item);
   }
   const sorted = condensed(problems.length === 0 ? findings : findings.map((finding) => applyWaits(finding, problems.length))).sort(byLocation);
-  const rootChecked = checkedOf(detection, rootRun.repository, tools, policy !== undefined || invalid);
+  const rootChecked = checkedOf(detection, rootRun.repository, tools, (policy !== undefined && options.defaultPolicy !== true) || invalid);
   const projectChecked = projectRuns.map(({ view, run }) => {
     const checked = checkedOf(run.detection, run.repository, tools, false);
     return {
@@ -246,7 +331,8 @@ export function runDoctor(
   ];
   return {
     schemaVersion: 1,
-    policy: invalid ? 'invalid' : policy === undefined ? 'missing' : 'valid',
+    policy: invalid ? 'invalid' : policy === undefined || options.defaultPolicy === true ? 'missing' : 'valid',
+    policySource: policy === undefined ? null : options.defaultPolicy === true ? 'default' : 'file',
     findings: sorted,
     notices,
     checked: {

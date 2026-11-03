@@ -128,12 +128,13 @@ function policyTable(): string {
   return ['| Field | Values | Default | Meaning |', '| --- | --- | --- | --- |', ...rows].join('\n');
 }
 
-function rulesList(rules: readonly Rule[] = RULES): string {
+/** `fallback`: what a rule that needs the policy does without one; doctor compares with the default policy (decision D-149). */
+function rulesList(rules: readonly Rule[] = RULES, fallback = ' (without one: a note against the default policy)'): string {
   return rules.map((rule) =>
     [
       `### \`${rule.id}\``,
       '',
-      `**${rule.level}**${rule.requiresPolicy ? ' · needs depcurfew.json' : ''} · ${rule.summary}`,
+      `**${rule.level}**${rule.requiresPolicy ? ` · needs depcurfew.json${fallback}` : ''} · ${rule.summary}`,
       '',
       rule.description,
       '',
@@ -416,7 +417,8 @@ function userTable(tools: readonly ToolKnowledge[]): string {
 export function readmeSections(inputs: ReadmeInputs): Record<string, string> {
   return {
     'user-config': userTable(inputs.tools),
-    'user-rules': rulesList(USER_RULES),
+    // doctor --user has no default policy to compare with.
+    'user-rules': rulesList(USER_RULES, ''),
     'default-policy': ['```json', renderPolicy(DEFAULT_POLICY).trimEnd(), '```'].join('\n'),
     'policy-fields': policyTable(),
     tools: toolsTable(inputs.tools),

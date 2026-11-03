@@ -238,7 +238,10 @@ describe('notices follow the message contract (T10)', () => {
     const sarif = JSON.parse((await exec(['doctor', '--sarif', root])).stdout) as { runs: { invocations: { toolExecutionNotifications: unknown[] }[] }[] };
     expect(sarif.runs[0]?.invocations[0]?.toolExecutionNotifications).toContainEqual({
       level: 'note',
-      message: { text: 'no depcurfew.json: only the rules that do not need a policy ran. Fix: Run depcurfew init to write depcurfew.json, so that the rules that compare the repository with it run too' },
+      // Without depcurfew.json the rules that need a policy run against the default policy (decision D-149).
+      message: {
+        text: 'no depcurfew.json: the rules that need a policy compared the repository with the default policy of depcurfew init; what they find is a note and does not fail doctor. Fix: Run depcurfew init to write depcurfew.json with this policy, then depcurfew apply (depcurfew apply --dry-run shows the changes first)',
+      },
       descriptor: { id: 'policy-missing' },
     });
   });

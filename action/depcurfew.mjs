@@ -17837,7 +17837,7 @@ function normalizePythonName(name) {
 }
 
 // src/apply/expected.ts
-function isObject$2(value) {
+function isObject$3(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 /** A copy of `data` with `value` at `path`; missing objects on the way, or values that are not objects, become objects. */
@@ -17849,7 +17849,7 @@ function withValue(data, path, value) {
 		copy[segment] = withValue(data[segment], rest, value);
 		return copy;
 	}
-	const copy = isObject$2(data) ? { ...data } : {};
+	const copy = isObject$3(data) ? { ...data } : {};
 	const key = String(segment);
 	const current = Object.hasOwn(copy, key) ? copy[key] : void 0;
 	Object.defineProperty(copy, key, {
@@ -17878,7 +17878,7 @@ function withValues(data, edits) {
 			root = value;
 			continue;
 		}
-		if (!(Array.isArray(root) && typeof path[0] === "number") && !isObject$2(root)) root = {};
+		if (!(Array.isArray(root) && typeof path[0] === "number") && !isObject$3(root)) root = {};
 		let container = root;
 		for (const [index, segment] of path.entries()) {
 			const last = index === path.length - 1;
@@ -17888,7 +17888,7 @@ function withValues(data, edits) {
 				else {
 					const next = container[segment];
 					const nextSegment = path[index + 1];
-					if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject$2(next)) container[segment] = {};
+					if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject$3(next)) container[segment] = {};
 					container = container[segment];
 				}
 				continue;
@@ -17900,7 +17900,7 @@ function withValues(data, edits) {
 			}
 			const next = Object.hasOwn(object, key) ? object[key] : void 0;
 			const nextSegment = path[index + 1];
-			if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject$2(next)) define(object, key, {});
+			if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject$3(next)) define(object, key, {});
 			container = object[key];
 		}
 	}
@@ -17909,8 +17909,8 @@ function withValues(data, edits) {
 /** A copy of `data` without the key `key` of the object at `path`; `data` itself when there is no object there. */
 function withoutKey(data, path, key) {
 	let current = data;
-	for (const segment of path) current = (isObject$2(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
-	if (!isObject$2(current)) return data;
+	for (const segment of path) current = (isObject$3(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
+	if (!isObject$3(current)) return data;
 	const copy = {};
 	for (const [name, value] of Object.entries(current)) if (name !== key) Object.defineProperty(copy, name, {
 		value,
@@ -17923,7 +17923,7 @@ function withoutKey(data, path, key) {
 /** A copy of `data` with the array at `path` changed by `change`. */
 function withArray(data, path, change) {
 	let current = data;
-	for (const segment of path) current = (isObject$2(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
+	for (const segment of path) current = (isObject$3(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
 	return withValue(data, path, change(Array.isArray(current) ? [...current] : []));
 }
 /** Whether two parsed documents hold the same data, keys in the same order. */
@@ -18703,7 +18703,7 @@ const SOURCE_ORDER = [
 	"github-actions",
 	"dockerfile"
 ];
-function isObject$1(value) {
+function isObject$2(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function stringList(value) {
@@ -18711,7 +18711,7 @@ function stringList(value) {
 }
 /** devEngines entries may be one object or a list of objects with a name and an optional version. */
 function devEngineEntries(value) {
-	return (Array.isArray(value) ? value : [value]).flatMap((entry) => isObject$1(entry) && typeof entry["name"] === "string" ? [{
+	return (Array.isArray(value) ? value : [value]).flatMap((entry) => isObject$2(entry) && typeof entry["name"] === "string" ? [{
 		name: entry["name"],
 		...typeof entry["version"] === "string" ? { version: entry["version"] } : {}
 	}] : []);
@@ -18780,7 +18780,7 @@ var Collector = class {
 function readPackageJson(repository) {
 	if (!repository.isFile("package.json")) return void 0;
 	const parsed = repository.parse("package.json", (text) => JSON.parse(text));
-	return isObject$1(parsed) ? parsed : void 0;
+	return isObject$2(parsed) ? parsed : void 0;
 }
 function readPackageManagerField(repository, facts, manifest, collector) {
 	const value = manifest[facts.packageManagerKey];
@@ -18806,7 +18806,7 @@ function readPackageManagerField(repository, facts, manifest, collector) {
 }
 function readDevEngines(facts, manifest, collector) {
 	const devEngines = manifest[facts.devEngines.key];
-	if (!isObject$1(devEngines)) return;
+	if (!isObject$2(devEngines)) return;
 	for (const entry of devEngineEntries(devEngines[facts.devEngines.packageManagerKey])) {
 		const manager = facts.managers.find((item) => item.id === entry.name);
 		if (manager === void 0) continue;
@@ -18825,7 +18825,7 @@ function readDevEngines(facts, manifest, collector) {
 }
 function readVolta(facts, manifest, collector) {
 	const volta = manifest[facts.volta.key];
-	if (!isObject$1(volta)) return;
+	if (!isObject$2(volta)) return;
 	for (const tool of facts.volta.tools) {
 		const version = volta[tool];
 		if (typeof version === "string") collector.addVersion(tool, {
@@ -18880,7 +18880,7 @@ function readNodeFiles(repository, facts, manifest, collector) {
 		}
 	}
 	const engines = manifest?.[facts.nodeFiles.engines.key];
-	const range = isObject$1(engines) ? engines[facts.nodeFiles.engines.runtimeKey] : void 0;
+	const range = isObject$2(engines) ? engines[facts.nodeFiles.engines.runtimeKey] : void 0;
 	if (typeof range === "string") collector.addVersion("node", {
 		version: range,
 		source: "engines",
@@ -18894,15 +18894,15 @@ function versionFromFile(repository, facts, path, manifest) {
 	if (file === "" || !repository.isFile(file)) return void 0;
 	if (file.endsWith(".json")) {
 		const json = file === versionFile.packageJson ? manifest : repository.parse(file, (text) => JSON.parse(text));
-		if (!isObject$1(json)) return void 0;
+		if (!isObject$2(json)) return void 0;
 		for (const key of versionFile.packageJsonOrder) {
 			if (key === `${facts.devEngines.key}.${facts.devEngines.runtimeKey}`) {
 				const devEngines = json[facts.devEngines.key];
-				const entry = (isObject$1(devEngines) ? devEngineEntries(devEngines[facts.devEngines.runtimeKey]) : []).find((item) => item.name.toLowerCase() === "node" && item.version !== void 0);
+				const entry = (isObject$2(devEngines) ? devEngineEntries(devEngines[facts.devEngines.runtimeKey]) : []).find((item) => item.name.toLowerCase() === "node" && item.version !== void 0);
 				if (entry?.version !== void 0) return entry.version;
 				continue;
 			}
-			const value = key.split(".").reduce((node, part) => isObject$1(node) ? node[part] : void 0, json);
+			const value = key.split(".").reduce((node, part) => isObject$2(node) ? node[part] : void 0, json);
 			if (typeof value === "string") return value;
 		}
 		return;
@@ -18946,10 +18946,10 @@ function readWorkspaces(repository, facts, manifest) {
 			if (seen.has(id) || !repository.isFile(file)) continue;
 			seen.add(id);
 			const document = file.endsWith(".toml") ? readToml(repository, file)?.root : readDocument(repository, file, manifest);
-			if (!isObject$1(document)) continue;
-			const value = key.split(".").reduce((node, part) => isObject$1(node) && Object.hasOwn(node, part) ? node[part] : void 0, document);
-			const patterns = stringList(value) ?? (objectKey !== null && isObject$1(value) ? stringList(value[objectKey]) : void 0);
-			const excluded = excludeKey !== void 0 && isObject$1(value) ? stringList(value[excludeKey]) ?? [] : [];
+			if (!isObject$2(document)) continue;
+			const value = key.split(".").reduce((node, part) => isObject$2(node) && Object.hasOwn(node, part) ? node[part] : void 0, document);
+			const patterns = stringList(value) ?? (objectKey !== null && isObject$2(value) ? stringList(value[objectKey]) : void 0);
+			const excluded = excludeKey !== void 0 && isObject$2(value) ? stringList(value[excludeKey]) ?? [] : [];
 			const manifests = [...new Set(facts.managers.filter((other) => other.ecosystem === manager.ecosystem).flatMap((other) => other.manifests))];
 			if (patterns !== void 0) declarations.push({
 				file,
@@ -19205,6 +19205,31 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment,
 
 // src/policy/defaults.ts
 const POLICY_FILE = "depcurfew.json";
+/** Where the published package serves schema.json; init writes it into `$schema`. */
+const SCHEMA_URL = "https://unpkg.com/depcurfew/schema.json";
+/** What `depcurfew init` writes. Every section is explicit, so the file shows what can be configured. */
+const DEFAULT_POLICY = {
+	$schema: SCHEMA_URL,
+	version: 1,
+	cooldown: {
+		minimum: "3d",
+		exclude: [],
+		securityUpdates: "bypass"
+	},
+	installScripts: {
+		default: "deny",
+		allow: [],
+		deny: []
+	},
+	sources: {
+		git: "deny",
+		remoteTarball: "deny",
+		file: "allow",
+		directory: "allow"
+	},
+	targets: "auto",
+	doctor: { failOn: "warning" }
+};
 
 // src/policy/shape.ts
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/u;
@@ -21863,7 +21888,8 @@ function managerDelay$1(context, manager, tool) {
 	const disputed = tool.cooldown.default.status === "disputed" ? "; official sources disagree, the longest is assumed" : "";
 	return {
 		minutes,
-		origin: minutes === 0 ? `${versionText} has no delay by default` : `the default of ${versionText}${disputed}`
+		origin: minutes === 0 ? `${versionText} has no delay by default` : `the default of ${versionText}${disputed}`,
+		byDefault: true
 	};
 }
 
@@ -24110,12 +24136,12 @@ function pickUnit(minutes, units) {
 	if (unit === void 0) throw new Error("toDurationString needs at least one unit");
 	return unit;
 }
-function valuesOf(fact) {
+function valuesOf$1(fact) {
 	return evidenceOf(fact).map((evidence) => evidence.value);
 }
 function extraValues(tool, key) {
 	const fact = tool.extra?.[key];
-	return fact === void 0 ? void 0 : valuesOf(fact);
+	return fact === void 0 ? void 0 : valuesOf$1(fact);
 }
 function isDurationStringUnit(value) {
 	return DURATION_STRING_UNITS.includes(value);
@@ -24149,7 +24175,7 @@ function convertCooldown(tool, duration) {
 		fix
 	});
 	const byHand = `Set the release-age delay in the ${tool.name} configuration by hand`;
-	const units = valuesOf(tool.cooldown.unit);
+	const units = valuesOf$1(tool.cooldown.unit);
 	if (units.includes(null)) return fail(`${tool.name} has no release-age setting`, `Remove "${tool.id}" from targets in ${POLICY_FILE}, or delay its updates another way`);
 	let unit;
 	let delayUnit;
@@ -29606,14 +29632,14 @@ const CODES = {
 	dim: [2, 22]
 };
 const style = ([open, close]) => (text) => text === "" ? text : `\u001b[${open}m${text}\u001b[${close}m`;
-const same = (text) => text;
+const same$1 = (text) => text;
 const PLAIN = {
-	red: same,
-	yellow: same,
-	green: same,
-	cyan: same,
-	bold: same,
-	dim: same
+	red: same$1,
+	yellow: same$1,
+	green: same$1,
+	cyan: same$1,
+	bold: same$1,
+	dim: same$1
 };
 const COLORED = {
 	red: style(CODES.red),
@@ -29763,9 +29789,13 @@ function checkedLines(checked, policy) {
 		`  Tools: ${checked.tools.length === 0 ? "no package manager or bot found" : checked.tools.map(checkedTool).join(", ")}`,
 		`  Files read: ${checked.files.length === 0 ? "none" : checked.files.join(", ")}`,
 		`  ${resultCounts(checked.rules)}`,
-		...checked.rules.map((result) => `    ${resultText(result).padEnd(width)}  ${result.check}${result.result === "skipped" ? ` (${policyNeeded(checked.policyFile, policy)})` : ""} [${result.rule}]`)
+		...checked.rules.map((result) => `    ${resultText(result).padEnd(width)}  ${result.check}${result.result === "skipped" ? ` (${policyNeeded(checked.policyFile, policy)})` : result.policy === "default" && result.result !== "not-applicable" ? ` (${DEFAULT_RESULT})` : ""} [${result.rule}]`)
 	];
 }
+/** After a check that ran against the default policy, in the list of what doctor checked (decision D-149). */
+const DEFAULT_RESULT = "compared with the default policy";
+/** The title of the findings against the default policy, which come after the others (decision D-149). */
+const DEFAULT_BLOCK = "Compared with the default policy (no depcurfew.json):";
 /** The line --strict adds when warnings make doctor fail. */
 const STRICT_NOTE = "--strict: warnings count as failures, so depcurfew doctor exits with 1";
 /**
@@ -29786,16 +29816,24 @@ function renderText(report, rules, colors = PLAIN, options = {}) {
 		const explanation = options.failOn === void 0 ? void 0 : failOnExplanation(options.failOn, counts);
 		if (explanation !== void 0) lines.push(printable(explanation.message), `  ${colors.green("fix:")} ${printable(explanation.fix)}`);
 		else if (options.failOn === void 0 && options.strict === true && counts.warning > 0) lines.push(STRICT_NOTE);
-		let file;
-		for (const finding of report.findings) {
-			if (finding.location.file !== file) {
-				file = finding.location.file;
-				lines.push("", colors.bold(printable(file)));
+		const byFile = (findings) => {
+			let file;
+			for (const finding of findings) {
+				if (finding.location.file !== file) {
+					file = finding.location.file;
+					lines.push("", colors.bold(printable(file)));
+				}
+				const where = finding.location.line === void 0 ? "" : `${finding.location.line}: `;
+				const help = finding.fix ?? rules.find((rule) => rule.id === finding.rule)?.help;
+				lines.push(`  ${where}${levelColor(finding.level, colors)(finding.level)} ${printable(finding.message)} ${colors.dim(`(${printable(finding.rule)})`)}`);
+				if (help !== void 0) lines.push(`    ${colors.green("fix:")} ${printable(help)}`);
 			}
-			const where = finding.location.line === void 0 ? "" : `${finding.location.line}: `;
-			const help = finding.fix ?? rules.find((rule) => rule.id === finding.rule)?.help;
-			lines.push(`  ${where}${levelColor(finding.level, colors)(finding.level)} ${printable(finding.message)} ${colors.dim(`(${printable(finding.rule)})`)}`);
-			if (help !== void 0) lines.push(`    ${colors.green("fix:")} ${printable(help)}`);
+		};
+		byFile(report.findings.filter((finding) => finding.policy !== "default"));
+		const compared = report.findings.filter((finding) => finding.policy === "default");
+		if (compared.length > 0) {
+			lines.push("", colors.bold(DEFAULT_BLOCK));
+			byFile(compared);
 		}
 	}
 	if (report.notices.length > 0) {
@@ -30261,6 +30299,111 @@ function plannedApply(context) {
 	const { policy, detection } = context;
 	if (policy === void 0) return void 0;
 	return plannedFor(context.root, policy, detection, context.tools, context.plan);
+}
+
+// src/doctor/types.ts
+/** A notice with its fields in the order of a finding; `file`, `line` and `fix` only when they are known. */
+function makeNotice(code, message, file, fix, line) {
+	return {
+		level: "note",
+		code,
+		...file === void 0 ? {} : { location: {
+			file,
+			...line === void 0 ? {} : { line }
+		} },
+		message,
+		...file === void 0 ? {} : { file },
+		...fix === void 0 ? {} : { fix }
+	};
+}
+/** The same notice for another file (a project's file named from the root, at the same line), or without one. */
+function relocatedNotice(notice, message, file) {
+	return makeNotice(notice.code, message, file, notice.fix, file === void 0 ? void 0 : notice.location?.line);
+}
+
+// src/doctor/default-policy.ts
+/** How messages name the policy the rules compared the repository with. */
+const DEFAULT_POLICY_NAME = "the default policy of depcurfew init";
+/** What to run, at the end of a fix. */
+const APPLY_NEXT = "depcurfew apply (depcurfew apply --dry-run shows the changes first)";
+/** The start of every fix of such a note. */
+const INIT_FIRST = `Run depcurfew init to write ${POLICY_FILE} with the default policy`;
+/** depcurfew.json as a word of a message, not a part of a path such as frontend/depcurfew.json. */
+const POLICY_WORD = new RegExp(`(?<![\\w./\\\\-])${POLICY_FILE.replaceAll(".", "\\.")}(?![\\w-])`, "gu");
+function lowerFirst(text) {
+	return `${text.charAt(0).toLowerCase()}${text.slice(1)}`;
+}
+/**
+* A finding of a rule that ran against the default policy, as a note: the message names that policy instead of
+* depcurfew.json (or says it at the end when it names no policy), and the fix runs depcurfew init first, then what the
+* finding says, then depcurfew apply. A message that already names the default policy (config-drift) keeps its text.
+*/
+function asDefaultFinding(finding, rule) {
+	const named = finding.message.replace(POLICY_WORD, DEFAULT_POLICY_NAME);
+	const message = finding.message.includes("the default policy of depcurfew init") ? finding.message : named !== finding.message ? named : `${finding.message} (compared with ${DEFAULT_POLICY_NAME})`;
+	const original = (finding.fix ?? rule.help).replace(/\.$/u, "");
+	const fix = original.startsWith(INIT_FIRST) ? original : `${INIT_FIRST}; then ${lowerFirst(original)}${original.includes("depcurfew apply") ? "" : `; then run ${APPLY_NEXT}`}`;
+	return {
+		...finding,
+		level: "note",
+		message,
+		fix,
+		policy: "default"
+	};
+}
+/** The most notes of one rule in one file against the default policy; one more note counts the rest (decision D-149). */
+const MAX_DEFAULT_NOTES = 5;
+/**
+* The notes against the default policy, at most MAX_DEFAULT_NOTES of a rule in one file (a lockfile with dozens of
+* packages with install scripts), so that the overview stays short; one note more says how many are left out and how
+* to see them. Their order is kept.
+*/
+function shortened(findings) {
+	const groups = /* @__PURE__ */ new Map();
+	for (const finding of findings) {
+		const key = `${finding.rule}\u0000${finding.location.file}`;
+		const group = groups.get(key) ?? {
+			shown: 0,
+			hidden: 0
+		};
+		groups.set(key, group);
+		if (group.shown < 5) {
+			group.shown += 1;
+			group.last = finding;
+		} else group.hidden += 1;
+	}
+	const kept = [];
+	const shown = /* @__PURE__ */ new Map();
+	for (const finding of findings) {
+		const key = `${finding.rule}\u0000${finding.location.file}`;
+		const count = (shown.get(key) ?? 0) + 1;
+		shown.set(key, count);
+		if (count > 5) continue;
+		kept.push(finding);
+		const group = groups.get(key);
+		if (group === void 0 || group.hidden === 0 || group.last !== finding) continue;
+		const { hidden } = group;
+		kept.push({
+			rule: finding.rule,
+			level: "note",
+			location: { file: finding.location.file },
+			message: `${hidden} more ${finding.rule} ${hidden === 1 ? "finding" : "findings"} in ${finding.location.file} against ${DEFAULT_POLICY_NAME} ${hidden === 1 ? "is" : "are"} not shown`,
+			fix: `${INIT_FIRST}, then run depcurfew doctor again to see them all`,
+			policy: "default"
+		});
+	}
+	return kept;
+}
+/**
+* The notice policy-missing when the rules that need a policy ran against the default policy: which policy that was,
+* with the longer delay and the projects init would write, and what to run.
+*/
+function defaultPolicyNotice(policy) {
+	const extras = [];
+	const minimum = policy.cooldown?.minimum.text;
+	if (minimum !== void 0 && minimum !== DEFAULT_POLICY.cooldown.minimum) extras.push(`cooldown.minimum "${minimum}", the longest release-age delay the repository already sets`);
+	if (policy.projects.length > 0) extras.push(`projects ${listing$1(policy.projects.map((project) => `"${project}"`))}`);
+	return makeNotice("policy-missing", `no ${POLICY_FILE}: the rules that need a policy compared the repository with ${DEFAULT_POLICY_NAME}${extras.length === 0 ? "" : ` (with ${extras.join(" and ")})`}; what they find is a note and does not fail doctor`, void 0, `Run depcurfew init to write ${POLICY_FILE} with this policy, then ${APPLY_NEXT}`);
 }
 
 // src/doctor/applies.ts
@@ -31326,6 +31469,110 @@ const composerConfigWeakens = {
 	}
 };
 
+// src/doctor/setting-changes.ts
+const isObject$1 = (value) => typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof TomlDateTime);
+/** A value as JSON, with TOML's big integers and dates as written. */
+function valueText(value) {
+	return JSON.stringify(value, (_key, item) => typeof item === "bigint" ? Number(item) : item instanceof TomlDateTime ? item.text : item) ?? String(value);
+}
+function add(values, path, text) {
+	const list = values.get(path);
+	if (list === void 0) values.set(path, [text]);
+	else list.push(text);
+}
+/**
+* Every leaf of the data under `path`: scalars and lists of scalars are values; an empty table is one too. The entries
+* of a list of tables (updates in dependabot.yml) are written `updates[]`, so that the same setting in each counts once.
+*/
+function flatten(node, path, values) {
+	if (Array.isArray(node) && node.some(isObject$1)) {
+		for (const item of node) flatten(item, `${path}[]`, values);
+		return;
+	}
+	if (isObject$1(node)) {
+		const keys = Object.keys(node);
+		if (keys.length === 0 && path !== "") add(values, path, "{}");
+		for (const key of keys) flatten(node[key], path === "" ? key : `${path}.${key}`, values);
+		return;
+	}
+	if (path !== "") add(values, path, valueText(node));
+}
+function formatOf(file) {
+	const name = file.split("/").at(-1) ?? file;
+	if (name === ".npmrc") return { kind: "ini" };
+	if (/\.ya?ml$/u.test(name)) return {
+		kind: "data",
+		parse: (text) => parseYaml(text, yamlOptionsFor(file)),
+		separator: ": "
+	};
+	if (/\.jsonc?$/u.test(name)) return {
+		kind: "data",
+		parse: parseJsonc,
+		separator: ": "
+	};
+	if (name.endsWith(".toml") || name === "Pipfile") return {
+		kind: "data",
+		parse: (text) => parseToml(text).root,
+		separator: " = "
+	};
+}
+/** The settings of a file in a known format, or undefined when it does not parse. */
+function valuesOf(format, text) {
+	const values = /* @__PURE__ */ new Map();
+	if (format.kind === "ini") {
+		for (const entry of iniEntries(text)) if (entry.key.endsWith("[]")) add(values, entry.key, entry.value);
+		else values.set(entry.key, [entry.value]);
+		return values;
+	}
+	try {
+		flatten(text.trim() === "" ? {} : format.parse(text), "", values);
+	} catch {
+		return;
+	}
+	return values;
+}
+function same(left, right) {
+	if (left === void 0 || left.length !== right.length) return false;
+	const sorted = [...left].sort();
+	return [...right].sort().every((item, index) => item === sorted[index]);
+}
+/** Lines that hold no setting: blank lines, comments and the lines depcurfew writes around its settings. */
+function isSettingLine(line) {
+	return line !== "" && !line.startsWith("#") && !line.startsWith("//") && !line.startsWith(";");
+}
+/** A file depcurfew cannot read as settings: the lines apply adds and removes, without the ones it only moves. */
+function lineChanges(before, after) {
+	const added = [];
+	const removed = [];
+	for (const operation of myers(lines(before), lines(after))) {
+		const line = operation.line.replace(/[\r\u0000]/gu, "").trim();
+		if (operation.kind === "same" || !isSettingLine(line)) continue;
+		(operation.kind === "insert" ? added : removed).push(line);
+	}
+	const moved = new Set(added.filter((line) => removed.includes(line)));
+	return {
+		set: [...new Set(added.filter((line) => !moved.has(line)))],
+		removed: [...new Set(removed.filter((line) => !moved.has(line)))]
+	};
+}
+/** What a planned change of `file` sets and removes; both empty when only comments, markers or the layout change. */
+function settingChanges(file, before, after) {
+	const format = formatOf(file);
+	const old = format === void 0 ? void 0 : valuesOf(format, before ?? "");
+	const now = format === void 0 ? void 0 : valuesOf(format, after);
+	if (format === void 0 || old === void 0 || now === void 0) return lineChanges(before ?? "", after);
+	const separator = format.kind === "ini" ? "=" : format.separator;
+	const set = [];
+	for (const [path, list] of now) {
+		if (same(old.get(path), list)) continue;
+		for (const value of new Set(list)) set.push(`${path}${separator}${value}`);
+	}
+	return {
+		set,
+		removed: [...old.keys()].filter((path) => !now.has(path))
+	};
+}
+
 // src/doctor/rules/config-drift.ts
 /** The most findings of one file; the last one says how many places differ besides (doctor --user too, D-122). */
 const MAX_DIFFERENCES = 5;
@@ -31595,6 +31842,61 @@ function checkComposerExclusions(context, plan) {
 		})
 	});
 }
+/** The most settings a note against the default policy names; the rest are counted (decision D-149). */
+const MAX_SETTINGS = 6;
+/** Settings for a message: `a`, `b` and `c`, at most MAX_SETTINGS, then how many more. */
+function settingList(settings) {
+	const shown = settings.slice(0, 6).map((setting) => `\`${setting}\``);
+	const rest = settings.length - shown.length;
+	if (rest > 0) shown.push(`${rest} more ${rest === 1 ? "setting" : "settings"}`);
+	return listing$1(shown);
+}
+/**
+* The package managers that wait less than cooldown.minimum now, each in words with where its delay comes from, by
+* the file apply writes its delay to (decision D-149).
+*/
+function delaysNow(context, plan) {
+	const found = /* @__PURE__ */ new Map();
+	const policy = context.policy;
+	if (policy === void 0) return found;
+	const targets = planDetails(plan)?.targets;
+	for (const manager of context.detection.packageManagers.filter((entry) => entry.supported && targets?.has(entry.id) !== false)) {
+		const tool = context.tools.find((entry) => entry.id === manager.id);
+		if (tool === void 0 || tool.kind !== "package-manager") continue;
+		const minimum = policyFor(policy, ecosystemOfTool(tool)).cooldown?.minimum.minutes;
+		if (minimum === void 0) continue;
+		const delay = managerDelay$1(context, manager, tool);
+		if (delay === void 0 || delay.minutes >= minimum) continue;
+		const file = [delay.location?.file, ...values$1(tool.cooldown.configFiles)[0] ?? []].find((name) => name !== void 0 && plan.changes.some((change) => change.file === name));
+		if (file === void 0) continue;
+		const text = delay.minutes === 0 ? `${tool.name} installs new versions without a release-age delay${delay.byDefault === true ? "" : ` (${delay.origin})`}` : `${tool.name} waits only ${formatMinutes(delay.minutes)} before installing a new version (${delay.origin})`;
+		found.set(file, [...found.get(file) ?? [], text]);
+	}
+	return found;
+}
+/**
+* Against the default policy (decision D-149), one note per file instead of one finding per difference: what the
+* package manager does now, when it waits less, and the settings apply would set, as the tool reads them. A file whose
+* settings already hold, where apply would only move them into its block or add its comments, gives none.
+*/
+function reportAgainstDefault(context, plan) {
+	const now = delaysNow(context, plan);
+	for (const change of plan.changes) {
+		const { set, removed } = settingChanges(change.file, change.before, change.after);
+		if (set.length === 0 && removed.length === 0) continue;
+		const what = [...set.length === 0 ? [] : [`set ${settingList(set)}`], ...removed.length === 0 ? [] : [`remove ${settingList(removed)}`]].join(", and ");
+		const state = (now.get(change.file) ?? []).map((text) => `${text}; `).join("");
+		const [first] = change.before === null ? [] : differences(change.before, change.after);
+		context.report({
+			location: change.before === null || first === void 0 ? { file: change.file } : {
+				file: change.file,
+				line: findingLine(change.file, first, change.before)
+			},
+			message: change.before === null ? `${change.file} does not exist; ${state}with ${DEFAULT_POLICY_NAME}, depcurfew apply would create it and ${what}` : `${change.file}: ${state}with ${DEFAULT_POLICY_NAME}, depcurfew apply would ${what}`,
+			fix: `${INIT_FIRST}, then ${APPLY_NEXT}`
+		});
+	}
+}
 const configDrift = {
 	id: "config-drift",
 	checks: "Configuration files match what depcurfew apply writes for depcurfew.json",
@@ -31606,6 +31908,12 @@ const configDrift = {
 	check(context) {
 		const plan = plannedApply(context);
 		if (plan === void 0) return;
+		if (context.defaultPolicy === true) {
+			reportAgainstDefault(context, plan);
+			checkAllowLists(context, plan);
+			checkComposerExclusions(context, plan);
+			return;
+		}
 		for (const change of plan.changes) {
 			if (change.before === null) {
 				context.report({
@@ -34087,26 +34395,6 @@ const RULES = [
 	unreadableConfig
 ];
 
-// src/doctor/types.ts
-/** A notice with its fields in the order of a finding; `file`, `line` and `fix` only when they are known. */
-function makeNotice(code, message, file, fix, line) {
-	return {
-		level: "note",
-		code,
-		...file === void 0 ? {} : { location: {
-			file,
-			...line === void 0 ? {} : { line }
-		} },
-		message,
-		...file === void 0 ? {} : { file },
-		...fix === void 0 ? {} : { fix }
-	};
-}
-/** The same notice for another file (a project's file named from the root, at the same line), or without one. */
-function relocatedNotice(notice, message, file) {
-	return makeNotice(notice.code, message, file, notice.fix, file === void 0 ? void 0 : notice.location?.line);
-}
-
 // src/doctor/sarif.ts
 const SARIF_SCHEMA = "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json";
 const INFORMATION_URI = "https://www.npmjs.com/package/depcurfew";
@@ -34191,7 +34479,8 @@ function toSarif(report, rules, version, readLine = () => void 0, errors = []) {
 				...index.has(finding.rule) ? { ruleIndex: index.get(finding.rule) } : {},
 				level: finding.level,
 				message: { text: finding.fix === void 0 ? finding.message : `${finding.message}. Fix: ${finding.fix}` },
-				locations: [location(finding.location.file, finding.location.line, finding.location.column)]
+				locations: [location(finding.location.file, finding.location.line, finding.location.column)],
+				...finding.policy === void 0 ? {} : { properties: { policy: finding.policy } }
 			}))
 		}]
 	};
@@ -34244,7 +34533,8 @@ function condensed(findings) {
 			level: first.level,
 			location: first.location,
 			message: `${hidden} more ${first.rule} ${hidden === 1 ? "finding" : "findings"} at this place ${hidden === 1 ? "differs" : "differ"} from the ones above only in numbers (line numbers or versions) and ${hidden === 1 ? "is" : "are"} not shown`,
-			...first.fix === void 0 ? {} : { fix: `Fix the ones above the same way, then run depcurfew doctor again to see the rest` }
+			...first.fix === void 0 ? {} : { fix: `Fix the ones above the same way, then run depcurfew doctor again to see the rest` },
+			...first.policy === void 0 ? {} : { policy: first.policy }
 		});
 	}
 	return kept;
@@ -34285,11 +34575,15 @@ function runRules(root, policy, rules, tools, where = {}) {
 			...where.projects === void 0 ? {} : { projects: where.projects },
 			...where.plan === void 0 ? {} : { plan: where.plan },
 			...where.osv === void 0 ? {} : { osv: where.osv },
-			report: ({ level, ...finding }) => findings.push({
-				rule: rule.id,
-				level: level ?? rule.level,
-				...finding
-			}),
+			...where.defaultPolicy === true ? { defaultPolicy: true } : {},
+			report: ({ level, ...finding }) => {
+				const found = {
+					rule: rule.id,
+					level: level ?? rule.level,
+					...finding
+				};
+				findings.push(where.defaultPolicy === true ? asDefaultFinding(found, rule) : found);
+			},
 			notice: (message, file, fix) => notice(rule.id, message, file, fix)
 		});
 	}
@@ -34328,7 +34622,9 @@ function relocateRun(project, run, plan) {
 * invalidPolicy: 'report' runs the rules that need no policy and reports the problems as an invalid-policy finding.
 * `policy` passes the policy in instead of reading depcurfew.json (null: run as without one). With projects in the
 * policy, the rules also run on every listed directory with the same policy, and the report covers them all, with
-* paths relative to the root (decision D-100).
+* paths relative to the root (decision D-100). `defaultPolicy`, for a repository without depcurfew.json: the policy
+* depcurfew init would write (initialResolvedPolicy), which the rules that need a policy then run against; every
+* finding of theirs is a note with `policy: "default"` (decision D-149). Without it those rules do not run.
 */
 function runDoctor(root, options = {}) {
 	const tools = options.tools ?? knowledgeBase;
@@ -34342,6 +34638,74 @@ function runDoctor(root, options = {}) {
 		invalid = true;
 	}
 	const rules = options.rules ?? RULES;
+	const needing = rules.filter((rule) => rule.requiresPolicy);
+	const fallback = policy === void 0 && !invalid && needing.length > 0 ? options.defaultPolicy : void 0;
+	const report = examine(root, {
+		policy,
+		invalid,
+		rules,
+		tools,
+		osv: options.osv,
+		...fallback === void 0 ? {} : { fallback }
+	});
+	if (fallback === void 0) return report;
+	return withDefaultPolicy(report, examine(root, {
+		policy: fallback,
+		invalid: false,
+		rules: needing,
+		tools,
+		defaultPolicy: true
+	}));
+}
+/**
+* The report of a repository without depcurfew.json and the findings of the rules that need a policy against the
+* default policy (decision D-149): those come after the other findings, and those rules show their results with
+* `policy: "default"` instead of skipped. Their notices are kept when they say what such a rule could not check;
+* the other notices, those of the files and of detection, are in the report already.
+*/
+function withDefaultPolicy(report, compared) {
+	const findings = shortened(compared.findings);
+	const results = new Map(ruleResultsOf(compared.checked?.rules ?? [], findings).map((result) => [result.rule, result]));
+	const shown = new Set(report.notices.map((notice) => notice.message));
+	const notices = compared.notices.filter((notice) => results.has(notice.code) && !shown.has(notice.message));
+	const tools = report.checked?.tools ?? [];
+	const known = new Set(tools.map((tool) => `${tool.project ?? ""}\u0000${tool.id}`));
+	return {
+		...report,
+		policySource: "default",
+		findings: [...report.findings, ...findings],
+		notices: [...report.notices, ...notices],
+		...report.checked === void 0 ? {} : { checked: {
+			...report.checked,
+			tools: [...tools, ...(compared.checked?.tools ?? []).filter((tool) => tool.project !== void 0 && !known.has(`${tool.project}\u0000${tool.id}`))],
+			files: [.../* @__PURE__ */ new Set([...report.checked.files, ...compared.checked?.files ?? []])].sort(),
+			rules: report.checked.rules.map((result) => {
+				const own = results.get(result.rule);
+				return own === void 0 ? result : {
+					...own,
+					policy: "default"
+				};
+			})
+		} }
+	};
+}
+/** The results of the rules with the counts of `findings` (all of them notes), for the findings that are shown. */
+function ruleResultsOf(results, findings) {
+	return results.map((result) => {
+		const notes = findings.filter((finding) => finding.rule === result.rule).length;
+		return result.result === "problems" ? {
+			...result,
+			notes
+		} : result;
+	});
+}
+/**
+* The rules on the repository with one policy: depcurfew.json (`policy`), none (undefined, `invalid` when the file is
+* there but cannot be used), or the policy init would write (`defaultPolicy`, decision D-149). `fallback`: there is no
+* depcurfew.json, and the rules that need one run against this policy next, which the notice policy-missing says.
+*/
+function examine(root, options) {
+	const { policy, invalid, rules, tools } = options;
 	const listed = policy?.projects ?? [];
 	const detection = detectProject(root, tools, void 0, { projects: listed });
 	const problems = projectProblems(root, listed, detection);
@@ -34366,14 +34730,16 @@ function runDoctor(root, options = {}) {
 			repository: view.repository,
 			project: view.directory,
 			plan: projectPlanOptions(detection, view.directory, view.detection),
-			osv: options.osv
+			osv: options.osv,
+			...options.defaultPolicy === true ? { defaultPolicy: true } : {}
 		})
 	}));
 	const rootRun = runRules(root, policy, rules, tools, {
 		detection,
 		...views.length === 0 ? {} : { projects: views },
 		...rootPlan === void 0 ? {} : { plan: rootPlan },
-		osv: options.osv
+		osv: options.osv,
+		...options.defaultPolicy === true ? { defaultPolicy: true } : {}
 	});
 	const notices = [];
 	const shown = /* @__PURE__ */ new Set();
@@ -34383,6 +34749,7 @@ function runDoctor(root, options = {}) {
 		notices.push(item);
 	};
 	if (invalid) addNotice(makeNotice("policy-invalid", `${POLICY_FILE} is invalid: only the rules that do not need a policy ran`, POLICY_FILE, "Fix what the invalid-policy finding lists, then run depcurfew doctor again"));
+	else if (policy === void 0 && options.fallback !== void 0) addNotice(defaultPolicyNotice(options.fallback));
 	else if (policy === void 0) addNotice(makeNotice("policy-missing", `no ${POLICY_FILE}: only the rules that do not need a policy ran`, void 0, `Run depcurfew init to write ${POLICY_FILE}, so that the rules that compare the repository with it run too`));
 	const findings = [...rootRun.findings];
 	for (const item of rootRun.notices) addNotice(item);
@@ -34392,7 +34759,7 @@ function runDoctor(root, options = {}) {
 		for (const item of relocated.notices) addNotice(item);
 	}
 	const sorted = condensed(problems.length === 0 ? findings : findings.map((finding) => applyWaits(finding, problems.length))).sort(byLocation);
-	const rootChecked = checkedOf(detection, rootRun.repository, tools, policy !== void 0 || invalid);
+	const rootChecked = checkedOf(detection, rootRun.repository, tools, policy !== void 0 && options.defaultPolicy !== true || invalid);
 	const projectChecked = projectRuns.map(({ view, run }) => {
 		const checked = checkedOf(run.detection, run.repository, tools, false);
 		return {
@@ -34425,7 +34792,8 @@ function runDoctor(root, options = {}) {
 	}))];
 	return {
 		schemaVersion: 1,
-		policy: invalid ? "invalid" : policy === void 0 ? "missing" : "valid",
+		policy: invalid ? "invalid" : policy === void 0 || options.defaultPolicy === true ? "missing" : "valid",
+		policySource: policy === void 0 ? null : options.defaultPolicy === true ? "default" : "file",
 		findings: sorted,
 		notices,
 		checked: {

@@ -11,6 +11,8 @@ const DOCTOR = fileURLToPath(new URL('../fixtures/doctor/', import.meta.url));
 const FAILING = join(DOCTOR, 'bot-cooldown-mismatch/fires-dependabot-shorter/repo');
 const WARNING_ONLY = join(DOCTOR, 'bot-cooldown-mismatch/fires-security-recheck/repo');
 const CLEAN = join(DOCTOR, 'bot-cooldown-mismatch/passes-consistent/repo');
+// Without depcurfew.json, a repository is clean only when it already does what the default policy asks (D-149).
+const MEETS_DEFAULT = fileURLToPath(new URL('../fixtures/doctor-default/meets-default/repo', import.meta.url));
 
 const temporary: string[] = [];
 afterAll(() => {
@@ -35,11 +37,14 @@ describe('depcurfew doctor', () => {
   it('prints findings grouped by file and fails on errors', async () => {
     const result = await exec('doctor', FAILING);
     expect(result.code).toBe(EXIT_FAILURE);
-    // The note below counts in the line of counts (decision D-116).
-    expect(result.stdout).toMatch(/^1 error, 0 warnings, 1 note\n\n\.github\/dependabot\.yml\n {2}7: error Dependabot proposes npm updates after 3 days/u);
+    // The notes below count in the line of counts (decision D-116). The fixture has no depcurfew.json, so two of them
+    // compare it with the policy depcurfew init would write, in a block after the findings (decision D-149), and two
+    // are notices: the missing policy and what lockfile-install-scripts cannot check in pnpm-lock.yaml.
+    expect(result.stdout).toMatch(/^1 error, 0 warnings, 4 notes\n\n\.github\/dependabot\.yml\n {2}7: error Dependabot proposes npm updates after 3 days/u);
     expect(result.stdout).toContain('(bot-cooldown-mismatch)\n    fix: Make the Dependabot delay at least 1 week, or run depcurfew apply\n');
+    expect(result.stdout).toContain('\n\nCompared with the default policy (no depcurfew.json):\n\n.github/dependabot.yml\n  8: note .github/dependabot.yml: with the default policy of depcurfew init');
     expect(result.stdout).toContain(
-      '\nNotes:\n  note no depcurfew.json: only the rules that do not need a policy ran (policy-missing)\n    fix: Run depcurfew init to write depcurfew.json, so that the rules that compare the repository with it run too\n',
+      '\nNotes:\n  note no depcurfew.json: the rules that need a policy compared the repository with the default policy of depcurfew init (with cooldown.minimum "7d", the longest release-age delay the repository already sets); what they find is a note and does not fail doctor (policy-missing)\n    fix: Run depcurfew init to write depcurfew.json with this policy, then depcurfew apply (depcurfew apply --dry-run shows the changes first)\n',
     );
     expect(result.stderr).toBe('');
   });
@@ -47,24 +52,30 @@ describe('depcurfew doctor', () => {
   it('exits with 0 when there are only warnings', async () => {
     const result = await exec('doctor', WARNING_ONLY);
     expect(result.code).toBe(EXIT_OK);
-    expect(result.stdout.startsWith('0 errors, 1 warning, 1 note\n')).toBe(true);
+    // Besides the notice of the missing policy: a note against the default policy and a notice of what
+    // lockfile-install-scripts cannot check there (decision D-149).
+    expect(result.stdout.startsWith('0 errors, 1 warning, 3 notes\n')).toBe(true);
   });
 
   it('says so when nothing is found', async () => {
-    const result = await exec('doctor', CLEAN);
+    // Without depcurfew.json the rules that need a policy compare the repository with the default policy (decision
+    // D-149), so the clean fixture is one that already does what that policy asks: CLEAN would get a note for renovate.json.
+    const result = await exec('doctor', MEETS_DEFAULT);
     expect(result.code).toBe(EXIT_OK);
     expect(result.stdout.startsWith('No problems found.\n')).toBe(true);
     // A clean report says what it covered, so it cannot be mistaken for a run that checked nothing.
-    // This fixture has no depcurfew.json, so the rules that compare with one are named as not run.
+    // This fixture has no depcurfew.json, so the rules that compare with one say that they ran against the default
+    // policy, and invalid-policy is named as not run.
     expect(result.stdout).toContain('\n\nWhat was checked:\n  Tools: ');
     expect(result.stdout).toMatch(/^  Files read: .*\.github\/dependabot\.yml/mu);
     expect(result.stdout).toMatch(/^  \d+ checks: \d+ passed, \d+ not applicable, \d+ skipped$/mu);
     expect(result.stdout).toContain('    passed          Update bots wait at least as long as the package manager, and for the actions of workflows as long as the policy, before proposing a new version [bot-cooldown-mismatch]\n');
-    expect(result.stdout).toContain('    skipped         Configuration files match what depcurfew apply writes for depcurfew.json (needs depcurfew.json) [config-drift]\n');
+    expect(result.stdout).toContain('    passed          Configuration files match what depcurfew apply writes for depcurfew.json (compared with the default policy) [config-drift]\n');
+    expect(result.stdout).toContain('    skipped         depcurfew.json follows the schema and can be read (needs depcurfew.json) [invalid-policy]\n');
     expect(result.stdout).toContain('    not applicable  Python tools read their settings where they are written [python-config-ignored]\n');
-    const json = JSON.parse((await exec('doctor', '--json', CLEAN)).stdout) as { checked: { files: string[]; rules: { rule: string; result: string; check: string }[]; policyFile: string } };
+    const json = JSON.parse((await exec('doctor', '--json', MEETS_DEFAULT)).stdout) as { checked: { files: string[]; rules: { rule: string; result: string; check: string }[]; policyFile: string } };
     expect(json.checked.files).toContain('.github/dependabot.yml');
-    expect(json.checked.rules.find((entry) => entry.rule === 'config-drift')).toMatchObject({ result: 'skipped', check: 'Configuration files match what depcurfew apply writes for depcurfew.json' });
+    expect(json.checked.rules.find((entry) => entry.rule === 'config-drift')).toMatchObject({ result: 'passed', check: 'Configuration files match what depcurfew apply writes for depcurfew.json', policy: 'default' });
     expect(json.checked.rules.find((entry) => entry.rule === 'invalid-policy')?.result).toBe('skipped');
     expect(json.checked.policyFile).toBe('depcurfew.json');
   });
@@ -73,9 +84,12 @@ describe('depcurfew doctor', () => {
     const result = await exec('doctor', '--json', FAILING);
     expect(result.code).toBe(EXIT_FAILURE);
     const report = JSON.parse(result.stdout) as Record<string, unknown>;
-    expect(report).toMatchObject({ schemaVersion: 1, policy: 'missing', summary: { error: 1, warning: 0, note: 0 } });
+    // The two notes compare the repository, which has no depcurfew.json, with the default policy (decision D-149).
+    expect(report).toMatchObject({ schemaVersion: 1, policy: 'missing', policySource: 'default', summary: { error: 1, warning: 0, note: 2 } });
     expect(report['findings']).toEqual([
       expect.objectContaining({ rule: 'bot-cooldown-mismatch', level: 'error', location: { file: '.github/dependabot.yml', line: 7 } }),
+      expect.objectContaining({ rule: 'config-drift', level: 'note', location: { file: '.github/dependabot.yml', line: 8 }, policy: 'default' }),
+      expect.objectContaining({ rule: 'config-drift', level: 'note', location: { file: 'pnpm-workspace.yaml', line: 1 }, policy: 'default' }),
     ]);
   });
 
@@ -98,6 +112,9 @@ describe('depcurfew doctor', () => {
           },
         ],
       }),
+      // Notes against the default policy, as the fixture has no depcurfew.json (decision D-149).
+      expect.objectContaining({ ruleId: 'config-drift', level: 'note', properties: { policy: 'default' } }),
+      expect.objectContaining({ ruleId: 'config-drift', level: 'note', properties: { policy: 'default' } }),
     ]);
   });
 

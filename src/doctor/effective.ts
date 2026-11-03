@@ -17,6 +17,8 @@ export interface Delay {
   /** Where the value comes from, for messages, e.g. "minimumReleaseAge: 4320 in pnpm-workspace.yaml". */
   origin: string;
   location?: { file: string; line: number };
+  /** The default of the version, which supports the setting but does not set it. */
+  byDefault?: true;
 }
 
 export function latestVersion(tool: ToolKnowledge): Version | undefined {
@@ -133,5 +135,5 @@ export function managerDelay(context: RuleContext, manager: PackageManagerInfo, 
   }
   const minutes = longest ?? 0;
   const disputed = tool.cooldown.default.status === 'disputed' ? '; official sources disagree, the longest is assumed' : '';
-  return { minutes, origin: minutes === 0 ? `${versionText} has no delay by default` : `the default of ${versionText}${disputed}` };
+  return { minutes, origin: minutes === 0 ? `${versionText} has no delay by default` : `the default of ${versionText}${disputed}`, byDefault: true };
 }

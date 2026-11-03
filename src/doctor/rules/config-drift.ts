@@ -1,19 +1,24 @@
 // config-drift: what `depcurfew apply` would change is exactly what no longer matches the policy, so the rule plans
-// an apply in memory and reports every difference in every file (decision D-115: not only the first).
+// an apply in memory and reports every difference in every file (decision D-115: not only the first). Against the
+// default policy, without depcurfew.json, it gives one note per file with the settings apply would set (decision D-149).
 import { lines, myers } from '../../apply/diff.ts';
 import { BLOCK_END, isBlockStart, SUPERSEDED, TURNED_OFF } from '../../apply/block.ts';
 import { YAML_MARKER } from '../../apply/yaml-edit.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
-import type { ApplyReport } from '../../apply/index.ts';
+import { planDetails, type ApplyReport } from '../../apply/index.ts';
 import { pinnedVersion } from '../../apply/version.ts';
+import { listing } from '../../apply/requirements.ts';
 import { extraOf, isRecord, settingOf, values, yamlOptionsFor } from '../../apply/facts.ts';
 import { parseJsonc } from '../../detect/jsonc.ts';
 import { parseYaml } from '../../yaml-parse.ts';
 import { denyConflictText, outsideConflictText, remainingConflicts, type TextSource } from '../allow-lists.ts';
 import { ignoreOutsidePolicy, ignoreOutsideText } from '../composer.ts';
-import { latestVersion } from '../effective.ts';
+import { latestVersion, managerDelay } from '../effective.ts';
+import { APPLY_NEXT, DEFAULT_POLICY_NAME, INIT_FIRST } from '../default-policy.ts';
+import { formatMinutes } from '../durations.ts';
 import { plannedApply } from '../plan.ts';
+import { settingChanges } from '../setting-changes.ts';
 import { yamlSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
 
@@ -294,6 +299,69 @@ function checkComposerExclusions(context: RuleContext, plan: ApplyReport): void 
   }
 }
 
+/** The most settings a note against the default policy names; the rest are counted (decision D-149). */
+export const MAX_SETTINGS = 6;
+
+/** Settings for a message: `a`, `b` and `c`, at most MAX_SETTINGS, then how many more. */
+function settingList(settings: readonly string[]): string {
+  const shown = settings.slice(0, MAX_SETTINGS).map((setting) => `\`${setting}\``);
+  const rest = settings.length - shown.length;
+  if (rest > 0) shown.push(`${rest} more ${rest === 1 ? 'setting' : 'settings'}`);
+  return listing(shown);
+}
+
+/**
+ * The package managers that wait less than cooldown.minimum now, each in words with where its delay comes from, by
+ * the file apply writes its delay to (decision D-149).
+ */
+function delaysNow(context: RuleContext, plan: ApplyReport): Map<string, string[]> {
+  const found = new Map<string, string[]>();
+  const policy = context.policy;
+  if (policy === undefined) return found;
+  const targets = planDetails(plan)?.targets;
+  for (const manager of context.detection.packageManagers.filter((entry) => entry.supported && targets?.has(entry.id) !== false)) {
+    const tool = context.tools.find((entry) => entry.id === manager.id);
+    if (tool === undefined || tool.kind !== 'package-manager') continue;
+    const minimum = policyFor(policy, ecosystemOfTool(tool)).cooldown?.minimum.minutes;
+    if (minimum === undefined) continue;
+    const delay = managerDelay(context, manager, tool);
+    if (delay === undefined || delay.minutes >= minimum) continue;
+    const file = [delay.location?.file, ...(values(tool.cooldown.configFiles)[0] ?? [])].find((name) => name !== undefined && plan.changes.some((change) => change.file === name));
+    if (file === undefined) continue;
+    // Where the delay comes from, unless the version simply has none by default.
+    const text =
+      delay.minutes === 0
+        ? `${tool.name} installs new versions without a release-age delay${delay.byDefault === true ? '' : ` (${delay.origin})`}`
+        : `${tool.name} waits only ${formatMinutes(delay.minutes)} before installing a new version (${delay.origin})`;
+    found.set(file, [...(found.get(file) ?? []), text]);
+  }
+  return found;
+}
+
+/**
+ * Against the default policy (decision D-149), one note per file instead of one finding per difference: what the
+ * package manager does now, when it waits less, and the settings apply would set, as the tool reads them. A file whose
+ * settings already hold, where apply would only move them into its block or add its comments, gives none.
+ */
+function reportAgainstDefault(context: RuleContext, plan: ApplyReport): void {
+  const now = delaysNow(context, plan);
+  for (const change of plan.changes) {
+    const { set, removed } = settingChanges(change.file, change.before, change.after);
+    if (set.length === 0 && removed.length === 0) continue;
+    const what = [...(set.length === 0 ? [] : [`set ${settingList(set)}`]), ...(removed.length === 0 ? [] : [`remove ${settingList(removed)}`])].join(', and ');
+    const state = (now.get(change.file) ?? []).map((text) => `${text}; `).join('');
+    const [first] = change.before === null ? [] : differences(change.before, change.after);
+    context.report({
+      location: change.before === null || first === undefined ? { file: change.file } : { file: change.file, line: findingLine(change.file, first, change.before) },
+      message:
+        change.before === null
+          ? `${change.file} does not exist; ${state}with ${DEFAULT_POLICY_NAME}, depcurfew apply would create it and ${what}`
+          : `${change.file}: ${state}with ${DEFAULT_POLICY_NAME}, depcurfew apply would ${what}`,
+      fix: `${INIT_FIRST}, then ${APPLY_NEXT}`,
+    });
+  }
+}
+
 export const configDrift: Rule = {
   id: 'config-drift',
   checks: 'Configuration files match what depcurfew apply writes for depcurfew.json',
@@ -306,6 +374,12 @@ export const configDrift: Rule = {
   check(context) {
     const plan = plannedApply(context);
     if (plan === undefined) return;
+    if (context.defaultPolicy === true) {
+      reportAgainstDefault(context, plan);
+      checkAllowLists(context, plan);
+      checkComposerExclusions(context, plan);
+      return;
+    }
     // Files apply cannot edit are reported by unreadable-config.
     for (const change of plan.changes) {
       if (change.before === null) {

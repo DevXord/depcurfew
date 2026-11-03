@@ -164,8 +164,9 @@ describe('built depcurfew executable', () => {
       expect(apply.stdout).toContain('+++ b/.npmrc\n');
       expect(JSON.parse(depcurfewIn(deep, 'apply', '--dry-run', '--json').stdout)).toMatchObject({ notices: [{ level: 'note', code: 'policy-from-parent', location: { file: 'depcurfew.json' }, message: note('apply') }] });
 
-      // A directory given on the command line is taken as it is.
-      expect(depcurfew('doctor', deep).stdout).toContain('no depcurfew.json: only the rules that do not need a policy ran');
+      // A directory given on the command line is taken as it is: without a depcurfew.json of its own, doctor compares it
+      // with the default policy (decision D-149).
+      expect(depcurfew('doctor', deep).stdout).toContain('no depcurfew.json: the rules that need a policy compared the repository with the default policy of depcurfew init');
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
@@ -176,13 +177,21 @@ describe('built depcurfew executable', () => {
     expect(result.status).toBe(1);
     const sarif = JSON.parse(result.stdout) as { version: string; runs: { results: { ruleId: string }[] }[] };
     expect(sarif.version).toBe('2.1.0');
-    expect(sarif.runs[0]?.results.map((entry) => entry.ruleId)).toEqual(['bot-cooldown-mismatch']);
+    // The two notes of config-drift compare the repository, which has no depcurfew.json, with the default policy (D-149).
+    expect(sarif.runs[0]?.results.map((entry) => entry.ruleId)).toEqual(['bot-cooldown-mismatch', 'config-drift', 'config-drift']);
   });
 
   it('doctor exits with 0 on a clean repository', () => {
-    const result = depcurfew('doctor', fileURLToPath(new URL('tests/fixtures/doctor/bot-cooldown-mismatch/passes-consistent/repo', root)));
+    // Clean without depcurfew.json means it already does what the default policy asks (decision D-149).
+    const result = depcurfew('doctor', fileURLToPath(new URL('tests/fixtures/doctor-default/meets-default/repo', root)));
     expect(result.status).toBe(0);
     expect(result.stdout.startsWith('No problems found.\n')).toBe(true);
+  });
+
+  it('doctor exits with 0 on a repository without depcurfew.json that the default policy would change', () => {
+    const result = depcurfew('doctor', fileURLToPath(new URL('tests/fixtures/doctor-default/npm-plain/repo', root)));
+    expect(result.status).toBe(0);
+    expect(result.stdout).toMatch(/^0 errors, 0 warnings, 3 notes\n\nCompared with the default policy \(no depcurfew\.json\):\n/u);
   });
 
   it('an unknown command exits with 2', () => {

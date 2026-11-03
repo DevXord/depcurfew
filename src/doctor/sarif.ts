@@ -113,6 +113,8 @@ export function toSarif(report: DoctorReport, rules: readonly Rule[], version: s
           level: finding.level,
           message: { text: finding.fix === undefined ? finding.message : `${finding.message}. Fix: ${finding.fix}` },
           locations: [location(finding.location.file, finding.location.line, finding.location.column)],
+          // Found against the policy depcurfew init would write, without depcurfew.json (decision D-149).
+          ...(finding.policy === undefined ? {} : { properties: { policy: finding.policy } }),
         })),
       },
     ],
