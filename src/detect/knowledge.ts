@@ -62,7 +62,12 @@ export interface DetectionFacts {
   /** Hatch's table in pyproject.toml and its own file; Hatch is not configured, only pointed to uv. */
   hatch: { pyprojectTable: string; configFile: string };
   bots: BotFacts[];
-  yarn: { berryMarker: string; classicHeader: string };
+  /**
+   * yarnPath: the setting of .yarnrc.yml that names the Yarn release every Yarn from 1.18 runs instead of itself
+   * (extra.yarnPathRuns), and the name yarn set version gives that release (extra.yarnPath), for its version (decision
+   * D-165); null without these facts.
+   */
+  yarn: { berryMarker: string; classicHeader: string; yarnPath: { file: string; key: string; releaseFile: string } | null };
   packageManagerKey: string;
   devEngines: { key: string; packageManagerKey: string; runtimeKey: string };
   volta: { key: string; tools: readonly RuntimeOrTool[] };
@@ -114,6 +119,15 @@ function extraString(tool: ToolKnowledge, key: string): string {
 function extraValue(tool: ToolKnowledge, key: string): unknown {
   const fact = tool.extra?.[key];
   return fact === undefined ? undefined : first(fact);
+}
+
+/** Where yarnPath is set and how yarn set version names the release (decision D-165). */
+function yarnPathFacts(tool: ToolKnowledge): DetectionFacts['yarn']['yarnPath'] {
+  const runs = extraValue(tool, 'yarnPathRuns');
+  const release = extraValue(tool, 'yarnPath');
+  if (!isRecord(runs) || typeof runs['file'] !== 'string' || typeof runs['key'] !== 'string') return null;
+  if (!isRecord(release) || typeof release['releaseFile'] !== 'string') return null;
+  return { file: runs['file'], key: runs['key'], releaseFile: release['releaseFile'] };
 }
 
 /** required-version in [tool.uv] of pyproject.toml and at the top of uv.toml; requires-poetry in [tool.poetry]. */
@@ -295,7 +309,7 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
     pythonProject,
     hatch: first(environment.python.hatch),
     bots,
-    yarn: { berryMarker: extraString(yarn, 'berryLockfileMarker'), classicHeader: extraString(yarn, 'classicLockfileHeader') },
+    yarn: { berryMarker: extraString(yarn, 'berryLockfileMarker'), classicHeader: extraString(yarn, 'classicLockfileHeader'), yarnPath: yarnPathFacts(yarn) },
     packageManagerKey: first(environment.corepack.packageManagerField).key,
     devEngines: first(environment.devEngines),
     volta: first(environment.volta.manifest),

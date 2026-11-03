@@ -1,0 +1,12 @@
+{
+  "name": "yarn-path-release",
+  "private": true,
+  "dependencies": {
+    "esbuild": "^0.25.0"
+  },
+  "dependenciesMeta": {
+    "esbuild": {
+      "built": true
+    }
+  }
+}

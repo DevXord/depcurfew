@@ -15,12 +15,15 @@ export interface Evidence {
 }
 
 /**
- * tool-config: a version the tool's own configuration requires, e.g. required-version in [tool.uv]. lockfile: the
+ * yarnPath: the version of the Yarn release yarnPath in .yarnrc.yml names (yarn-4.9.2.cjs), which every Yarn from 1.18
+ * runs instead of itself, so it comes before packageManager (decision D-165). tool-config: a version the tool's own
+ * configuration requires, e.g. required-version in [tool.uv]. lockfile: the
  * version of the tool that wrote the lockfile, which the tool switches to (BUNDLED WITH in Gemfile.lock). nvmrc and
  * node-version: the files .nvmrc and .node-version; engines: engines.node in package.json (a range of the Node.js
  * versions the package works on, advisory); dockerfile: a Dockerfile (FROM node:22, RUN npm install -g npm@11).
  */
 export type VersionSource =
+  | 'yarnPath'
   | 'packageManager'
   | 'tool-config'
   | 'lockfile'

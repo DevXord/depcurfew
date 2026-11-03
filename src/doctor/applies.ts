@@ -1,7 +1,7 @@
 // Whether a doctor rule concerns the project at all (decision D-098), from detection only, so that deciding reads no
 // file the rules did not read. A rule that does not apply is shown as "not applicable" instead of "passed"; its check
 // still runs, and a finding always wins. When in doubt a rule applies.
-import type { BotId, PackageManagerId } from '../detect/types.ts';
+import type { BotId, PackageManagerId, PackageManagerInfo } from '../detect/types.ts';
 import type { RuleScope } from './types.ts';
 
 /** The project uses one of these package managers (any, when none is named) in a version the knowledge base covers. */
@@ -22,14 +22,19 @@ export function readsLockfile(tools: RuleScope['tools'], id: PackageManagerId): 
   return tools.find((tool) => tool.id === id)?.extra?.['lockfileFormat'] !== undefined;
 }
 
+/** Yarn Classic: not configured, but known-malicious reads its yarn.lock (decision D-165). */
+export function isYarnClassic(manager: PackageManagerInfo): boolean {
+  return manager.id === 'yarn' && manager.variant === 'classic';
+}
+
 /**
  * A package manager has a lockfile depcurfew reads, or for pip requirements files, which say where packages come from
- * too.
+ * too; with yarnClassic, also the yarn.lock of Yarn Classic.
  */
-export function hasLockfile(scope: RuleScope): boolean {
+export function hasLockfile(scope: RuleScope, options: { yarnClassic?: boolean } = {}): boolean {
   return scope.detection.packageManagers.some(
     (manager) =>
-      manager.supported &&
+      (manager.supported || (options.yarnClassic === true && isYarnClassic(manager))) &&
       readsLockfile(scope.tools, manager.id) &&
       (manager.evidence.some((evidence) => evidence.kind === 'lockfile') || (manager.id === 'pip' && manager.configFiles.length > 0)),
   );

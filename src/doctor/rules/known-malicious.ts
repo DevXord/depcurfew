@@ -4,16 +4,17 @@
 // the local data (src/doctor/osv.ts), it reports each version with a MAL- record once per package and lockfile, at its
 // line. Versions OSV.dev did not answer for give a warning per lockfile, so the check
 // does not pass without having checked. What is looked up is what the tool installs (decision D-135): for npm the
-// registry tarball of resolved, for pnpm the one of resolution.tarball, for Yarn the version of the resolution; an
-// entry whose name or version says otherwise gets a warning, and so do the registry entries of a lockfile without an
-// exact version. With the local data, a lockfile of an ecosystem without it gets a note, and data older than 7 days
+// registry tarball of resolved, for pnpm the one of resolution.tarball, for Yarn the version of the resolution, and for
+// the yarn.lock of Yarn Classic, which is not configured but read here, the registry tarball of resolved (decision
+// D-165); an entry whose name or version says otherwise gets a warning, and so do the registry entries of a lockfile
+// without an exact version. With the local data, a lockfile of an ecosystem without it gets a note, and data older than 7 days
 // a note (older than 30 days a warning) per lockfile. Without either the rule only says, once, how to get them, and
 // does not apply.
 import { linkedIds, osvEcosystem, osvKey, versionLabel, type OsvPackage, type OsvVerdict } from '../../check/osv.ts';
 import { listing } from '../../apply/requirements.ts';
-import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { ecosystemOfTool } from '../../policy/ecosystem.ts';
-import { hasLockfile, readsLockfile } from '../applies.ts';
+import { hasLockfile, isYarnClassic, readsLockfile } from '../applies.ts';
+import { YARN_CLASSIC } from '../../user/versions.ts';
 import { readLockfiles, type LockEntry, type Lockfile } from '../lockfiles.ts';
 import type { OsvLocalEcosystem, Rule, RuleContext } from '../types.ts';
 
@@ -32,14 +33,14 @@ export const knownMalicious: Rule = {
   checks: 'With --osv or the local OSV.dev data of depcurfew osv update: no locked package version is a known malicious version in OSV.dev',
   summary: 'With --osv or the local OSV.dev data of depcurfew osv update: a lockfile locks a package version that OSV.dev lists as malicious.',
   description:
-    'Doctor looks up the exact version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) and reports each version that has a record of the OpenSSF malicious-packages database (an id starting with MAL-): with --osv in api.osv.dev (which then gets the names and versions), else offline in the local OSV.dev data of depcurfew osv update. It looks up what the tool installs (for npm the registry tarball of resolved, for pnpm that of resolution.tarball, for Yarn the resolution); an entry that says otherwise gets a warning, as does a registry entry without an exact version. Local data older than 7 days gives a note; older than 30 days, or in a directory others can write, a warning; OSV.dev out of reach gives a warning. Only reported malware is found, and the database admits false positives. With neither --osv nor local data, a note says how to get them.',
+    'Doctor looks up the exact version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) and reports each version that has a record of the OpenSSF malicious-packages database (an id starting with MAL-): with --osv in api.osv.dev (which then gets the names and versions), else offline in the local OSV.dev data of depcurfew osv update. It looks up what the tool installs (for npm and Yarn Classic the tarball of resolved, for pnpm that of resolution.tarball, for Yarn the resolution); an entry that says otherwise gets a warning, as does a registry entry without an exact version. Local data older than 7 days gives a note; older than 30 days, or in a directory others can write, a warning; OSV.dev out of reach gives a warning. Only reported malware is found, and the database admits false positives. With neither --osv nor local data, a note says how to get them.',
   help: 'Remove or replace the package version and lock again; if it was installed anywhere, read the record on OSV.dev and treat that machine as exposed.',
   level: 'error',
   requiresPolicy: false,
   // A known malicious locked version is a fact of the lockfile: without depcurfew.json the lockfiles of the projects
   // init would list are looked up too, and a listed version is an error there as in the root (decision D-161).
   alsoInComparedProjects: true,
-  applies: (scope) => scope.osv !== undefined && !('unavailable' in scope.osv) && hasLockfile(scope),
+  applies: (scope) => scope.osv !== undefined && !('unavailable' in scope.osv) && hasLockfile(scope, { yarnClassic: true }),
   check(context) {
     const osv = context.osv;
     if (osv === undefined) return;
@@ -54,10 +55,12 @@ export const knownMalicious: Rule = {
     const again = local === undefined ? 'depcurfew doctor --osv' : 'depcurfew doctor';
     const checker = local === undefined ? 'doctor --osv' : 'doctor';
     const workspaces = context.detection.workspaces?.packages ?? [];
-    for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
+    // Yarn Classic is not configured, but its yarn.lock is looked up too (decision D-165).
+    for (const manager of context.detection.packageManagers.filter((entry) => entry.supported || isYarnClassic(entry))) {
       const tool = context.tools.find((entry) => entry.id === manager.id);
       if (tool === undefined) continue;
       const ecosystem = ecosystemOfTool(tool);
+      const name = isYarnClassic(manager) ? YARN_CLASSIC : tool.name;
       for (const result of readLockfiles(context.repository, manager, tool, workspaces, context.tools)) {
         if (!result.ok) {
           // An unreadable lockfile is an error of unreadable-config; another format version is a note.
@@ -129,7 +132,7 @@ export const knownMalicious: Rule = {
             `Pin exact versions (name==version), for example with a lockfile exported by the tool that resolves them, so that ${checker} can check them`,
           );
         } else if (count > 0) {
-          reportUnpinned(context, lockfile, tool, unpinned, again);
+          reportUnpinned(context, lockfile, name, unpinned, again);
         }
       }
     }
@@ -154,6 +157,15 @@ function reportMislabel(context: RuleContext, lockfile: Lockfile, entry: LockEnt
     });
     return;
   }
+  if (mislabel.tool === 'yarn-classic') {
+    context.report({
+      level: 'warning',
+      location,
+      message: `${lockfile.file} has ${mislabel.key} as ${mislabel.label}, but its resolved URL is the registry tarball of ${installs}, which is what ${YARN_CLASSIC} fetches; known-malicious checked ${installs}`,
+      fix: `Find out who changed this entry of ${lockfile.file} (${YARN_CLASSIC} writes the version of the package whose tarball it resolves, under the name the entry declares, so an entry where they differ was edited), then lock the package again with ${YARN_CLASSIC}`,
+    });
+    return;
+  }
   if (mislabel.tool === 'npm') {
     context.report({
       level: 'warning',
@@ -175,7 +187,7 @@ function reportMislabel(context: RuleContext, lockfile: Lockfile, entry: LockEnt
  * Registry entries of a lockfile a tool wrote that give no exact version (decision D-135): a warning, as for versions
  * OSV.dev did not answer for, since the tool installs some version that was not checked. At the first of them.
  */
-function reportUnpinned(context: RuleContext, lockfile: Lockfile, tool: ToolKnowledge, entries: readonly LockEntry[], again: string): void {
+function reportUnpinned(context: RuleContext, lockfile: Lockfile, name: string, entries: readonly LockEntry[], again: string): void {
   const lines = entries.map((entry) => lockfile.lineOf(entry));
   const named = entries.slice(0, MAX_NAMED).map((entry, index) => (lines[index] === undefined ? entry.name : `${entry.name} (line ${lines[index]})`));
   const more = entries.length - named.length;
@@ -184,10 +196,10 @@ function reportUnpinned(context: RuleContext, lockfile: Lockfile, tool: ToolKnow
   context.report({
     level: 'warning',
     location: first === undefined ? { file: lockfile.file } : { file: lockfile.file, line: first },
-    message: `known-malicious could not check ${plural(entries.length, 'registry package')} of ${lockfile.file}, whose ${one ? 'entry gives' : 'entries give'} no exact version that ${tool.name} installs: ${more > 0 ? `${named.join(', ')} and ${more} more` : listing(named)}`,
+    message: `known-malicious could not check ${plural(entries.length, 'registry package')} of ${lockfile.file}, whose ${one ? 'entry gives' : 'entries give'} no exact version that ${name} installs: ${more > 0 ? `${named.join(', ')} and ${more} more` : listing(named)}`,
     fix: one
-      ? `Lock this package again with ${tool.name}, so that ${lockfile.file} names its exact version, and find out why it does not; then run ${again} again`
-      : `Lock these packages again with ${tool.name}, so that ${lockfile.file} names the exact version of each, and find out why it does not; then run ${again} again`,
+      ? `Lock this package again with ${name}, so that ${lockfile.file} names its exact version, and find out why it does not; then run ${again} again`
+      : `Lock these packages again with ${name}, so that ${lockfile.file} names the exact version of each, and find out why it does not; then run ${again} again`,
   });
 }
 
@@ -212,7 +224,7 @@ export const NO_DATA_FIX =
 /** The first lockfile (or requirements file of pip) of the directory, from detection: where the note without data stands. */
 function firstLockfile(context: RuleContext): string | undefined {
   // Only lockfiles depcurfew reads: it does not look up the gems of Gemfile.lock (decision D-152).
-  for (const manager of context.detection.packageManagers.filter((entry) => entry.supported && readsLockfile(context.tools, entry.id))) {
+  for (const manager of context.detection.packageManagers.filter((entry) => (entry.supported || isYarnClassic(entry)) && readsLockfile(context.tools, entry.id))) {
     const lockfile = manager.evidence.find((evidence) => evidence.kind === 'lockfile');
     if (lockfile !== undefined) return lockfile.file;
     if (manager.id === 'pip' && manager.configFiles.length > 0) return manager.configFiles[0];

@@ -60,6 +60,7 @@ export interface StrictAdvice {
 }
 
 export const SOURCE_LABEL: Record<VersionDeclaration['source'], string> = {
+  yarnPath: 'yarnPath',
   packageManager: 'packageManager',
   'tool-config': 'the required version',
   lockfile: 'the lockfile',

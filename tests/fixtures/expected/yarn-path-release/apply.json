@@ -1,0 +1,31 @@
+{
+  "changed": [
+    ".yarnrc.yml",
+    "package.json"
+  ],
+  "warnings": [
+    {
+      "code": "allow-pattern-unsupported",
+      "tool": "yarn",
+      "message": "Yarn (Berry): dependenciesMeta takes package names only; \"@scope/*\" not written",
+      "fix": "List the package names in installScripts.allow"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "yarn",
+      "message": "Yarn (Berry) has no setting for remote tarball dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "version-too-old",
+      "tool": "yarn",
+      "location": {
+        "file": ".yarnrc.yml",
+        "line": 4
+      },
+      "message": "Yarn (Berry) 3.6.4 (yarnPath in .yarnrc.yml) does not support npmMinimalAgeGate (added in 4.10.2), approvedGitRepositories (added in 4.14.0); not written",
+      "fix": "Run yarn set version 4.14.0 (or a later release), which saves it in .yarn/releases, points yarnPath in .yarnrc.yml to it and sets packageManager in package.json, then run depcurfew apply again"
+    }
+  ],
+  "snippets": []
+}

@@ -26,7 +26,7 @@ import { bun } from './generators/bun.ts';
 import { bundler } from './generators/bundler.ts';
 import { composer } from './generators/composer.ts';
 import { workspaceText } from './generators/common.ts';
-import { createContext, EditFailed, type BotGenerator, type EditFailure, type ManagerGenerator, type Snippet } from './generators/context.ts';
+import { createContext, EditFailed, type BotGenerator, type EditFailure, type ManagerGenerator, type Snippet, type VersionPin } from './generators/context.ts';
 import { deno } from './generators/deno.ts';
 import { dependabot } from './generators/dependabot.ts';
 import { npm } from './generators/npm.ts';
@@ -43,6 +43,7 @@ import { inProject, projectProblems, relocateText } from './projects.ts';
 import { listing } from './requirements.ts';
 import { directoryTargets } from './targets.ts';
 import { parseVersion, pinnedVersion, type Version } from './version.ts';
+import { pinnedDeclaration, setVersionText, yarnPathNote } from './yarn-path.ts';
 import { warningText, type ApplyErrorCode, type ApplyWarning } from './warnings.ts';
 import { CHANGED, OUTSIDE, WriteFailed, writeChanges, type FileChange } from './workspace.ts';
 import { policyIssueLine } from '../doctor/policy-lines.ts';
@@ -122,13 +123,21 @@ function latestVersion(tool: ToolKnowledge): string | undefined {
 }
 
 /**
- * Where the pinned version is written when a lockfile records it (BUNDLED WITH of Gemfile.lock), so that
- * version-too-old points there (decision D-159); the pinned version is the first exact one, as pinnedVersion takes it.
+ * Where the pinned version is written when a lockfile records it (BUNDLED WITH of Gemfile.lock, decision D-159) or the
+ * release yarnPath names gives it (decision D-165), so that version-too-old points there and says how to change it; the
+ * pinned version is the first exact one, as pinnedVersion takes it.
  */
-function lockfileVersionAt(manager: PackageManagerInfo): { file: string; line?: number } | undefined {
-  const declaration = manager.versions.find((entry) => 'version' in entry && parseVersion(entry.version) !== undefined);
-  if (declaration?.source !== 'lockfile') return undefined;
-  return declaration.line === undefined ? { file: declaration.file } : { file: declaration.file, line: declaration.line };
+function pinOf(manager: PackageManagerInfo, tool: ToolKnowledge): VersionPin | undefined {
+  const declaration = pinnedDeclaration(manager);
+  if (declaration?.source !== 'lockfile' && declaration?.source !== 'yarnPath') return undefined;
+  const at = declaration.line === undefined ? { file: declaration.file } : { file: declaration.file, line: declaration.line };
+  if (declaration.source === 'lockfile') return { at };
+  const note = yarnPathNote(manager, declaration);
+  const fix = (needed: string) => {
+    const command = setVersionText(tool, needed, 'or a later release', declaration.file);
+    return command === undefined ? undefined : `${command}, then run depcurfew apply again`;
+  };
+  return { at, ...(note === undefined ? {} : { note }), fix };
 }
 
 /** Detection warnings about a file it could not read or parse (the codes of unreadable-config for single files). */
@@ -352,7 +361,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
     version: Version | undefined,
     action: (context: ReturnType<typeof createContext>) => void,
     inUse?: readonly NpmInUse[],
-    versionAt?: { file: string; line?: number },
+    pin?: VersionPin,
   ) => {
     const view = tool.kind === 'package-manager' ? policyFor(policy, ecosystemOfTool(tool)) : policy;
     const context = createContext({
@@ -368,7 +377,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
       failures,
       ...(inUse === undefined ? {} : { inUse }),
       ...(options.project === undefined ? {} : { project: options.project }),
-      ...(versionAt === undefined ? {} : { versionAt }),
+      ...(pin === undefined ? {} : { pin }),
     });
     workspace.startTool(tool.id);
     try {
@@ -415,7 +424,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
         if (minutes !== undefined) managerMinutes.push(minutes);
       },
       tool.id === 'npm' && manager !== undefined ? npmVersionsInUse(root, detection, policy, options) : undefined,
-      manager === undefined ? undefined : lockfileVersionAt(manager),
+      manager === undefined ? undefined : pinOf(manager, tool),
     );
   }
 

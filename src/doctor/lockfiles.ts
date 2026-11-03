@@ -11,6 +11,7 @@ import { listing } from '../apply/requirements.ts';
 import { isAbsoluteAnywhere } from '../paths.ts';
 import { parseYaml, parseYamlDocuments } from '../yaml-parse.ts';
 import { composerEntries, composerManifest, declaredRepositories } from './composer.ts';
+import { classicYarnEntries, UnsupportedClassicLockfile, type ClassicTarballs } from './yarn-classic-lockfile.ts';
 import { pdmEntries, pipfileLockEntries, poetryEntries, pylockEntries, requirementsEntries, requirementsFormatOf, requirementsIncludes, uvEntries } from './python-lockfiles.ts';
 
 /** Lockfiles are often larger than configuration files. */
@@ -51,9 +52,15 @@ export interface LockEntry {
   /**
    * What the lockfile says the entry is, when that differs from what the tool installs (decision D-135): npm's name and
    * version fields (`label`, with the key of the entry) beside the registry tarball of resolved, pnpm's key beside the
-   * registry tarball of resolution.tarball, Yarn's version field beside the version of the resolution.
+   * registry tarball of resolution.tarball, Yarn's version field beside the version of the resolution, and Yarn
+   * Classic's pattern and version field beside the registry tarball of resolved.
    */
-  mislabel?: { tool: 'npm'; key: string; label: string } | { tool: 'pnpm'; key: string; label: string } | { tool: 'yarn'; label: string; resolution: string };
+  mislabel?:
+    | { tool: 'npm'; key: string; label: string }
+    | { tool: 'pnpm'; key: string; label: string }
+    | { tool: 'yarn'; label: string; resolution: string }
+    // Yarn Classic: the pattern of the entry and the name and version it declares beside its resolved URL (D-165).
+    | { tool: 'yarn-classic'; key: string; label: string };
   /** Composer: why it installs a package that has an archive from its VCS source instead (decision D-136), for messages. */
   why?: string;
   /**
@@ -649,9 +656,23 @@ export function readLockfiles(
   return results;
 }
 
-/** A pnpm-lock.yaml or a Yarn Berry yarn.lock, which are parsed as YAML. */
-function isYamlLockfile(tool: ToolKnowledge, file: string): boolean {
-  return (tool.id === 'pnpm' || tool.id === 'yarn') && /\.ya?ml$|(?:^|\/)yarn\.lock$/u.test(file);
+/** A pnpm-lock.yaml or a Yarn Berry yarn.lock, which are parsed as YAML; Yarn Classic's yarn.lock is not YAML. */
+function isYamlLockfile(tool: ToolKnowledge, manager: PackageManagerInfo, file: string): boolean {
+  return (tool.id === 'pnpm' || (tool.id === 'yarn' && manager.variant !== 'classic')) && /\.ya?ml$|(?:^|\/)yarn\.lock$/u.test(file);
+}
+
+/**
+ * How Yarn Classic's yarn.lock is read for the lookups (decision D-165): its format (yarn extra.classicLockfile) and the
+ * layout of registry tarball URLs, as npm reads it (npm extra.tarballIdentity and lockfileFormat.registryTarball).
+ */
+function classicReading(tool: ToolKnowledge, tools: readonly ToolKnowledge[]): { format: Format; tarballs: ClassicTarballs | undefined } | undefined {
+  const format = extraFormat(tool, 'classicLockfile');
+  if (format === undefined) return undefined;
+  const npm = tools.find((entry) => entry.id === 'npm');
+  const identity = npm === undefined ? undefined : extraFormat(npm, 'tarballIdentity');
+  const registry = lockfileFormatOf(npm)?.['registryTarball'];
+  const tarballs = identity === undefined || typeof registry !== 'string' ? undefined : { registry: new RegExp(registry, 'u'), identity: (url: string) => tarballIdentity(url, identity) };
+  return { format, tarballs };
 }
 
 function parseLockfiles(
@@ -663,6 +684,9 @@ function parseLockfiles(
 ): LockfileResult[] {
   const format = lockfileFormatOf(tool);
   if (format === undefined) return [];
+  // Yarn Classic is not configured, but its yarn.lock is read for known-malicious (decision D-165).
+  const classic = tool.id === 'yarn' && manager.variant === 'classic' ? classicReading(tool, tools) : undefined;
+  if (tool.id === 'yarn' && manager.variant === 'classic' && classic === undefined) return [];
   const pip = tool.id === 'pip' ? tool : tools.find((entry) => entry.id === 'pip');
   const pylockFormat = lockfileFormatOf(pip);
   const lockfiles = manager.evidence.filter((item) => item.kind === 'lockfile').map((item) => item.file);
@@ -677,7 +701,7 @@ function parseLockfiles(
       if (!repository.warnings.some((warning) => warning.files.includes(file))) repository.warn('invalid-file', `cannot read ${file}`, [file]);
       return { ok: false, file, reason: 'it cannot be read', unreadable: true };
     }
-    if (isYamlLockfile(tool, file) && Buffer.byteLength(text) > MAX_YAML_LOCKFILE_SIZE) {
+    if (isYamlLockfile(tool, manager, file) && Buffer.byteLength(text) > MAX_YAML_LOCKFILE_SIZE) {
       const limit = MAX_YAML_LOCKFILE_SIZE / (1024 * 1024);
       repository.warn(
         'lockfile-too-large',
@@ -697,7 +721,10 @@ function parseLockfiles(
         const identity = tool.extra?.['tarballResolution'] === undefined || npmTool === undefined ? undefined : extraFormat(npmTool, 'tarballIdentity');
         ({ entries, start } = pnpmEntries(text, format, documentsOf(tool), identity));
       }
-      else if (tool.id === 'yarn') entries = yarnEntries(text, format, extraFormat(tool, 'registryFetch'));
+      else if (classic !== undefined) {
+        entries = classicYarnEntries(text, classic.format, classic.tarballs);
+        recordsScripts = false;
+      } else if (tool.id === 'yarn') entries = yarnEntries(text, format, extraFormat(tool, 'registryFetch'));
       else if (tool.id === 'bun') entries = bunEntries(text, format);
       else if (pylockFormat !== undefined && lockfiles.includes(file) && isPylock(pip, file)) {
         entries = pylockEntries(text, pylockFormat, workspaces);
@@ -716,7 +743,7 @@ function parseLockfiles(
         lockfile: { file, entries, recordsScripts, lineOf: entryLines(text, start, entries), ...(optionFiles === undefined ? {} : { optionFiles }), ...(isRequirements ? { requirements: true as const } : {}) },
       };
     } catch (error) {
-      if (error instanceof UnsupportedLockfile) return { ok: false, file, reason: error.message, unreadable: false };
+      if (error instanceof UnsupportedLockfile || error instanceof UnsupportedClassicLockfile) return { ok: false, file, reason: error.message, unreadable: false };
       const message = error instanceof Error ? (error.message.split('\n')[0] ?? '') : String(error);
       repository.warn('invalid-file', `cannot parse ${file}: ${message}`, [file]);
       return { ok: false, file, reason: `it cannot be parsed (${message})`, unreadable: true };

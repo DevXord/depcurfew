@@ -24,15 +24,20 @@ import { dockerfileCandidates, readDockerStages } from './dockerfiles.ts';
 import { expandWorkspaces } from './workspaces.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import { parseYaml } from '../yaml-parse.ts';
-import { iniEntries } from '../doctor/settings.ts';
+import { iniEntries, yamlSetting } from '../doctor/settings.ts';
 import type { ProjectOptional } from './commands.ts';
 import { yamlOptionsFor } from '../apply/facts.ts';
 import { botEcosystemFacts, detectBotEcosystems } from './bot-ecosystems.ts';
+import { parseVersion } from '../apply/version.ts';
+import { isAbsoluteAnywhere } from '../paths.ts';
+import { posix } from 'node:path';
 
 export type * from './types.ts';
 
 const EVIDENCE_ORDER: readonly EvidenceKind[] = ['lockfile', 'packageManager', 'devEngines', 'config', 'ci', 'default'];
 const SOURCE_ORDER: readonly VersionSource[] = [
+  // The release yarnPath names runs whichever Yarn starts (decision D-165).
+  'yarnPath',
   'packageManager',
   'tool-config',
   'lockfile',
@@ -271,14 +276,41 @@ function versionFromFile(repository: Repository, facts: DetectionFacts, path: st
   return version === '' ? undefined : version;
 }
 
+/**
+ * The version of the release yarnPath in the root .yarnrc.yml names (decision D-165): every Yarn from 1.18 runs that
+ * release instead of itself, with or without Corepack (yarn extra.yarnPathRuns), so it is a version the project
+ * declares. Only a relative path to a file of the repository named as yarn set version names it,
+ * yarn-<exact version>.cjs (extra.yarnPath), gives one; a ${VARIABLE}, which Yarn replaces from its environment, a path
+ * outside the repository and any other name give none, and the version stays unknown.
+ */
+function readYarnPath(repository: Repository, facts: DetectionFacts, collector: Collector): void {
+  const known = facts.yarn.yarnPath;
+  if (known === null || !repository.isFile(known.file)) return;
+  const text = repository.readText(known.file);
+  const found = text === undefined ? undefined : yamlSetting(text, [known.key], yamlOptionsFor(known.file));
+  if (found === undefined || typeof found.value !== 'string') return;
+  const value = found.value.trim();
+  if (value === '' || value.includes('${') || isAbsoluteAnywhere(value)) return;
+  // A relative yarnPath is resolved against the folder of the .yarnrc.yml that sets it, here the root.
+  const path = posix.normalize(value.replaceAll('\\', '/'));
+  if (path === '..' || path.startsWith('../') || !repository.isFile(path)) return;
+  const [before = '', after = ''] = known.releaseFile.split('<version>');
+  const name = posix.basename(path);
+  if (name.length <= before.length + after.length || !name.startsWith(before) || !name.endsWith(after)) return;
+  const version = name.slice(before.length, name.length - after.length);
+  if (parseVersion(version) === undefined) return;
+  collector.addVersion('yarn', { version, source: 'yarnPath', file: known.file, line: found.line });
+}
+
 function yarnVariant(repository: Repository, facts: DetectionFacts, collector: Collector): { variant: 'berry' | 'classic'; file: string } {
   if (repository.isFile('yarn.lock')) {
     const head = repository.readHead('yarn.lock') ?? '';
     if (head.includes(facts.yarn.classicHeader)) return { variant: 'classic', file: 'yarn.lock' };
     if (new RegExp(`^${facts.yarn.berryMarker}:`, 'mu').test(head)) return { variant: 'berry', file: 'yarn.lock' };
   }
-  const declared = collector.versions.get('yarn')?.find((entry) => entry.source === 'packageManager');
-  if (declared !== undefined && 'version' in declared && /^1\./u.test(declared.version)) return { variant: 'classic', file: 'package.json' };
+  // The release yarnPath names runs instead of the one packageManager pins (decision D-165).
+  const declared = [...(collector.versions.get('yarn') ?? [])].filter((entry) => entry.source === 'yarnPath' || entry.source === 'packageManager').sort(compareVersions)[0];
+  if (declared !== undefined && 'version' in declared && /^v?1\./u.test(declared.version)) return { variant: 'classic', file: declared.file };
   return { variant: 'berry', file: 'package.json' };
 }
 
@@ -415,6 +447,7 @@ export function detectProject(
     readDevEngines(facts, manifest, collector);
     readVolta(facts, manifest, collector);
   }
+  readYarnPath(repository, facts, collector);
   readToolVersions(repository, facts, collector);
   readNodeFiles(repository, facts, manifest, collector);
   readPythonConfig(repository, facts, collector);

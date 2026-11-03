@@ -9,6 +9,7 @@ const leftovers = verifiedOn('2026-11-01');
 const novemberSecond = verifiedOn('2026-11-02');
 const release14 = verifiedOn('2026-11-02');
 const runners = verifiedOn('2026-11-03');
+const yarnPathPins = verifiedOn('2026-11-03');
 const BERRY = 'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1';
 const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
 
@@ -255,7 +256,26 @@ export const yarn: ToolKnowledge = {
     yarnPathRuns: novemberSecond.verified(
       { file: '.yarnrc.yml', key: 'yarnPath', classicSince: '1.18.0' },
       'https://github.com/yarnpkg/yarn/blob/v1.22.22/src/cli/index.js',
-      'Yarn Classic 1.18.0 and later read yarnPath from .yarnrc.yml (CHANGELOG 1.18.0: "Adds support for reading yarnPath from v2-produced .yarnrc.yml files", #7350): getRcPaths in src/util/rc.js looks for .yarnrc and .yarnrc.yml in the folder and its parents, loadRcFile in src/rc.js keeps only yarnPath of a .yml file, resolved against its folder, and start() in src/cli/index.js runs node <yarnPath> before anything else, also before the check that packageManager names Yarn 1 (which only main() does). Yarn 2 and later do the same (run and runYarnPath in packages/yarnpkg-cli/sources/lib.ts at @yarnpkg/cli/4.18.1), unless YARN_IGNORE_PATH is set. So a release committed under yarnPath is the Yarn that runs, whichever Yarn starts, with or without Corepack.',
+      'Yarn Classic 1.18.0 and later read yarnPath from .yarnrc.yml (CHANGELOG 1.18.0: "Adds support for reading yarnPath from v2-produced .yarnrc.yml files", #7350): getRcPaths in src/util/rc.js looks for .yarnrc and .yarnrc.yml in the folder and its parents, loadRcFile in src/rc.js keeps only yarnPath of a .yml file, resolved against its folder, and start() in src/cli/index.js runs node <yarnPath> before anything else, also before the check that packageManager names Yarn 1 (which only main() does). Yarn 2 and later do the same (run and runYarnPath in packages/yarnpkg-cli/sources/lib.ts at @yarnpkg/cli/4.18.1), unless YARN_IGNORE_PATH is set. So a release committed under yarnPath is the Yarn that runs, whichever Yarn starts, with or without Corepack, and its version (from the file name, extra.yarnPath) is the version of the project (decision D-165).',
+    ),
+    setVersion: yarnPathPins.verified(
+      { command: 'yarn set version', releases: '.yarn/releases', sets: ['yarnPath', 'packageManager'] },
+      `${BERRY}/packages/plugin-essentials/sources/commands/set/version.ts`,
+      'setVersion saves the release as .yarn/releases/yarn-<version>.cjs, points yarnPath of the project .yarnrc.yml to it (a path relative to the project) and sets packageManager of package.json to yarn@<version>. In 4.18.1 it keeps yarnPath when the project already has one, when the release cannot be represented by Corepack, with --yarn-path or without Corepack enabled; otherwise it removes yarnPath and sets only packageManager. 3.6.4 always writes both (the same file at https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/3.6.4/packages/plugin-essentials/sources/commands/set/version.ts). The command runs in the Yarn yarnPath names, which is the one to upgrade.',
+    ),
+    classicLockfile: yarnPathPins.verified(
+      {
+        lockfileVersion: 1,
+        versionComment: '^yarn lockfile v(\\d+)$',
+        version: 'version',
+        resolved: 'resolved',
+        hash: '#',
+        alias: 'npm:',
+        gitResolved: '^git(\\+[a-z0-9]+)?://',
+        local: ['file:', 'link:', './', '../', '/'],
+      },
+      'https://github.com/yarnpkg/yarn/blob/v1.22.22/src/lockfile/parse.js',
+      'Yarn Classic (1.22.22) reads yarn.lock with its own parser: a comment that says yarn lockfile v<N> with N above LOCKFILE_VERSION 1 (src/constants.js) makes it throw "Can\'t install from a lockfile of version N"; indentation is two spaces per level (an odd count throws), keys and values are JSON strings in double quotes or words, several keys separated by commas share one value, key: value and key value both set a value, and a later key replaces an earlier one. A file with git conflict markers is read as its two sides, the second side winning per key (parseWithConflict). When the parser fails Yarn retries the file as YAML (FAILSAFE_SCHEMA), and a file with __metadata (Yarn 2 and later) is ignored (src/lockfile/index.js). Each top-level key is a pattern name@range (normalizePattern), an npm: range names another package (registry-resolver.js: npm:<name>@<range>), and its value is an entry, or a string naming another pattern that Yarn follows (Lockfile.getLocked). Lockfile.getLockfile writes version, resolved and integrity of an entry, and its name only when it differs from the name of the pattern, which it never does. An entry with resolved is fetched from that URL without the part after # (explodeHashedUrl in src/util/version.js; getLocked in src/package-request.js), with git (git+<protocol>:// or git://) for URLs that match gitResolved and from the disk for file: and relative paths (src/fetchers/tarball-fetcher.js), whatever its version field says; an entry without resolved is resolved again from its pattern. file:, link:, ./, ../ and absolute paths are local (file-resolver.js, link-resolver.js), whose entries have no resolved. depcurfew reads the name and version of a registry tarball URL as for package-lock.json (npm extra.tarballIdentity and lockfileFormat.registryTarball).',
     ),
     denyList: user.verified(
       { file: 'package.json', setting: 'dependenciesMeta.<package>.built', value: false, since: '2.0.0' },

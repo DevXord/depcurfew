@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "package.json",
+      "line": 4
+    },
+    "message": "packageManager in package.json pins yarn@4.12.0, but every Yarn from 1.18.0 runs the release yarnPath in .yarnrc.yml names instead, Yarn (Berry) 4.18.1, with or without Corepack, so the pin has no effect",
+    "fix": "Run yarn set version 4.12.0 (or the release you mean to use), which saves it in .yarn/releases, points yarnPath in .yarnrc.yml to it and sets packageManager in package.json, so that both name the same release"
+  }
+]

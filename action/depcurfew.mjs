@@ -6565,6 +6565,7 @@ const leftovers$1 = verifiedOn("2026-11-01");
 const novemberSecond = verifiedOn("2026-11-02");
 const release14$1 = verifiedOn("2026-11-02");
 const runners = verifiedOn("2026-11-03");
+const yarnPathPins = verifiedOn("2026-11-03");
 const BERRY = "https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1";
 const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
 /** Variables for settings with a single value, which both the docs and the code accept. */
@@ -6788,7 +6789,28 @@ const yarn$1 = {
 			file: ".yarnrc.yml",
 			key: "yarnPath",
 			classicSince: "1.18.0"
-		}, "https://github.com/yarnpkg/yarn/blob/v1.22.22/src/cli/index.js", "Yarn Classic 1.18.0 and later read yarnPath from .yarnrc.yml (CHANGELOG 1.18.0: \"Adds support for reading yarnPath from v2-produced .yarnrc.yml files\", #7350): getRcPaths in src/util/rc.js looks for .yarnrc and .yarnrc.yml in the folder and its parents, loadRcFile in src/rc.js keeps only yarnPath of a .yml file, resolved against its folder, and start() in src/cli/index.js runs node <yarnPath> before anything else, also before the check that packageManager names Yarn 1 (which only main() does). Yarn 2 and later do the same (run and runYarnPath in packages/yarnpkg-cli/sources/lib.ts at @yarnpkg/cli/4.18.1), unless YARN_IGNORE_PATH is set. So a release committed under yarnPath is the Yarn that runs, whichever Yarn starts, with or without Corepack."),
+		}, "https://github.com/yarnpkg/yarn/blob/v1.22.22/src/cli/index.js", "Yarn Classic 1.18.0 and later read yarnPath from .yarnrc.yml (CHANGELOG 1.18.0: \"Adds support for reading yarnPath from v2-produced .yarnrc.yml files\", #7350): getRcPaths in src/util/rc.js looks for .yarnrc and .yarnrc.yml in the folder and its parents, loadRcFile in src/rc.js keeps only yarnPath of a .yml file, resolved against its folder, and start() in src/cli/index.js runs node <yarnPath> before anything else, also before the check that packageManager names Yarn 1 (which only main() does). Yarn 2 and later do the same (run and runYarnPath in packages/yarnpkg-cli/sources/lib.ts at @yarnpkg/cli/4.18.1), unless YARN_IGNORE_PATH is set. So a release committed under yarnPath is the Yarn that runs, whichever Yarn starts, with or without Corepack, and its version (from the file name, extra.yarnPath) is the version of the project (decision D-165)."),
+		setVersion: yarnPathPins.verified({
+			command: "yarn set version",
+			releases: ".yarn/releases",
+			sets: ["yarnPath", "packageManager"]
+		}, `${BERRY}/packages/plugin-essentials/sources/commands/set/version.ts`, "setVersion saves the release as .yarn/releases/yarn-<version>.cjs, points yarnPath of the project .yarnrc.yml to it (a path relative to the project) and sets packageManager of package.json to yarn@<version>. In 4.18.1 it keeps yarnPath when the project already has one, when the release cannot be represented by Corepack, with --yarn-path or without Corepack enabled; otherwise it removes yarnPath and sets only packageManager. 3.6.4 always writes both (the same file at https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/3.6.4/packages/plugin-essentials/sources/commands/set/version.ts). The command runs in the Yarn yarnPath names, which is the one to upgrade."),
+		classicLockfile: yarnPathPins.verified({
+			lockfileVersion: 1,
+			versionComment: "^yarn lockfile v(\\d+)$",
+			version: "version",
+			resolved: "resolved",
+			hash: "#",
+			alias: "npm:",
+			gitResolved: "^git(\\+[a-z0-9]+)?://",
+			local: [
+				"file:",
+				"link:",
+				"./",
+				"../",
+				"/"
+			]
+		}, "https://github.com/yarnpkg/yarn/blob/v1.22.22/src/lockfile/parse.js", "Yarn Classic (1.22.22) reads yarn.lock with its own parser: a comment that says yarn lockfile v<N> with N above LOCKFILE_VERSION 1 (src/constants.js) makes it throw \"Can't install from a lockfile of version N\"; indentation is two spaces per level (an odd count throws), keys and values are JSON strings in double quotes or words, several keys separated by commas share one value, key: value and key value both set a value, and a later key replaces an earlier one. A file with git conflict markers is read as its two sides, the second side winning per key (parseWithConflict). When the parser fails Yarn retries the file as YAML (FAILSAFE_SCHEMA), and a file with __metadata (Yarn 2 and later) is ignored (src/lockfile/index.js). Each top-level key is a pattern name@range (normalizePattern), an npm: range names another package (registry-resolver.js: npm:<name>@<range>), and its value is an entry, or a string naming another pattern that Yarn follows (Lockfile.getLocked). Lockfile.getLockfile writes version, resolved and integrity of an entry, and its name only when it differs from the name of the pattern, which it never does. An entry with resolved is fetched from that URL without the part after # (explodeHashedUrl in src/util/version.js; getLocked in src/package-request.js), with git (git+<protocol>:// or git://) for URLs that match gitResolved and from the disk for file: and relative paths (src/fetchers/tarball-fetcher.js), whatever its version field says; an entry without resolved is resolved again from its pattern. file:, link:, ./, ../ and absolute paths are local (file-resolver.js, link-resolver.js), whose entries have no resolved. depcurfew reads the name and version of a registry tarball URL as for package-lock.json (npm extra.tarballIdentity and lockfileFormat.registryTarball)."),
 		denyList: user.verified({
 			file: "package.json",
 			setting: "dependenciesMeta.<package>.built",
@@ -8964,6 +8986,18 @@ function extraValue(tool, key) {
 	const fact = tool.extra?.[key];
 	return fact === void 0 ? void 0 : first$1(fact);
 }
+/** Where yarnPath is set and how yarn set version names the release (decision D-165). */
+function yarnPathFacts(tool) {
+	const runs = extraValue(tool, "yarnPathRuns");
+	const release = extraValue(tool, "yarnPath");
+	if (!isRecord(runs) || typeof runs["file"] !== "string" || typeof runs["key"] !== "string") return null;
+	if (!isRecord(release) || typeof release["releaseFile"] !== "string") return null;
+	return {
+		file: runs["file"],
+		key: runs["key"],
+		releaseFile: release["releaseFile"]
+	};
+}
 /** required-version in [tool.uv] of pyproject.toml and at the top of uv.toml; requires-poetry in [tool.poetry]. */
 function requiredVersions(tool, pythonProject) {
 	const required = extraValue(tool, "requiredVersion");
@@ -9156,7 +9190,8 @@ function detectionFacts(tools, environment) {
 		bots,
 		yarn: {
 			berryMarker: extraString(yarn, "berryLockfileMarker"),
-			classicHeader: extraString(yarn, "classicLockfileHeader")
+			classicHeader: extraString(yarn, "classicLockfileHeader"),
+			yarnPath: yarnPathFacts(yarn)
 		},
 		packageManagerKey: first$1(environment.corepack.packageManagerField).key,
 		devEngines: first$1(environment.devEngines),
@@ -20620,7 +20655,7 @@ const NOT_A_CALL = /* @__PURE__ */ new Set([
 	":"
 ]);
 /** The digits of each base of a Ruby integer literal (parse_numeric, extra.rubySyntax). */
-const DIGITS = {
+const DIGITS$1 = {
 	2: /^[01](?:_?[01])*$/u,
 	8: /^[0-7](?:_?[0-7])*$/u,
 	10: /^[0-9](?:_?[0-9])*$/u,
@@ -20648,7 +20683,7 @@ function rubyInteger(text) {
 		base = 8;
 		body = text.slice(text[1] === "_" ? 2 : 1);
 	}
-	const digits = DIGITS[base];
+	const digits = DIGITS$1[base];
 	if (digits === void 0 || !digits.test(body)) return void 0;
 	return Number.parseInt(body.replaceAll("_", ""), base);
 }
@@ -21204,8 +21239,8 @@ function lineOf$1(text, needle) {
 
 // src/detect/bot-ecosystems.ts
 /** The ecosystems of the knowledge base, in its order; for a disputed fact the first variant. */
-function botEcosystemFacts(environment$2 = environment) {
-	return Object.entries(environment$2.botOnlyEcosystems).flatMap(([id, entry]) => {
+function botEcosystemFacts(environment$3 = environment) {
+	return Object.entries(environment$3.botOnlyEcosystems).flatMap(([id, entry]) => {
 		const project = evidenceOf(entry.project)[0]?.value;
 		const delay = evidenceOf(entry.releaseAge)[0]?.value;
 		return project === void 0 || delay === void 0 ? [] : [{
@@ -21215,8 +21250,8 @@ function botEcosystemFacts(environment$2 = environment) {
 		}];
 	});
 }
-function botEcosystemFact(id, environment$3 = environment) {
-	return botEcosystemFacts(environment$3).find((entry) => entry.id === id);
+function botEcosystemFact(id, environment$4 = environment) {
+	return botEcosystemFacts(environment$4).find((entry) => entry.id === id);
 }
 function byPath$1(a, b) {
 	return a < b ? -1 : a > b ? 1 : 0;
@@ -21283,6 +21318,7 @@ const EVIDENCE_ORDER = [
 	"default"
 ];
 const SOURCE_ORDER = [
+	"yarnPath",
 	"packageManager",
 	"tool-config",
 	"lockfile",
@@ -21528,6 +21564,35 @@ function versionFromFile(repository, facts, path, manifest) {
 	const version = new RegExp(versionFile.textPattern, "mu").exec(text)?.groups?.["version"] ?? text.trim();
 	return version === "" ? void 0 : version;
 }
+/**
+* The version of the release yarnPath in the root .yarnrc.yml names (decision D-165): every Yarn from 1.18 runs that
+* release instead of itself, with or without Corepack (yarn extra.yarnPathRuns), so it is a version the project
+* declares. Only a relative path to a file of the repository named as yarn set version names it,
+* yarn-<exact version>.cjs (extra.yarnPath), gives one; a ${VARIABLE}, which Yarn replaces from its environment, a path
+* outside the repository and any other name give none, and the version stays unknown.
+*/
+function readYarnPath(repository, facts, collector) {
+	const known = facts.yarn.yarnPath;
+	if (known === null || !repository.isFile(known.file)) return;
+	const text = repository.readText(known.file);
+	const found = text === void 0 ? void 0 : yamlSetting(text, [known.key], yamlOptionsFor(known.file));
+	if (found === void 0 || typeof found.value !== "string") return;
+	const value = found.value.trim();
+	if (value === "" || value.includes("${") || isAbsoluteAnywhere(value)) return;
+	const path = posix.normalize(value.replaceAll("\\", "/"));
+	if (path === ".." || path.startsWith("../") || !repository.isFile(path)) return;
+	const [before = "", after = ""] = known.releaseFile.split("<version>");
+	const name = posix.basename(path);
+	if (name.length <= before.length + after.length || !name.startsWith(before) || !name.endsWith(after)) return;
+	const version = name.slice(before.length, name.length - after.length);
+	if (parseVersion(version) === void 0) return;
+	collector.addVersion("yarn", {
+		version,
+		source: "yarnPath",
+		file: known.file,
+		line: found.line
+	});
+}
 function yarnVariant(repository, facts, collector) {
 	if (repository.isFile("yarn.lock")) {
 		const head = repository.readHead("yarn.lock") ?? "";
@@ -21540,10 +21605,10 @@ function yarnVariant(repository, facts, collector) {
 			file: "yarn.lock"
 		};
 	}
-	const declared = collector.versions.get("yarn")?.find((entry) => entry.source === "packageManager");
-	if (declared !== void 0 && "version" in declared && /^1\./u.test(declared.version)) return {
+	const declared = [...collector.versions.get("yarn") ?? []].filter((entry) => entry.source === "yarnPath" || entry.source === "packageManager").sort(compareVersions)[0];
+	if (declared !== void 0 && "version" in declared && /^v?1\./u.test(declared.version)) return {
 		variant: "classic",
-		file: "package.json"
+		file: declared.file
 	};
 	return {
 		variant: "berry",
@@ -21674,9 +21739,9 @@ function withProjectOptional(facts, repository) {
 * Describes the repository at `root`. Never executes anything from the repository and never leaves it;
 * problems with individual files become warnings.
 */
-function detectProject(root, tools = knowledgeBase, environment$1 = environment, options = {}) {
+function detectProject(root, tools = knowledgeBase, environment$2 = environment, options = {}) {
 	const repository = new Repository(root);
-	const facts = withProjectOptional(detectionFacts(tools, environment$1), repository);
+	const facts = withProjectOptional(detectionFacts(tools, environment$2), repository);
 	const collector = new Collector();
 	const managerIds = new Set(facts.managers.map((manager) => manager.id));
 	const ecosystemOf = (id) => facts.managers.find((manager) => manager.id === id)?.ecosystem ?? "npm";
@@ -21686,6 +21751,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment,
 		readDevEngines(facts, manifest, collector);
 		readVolta(facts, manifest, collector);
 	}
+	readYarnPath(repository, facts, collector);
 	readToolVersions(repository, facts, collector);
 	readNodeFiles(repository, facts, manifest, collector);
 	readPythonConfig(repository, facts, collector);
@@ -21810,7 +21876,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment,
 		...directories.slice(1),
 		...projects
 	])];
-	const botEcosystems = detectBotEcosystems(repository, botEcosystemFacts(environment$1), searched);
+	const botEcosystems = detectBotEcosystems(repository, botEcosystemFacts(environment$2), searched);
 	if (manifest === void 0 && packageManagers.length === 0 && botEcosystems.length === 0 && !repository.isFile("package.json") && !repository.isFile(facts.pythonProject)) repository.warn("nothing-detected", "no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found", []);
 	return {
 		packageManagers,
@@ -22701,6 +22767,381 @@ function describeRequirements(requirements) {
 	]);
 	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing$1(group.settings)} (added in ${since})`).join(", ");
 	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;
+}
+
+// src/doctor/yarn-classic-lockfile.ts
+/** A lockfile of a later format version, which Yarn Classic refuses: not checked, with the reason. */
+var UnsupportedClassicLockfile = class extends Error {};
+/** Levels deeper than any yarn.lock has (an entry and its dependencies are two): deeper input is not read. */
+const MAX_DEPTH = 64;
+/** The first character of a word (an unquoted string) in parse.js, and the rest of a word, digits and spaces. */
+const WORD_START = /[a-zA-Z/.-]/u;
+const WORD = /[^:\n\r ,]*/uy;
+const DIGITS = /[0-9]+/uy;
+const SPACES = / +/uy;
+/** What makes JSON.parse look at a quoted string more closely than taking its characters: an escape or a control character. */
+const NOT_PLAIN = /[\\\u0000-\u001f]/u;
+/**
+* The tokens of tokenise in src/lockfile/parse.js, one per call, in linear time. A newline is \n or \r and, as in Yarn,
+* the \n after it (so \n\n is one newline there, and the blank line does not end an entry); `line` counts the lines of
+* the file. A comment runs from # to the next \n and is checked for the format version; the spaces at the start of a
+* line are an indent of half their count (an odd count throws); a string in double quotes is JSON, and a quote after a
+* backslash that does not follow another backslash does not end it; then digits, true and false, colon and comma, and
+* a word from a letter, /, . or - to the next colon, space, line end or comma. Anything else is invalid, and nothing
+* follows it.
+*/
+function classicTokens(text, versionComment, lockfileVersion, lineOf) {
+	let line = 1;
+	let at = 0;
+	let afterNewline = false;
+	let ended = false;
+	const length = text.length;
+	const sticky = (pattern) => {
+		pattern.lastIndex = at;
+		return pattern.exec(text) === null ? at : pattern.lastIndex;
+	};
+	return () => {
+		for (;;) {
+			if (ended) throw new Error("it ends in the middle of an entry");
+			if (at >= length) {
+				ended = true;
+				return {
+					type: "eof",
+					line: lineOf(line)
+				};
+			}
+			const char = text[at];
+			const start = at;
+			const lineStart = afterNewline;
+			afterNewline = false;
+			if (char === "\n" || char === "\r") {
+				at += text[at + 1] === "\n" ? 2 : 1;
+				afterNewline = char === "\n" || text[start + 1] === "\n";
+				line += char === "\n" && text[start + 1] === "\n" ? 2 : 1;
+				return {
+					type: "newline",
+					line: lineOf(line)
+				};
+			}
+			if (char === "#") {
+				const end = text.indexOf("\n", at + 1);
+				const comment = text.slice(at + 1, end === -1 ? length : end).trim();
+				const version = versionComment.exec(comment)?.[1];
+				if (version !== void 0 && Number(version) > lockfileVersion) throw new UnsupportedClassicLockfile(`it is a yarn lockfile v${version}, and Yarn Classic reads only version ${lockfileVersion}`);
+				at = end === -1 ? length : end;
+				continue;
+			}
+			if (char === " ") {
+				if (!lineStart) {
+					at += 1;
+					continue;
+				}
+				const end = sticky(SPACES);
+				const size = end - at;
+				if (size % 2 !== 0) throw new Error(`line ${lineOf(line)} is indented by an odd number of spaces`);
+				at = end;
+				return {
+					type: "indent",
+					value: size / 2,
+					line: lineOf(line)
+				};
+			}
+			if (char === "\"") {
+				let end = text.indexOf("\"", at + 1);
+				while (end !== -1 && text[end - 1] === "\\" && (end - 2 <= at || text[end - 2] !== "\\")) end = text.indexOf("\"", end + 1);
+				end = end === -1 ? length : end + 1;
+				const quoted = text.slice(at, end);
+				at = end;
+				let value;
+				if (quoted.length >= 2 && quoted.endsWith("\"") && !NOT_PLAIN.test(quoted)) value = quoted.slice(1, -1);
+				else try {
+					value = JSON.parse(quoted);
+				} catch {
+					value = void 0;
+				}
+				if (typeof value === "string") return {
+					type: "string",
+					value,
+					line: lineOf(line)
+				};
+				return {
+					type: "invalid",
+					line: lineOf(line)
+				};
+			}
+			if (char >= "0" && char <= "9") {
+				const end = sticky(DIGITS);
+				const digits = text.slice(at, end);
+				at = end;
+				return {
+					type: "number",
+					value: Number(digits),
+					line: lineOf(line)
+				};
+			}
+			if (text.startsWith("true", at)) {
+				at += 4;
+				return {
+					type: "boolean",
+					value: true,
+					line: lineOf(line)
+				};
+			}
+			if (text.startsWith("false", at)) {
+				at += 5;
+				return {
+					type: "boolean",
+					value: false,
+					line: lineOf(line)
+				};
+			}
+			if (char === ":" || char === ",") {
+				at += 1;
+				return {
+					type: char === ":" ? "colon" : "comma",
+					line: lineOf(line)
+				};
+			}
+			if (WORD_START.test(char)) {
+				const end = sticky(WORD);
+				const word = text.slice(at, end);
+				at = end;
+				return {
+					type: "string",
+					value: word,
+					line: lineOf(line)
+				};
+			}
+			ended = true;
+			return {
+				type: "invalid",
+				line: lineOf(line)
+			};
+		}
+	};
+}
+/**
+* The Parser of src/lockfile/parse.js: the same loop, levels and errors, with a limit on nesting. Where Yarn's parser
+* stops before the end of the file (an indented line outside an entry), Yarn reads no more of it and resolves what
+* follows again, so that is an error here too: depcurfew would not see what Yarn installs. `lineOf` maps the lines of
+* one side of a conflict to the lines of the file.
+*/
+function parseClassic(text, format, lineOf = (line) => line) {
+	const read = classicTokens(text, new RegExp(String(format["versionComment"]), "u"), Number(format["lockfileVersion"]), lineOf);
+	const lines = /* @__PURE__ */ new Map();
+	let token = {
+		type: "eof",
+		line: 1
+	};
+	const next = () => {
+		token = read();
+		return token;
+	};
+	const unexpected = () => {
+		throw new Error(`Yarn Classic cannot read line ${token.line}`);
+	};
+	const key = () => {
+		if (token.type !== "string" || token.value === "") return unexpected();
+		return token.value;
+	};
+	const level = (indent) => {
+		if (indent > MAX_DEPTH) throw new Error(`it nests more than ${MAX_DEPTH} levels deep at line ${token.line}`);
+		const object = Object.create(null);
+		for (;;) {
+			const current = token;
+			if (current.type === "newline") {
+				const following = next();
+				if (indent === 0) continue;
+				if (following.type !== "indent" || following.value !== indent) break;
+				next();
+			} else if (current.type === "indent") {
+				if (current.value !== indent) break;
+				next();
+			} else if (current.type === "eof") break;
+			else if (current.type === "string") {
+				const keys = [key()];
+				next();
+				while (token.type === "comma") {
+					next();
+					keys.push(key());
+					next();
+				}
+				const colon = token.type === "colon";
+				if (colon) next();
+				if (token.type === "string" || token.type === "number" || token.type === "boolean") {
+					for (const name of keys) object[name] = token.value;
+					next();
+				} else if (colon) {
+					const value = level(indent + 1);
+					lines.set(value, current.line);
+					for (const name of keys) object[name] = value;
+					if (indent !== 0 && token.type !== "indent") break;
+				} else unexpected();
+			} else unexpected();
+		}
+		return object;
+	};
+	next();
+	const object = level(0);
+	for (let rest = token; rest.type !== "eof"; rest = next()) if (rest.type !== "newline" && rest.type !== "indent") throw new Error(`Yarn Classic stops reading it before line ${rest.line} and resolves the packages after that again`);
+	return {
+		object,
+		lines
+	};
+}
+const CONFLICT = {
+	start: "<<<<<<<",
+	separator: "=======",
+	ancestor: "|||||||",
+	end: ">>>>>>>"
+};
+/** The two sides of a git conflict, as extractConflictVariants reads them; undefined without conflict markers. */
+function conflictSides(text) {
+	if (!text.includes(CONFLICT.start) || !text.includes(CONFLICT.separator) || !text.includes(CONFLICT.end)) return void 0;
+	const sides = [{
+		text: [],
+		lines: []
+	}, {
+		text: [],
+		lines: []
+	}];
+	const push = (side, line, number) => {
+		sides[side].text.push(line);
+		sides[side].lines.push(number);
+	};
+	const lines = text.split(/\r?\n/u);
+	let index = 0;
+	while (index < lines.length) {
+		const line = lines[index++];
+		if (!line.startsWith(CONFLICT.start)) {
+			push(0, line, index);
+			push(1, line, index);
+			continue;
+		}
+		let skip = false;
+		while (index < lines.length) {
+			const inner = lines[index++];
+			if (inner === CONFLICT.separator) break;
+			if (skip || inner.startsWith(CONFLICT.ancestor)) skip = true;
+			else push(0, inner, index);
+		}
+		while (index < lines.length) {
+			const inner = lines[index++];
+			if (inner.startsWith(CONFLICT.end)) break;
+			push(1, inner, index);
+		}
+	}
+	return [{
+		text: sides[0].text.join("\n"),
+		lines: sides[0].lines
+	}, {
+		text: sides[1].text.join("\n"),
+		lines: sides[1].lines
+	}];
+}
+/** The parsed lockfile; of a conflicted one both sides, the second winning per key (parseWithConflict). */
+function readClassic(text, format) {
+	const body = text.startsWith("﻿") ? text.slice(1) : text;
+	const sides = conflictSides(body);
+	if (sides === void 0) return parseClassic(body, format);
+	const [ours, theirs] = sides.map((side) => parseClassic(side.text, format, (line) => side.lines[line - 1] ?? line));
+	return {
+		object: Object.assign(Object.create(null), ours.object, theirs.object),
+		lines: new Map([...ours.lines, ...theirs.lines])
+	};
+}
+function isEntries(value) {
+	return typeof value === "object" && value !== null;
+}
+/** Splits name@range as normalizePattern does: the scope's @ is not the separator. */
+function patternParts(pattern) {
+	const scoped = pattern.startsWith("@");
+	const parts = (scoped ? pattern.slice(1) : pattern).split("@");
+	return {
+		name: `${scoped ? "@" : ""}${parts[0] ?? ""}`,
+		range: parts.slice(1).join("@")
+	};
+}
+/**
+* The entries of a yarn.lock of Yarn Classic. An entry with resolved comes from that URL: a registry tarball URL gives
+* the package and version looked up (a mislabel when the name its pattern declares, after an npm: alias, or its version
+* field differ), a git URL is git, file: and relative paths a local tarball, any other URL a tarball URL. An entry
+* without resolved is local when its pattern is (file:, link:, ./, ../, /); otherwise Yarn resolves its range again, so
+* it is a registry package without an exact version. Throws UnsupportedClassicLockfile for a later format version, and
+* an Error where Yarn's parser fails or stops early.
+*/
+function classicYarnEntries(text, format, tarballs) {
+	const { object, lines } = readClassic(text, format);
+	const versionKey = String(format["version"]);
+	const resolvedKey = String(format["resolved"]);
+	const hash = String(format["hash"]);
+	const alias = String(format["alias"]);
+	const git = new RegExp(String(format["gitResolved"]), "u");
+	const local = Array.isArray(format["local"]) ? format["local"].filter((item) => typeof item === "string") : [];
+	const patterns = /* @__PURE__ */ new Map();
+	for (const [key, value] of Object.entries(object)) if (isEntries(value)) patterns.set(value, [...patterns.get(value) ?? [], key]);
+	const entries = [];
+	for (const [value, keys] of patterns) {
+		const key = keys[0];
+		const pattern = patternParts(key);
+		const target = pattern.range.startsWith(alias) ? patternParts(pattern.range.slice(alias.length)) : pattern;
+		const name = target.name;
+		const resolved = typeof value[resolvedKey] === "string" ? value[resolvedKey] : void 0;
+		const field = value[versionKey];
+		const version = typeof field === "string" ? field : typeof field === "number" ? String(field) : void 0;
+		const line = lines.get(value);
+		const base = {
+			name,
+			spec: resolved ?? pattern.range,
+			installScript: void 0,
+			anchor: key,
+			...line === void 0 ? {} : { line }
+		};
+		if (resolved === void 0) {
+			const source = local.some((prefix) => target.range.startsWith(prefix)) ? "directory" : /[:/]/u.test(target.range) ? "unknown" : "registry";
+			entries.push({
+				...base,
+				source
+			});
+			continue;
+		}
+		const url = resolved.split(hash)[0] ?? "";
+		if (git.test(url)) entries.push({
+			...base,
+			source: "git"
+		});
+		else if (!/^https?:\/\//u.test(url)) entries.push({
+			...base,
+			source: local.some((prefix) => url.startsWith(prefix)) ? "file" : "unknown"
+		});
+		else if (tarballs === void 0 || !tarballs.registry.test(url)) entries.push({
+			...base,
+			source: "remoteTarball"
+		});
+		else {
+			const identity = tarballs.identity(url);
+			if (identity === void 0) {
+				entries.push({
+					...base,
+					source: "registry"
+				});
+				continue;
+			}
+			const same = identity.name === name && version === identity.version;
+			entries.push({
+				...base,
+				source: "registry",
+				version: identity.version,
+				...identity.name === name ? {} : { registryName: identity.name },
+				...same ? {} : { mislabel: {
+					tool: "yarn-classic",
+					key,
+					label: version === void 0 ? name : `${name}@${version}`
+				} }
+			});
+		}
+	}
+	return entries;
 }
 
 // src/policy/ecosystem.ts
@@ -23632,13 +24073,33 @@ function readLockfiles(repository, manager, tool, workspaces, tools = []) {
 	}
 	return results;
 }
-/** A pnpm-lock.yaml or a Yarn Berry yarn.lock, which are parsed as YAML. */
-function isYamlLockfile(tool, file) {
-	return (tool.id === "pnpm" || tool.id === "yarn") && /\.ya?ml$|(?:^|\/)yarn\.lock$/u.test(file);
+/** A pnpm-lock.yaml or a Yarn Berry yarn.lock, which are parsed as YAML; Yarn Classic's yarn.lock is not YAML. */
+function isYamlLockfile(tool, manager, file) {
+	return (tool.id === "pnpm" || tool.id === "yarn" && manager.variant !== "classic") && /\.ya?ml$|(?:^|\/)yarn\.lock$/u.test(file);
+}
+/**
+* How Yarn Classic's yarn.lock is read for the lookups (decision D-165): its format (yarn extra.classicLockfile) and the
+* layout of registry tarball URLs, as npm reads it (npm extra.tarballIdentity and lockfileFormat.registryTarball).
+*/
+function classicReading(tool, tools) {
+	const format = extraFormat(tool, "classicLockfile");
+	if (format === void 0) return void 0;
+	const npm = tools.find((entry) => entry.id === "npm");
+	const identity = npm === void 0 ? void 0 : extraFormat(npm, "tarballIdentity");
+	const registry = lockfileFormatOf(npm)?.["registryTarball"];
+	return {
+		format,
+		tarballs: identity === void 0 || typeof registry !== "string" ? void 0 : {
+			registry: new RegExp(registry, "u"),
+			identity: (url) => tarballIdentity(url, identity)
+		}
+	};
 }
 function parseLockfiles(repository, manager, tool, workspaces, tools) {
 	const format = lockfileFormatOf(tool);
 	if (format === void 0) return [];
+	const classic = tool.id === "yarn" && manager.variant === "classic" ? classicReading(tool, tools) : void 0;
+	if (tool.id === "yarn" && manager.variant === "classic" && classic === void 0) return [];
 	const pip = tool.id === "pip" ? tool : tools.find((entry) => entry.id === "pip");
 	const pylockFormat = lockfileFormatOf(pip);
 	const lockfiles = manager.evidence.filter((item) => item.kind === "lockfile").map((item) => item.file);
@@ -23660,7 +24121,7 @@ function parseLockfiles(repository, manager, tool, workspaces, tools) {
 				unreadable: true
 			};
 		}
-		if (isYamlLockfile(tool, file) && Buffer.byteLength(text) > 16777216) {
+		if (isYamlLockfile(tool, manager, file) && Buffer.byteLength(text) > 16777216) {
 			const limit = MAX_YAML_LOCKFILE_SIZE / 1048576;
 			repository.warn("lockfile-too-large", `${file} is larger than ${limit} MiB, the limit for YAML lockfiles (parsing a larger one needs more memory than a CI runner gives Node.js), and was not read`, [file]);
 			return {
@@ -23679,6 +24140,9 @@ function parseLockfiles(repository, manager, tool, workspaces, tools) {
 				const npmTool = tools.find((entry) => entry.id === "npm");
 				const identity = tool.extra?.["tarballResolution"] === void 0 || npmTool === void 0 ? void 0 : extraFormat(npmTool, "tarballIdentity");
 				({entries, start} = pnpmEntries(text, format, documentsOf(tool), identity));
+			} else if (classic !== void 0) {
+				entries = classicYarnEntries(text, classic.format, classic.tarballs);
+				recordsScripts = false;
 			} else if (tool.id === "yarn") entries = yarnEntries(text, format, extraFormat(tool, "registryFetch"));
 			else if (tool.id === "bun") entries = bunEntries(text, format);
 			else if (pylockFormat !== void 0 && lockfiles.includes(file) && isPylock(pip, file)) {
@@ -23705,7 +24169,7 @@ function parseLockfiles(repository, manager, tool, workspaces, tools) {
 				}
 			};
 		} catch (error) {
-			if (error instanceof UnsupportedLockfile) return {
+			if (error instanceof UnsupportedLockfile || error instanceof UnsupportedClassicLockfile) return {
 				ok: false,
 				file,
 				reason: error.message,
@@ -25163,6 +25627,7 @@ function today() {
 
 // src/doctor/rules/bundled-versions.ts
 const SOURCE_LABEL = {
+	yarnPath: "yarnPath",
 	packageManager: "packageManager",
 	"tool-config": "the required version",
 	lockfile: "the lockfile",
@@ -26213,6 +26678,42 @@ function checkBundledVersions(context, helpers) {
 	}
 }
 
+// src/apply/yarn-path.ts
+/** The declaration the pinned version comes from: the first exact one, as pinnedVersion takes it. */
+function pinnedDeclaration(manager) {
+	return manager.versions.find((entry) => "version" in entry && parseVersion(entry.version) !== void 0);
+}
+/** The exact packageManager pins of another release than the one yarnPath names, which runs instead of them. */
+function overriddenPins(manager, yarnPath) {
+	const runs = parseVersion(yarnPath.version);
+	if (yarnPath.source !== "yarnPath" || runs === void 0) return [];
+	return manager.versions.filter((entry) => {
+		if (entry.source !== "packageManager" || !("version" in entry)) return false;
+		const pinned = parseVersion(entry.version);
+		return pinned !== void 0 && compareVersions$1(pinned, runs) !== 0;
+	});
+}
+/** ", which runs instead of yarn@4.12.0 in packageManager", or nothing when no pin differs. */
+function insteadText(manager, yarnPath) {
+	const others = overriddenPins(manager, yarnPath);
+	return others.length === 0 ? "" : `, which runs instead of ${listing$1(others.map((entry) => `${manager.id}@${entry.version} in ${entry.source}`))}`;
+}
+/** Where the pinned version comes from, for a message about it: "yarnPath in .yarnrc.yml, which runs instead of …". */
+function yarnPathNote(manager, declaration) {
+	if (declaration?.source !== "yarnPath") return void 0;
+	return `yarnPath in ${declaration.file}${insteadText(manager, declaration)}`;
+}
+const isSetVersion = (value) => isRecord(value) && typeof value["command"] === "string" && typeof value["releases"] === "string";
+/**
+* "Run yarn set version 4.14.0 (or a later release), which saves it in .yarn/releases, points yarnPath in .yarnrc.yml to
+* it and sets packageManager in package.json"; undefined without the fact.
+*/
+function setVersionText(tool, version, which, file) {
+	if (tool.extra?.["setVersion"] === void 0) return void 0;
+	const fact = extraOf(tool, "setVersion", isSetVersion);
+	return `Run ${fact.command} ${version} (${which}), which saves it in ${fact.releases}, points yarnPath in ${file} to it and sets packageManager in package.json`;
+}
+
 // src/knowledge/schema.ts
 const TOOL_IDS = [
 	"npm",
@@ -26428,7 +26929,8 @@ function checkManager(context, manager, tool, features) {
 		if (tool.id === "npm" && (declaration.source === "github-actions" || declaration.source === "dockerfile")) continue;
 		const lowest = lowestVersion(declaration.version);
 		const label = sourceLabel(tool, declaration);
-		const where = label === declaration.file ? label : `${label} (${declaration.file})`;
+		const instead = declaration.source === "yarnPath" ? insteadText(manager, declaration) : "";
+		const where = `${label === declaration.file ? label : `${label} (${declaration.file})`}${instead === "" ? "" : `${instead},`}`;
 		if (lowest.kind === "unknown") {
 			context.notice(`manager-version-too-old cannot evaluate ${tool.name} version "${declaration.version}" in ${declaration.file}`, declaration.file);
 			continue;
@@ -26442,6 +26944,7 @@ function checkManager(context, manager, tool, features) {
 		const alternative = alternativeOf(missing, tool.name, advice);
 		if (alternative !== void 0 && advice.now && advice.targeted && lowest.kind === "exact" && compareVersions$1(lowest.version, alternative.version) >= 0 && context.defaultPolicy === true) continue;
 		const locked = declaration.source === "lockfile" ? lockfileVersionOf(tool) : void 0;
+		const release = declaration.source === "yarnPath" ? yarnPathFix(context, tool, declaration.file, missing, formatVersion(needed)) : void 0;
 		context.report({
 			level: lowest.kind === "exact" ? "error" : "warning",
 			location: line === void 0 ? { file: declaration.file } : {
@@ -26449,9 +26952,21 @@ function checkManager(context, manager, tool, features) {
 				line
 			},
 			message: subject,
-			fix: locked !== void 0 ? `Run ${locked.update}, which locks the latest ${tool.name} release (${formatVersion(needed)} or later is needed), and commit ${declaration.file}` : alternative !== void 0 && lowest.kind === "exact" && compareVersions$1(lowest.version, alternative.version) >= 0 ? `${alternative.set.charAt(0).toUpperCase()}${alternative.set.slice(1)}, or require ${tool.name} ${formatVersion(needed)} or later in ${label}` : `Require ${tool.name} ${formatVersion(needed)} or later in ${label}${alternative === void 0 ? "" : `, or ${alternative.text}`}`
+			fix: release !== void 0 ? release : locked !== void 0 ? `Run ${locked.update}, which locks the latest ${tool.name} release (${formatVersion(needed)} or later is needed), and commit ${declaration.file}` : alternative !== void 0 && lowest.kind === "exact" && compareVersions$1(lowest.version, alternative.version) >= 0 ? `${alternative.set.charAt(0).toUpperCase()}${alternative.set.slice(1)}, or require ${tool.name} ${formatVersion(needed)} or later in ${label}` : `Require ${tool.name} ${formatVersion(needed)} or later in ${label}${alternative === void 0 ? "" : `, or ${alternative.text}`}`
 		});
 	}
+}
+/**
+* The fix for a release yarnPath names that lacks settings (decision D-165): yarn set version replaces it. Settings of
+* the file the release does not know are removed first: Yarn stops at a setting of the project .yarnrc.yml it does not
+* know (Configuration.use with enableStrictSettings, read at 3.6.4 and 4.18.1), and yarn set version runs in that Yarn.
+*/
+function yarnPathFix(context, tool, file, missing, needed) {
+	const command = setVersionText(tool, needed, "or a later release", file);
+	if (command === void 0) return void 0;
+	const written = missing.filter((item) => readSetting(context.repository, file, item.setting) !== void 0).map((item) => item.setting);
+	const then = "then run depcurfew apply again and commit the changes";
+	return written.length === 0 ? `${command}, ${then}` : `Remove ${listing$1(written)} from ${file}, ${command.charAt(0).toLowerCase()}${command.slice(1)}, ${then}`;
 }
 /**
 * Composer has no setting that pins its version in the project, so the repository says nothing about the Composer that
@@ -26497,7 +27012,7 @@ const managerVersionTooOld = {
 	id: "manager-version-too-old",
 	checks: "The declared package manager versions, and the npm and pip that come with the declared Node.js and Python versions, support the settings the repository relies on",
 	summary: "A declared package manager version, or the npm or pip that comes with a declared Node.js or Python version, is older than a setting the repository relies on.",
-	description: "Package managers ignore settings they do not know yet; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, a CI step or a Dockerfile pins an older version, the setting is silently not applied there. The same holds for the npm that comes with the Node.js a CI job, a Dockerfile stage or a version file (.nvmrc, .node-version) chooses, and for the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age. Composer cannot pin its own version: a composer.lock whose plugin-api-version shows that a Composer older than 2.11 wrote it gives a warning, and otherwise a note says that the cooldown needs Composer 2.11. Bundler switches to the version of BUNDLED WITH in Gemfile.lock, which counts as a pin (the cooldown: of a Gemfile source needs 4.0.14 once Gemfile.lock exists), as do the bundler input of ruby/setup-ruby and gem install bundler -v.",
+	description: "Package managers ignore settings they do not know yet; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, a CI step or a Dockerfile pins an older version, the setting is silently not applied there. The same holds for the npm that comes with the Node.js a CI job, a Dockerfile stage or a version file (.nvmrc, .node-version) chooses, and for the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age. Composer cannot pin its own version: a composer.lock whose plugin-api-version shows that a Composer older than 2.11 wrote it gives a warning, and otherwise a note says that the cooldown needs Composer 2.11. Bundler switches to the version of BUNDLED WITH in Gemfile.lock, which counts as a pin (the cooldown: of a Gemfile source needs 4.0.14 once Gemfile.lock exists), as do the bundler input of ruby/setup-ruby and gem install bundler -v. The release yarnPath in .yarnrc.yml names (yarn-<version>.cjs) is a pin too: every Yarn from 1.18 runs it.",
 	help: "Raise the declared version to at least the version that introduced the setting, everywhere it is declared, or install a newer npm or pip before installing packages.",
 	level: "error",
 	requiresPolicy: false,
@@ -26520,7 +27035,7 @@ const managerVersionTooOld = {
 		for (const manager of context.detection.packageManagers.filter((entry) => !entry.supported && entry.variant === "classic")) {
 			const berry = context.tools.find((entry) => entry.id === manager.id);
 			if (context.policy === void 0 || berry === void 0) continue;
-			const declaration = manager.versions.find((entry) => entry.source === "packageManager");
+			const declaration = manager.versions.find((entry) => entry.source === "yarnPath" || entry.source === "packageManager");
 			const file = declaration?.file ?? manager.evidence[0]?.file ?? "package.json";
 			const line = declaration === void 0 ? void 0 : declarationLine(context, declaration);
 			const since = sinceOf(berry.cooldown.availableSince);
@@ -29404,11 +29919,12 @@ function createContext(options) {
 				0,
 				0
 			]) >= 0 ? a : b);
+			const pinFix = options.pin?.fix?.(needed);
 			warn({
 				code: "version-too-old",
-				...options.versionAt === void 0 ? {} : { location: options.versionAt },
-				message: `${tool.name} ${versionLabel} does not support ${describeRequirements(unsupported)}; not written`,
-				fix: user ? `Update ${tool.name} to ${needed} or later, then run depcurfew apply --user again` : locked === void 0 ? `Require ${tool.name} ${needed} or later where the version is pinned` : `Require ${tool.name} ${needed} or later where the version is pinned (${locked.section} of the lockfile changes with ${locked.update}), then run depcurfew apply again`
+				...options.pin === void 0 ? {} : { location: options.pin.at },
+				message: `${tool.name} ${versionLabel}${options.pin?.note === void 0 ? "" : ` (${options.pin.note})`} does not support ${describeRequirements(unsupported)}; not written`,
+				fix: user ? `Update ${tool.name} to ${needed} or later, then run depcurfew apply --user again` : pinFix !== void 0 ? pinFix : locked === void 0 ? `Require ${tool.name} ${needed} or later where the version is pinned` : `Require ${tool.name} ${needed} or later where the version is pinned (${locked.section} of the lockfile changes with ${locked.update}), then run depcurfew apply again`
 			});
 		},
 		atLeast,
@@ -32168,15 +32684,27 @@ function latestVersion(tool) {
 	return typeof value === "string" ? value : void 0;
 }
 /**
-* Where the pinned version is written when a lockfile records it (BUNDLED WITH of Gemfile.lock), so that
-* version-too-old points there (decision D-159); the pinned version is the first exact one, as pinnedVersion takes it.
+* Where the pinned version is written when a lockfile records it (BUNDLED WITH of Gemfile.lock, decision D-159) or the
+* release yarnPath names gives it (decision D-165), so that version-too-old points there and says how to change it; the
+* pinned version is the first exact one, as pinnedVersion takes it.
 */
-function lockfileVersionAt(manager) {
-	const declaration = manager.versions.find((entry) => "version" in entry && parseVersion(entry.version) !== void 0);
-	if (declaration?.source !== "lockfile") return void 0;
-	return declaration.line === void 0 ? { file: declaration.file } : {
+function pinOf(manager, tool) {
+	const declaration = pinnedDeclaration(manager);
+	if (declaration?.source !== "lockfile" && declaration?.source !== "yarnPath") return void 0;
+	const at = declaration.line === void 0 ? { file: declaration.file } : {
 		file: declaration.file,
 		line: declaration.line
+	};
+	if (declaration.source === "lockfile") return { at };
+	const note = yarnPathNote(manager, declaration);
+	const fix = (needed) => {
+		const command = setVersionText(tool, needed, "or a later release", declaration.file);
+		return command === void 0 ? void 0 : `${command}, then run depcurfew apply again`;
+	};
+	return {
+		at,
+		...note === void 0 ? {} : { note },
+		fix
 	};
 }
 /** Detection warnings about a file it could not read or parse (the codes of unreadable-config for single files). */
@@ -32405,7 +32933,7 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 		fix: "Run depcurfew explain to see what depcurfew detects"
 	});
 	const botTargets = /* @__PURE__ */ new Set([...targets, ...options.projects?.targets ?? []]);
-	const run = (tool, version, action, inUse, versionAt) => {
+	const run = (tool, version, action, inUse, pin) => {
 		const view = tool.kind === "package-manager" ? policyFor(policy, ecosystemOfTool(tool)) : policy;
 		const context = createContext({
 			tool,
@@ -32420,7 +32948,7 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 			failures,
 			...inUse === void 0 ? {} : { inUse },
 			...options.project === void 0 ? {} : { project: options.project },
-			...versionAt === void 0 ? {} : { versionAt }
+			...pin === void 0 ? {} : { pin }
 		});
 		workspace.startTool(tool.id);
 		try {
@@ -32458,7 +32986,7 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 		run(tool, version, (context) => {
 			const minutes = generator(context);
 			if (minutes !== void 0) managerMinutes.push(minutes);
-		}, tool.id === "npm" && manager !== void 0 ? npmVersionsInUse(root, detection, policy, options) : void 0, manager === void 0 ? void 0 : lockfileVersionAt(manager));
+		}, tool.id === "npm" && manager !== void 0 ? npmVersionsInUse(root, detection, policy, options) : void 0, manager === void 0 ? void 0 : pinOf(manager, tool));
 	}
 	const duration = policy.cooldown === void 0 ? void 0 : botDuration(policy.cooldown.minimum, [...managerMinutes, ...options.projects?.managerMinutes ?? []]);
 	for (const tool of tools) {
@@ -33400,12 +33928,16 @@ function usesBot(scope, ids) {
 function readsLockfile(tools, id) {
 	return tools.find((tool) => tool.id === id)?.extra?.["lockfileFormat"] !== void 0;
 }
+/** Yarn Classic: not configured, but known-malicious reads its yarn.lock (decision D-165). */
+function isYarnClassic(manager) {
+	return manager.id === "yarn" && manager.variant === "classic";
+}
 /**
 * A package manager has a lockfile depcurfew reads, or for pip requirements files, which say where packages come from
-* too.
+* too; with yarnClassic, also the yarn.lock of Yarn Classic.
 */
-function hasLockfile(scope) {
-	return scope.detection.packageManagers.some((manager) => manager.supported && readsLockfile(scope.tools, manager.id) && (manager.evidence.some((evidence) => evidence.kind === "lockfile") || manager.id === "pip" && manager.configFiles.length > 0));
+function hasLockfile(scope, options = {}) {
+	return scope.detection.packageManagers.some((manager) => (manager.supported || options.yarnClassic === true && isYarnClassic(manager)) && readsLockfile(scope.tools, manager.id) && (manager.evidence.some((evidence) => evidence.kind === "lockfile") || manager.id === "pip" && manager.configFiles.length > 0));
 }
 
 // src/doctor/rules/unreadable-config.ts
@@ -35739,11 +36271,34 @@ function checkDurationStrings(context, tool, manager, version, label) {
 		fix: `Write the delay as a number in ${tool.cooldown.unit.status === "disputed" ? "the tool's unit" : String(values$1(tool.cooldown.unit)[0])}, or require ${tool.name} ${String(format["since"])} or later`
 	});
 }
+const isYarnPathRuns = (value) => isRecord(value) && typeof value["classicSince"] === "string";
+/**
+* A packageManager pin of another release than the one yarnPath names (decision D-165): every Yarn from 1.18 runs that
+* release instead of itself, with or without Corepack (yarn extra.yarnPathRuns), so the pin has no effect.
+*/
+function checkOverriddenPins(context, tool, manager) {
+	const yarnPath = manager.versions.find((entry) => entry.source === "yarnPath" && "version" in entry);
+	if (yarnPath === void 0 || tool.extra?.["yarnPathRuns"] === void 0) return;
+	const since = extraOf(tool, "yarnPathRuns", isYarnPathRuns).classicSince;
+	for (const pin of overriddenPins(manager, yarnPath)) {
+		const line = declarationLine(context, pin);
+		const command = setVersionText(tool, pin.version, "or the release you mean to use", yarnPath.file);
+		context.report({
+			level: "warning",
+			location: line === void 0 ? { file: pin.file } : {
+				file: pin.file,
+				line
+			},
+			message: `${pin.source} in ${pin.file} pins ${manager.id}@${pin.version}, but every Yarn from ${since} runs the release yarnPath in ${yarnPath.file} names instead, ${tool.name} ${yarnPath.version}, with or without Corepack, so the pin has no effect`,
+			fix: command === void 0 ? `Make yarnPath in ${yarnPath.file} and ${pin.source} name the same release` : `${command}, so that both name the same release`
+		});
+	}
+}
 const settingIgnoredByVersion = {
 	id: "setting-ignored-by-version",
 	checks: "No setting or file is ignored by the package manager version in use",
 	summary: "A setting or file is ignored by the package manager version in use.",
-	description: "Package managers drop old settings and files in new major versions and only accept new forms from some version on. The configuration stays in the repository and looks effective while the version in use ignores it.",
+	description: "Package managers drop old settings and files in new major versions and only accept new forms from some version on. The configuration stays in the repository and looks effective while the version in use ignores it. The version in use of Yarn is the release yarnPath in .yarnrc.yml names, which every Yarn from 1.18 runs instead of itself, so a packageManager pin of another release has no effect (a warning).",
 	help: "Move the setting to the place and form this version reads.",
 	level: "error",
 	requiresPolicy: false,
@@ -35755,7 +36310,9 @@ const settingIgnoredByVersion = {
 			const pinned = pinnedVersion(manager);
 			const version = pinned ?? latestVersion$1(tool);
 			if (version === void 0) continue;
-			const label = `${tool.name} ${formatVersion(version)}${pinned === void 0 ? " (the latest known version; none is pinned)" : ""}`;
+			const note = yarnPathNote(manager, pinnedDeclaration(manager));
+			const label = `${tool.name} ${formatVersion(version)}${pinned === void 0 ? " (the latest known version; none is pinned)" : note === void 0 ? "" : ` (${note})`}`;
+			checkOverriddenPins(context, tool, manager);
 			checkLockfiles(context, tool, version, label);
 			if (tool.id === "pnpm") checkPnpm(context, tool, version, label);
 			checkDurationStrings(context, tool, manager, version, label);
@@ -36135,6 +36692,10 @@ function withLocalAnswer(pkg, verdict, local) {
 	} : verdict;
 }
 
+// src/user/versions.ts
+/** What Yarn 1.x is called in messages: depcurfew configures only the later Yarn (extra.classicUserFile). */
+const YARN_CLASSIC = "Yarn Classic";
+
 // src/doctor/rules/known-malicious.ts
 /** What to do when OSV.dev did not answer, in doctor. */
 const OSV_DOCTOR_RETRY_FIX = "Run depcurfew doctor --osv again when api.osv.dev can be reached; --osv needs HTTPS access to it";
@@ -36147,12 +36708,12 @@ const knownMalicious = {
 	id: "known-malicious",
 	checks: "With --osv or the local OSV.dev data of depcurfew osv update: no locked package version is a known malicious version in OSV.dev",
 	summary: "With --osv or the local OSV.dev data of depcurfew osv update: a lockfile locks a package version that OSV.dev lists as malicious.",
-	description: "Doctor looks up the exact version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) and reports each version that has a record of the OpenSSF malicious-packages database (an id starting with MAL-): with --osv in api.osv.dev (which then gets the names and versions), else offline in the local OSV.dev data of depcurfew osv update. It looks up what the tool installs (for npm the registry tarball of resolved, for pnpm that of resolution.tarball, for Yarn the resolution); an entry that says otherwise gets a warning, as does a registry entry without an exact version. Local data older than 7 days gives a note; older than 30 days, or in a directory others can write, a warning; OSV.dev out of reach gives a warning. Only reported malware is found, and the database admits false positives. With neither --osv nor local data, a note says how to get them.",
+	description: "Doctor looks up the exact version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) and reports each version that has a record of the OpenSSF malicious-packages database (an id starting with MAL-): with --osv in api.osv.dev (which then gets the names and versions), else offline in the local OSV.dev data of depcurfew osv update. It looks up what the tool installs (for npm and Yarn Classic the tarball of resolved, for pnpm that of resolution.tarball, for Yarn the resolution); an entry that says otherwise gets a warning, as does a registry entry without an exact version. Local data older than 7 days gives a note; older than 30 days, or in a directory others can write, a warning; OSV.dev out of reach gives a warning. Only reported malware is found, and the database admits false positives. With neither --osv nor local data, a note says how to get them.",
 	help: "Remove or replace the package version and lock again; if it was installed anywhere, read the record on OSV.dev and treat that machine as exposed.",
 	level: "error",
 	requiresPolicy: false,
 	alsoInComparedProjects: true,
-	applies: (scope) => scope.osv !== void 0 && !("unavailable" in scope.osv) && hasLockfile(scope),
+	applies: (scope) => scope.osv !== void 0 && !("unavailable" in scope.osv) && hasLockfile(scope, { yarnClassic: true }),
 	check(context) {
 		const osv = context.osv;
 		if (osv === void 0) return;
@@ -36165,10 +36726,11 @@ const knownMalicious = {
 		const again = local === void 0 ? "depcurfew doctor --osv" : "depcurfew doctor";
 		const checker = local === void 0 ? "doctor --osv" : "doctor";
 		const workspaces = context.detection.workspaces?.packages ?? [];
-		for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
+		for (const manager of context.detection.packageManagers.filter((entry) => entry.supported || isYarnClassic(entry))) {
 			const tool = context.tools.find((entry) => entry.id === manager.id);
 			if (tool === void 0) continue;
 			const ecosystem = ecosystemOfTool(tool);
+			const name = isYarnClassic(manager) ? YARN_CLASSIC : tool.name;
 			for (const result of readLockfiles(context.repository, manager, tool, workspaces, context.tools)) {
 				if (!result.ok) {
 					if (!result.unreadable && "answers" in osv) context.notice(`known-malicious could not check ${result.file}: ${result.reason}`, result.file);
@@ -36232,7 +36794,7 @@ const knownMalicious = {
 				const count = unpinned.length;
 				if (count > 0 && ecosystem === "packagist") context.notice(`known-malicious did not check ${plural(count, "package")} of ${lockfile.file}, which locks a branch of ${count === 1 ? "it" : "them"} (a dev- or -dev version), not a release`, lockfile.file, `Require tagged releases of ${count === 1 ? "this package" : "these packages"} in composer.json and run composer update, so that ${checker} can check ${count === 1 ? "it" : "them"}`);
 				else if (count > 0 && lockfile.requirements === true) context.notice(`known-malicious did not check ${plural(count, "package")} of ${lockfile.file}, which pins no exact version of ${count === 1 ? "it" : "them"}`, lockfile.file, `Pin exact versions (name==version), for example with a lockfile exported by the tool that resolves them, so that ${checker} can check them`);
-				else if (count > 0) reportUnpinned(context, lockfile, tool, unpinned, again);
+				else if (count > 0) reportUnpinned(context, lockfile, name, unpinned, again);
 			}
 		}
 	}
@@ -36258,6 +36820,15 @@ function reportMislabel(context, lockfile, entry, installs) {
 		});
 		return;
 	}
+	if (mislabel.tool === "yarn-classic") {
+		context.report({
+			level: "warning",
+			location,
+			message: `${lockfile.file} has ${mislabel.key} as ${mislabel.label}, but its resolved URL is the registry tarball of ${installs}, which is what ${YARN_CLASSIC} fetches; known-malicious checked ${installs}`,
+			fix: `Find out who changed this entry of ${lockfile.file} (${YARN_CLASSIC} writes the version of the package whose tarball it resolves, under the name the entry declares, so an entry where they differ was edited), then lock the package again with ${YARN_CLASSIC}`
+		});
+		return;
+	}
 	if (mislabel.tool === "npm") {
 		context.report({
 			level: "warning",
@@ -36278,7 +36849,7 @@ function reportMislabel(context, lockfile, entry, installs) {
 * Registry entries of a lockfile a tool wrote that give no exact version (decision D-135): a warning, as for versions
 * OSV.dev did not answer for, since the tool installs some version that was not checked. At the first of them.
 */
-function reportUnpinned(context, lockfile, tool, entries, again) {
+function reportUnpinned(context, lockfile, name, entries, again) {
 	const lines = entries.map((entry) => lockfile.lineOf(entry));
 	const named = entries.slice(0, MAX_NAMED).map((entry, index) => lines[index] === void 0 ? entry.name : `${entry.name} (line ${lines[index]})`);
 	const more = entries.length - named.length;
@@ -36290,8 +36861,8 @@ function reportUnpinned(context, lockfile, tool, entries, again) {
 			file: lockfile.file,
 			line: first
 		},
-		message: `known-malicious could not check ${plural(entries.length, "registry package")} of ${lockfile.file}, whose ${one ? "entry gives" : "entries give"} no exact version that ${tool.name} installs: ${more > 0 ? `${named.join(", ")} and ${more} more` : listing$1(named)}`,
-		fix: one ? `Lock this package again with ${tool.name}, so that ${lockfile.file} names its exact version, and find out why it does not; then run ${again} again` : `Lock these packages again with ${tool.name}, so that ${lockfile.file} names the exact version of each, and find out why it does not; then run ${again} again`
+		message: `known-malicious could not check ${plural(entries.length, "registry package")} of ${lockfile.file}, whose ${one ? "entry gives" : "entries give"} no exact version that ${name} installs: ${more > 0 ? `${named.join(", ")} and ${more} more` : listing$1(named)}`,
+		fix: one ? `Lock this package again with ${name}, so that ${lockfile.file} names its exact version, and find out why it does not; then run ${again} again` : `Lock these packages again with ${name}, so that ${lockfile.file} names the exact version of each, and find out why it does not; then run ${again} again`
 	});
 }
 /** One warning per lockfile and reason for the versions OSV.dev did not answer for: the check did not pass. */
@@ -36311,7 +36882,7 @@ const NO_DATA_MESSAGE = "known-malicious did not check the locked package versio
 const NO_DATA_FIX = "Run depcurfew osv update to download the OSV.dev data of known malicious packages (it requests only the public export files and sends no package names), then run depcurfew doctor again; or run depcurfew doctor --osv to ask api.osv.dev";
 /** The first lockfile (or requirements file of pip) of the directory, from detection: where the note without data stands. */
 function firstLockfile(context) {
-	for (const manager of context.detection.packageManagers.filter((entry) => entry.supported && readsLockfile(context.tools, entry.id))) {
+	for (const manager of context.detection.packageManagers.filter((entry) => (entry.supported || isYarnClassic(entry)) && readsLockfile(context.tools, entry.id))) {
 		const lockfile = manager.evidence.find((evidence) => evidence.kind === "lockfile");
 		if (lockfile !== void 0) return lockfile.file;
 		if (manager.id === "pip" && manager.configFiles.length > 0) return manager.configFiles[0];
