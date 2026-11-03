@@ -1330,7 +1330,12 @@ export interface CheckRunsKnowledge {
   annotationTitleMaxLength: number;
   annotationMessageMaxBytes: number;
   /** Variables the runner sets: API URL, owner/name, commit and the event payload file. */
-  variables: { apiUrl: string; repository: string; sha: string; eventPath: string };
+  variables: { apiUrl: string; repository: string; sha: string; eventPath: string; eventName: string };
+  /**
+   * The events whose GITHUB_SHA is the merge commit of the pull request, so the check goes on its head commit from the
+   * payload. For other events (pull_request_target: the last commit of the base branch) it goes on GITHUB_SHA.
+   */
+  mergeCommitEvents: readonly string[];
   /** Path in the event payload of the commit a pull request check belongs to (GITHUB_SHA is the merge commit there). */
   pullRequestHeadSha: readonly string[];
 }

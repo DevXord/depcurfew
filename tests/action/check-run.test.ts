@@ -76,7 +76,21 @@ function annotations(count: number): CheckRunAnnotation[] {
 
 describe('the commit of the check', () => {
   it('is the head of a pull request, not the merge commit GITHUB_SHA names there', () => {
-    expect(checkRunSha(runner({ GITHUB_EVENT_PATH: event({ pull_request: { head: { sha: HEAD } } }) }), FACTS)).toBe(HEAD);
+    expect(checkRunSha(runner({ GITHUB_EVENT_NAME: 'pull_request', GITHUB_EVENT_PATH: event({ pull_request: { head: { sha: HEAD } } }) }), FACTS)).toBe(HEAD);
+  });
+
+  it('is the head of the pull request for its reviews, whose GITHUB_SHA is the merge commit too', () => {
+    for (const name of ['pull_request_review', 'pull_request_review_comment']) {
+      expect(checkRunSha(runner({ GITHUB_EVENT_NAME: name, GITHUB_EVENT_PATH: event({ pull_request: { head: { sha: HEAD } } }) }), FACTS)).toBe(HEAD);
+    }
+  });
+
+  // pull_request_target checks out the base branch by default: a check on the head would pass a commit nobody checked
+  // (decision D-169).
+  it('is GITHUB_SHA, the base branch, under pull_request_target and any other event with a pull_request payload', () => {
+    for (const name of ['pull_request_target', 'workflow_run', 'issue_comment', undefined]) {
+      expect(checkRunSha(runner({ ...(name === undefined ? {} : { GITHUB_EVENT_NAME: name }), GITHUB_EVENT_PATH: event({ pull_request: { head: { sha: HEAD } } }) }), FACTS)).toBe(MERGE);
+    }
   });
 
   it('is GITHUB_SHA for a push, and nothing without a valid one', () => {
@@ -88,7 +102,7 @@ describe('the commit of the check', () => {
 describe('createCheckRun', () => {
   it('looks for an earlier entry, then posts the result to the check runs API with the token in a header only', async () => {
     const fake = api();
-    const line = await createCheckRun(runner({ GITHUB_EVENT_PATH: event({ pull_request: { head: { sha: HEAD } } }) }), 'secret-token', CONTENT, fake.fetch);
+    const line = await createCheckRun(runner({ GITHUB_EVENT_NAME: 'pull_request', GITHUB_EVENT_PATH: event({ pull_request: { head: { sha: HEAD } } }) }), 'secret-token', CONTENT, fake.fetch);
     expect(line).toBe(`depcurfew: added the check "depcurfew doctor" with the result to the commit ${HEAD.slice(0, 12)}\n`);
     expect(fake.calls.map((call) => call.method)).toEqual(['GET', 'POST']);
     expect(fake.calls[0]?.url).toBe(`https://api.github.com/repos/owner/repo/commits/${HEAD}/check-runs?check_name=depcurfew%20doctor&filter=latest`);
