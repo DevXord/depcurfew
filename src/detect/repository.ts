@@ -1,7 +1,7 @@
 // Read-only access to a repository: never leaves its root (also through symlinks), skips oversized files and
 // collects warnings instead of throwing. Nothing in the repository is executed.
-import { closeSync, lstatSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { closeSync, lstatSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync, type Dirent, type Stats } from 'node:fs';
+import { dirname, join, relative, sep } from 'node:path';
 import { isInside } from '../paths.ts';
 import type { DetectionWarning } from './types.ts';
 
@@ -32,6 +32,8 @@ export class Repository {
   readonly read = new Set<string>();
   readonly #warned = new Set<string>();
   readonly #parsed = new Map<(text: string) => unknown, Map<string, unknown>>();
+  /** Whether each directory (an absolute path) is its own real path: no symlink on the way from the file system root. */
+  readonly #plain = new Map<string, boolean>();
 
   constructor(root: string) {
     this.root = realpathSync(root);
@@ -50,46 +52,76 @@ export class Repository {
   }
 
 
-  /** The real path of a repository-relative path, or undefined if it is missing or leads outside. */
-  #resolve(path: string, report: boolean): string | undefined {
+  /**
+   * Whether a directory (absolute and normalized) is its own real path, with no symlink on the way: the root is, a
+   * directory under it is when its parent is and it is no symlink itself (one lstat each, remembered), and one above it
+   * (reached through ..) is resolved in full.
+   */
+  #isPlain(directory: string): boolean {
+    if (directory === this.root) return true;
+    let plain = this.#plain.get(directory);
+    if (plain === undefined) {
+      const parent = dirname(directory);
+      try {
+        plain =
+          parent !== directory && isInside(this.root, directory)
+            ? this.#isPlain(parent) && lstatSync(directory, { throwIfNoEntry: false })?.isSymbolicLink() === false
+            : realpathSync(directory) === directory;
+      } catch {
+        plain = false;
+      }
+      this.#plain.set(directory, plain);
+    }
+    return plain;
+  }
+
+  /**
+   * The real path of a repository-relative path with what stat says about it, or undefined if it is missing or leads
+   * outside. A path that is not a symlink, in a directory with no symlink on the way, is its own real path: it is not
+   * resolved again segment by segment (decision D-157). One that ends with a separator is: lstat follows a symlink there.
+   * A missing path costs one lstat without an exception.
+   */
+  #resolve(path: string, report: boolean): { real: string; stats: Stats } | undefined {
     const full = join(this.root, path);
+    let own: Stats | undefined;
     try {
-      lstatSync(full);
+      own = lstatSync(full, { throwIfNoEntry: false });
     } catch (error) {
       if (report && !MISSING.has(String((error as NodeJS.ErrnoException).code))) this.#unreadable(path, error);
       return undefined;
     }
+    if (own === undefined) return undefined;
     let real: string;
-    try {
-      real = realpathSync(full);
-    } catch {
-      return undefined;
+    if (full === this.root || (!own.isSymbolicLink() && !full.endsWith(sep) && this.#isPlain(dirname(full)))) real = full;
+    else {
+      try {
+        real = realpathSync(full);
+      } catch {
+        return undefined;
+      }
     }
     if (!isInside(this.root, real)) {
       if (report) this.warn('outside-repository', `${path} points outside the repository and was not read`, [path]);
       return undefined;
     }
-    return real;
+    return { real, stats: real === full ? own : statSync(real) };
   }
 
   isFile(path: string): boolean {
-    const real = this.#resolve(path, true);
-    return real !== undefined && statSync(real).isFile();
+    return this.#resolve(path, true)?.stats.isFile() === true;
   }
 
   /** Whether the path exists in the repository as something other than a regular file or a directory (a named pipe, a socket, a device). */
   isSpecialFile(path: string): boolean {
-    const real = this.#resolve(path, false);
-    if (real === undefined) return false;
-    const stats = statSync(real);
-    return !stats.isFile() && !stats.isDirectory();
+    const stats = this.#resolve(path, false)?.stats;
+    return stats !== undefined && !stats.isFile() && !stats.isDirectory();
   }
 
   /** The text of a file, without a byte order mark; undefined (with a warning when useful) if it cannot be read. */
   readText(path: string, limit = MAX_FILE_SIZE): string | undefined {
-    const real = this.#resolve(path, true);
-    if (real === undefined) return undefined;
-    const stats = statSync(real);
+    const resolved = this.#resolve(path, true);
+    if (resolved === undefined) return undefined;
+    const { real, stats } = resolved;
     if (!stats.isFile()) return undefined;
     if (stats.size > limit) {
       this.warn('file-too-large', `${path} is larger than ${limit / (1024 * 1024)} MiB and was not read`, [path]);
@@ -108,8 +140,9 @@ export class Repository {
 
   /** The first bytes of a file, e.g. to recognize a lockfile format without reading a large file. */
   readHead(path: string, bytes = 4096): string | undefined {
-    const real = this.#resolve(path, true);
-    if (real === undefined || !statSync(real).isFile()) return undefined;
+    const resolved = this.#resolve(path, true);
+    if (resolved === undefined || !resolved.stats.isFile()) return undefined;
+    const { real } = resolved;
     const buffer = Buffer.alloc(bytes);
     let descriptor: number;
     try {
@@ -127,33 +160,47 @@ export class Repository {
     }
   }
 
-  /** Names of the files in a directory (following symlinks only inside the repository). */
-  listFiles(path: string): string[] {
-    return this.#entries(path).filter((entry) => entry.isFile).map((entry) => entry.name);
+  /**
+   * Names of the files in a directory (following symlinks only inside the repository). With `accept`, only the names it
+   * accepts, and only those are resolved and stat-ed (decision D-157): a directory of many files costs one readdir.
+   */
+  listFiles(path: string, accept?: (name: string) => boolean): string[] {
+    return this.#entries(path, accept).filter((entry) => entry.isFile).map((entry) => entry.name);
   }
 
-  /** Names of the subdirectories of a directory, skipping node_modules, .git and symlinks that lead outside. */
-  listDirectories(path: string): string[] {
-    return this.#entries(path)
-      .filter((entry) => entry.isDirectory && !SKIPPED_DIRECTORIES.has(entry.name))
+  /** Names of the subdirectories of a directory, skipping node_modules, .git and symlinks that lead outside; `accept` as in listFiles. */
+  listDirectories(path: string, accept?: (name: string) => boolean): string[] {
+    return this.#entries(path, (name) => !SKIPPED_DIRECTORIES.has(name) && (accept === undefined || accept(name)))
+      .filter((entry) => entry.isDirectory)
       .map((entry) => entry.name);
   }
 
-  #entries(path: string): { name: string; isFile: boolean; isDirectory: boolean }[] {
-    const real = this.#resolve(path, false);
+  /**
+   * The entries of a directory whose names `accept` accepts, sorted by name; nothing else is resolved. An entry that is
+   * not a symlink is what readdir says it is, inside the directory and so inside the repository; a symlink is resolved
+   * like any path. A directory already known to have no symlink on the way is not resolved again.
+   */
+  #entries(path: string, accept?: (name: string) => boolean): { name: string; isFile: boolean; isDirectory: boolean }[] {
+    const full = join(this.root, path);
+    const real = full === this.root || this.#plain.get(full) === true ? full : this.#resolve(path, false)?.real;
     if (real === undefined) return [];
-    let names: string[];
+    let found: Dirent[];
     try {
-      names = readdirSync(real).sort();
+      found = readdirSync(real, { withFileTypes: true });
     } catch {
       return [];
     }
     const entries = [];
-    for (const name of names) {
+    for (const entry of (accept === undefined ? found : found.filter((item) => accept(item.name))).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+      const { name } = entry;
+      if (!entry.isSymbolicLink()) {
+        // Its path under a directory with no symlink on the way is its real path.
+        if (real === full && entry.isDirectory()) this.#plain.set(join(full, name), true);
+        entries.push({ name, isFile: entry.isFile(), isDirectory: entry.isDirectory() });
+        continue;
+      }
       const target = this.#resolve(path === '.' ? name : `${path}/${name}`, false);
-      if (target === undefined) continue;
-      const stats = statSync(target);
-      entries.push({ name, isFile: stats.isFile(), isDirectory: stats.isDirectory() });
+      if (target !== undefined) entries.push({ name, isFile: target.stats.isFile(), isDirectory: target.stats.isDirectory() });
     }
     return entries;
   }

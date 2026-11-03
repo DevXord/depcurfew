@@ -1141,7 +1141,8 @@ function npmCheck(context: RuleContext, helpers: BundledHelpers, managers: reado
 
 /** The npm and pip that come with the declared runtimes, checked against the settings the repository relies on. */
 export function checkBundledVersions(context: RuleContext, helpers: BundledHelpers): void {
-  const facts = runtimeFacts(environment);
+  // Made once, not for every directory: doctor checks every project (decision D-157).
+  const facts = sharedFacts();
   const managed = (id: string) => context.detection.packageManagers.find((entry) => entry.id === id && entry.supported);
   const npmManager = managed('npm');
   const rootCheck = npmCheck(context, helpers, context.detection.packageManagers);

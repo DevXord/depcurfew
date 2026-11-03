@@ -81,6 +81,24 @@ export function shortened(findings: readonly Finding[]): Finding[] {
   return kept;
 }
 
+/** The most projects the notice projects-not-compared names; it counts the others. */
+const NAMED_PROJECTS = 5;
+
+/**
+ * The notice projects-not-compared (decision D-157): init would list more projects than doctor compares with the
+ * default policy (`compared` of them), so the others, `notCompared`, were not checked.
+ */
+export function projectsNotComparedNotice(compared: number, notCompared: readonly string[]): Notice {
+  const named = notCompared.slice(0, NAMED_PROJECTS).map((project) => `"${project}"`);
+  const more = notCompared.length - named.length;
+  return makeNotice(
+    'projects-not-compared',
+    `depcurfew init would list ${compared + notCompared.length} directories under projects; doctor compared the first ${compared} with ${DEFAULT_POLICY_NAME} and did not check the other ${notCompared.length}: ${more === 0 ? listing(named) : `${named.join(', ')} and ${more} more`}`,
+    undefined,
+    `Run depcurfew init to write ${POLICY_FILE} with every project, then run depcurfew doctor again to check them all`,
+  );
+}
+
 /**
  * The notice policy-missing when the rules that need a policy ran against the default policy: which policy that was,
  * with the longer delay and the projects init would write, and what to run.

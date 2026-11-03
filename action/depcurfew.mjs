@@ -8919,6 +8919,8 @@ var Repository = class {
 	read = /* @__PURE__ */ new Set();
 	#warned = /* @__PURE__ */ new Set();
 	#parsed = /* @__PURE__ */ new Map();
+	/** Whether each directory (an absolute path) is its own real path: no symlink on the way from the file system root. */
+	#plain = /* @__PURE__ */ new Map();
 	constructor(root) {
 		this.root = realpathSync(root);
 	}
@@ -8937,17 +8939,44 @@ var Repository = class {
 	#unreadable(path, error) {
 		this.warn("unreadable-file", `cannot read ${path} (${fileError(error)})`, [path]);
 	}
-	/** The real path of a repository-relative path, or undefined if it is missing or leads outside. */
+	/**
+	* Whether a directory (absolute and normalized) is its own real path, with no symlink on the way: the root is, a
+	* directory under it is when its parent is and it is no symlink itself (one lstat each, remembered), and one above it
+	* (reached through ..) is resolved in full.
+	*/
+	#isPlain(directory) {
+		if (directory === this.root) return true;
+		let plain = this.#plain.get(directory);
+		if (plain === void 0) {
+			const parent = dirname(directory);
+			try {
+				plain = parent !== directory && isInside(this.root, directory) ? this.#isPlain(parent) && lstatSync(directory, { throwIfNoEntry: false })?.isSymbolicLink() === false : realpathSync(directory) === directory;
+			} catch {
+				plain = false;
+			}
+			this.#plain.set(directory, plain);
+		}
+		return plain;
+	}
+	/**
+	* The real path of a repository-relative path with what stat says about it, or undefined if it is missing or leads
+	* outside. A path that is not a symlink, in a directory with no symlink on the way, is its own real path: it is not
+	* resolved again segment by segment (decision D-157). One that ends with a separator is: lstat follows a symlink there.
+	* A missing path costs one lstat without an exception.
+	*/
 	#resolve(path, report) {
 		const full = join(this.root, path);
+		let own;
 		try {
-			lstatSync(full);
+			own = lstatSync(full, { throwIfNoEntry: false });
 		} catch (error) {
 			if (report && !MISSING.has(String(error.code))) this.#unreadable(path, error);
 			return;
 		}
+		if (own === void 0) return void 0;
 		let real;
-		try {
+		if (full === this.root || !own.isSymbolicLink() && !full.endsWith(sep) && this.#isPlain(dirname(full))) real = full;
+		else try {
 			real = realpathSync(full);
 		} catch {
 			return;
@@ -8956,24 +8985,24 @@ var Repository = class {
 			if (report) this.warn("outside-repository", `${path} points outside the repository and was not read`, [path]);
 			return;
 		}
-		return real;
+		return {
+			real,
+			stats: real === full ? own : statSync(real)
+		};
 	}
 	isFile(path) {
-		const real = this.#resolve(path, true);
-		return real !== void 0 && statSync(real).isFile();
+		return this.#resolve(path, true)?.stats.isFile() === true;
 	}
 	/** Whether the path exists in the repository as something other than a regular file or a directory (a named pipe, a socket, a device). */
 	isSpecialFile(path) {
-		const real = this.#resolve(path, false);
-		if (real === void 0) return false;
-		const stats = statSync(real);
-		return !stats.isFile() && !stats.isDirectory();
+		const stats = this.#resolve(path, false)?.stats;
+		return stats !== void 0 && !stats.isFile() && !stats.isDirectory();
 	}
 	/** The text of a file, without a byte order mark; undefined (with a warning when useful) if it cannot be read. */
 	readText(path, limit = MAX_FILE_SIZE) {
-		const real = this.#resolve(path, true);
-		if (real === void 0) return void 0;
-		const stats = statSync(real);
+		const resolved = this.#resolve(path, true);
+		if (resolved === void 0) return void 0;
+		const { real, stats } = resolved;
 		if (!stats.isFile()) return void 0;
 		if (stats.size > limit) {
 			this.warn("file-too-large", `${path} is larger than ${limit / 1048576} MiB and was not read`, [path]);
@@ -8991,8 +9020,9 @@ var Repository = class {
 	}
 	/** The first bytes of a file, e.g. to recognize a lockfile format without reading a large file. */
 	readHead(path, bytes = 4096) {
-		const real = this.#resolve(path, true);
-		if (real === void 0 || !statSync(real).isFile()) return void 0;
+		const resolved = this.#resolve(path, true);
+		if (resolved === void 0 || !resolved.stats.isFile()) return void 0;
+		const { real } = resolved;
 		const buffer = Buffer.alloc(bytes);
 		let descriptor;
 		try {
@@ -9009,32 +9039,49 @@ var Repository = class {
 			closeSync(descriptor);
 		}
 	}
-	/** Names of the files in a directory (following symlinks only inside the repository). */
-	listFiles(path) {
-		return this.#entries(path).filter((entry) => entry.isFile).map((entry) => entry.name);
+	/**
+	* Names of the files in a directory (following symlinks only inside the repository). With `accept`, only the names it
+	* accepts, and only those are resolved and stat-ed (decision D-157): a directory of many files costs one readdir.
+	*/
+	listFiles(path, accept) {
+		return this.#entries(path, accept).filter((entry) => entry.isFile).map((entry) => entry.name);
 	}
-	/** Names of the subdirectories of a directory, skipping node_modules, .git and symlinks that lead outside. */
-	listDirectories(path) {
-		return this.#entries(path).filter((entry) => entry.isDirectory && !SKIPPED_DIRECTORIES.has(entry.name)).map((entry) => entry.name);
+	/** Names of the subdirectories of a directory, skipping node_modules, .git and symlinks that lead outside; `accept` as in listFiles. */
+	listDirectories(path, accept) {
+		return this.#entries(path, (name) => !SKIPPED_DIRECTORIES.has(name) && (accept === void 0 || accept(name))).filter((entry) => entry.isDirectory).map((entry) => entry.name);
 	}
-	#entries(path) {
-		const real = this.#resolve(path, false);
+	/**
+	* The entries of a directory whose names `accept` accepts, sorted by name; nothing else is resolved. An entry that is
+	* not a symlink is what readdir says it is, inside the directory and so inside the repository; a symlink is resolved
+	* like any path. A directory already known to have no symlink on the way is not resolved again.
+	*/
+	#entries(path, accept) {
+		const full = join(this.root, path);
+		const real = full === this.root || this.#plain.get(full) === true ? full : this.#resolve(path, false)?.real;
 		if (real === void 0) return [];
-		let names;
+		let found;
 		try {
-			names = readdirSync(real).sort();
+			found = readdirSync(real, { withFileTypes: true });
 		} catch {
 			return [];
 		}
 		const entries = [];
-		for (const name of names) {
+		for (const entry of (accept === void 0 ? found : found.filter((item) => accept(item.name))).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)) {
+			const { name } = entry;
+			if (!entry.isSymbolicLink()) {
+				if (real === full && entry.isDirectory()) this.#plain.set(join(full, name), true);
+				entries.push({
+					name,
+					isFile: entry.isFile(),
+					isDirectory: entry.isDirectory()
+				});
+				continue;
+			}
 			const target = this.#resolve(path === "." ? name : `${path}/${name}`, false);
-			if (target === void 0) continue;
-			const stats = statSync(target);
-			entries.push({
+			if (target !== void 0) entries.push({
 				name,
-				isFile: stats.isFile(),
-				isDirectory: stats.isDirectory()
+				isFile: target.stats.isFile(),
+				isDirectory: target.stats.isDirectory()
 			});
 		}
 		return entries;
@@ -17811,7 +17858,7 @@ function dockerfileCandidates(repository, facts, manifests, packages) {
 	const directories = /* @__PURE__ */ new Set([".", ...packages]);
 	for (const name of repository.listDirectories(".")) if (!manifests.some((manifest) => repository.isFile(joinPath(name, manifest)))) directories.add(name);
 	const files = [];
-	for (const directory of directories) for (const name of repository.listFiles(directory)) if (isDockerfileName(name, facts)) files.push(joinPath(directory, name));
+	for (const directory of directories) for (const name of repository.listFiles(directory, (entry) => isDockerfileName(entry, facts))) files.push(joinPath(directory, name));
 	return [...new Set(files)].sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
 }
 
@@ -17949,7 +17996,7 @@ function aliasResolver(document, file, repository, lineOf) {
 }
 function readWorkflows(repository, facts) {
 	const { directory, extensions } = facts.workflows;
-	const files = repository.listFiles(directory).filter((name) => extensions.some((extension) => name.endsWith(extension))).map((name) => joinPath(directory, name));
+	const files = repository.listFiles(directory, (name) => extensions.some((extension) => name.endsWith(extension))).map((name) => joinPath(directory, name));
 	const findings = {
 		files,
 		versions: [],
@@ -18209,7 +18256,7 @@ function matchDirectories(repository, segments, index, directory, found, visited
 		for (const child of repository.listDirectories(directory)) matchDirectories(repository, segments, index, joinPath(directory, child), found, visited);
 		return;
 	}
-	for (const child of repository.listDirectories(directory)) if (wildcardMatch(child, segment.pattern)) matchDirectories(repository, segments, index + 1, joinPath(directory, child), found, visited);
+	for (const child of repository.listDirectories(directory, (name) => wildcardMatch(name, segment.pattern))) matchDirectories(repository, segments, index + 1, joinPath(directory, child), found, visited);
 }
 /** Package directories (without the root) matched by the patterns that contain one of the manifests. */
 function expandWorkspaces(repository, patterns, manifests, declaredIn) {
@@ -19244,11 +19291,14 @@ function byPath$1(a, b) {
 * packages and the directories listed in projects), with the files found, in the order of the knowledge base.
 */
 function detectBotEcosystems(repository, facts, directories) {
+	const fixed = new Set(facts.flatMap((ecosystem) => ecosystem.files.filter((file) => !file.includes("/"))));
+	const extensions = facts.flatMap((ecosystem) => ecosystem.extensions ?? []);
+	const accept = (name) => fixed.has(name) || extensions.some((extension) => name.length > extension.length && name.endsWith(extension));
 	const listed = /* @__PURE__ */ new Map();
 	const filesIn = (directory) => {
 		let names = listed.get(directory);
 		if (names === void 0) {
-			names = repository.listFiles(directory);
+			names = repository.listFiles(directory, accept);
 			listed.set(directory, names);
 		}
 		return names;
@@ -19706,7 +19756,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment,
 	readPythonConfig(repository, facts, collector);
 	const owners = /* @__PURE__ */ new Map();
 	for (const manager of facts.managers) {
-		const named = manager.lockfilePattern === null ? [] : repository.listFiles(".").filter((name) => manager.lockfilePattern?.test(name) === true);
+		const named = manager.lockfilePattern === null ? [] : repository.listFiles(".", (name) => manager.lockfilePattern?.test(name) === true);
 		for (const file of /* @__PURE__ */ new Set([...manager.lockfiles.filter((name) => repository.isFile(name)), ...named])) {
 			const creator = manager.createdByKey === null ? void 0 : createdBy(repository, file, manager.createdByKey);
 			const owner = creator === void 0 ? void 0 : facts.managers.find((other) => other.pylockCreatedBy !== null && normalizePythonName(other.pylockCreatedBy) === normalizePythonName(creator));
@@ -19821,7 +19871,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment,
 	}
 	const searched = [.../* @__PURE__ */ new Set([
 		".",
-		...repository.listDirectories(".").filter((name) => !name.startsWith(".")).sort(byPath),
+		...repository.listDirectories(".", (name) => !name.startsWith(".")).sort(byPath),
 		...directories.slice(1),
 		...projects
 	])];
@@ -24170,7 +24220,7 @@ function npmCheck(context, helpers, managers, project) {
 }
 /** The npm and pip that come with the declared runtimes, checked against the settings the repository relies on. */
 function checkBundledVersions(context, helpers) {
-	const facts = runtimeFacts(environment);
+	const facts = sharedFacts();
 	const managed = (id) => context.detection.packageManagers.find((entry) => entry.id === id && entry.supported);
 	const npmManager = managed("npm");
 	const rootCheck = npmCheck(context, helpers, context.detection.packageManagers);
@@ -31137,6 +31187,26 @@ async function createCheckRun(env, token, content, fetchImpl, options = {}) {
 	return lost || replacementFailed ? warning(text) : `depcurfew: ${printable(text)}\n`;
 }
 
+// src/detect/cache.ts
+var Detections = class {
+	#byTools = /* @__PURE__ */ new Map();
+	/** detectProject(root, tools, undefined, options), the first time for this directory, these tools and these projects. */
+	detect(root, tools = knowledgeBase, options = {}) {
+		let detections = this.#byTools.get(tools);
+		if (detections === void 0) {
+			detections = /* @__PURE__ */ new Map();
+			this.#byTools.set(tools, detections);
+		}
+		const key = JSON.stringify([resolve(root), options.projects ?? []]);
+		let detection = detections.get(key);
+		if (detection === void 0) {
+			detection = detectProject(root, tools, void 0, options);
+			detections.set(key, detection);
+		}
+		return detection;
+	}
+};
+
 // src/doctor/plan.ts
 const plans = /* @__PURE__ */ new WeakMap();
 /**
@@ -35871,9 +35941,12 @@ function relocateRun(project, run, plan) {
 * paths relative to the root (decision D-100). `defaultPolicy`, for a repository without depcurfew.json: the policy
 * depcurfew init would write (initialResolvedPolicy), which the rules that need a policy then run against; every
 * finding of theirs is a note with `policy: "default"` (decision D-149). Without it those rules do not run.
+* `detections`: the detections to share with the caller, e.g. with comparedPolicy; the runs of one call share
+* theirs anyway, so each directory is detected once (decision D-157).
 */
 function runDoctor(root, options = {}) {
 	const tools = options.tools ?? knowledgeBase;
+	const detections = options.detections ?? new Detections();
 	let policy;
 	let invalid = false;
 	if (options.policy !== void 0) policy = options.policy ?? void 0;
@@ -35891,6 +35964,7 @@ function runDoctor(root, options = {}) {
 		invalid,
 		rules,
 		tools,
+		detections,
 		osv: options.osv,
 		...fallback === void 0 ? {} : { fallback }
 	});
@@ -35901,6 +35975,7 @@ function runDoctor(root, options = {}) {
 		invalid: false,
 		rules: again,
 		tools,
+		detections,
 		defaultPolicy: true
 	}), again);
 }
@@ -35988,9 +36063,9 @@ function ruleResultsOf(results, findings) {
 * depcurfew.json, and the rules that need one run against this policy next, which the notice policy-missing says.
 */
 function examine(root, options) {
-	const { policy, invalid, rules, tools } = options;
+	const { policy, invalid, rules, tools, detections } = options;
 	const listed = policy?.projects ?? [];
-	const detection = detectProject(root, tools, void 0, { projects: listed });
+	const detection = detections.detect(root, tools, { projects: listed });
 	const problems = projectProblems(root, listed, detection);
 	const views = listed.filter((project) => !problems.some((problem) => problem.project === project)).map((project) => {
 		const directory = join(root, project);
@@ -35998,7 +36073,7 @@ function examine(root, options) {
 			directory: project,
 			root: directory,
 			repository: new Repository(directory),
-			detection: detectProject(directory, tools)
+			detection: detections.detect(directory, tools)
 		};
 	});
 	const plans = policy === void 0 ? [] : views.map((view) => planDetails(plannedFor(view.root, policy, view.detection, tools, projectPlanOptions(detection, view.directory, view.detection))));

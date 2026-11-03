@@ -175,8 +175,7 @@ function aliasResolver(document: Document.Parsed, file: string, repository: Repo
 export function readWorkflows(repository: Repository, facts: DetectionFacts): WorkflowFindings {
   const { directory, extensions } = facts.workflows;
   const files = repository
-    .listFiles(directory)
-    .filter((name) => extensions.some((extension) => name.endsWith(extension)))
+    .listFiles(directory, (name) => extensions.some((extension) => name.endsWith(extension)))
     .map((name) => joinPath(directory, name));
   const findings: WorkflowFindings = { files, versions: [], installs: [], jobs: [] };
 

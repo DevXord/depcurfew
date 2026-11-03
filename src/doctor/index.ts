@@ -3,6 +3,7 @@
 import { join } from 'node:path';
 import { loadPolicyIfPresent, planDetails, PolicyError, projectFiles, projectPlanOptions, type ApplyReport, type PlanOptions } from '../apply/index.ts';
 import { inProject, projectProblems, relocateText } from '../apply/projects.ts';
+import { Detections } from '../detect/cache.ts';
 import { detectProject } from '../detect/index.ts';
 import { Repository } from '../detect/repository.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
@@ -180,12 +181,23 @@ function relocateRun(project: string, run: DirectoryRun, plan: ApplyReport | und
  * paths relative to the root (decision D-100). `defaultPolicy`, for a repository without depcurfew.json: the policy
  * depcurfew init would write (initialResolvedPolicy), which the rules that need a policy then run against; every
  * finding of theirs is a note with `policy: "default"` (decision D-149). Without it those rules do not run.
+ * `detections`: the detections to share with the caller, e.g. with comparedPolicy; the runs of one call share
+ * theirs anyway, so each directory is detected once (decision D-157).
  */
 export function runDoctor(
   root: string,
-  options: { rules?: readonly Rule[]; tools?: readonly ToolKnowledge[]; invalidPolicy?: 'throw' | 'report'; policy?: ResolvedPolicy | null; osv?: OsvDoctor; defaultPolicy?: ResolvedPolicy } = {},
+  options: {
+    rules?: readonly Rule[];
+    tools?: readonly ToolKnowledge[];
+    invalidPolicy?: 'throw' | 'report';
+    policy?: ResolvedPolicy | null;
+    osv?: OsvDoctor;
+    defaultPolicy?: ResolvedPolicy;
+    detections?: Detections;
+  } = {},
 ): DoctorReport {
   const tools = options.tools ?? knowledgeBase;
+  const detections = options.detections ?? new Detections();
   let policy: ResolvedPolicy | undefined;
   let invalid = false;
   if (options.policy !== undefined) policy = options.policy ?? undefined;
@@ -200,12 +212,12 @@ export function runDoctor(
   const rules = options.rules ?? RULES;
   const needing = rules.filter((rule) => rule.requiresPolicy);
   const fallback = policy === undefined && !invalid && needing.length > 0 ? options.defaultPolicy : undefined;
-  const report = examine(root, { policy, invalid, rules, tools, osv: options.osv, ...(fallback === undefined ? {} : { fallback }) });
+  const report = examine(root, { policy, invalid, rules, tools, detections, osv: options.osv, ...(fallback === undefined ? {} : { fallback }) });
   if (fallback === undefined) return report;
   // The rules that need a policy, once more against the policy init would write, with the rules that find more with
   // one (decision D-154); nothing else runs twice.
   const again = rules.filter((rule) => rule.requiresPolicy || rule.alsoWithDefaultPolicy === true);
-  return withDefaultPolicy(report, examine(root, { policy: fallback, invalid: false, rules: again, tools, defaultPolicy: true }), again);
+  return withDefaultPolicy(report, examine(root, { policy: fallback, invalid: false, rules: again, tools, detections, defaultPolicy: true }), again);
 }
 
 /** Where and what a finding says, to tell the findings of a second run from those of the first. */
@@ -286,19 +298,28 @@ function ruleResultsOf(results: readonly RuleResult[], findings: readonly Findin
  */
 function examine(
   root: string,
-  options: { policy: ResolvedPolicy | undefined; invalid: boolean; rules: readonly Rule[]; tools: readonly ToolKnowledge[]; osv?: OsvDoctor | undefined; fallback?: ResolvedPolicy; defaultPolicy?: true },
+  options: {
+    policy: ResolvedPolicy | undefined;
+    invalid: boolean;
+    rules: readonly Rule[];
+    tools: readonly ToolKnowledge[];
+    detections: Detections;
+    osv?: OsvDoctor | undefined;
+    fallback?: ResolvedPolicy;
+    defaultPolicy?: true;
+  },
 ): DoctorReport {
-  const { policy, invalid, rules, tools } = options;
+  const { policy, invalid, rules, tools, detections } = options;
   // The listed directories that can be read; invalid-project reports the others.
   const listed = policy?.projects ?? [];
   // A package manager the root's CI sets up only for the projects is not the root's (decision D-137).
-  const detection = detectProject(root, tools, undefined, { projects: listed });
+  const detection = detections.detect(root, tools, { projects: listed });
   const problems = projectProblems(root, listed, detection);
   const views: ProjectView[] = listed
     .filter((project) => !problems.some((problem) => problem.project === project))
     .map((project) => {
       const directory = join(root, project);
-      return { directory: project, root: directory, repository: new Repository(directory), detection: detectProject(directory, tools) };
+      return { directory: project, root: directory, repository: new Repository(directory), detection: detections.detect(directory, tools) };
     });
   // The bots of the root wait as long as the package managers of every project (planRepository plans the same way).
   const plans = policy === undefined ? [] : views.map((view) => planDetails(plannedFor(view.root, policy, view.detection, tools, projectPlanOptions(detection, view.directory, view.detection))));

@@ -35,11 +35,16 @@ function byPath(a: string, b: string): number {
  * packages and the directories listed in projects), with the files found, in the order of the knowledge base.
  */
 export function detectBotEcosystems(repository: Repository, facts: readonly BotEcosystemFacts[], directories: readonly string[]): BotEcosystemInfo[] {
+  // Only the names that can be a file of an ecosystem are resolved, so a directory of many other files costs one readdir
+  // (decision D-157).
+  const fixed = new Set(facts.flatMap((ecosystem) => ecosystem.files.filter((file) => !file.includes('/'))));
+  const extensions = facts.flatMap((ecosystem) => ecosystem.extensions ?? []);
+  const accept = (name: string) => fixed.has(name) || extensions.some((extension) => name.length > extension.length && name.endsWith(extension));
   const listed = new Map<string, string[]>();
   const filesIn = (directory: string) => {
     let names = listed.get(directory);
     if (names === undefined) {
-      names = repository.listFiles(directory);
+      names = repository.listFiles(directory, accept);
       listed.set(directory, names);
     }
     return names;

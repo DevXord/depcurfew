@@ -13,15 +13,19 @@ import { validateProjectDirectory } from '../policy/project-directory.ts';
 /** Directories init does not look into: installed packages and git's own. Dot-directories are skipped too. */
 const SKIPPED = new Set(['node_modules']);
 
-/** The manifests and lockfiles of every package manager depcurfew knows (package.json, pyproject.toml, uv.lock …). */
+/**
+ * The manifests, then the lockfiles, of every package manager depcurfew knows (package.json, pyproject.toml … uv.lock),
+ * in the order of the knowledge base: a directory with package.json is told by the first lookup (decision D-157).
+ */
 function projectFiles(): string[] {
   const facts = detectionFacts(knowledgeBase, environment);
-  return [...new Set(facts.managers.flatMap((manager) => [...manager.manifests, ...manager.lockfiles]))].sort();
+  return [...new Set([...facts.managers.flatMap((manager) => manager.manifests), ...facts.managers.flatMap((manager) => manager.lockfiles)])];
 }
 
+/** Whether the path is a regular file; a missing one costs no exception, which matters for thousands of directories (decision D-157). */
 function isFile(path: string): boolean {
   try {
-    return lstatSync(path).isFile();
+    return lstatSync(path, { throwIfNoEntry: false })?.isFile() === true;
   } catch {
     return false;
   }

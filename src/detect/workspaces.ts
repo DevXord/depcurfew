@@ -40,8 +40,8 @@ function matchDirectories(repository: Repository, segments: readonly Segment[], 
     }
     return;
   }
-  for (const child of repository.listDirectories(directory)) {
-    if (wildcardMatch(child, segment.pattern)) matchDirectories(repository, segments, index + 1, joinPath(directory, child), found, visited);
+  for (const child of repository.listDirectories(directory, (name) => wildcardMatch(name, segment.pattern))) {
+    matchDirectories(repository, segments, index + 1, joinPath(directory, child), found, visited);
   }
 }
 

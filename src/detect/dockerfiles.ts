@@ -324,7 +324,7 @@ export function dockerfileCandidates(repository: Repository, facts: DockerFacts,
   }
   const files: string[] = [];
   for (const directory of directories) {
-    for (const name of repository.listFiles(directory)) if (isDockerfileName(name, facts)) files.push(joinPath(directory, name));
+    for (const name of repository.listFiles(directory, (entry) => isDockerfileName(entry, facts))) files.push(joinPath(directory, name));
   }
   return [...new Set(files)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
