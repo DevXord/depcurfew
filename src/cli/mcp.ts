@@ -8,6 +8,7 @@ import type { Readable, Writable } from 'node:stream';
 import { values } from '../apply/facts.ts';
 import type { FetchLike } from '../check/registry.ts';
 import { environment } from '../knowledge/environment.ts';
+import type { LocalOsvData } from '../osv/data.ts';
 import { startMcpServer, type McpLimits } from '../mcp/server.ts';
 import { checkDirectory, reportInputError } from './directory.ts';
 import { EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
@@ -36,6 +37,8 @@ export interface McpDependencies {
   now: () => Date;
   home?: () => string;
   process?: () => McpProcess;
+  /** The local OSV.dev data, read for each call of check_packages (decision D-150). */
+  local?: () => LocalOsvData;
 }
 
 /** The streams and signals of this process. */
@@ -93,6 +96,7 @@ export async function mcp(flags: McpFlags, io: CliIo, dependencies: McpDependenc
       fetch: dependencies.fetch,
       now: dependencies.now,
       ...(flags.osv === true ? { osv: true } : {}),
+      ...(dependencies.local === undefined ? {} : { local: dependencies.local }),
     },
     ...(host.limits === undefined ? {} : { limits: host.limits }),
   });

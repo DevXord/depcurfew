@@ -61,7 +61,7 @@ describe('doctor.failOn in depcurfew.json', () => {
   it('says in the text where the setting comes from and how to fail on errors only', async () => {
     const result = await exec(['doctor', repository(WARNING_ONLY, WARNING_POLICY)]);
     const lines = result.stdout.split('\n');
-    expect(lines.slice(0, 3)).toEqual(['0 errors, 1 warning, 0 notes', POLICY_LINE, `  ${POLICY_FIX}`]);
+    expect(lines.slice(0, 3)).toEqual(['0 errors, 1 warning, 1 note', POLICY_LINE, `  ${POLICY_FIX}`]);
     expect(result.stdout).not.toContain('--strict');
   });
 

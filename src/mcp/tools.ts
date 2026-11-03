@@ -19,6 +19,7 @@ import { resolve } from 'node:path';
 import { agentFix, POLICY_IS_THE_USERS, reasonText } from '../check/hook.ts';
 import type { FetchLike } from '../check/registry.ts';
 import { osvBatchUrl } from '../check/osv.ts';
+import type { LocalOsvData } from '../osv/data.ts';
 import { packagistUrl } from '../check/packagist.ts';
 import { appliedPolicy, checkDocument, policyNotices, type CheckDocument, type CheckNotice, type Lookups } from '../cli/check.ts';
 import { checkDirectory, type InputError } from '../cli/directory.ts';
@@ -43,6 +44,11 @@ export interface ToolContext {
   now: () => Date;
   /** --osv of depcurfew mcp: check_packages looks the versions up in OSV.dev too; never an argument of a call. */
   osv?: boolean;
+  /**
+   * The local OSV.dev data of depcurfew osv update (decision D-150), read afresh for each call, so that an update while
+   * the server runs counts; without --osv check_packages looks the versions up in it.
+   */
+  local?: () => LocalOsvData;
 }
 
 export interface ToolResult {
@@ -205,6 +211,7 @@ const checkPackages: ToolDefinition = {
       // The body of an install script is written by the package's publisher; the model gets the names only.
       scriptBodies: false,
       ...(context.osv === true ? { osv: true } : {}),
+      ...(context.local === undefined ? {} : { local: context.local() }),
     });
     return documentResult(outcome.document satisfies CheckDocument, outcome.status !== 'checked');
   },

@@ -30,6 +30,11 @@ export interface CheckFinding {
   message: string;
   /** What to do about it. */
   fix: string;
+  /**
+   * known-malicious: where the answer comes from, api.osv.dev (--osv) or the local copy of the OSV.dev data that
+   * depcurfew osv update writes (decision D-150).
+   */
+  source?: 'osv-api' | 'osv-local';
 }
 
 export const CHECK_BY_HAND = 'Make sure you trust this source before installing it';

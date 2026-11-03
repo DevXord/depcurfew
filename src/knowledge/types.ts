@@ -1045,6 +1045,44 @@ export interface OsvKnowledge {
   ecosystems: Fact<Readonly<Record<string, string>>>;
   /** How the API compares the version of a query with the versions of a record, by depcurfew's ecosystem (decision D-142). */
   versionMatching: Fact<Readonly<Record<string, OsvVersionMatchingKnowledge>>>;
+  /** The public export of the database, which depcurfew osv update downloads (decision D-150). */
+  dataExport: Fact<OsvExportKnowledge>;
+  /** How a record says which versions of a package it affects, and how they are evaluated (decision D-150). */
+  affected: Fact<OsvAffectedKnowledge>;
+}
+
+/** The public export of OSV.dev: one zip file per ecosystem, with one JSON file per record (decision D-150). */
+export interface OsvExportKnowledge {
+  /** Base URL of the bucket over HTTPS. */
+  url: string;
+  /** The path of the zip file of one ecosystem below url ({folder}). */
+  archivePath: string;
+  /** The folder of each ecosystem of depcurfew (npm, pypi, packagist). */
+  folders: Readonly<Record<string, string>>;
+  /** The name of the entry of one record in the zip file ({id}). */
+  recordEntry: string;
+  /** Whether the zip files hold withdrawn records too. */
+  withdrawnIncluded: boolean;
+}
+
+/** The fields of affected[] of an OSV record and the evaluation of its ranges (the OSV schema). */
+export interface OsvAffectedKnowledge {
+  affectedField: string;
+  packageField: string;
+  nameField: string;
+  ecosystemField: string;
+  versionsField: string;
+  rangesField: string;
+  typeField: string;
+  eventsField: string;
+  /** The range types whose events are versions of the package: SEMVER and ECOSYSTEM (the third type holds commits). */
+  versionRangeTypes: readonly string[];
+  /** The keys of the events. */
+  events: { introduced: string; fixed: string; lastAffected: string; limit: string };
+  /** introduced "0": before every version. */
+  earliest: string;
+  /** limit "*": no limit. */
+  unlimited: string;
 }
 
 /** What OSV.dev leaves out of a version before it compares it. */

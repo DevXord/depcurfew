@@ -229,7 +229,7 @@ describe('notices follow the message contract (T10)', () => {
 
   it('carry the level word and the code in the text, and count in the line of counts', async () => {
     const text = (await exec(['doctor', pnpm()])).stdout;
-    expect(text).toMatch(/^1 error, 0 warnings, 1 note\n/u);
+    expect(text).toMatch(/^1 error, 0 warnings, 2 notes\n/u);
     expect(text).toContain('\nNotes:\n  note lockfile-install-scripts could not check pnpm-lock.yaml: pnpm does not record install scripts in it (lockfile-install-scripts)\n');
   });
 

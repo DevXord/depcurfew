@@ -6,7 +6,7 @@
 // D-149). A directory that does not exist is a usage error (exit code 2), also reported as a JSON document or a SARIF
 // run that did not succeed.
 import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
-import { countLevels, makeNotice, renderText, RULES, runDoctor, toSarif, type DoctorReport } from '../doctor/index.ts';
+import { countLevels, makeNotice, renderText, RULES, toSarif, type DoctorReport } from '../doctor/index.ts';
 import { fails, policyFailOn, resolveFailOn, type FailOn, type FailOnSetting } from '../doctor/fail-on.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
@@ -21,7 +21,8 @@ import { loadUserPolicy } from '../user/policy.ts';
 import { toUserSarif } from '../user/sarif.ts';
 import { paint } from '../color.ts';
 import type { FetchLike } from '../check/registry.ts';
-import { runDoctorWithOsv } from '../doctor/osv.ts';
+import { runDoctorWithLocalOsv, runDoctorWithOsv } from '../doctor/osv.ts';
+import { LocalOsvData } from '../osv/data.ts';
 import { initialResolvedPolicy } from './init-policy.ts';
 import { projectDirectory, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
@@ -87,11 +88,18 @@ function projectPolicy(directory: string): ResolvedPolicy | undefined | 'invalid
   }
 }
 
+export interface DoctorDependencies {
+  fetch: FetchLike;
+  /** The local OSV.dev data of depcurfew osv update (decision D-150); none when left out. */
+  local?: () => LocalOsvData;
+  now?: () => Date;
+}
+
 export async function doctor(
   directory: string | undefined,
   format: DoctorFormat,
   io: CliIo,
-  dependencies: { fetch: FetchLike } = { fetch: (url, init) => fetch(url, init) },
+  dependencies: DoctorDependencies = { fetch: (url, init) => fetch(url, init) },
 ): Promise<number> {
   if (format.json && format.sarif) {
     io.stderr("depcurfew: '--json' and '--sarif' cannot be used together; pick one\nRun 'depcurfew doctor --help' for usage.\n");
@@ -121,8 +129,14 @@ export async function doctor(
       : policy === undefined
         ? { policy: null, defaultPolicy: initialResolvedPolicy(target.directory) }
         : { policy };
-  // --osv: the locked versions go to OSV.dev before the rules run; nothing is sent without it.
-  const found = format.osv === true ? await runDoctorWithOsv(target.directory, options, { fetch: dependencies.fetch }) : runDoctor(target.directory, options);
+  // --osv: the locked versions go to OSV.dev before the rules run; nothing is sent without it. Without --osv they are
+  // looked up in the local OSV.dev data, when there is any (decision D-150); with --osv that answers only for the
+  // versions OSV.dev did not answer for.
+  const local = (dependencies.local ?? (() => new LocalOsvData(undefined)))();
+  const found =
+    format.osv === true
+      ? await runDoctorWithOsv(target.directory, options, { fetch: dependencies.fetch, local })
+      : runDoctorWithLocalOsv(target.directory, options, local, (dependencies.now ?? (() => new Date()))());
   // The directory came from the nearest depcurfew.json in a parent directory: said first, as a note (decision D-116).
   const report: DoctorReport = target.notice === undefined ? found : { ...found, notices: [makeNotice('policy-from-parent', target.notice, POLICY_FILE), ...found.notices] };
   const setting = resolveFailOn(option, { failOn: policy === 'invalid' ? undefined : policyFailOn(policy), file: POLICY_FILE });

@@ -47,6 +47,8 @@ export interface SessionOptions {
   cwd?: string;
   limits?: Partial<McpLimits>;
   output?: Writable;
+  /** The directory of the local OSV.dev data (decision D-150); none by default. */
+  osvData?: string;
 }
 
 export interface Session {
@@ -95,6 +97,7 @@ export function session(directory: string, options: SessionOptions = {}): Sessio
     now: () => options.now ?? NOW,
     stdin: async () => '',
     home: () => directory,
+    osvData: () => options.osvData,
     mcpProcess: () => ({ input, output, env: options.env ?? {}, cwd: options.cwd ?? directory, ...(options.limits === undefined ? {} : { limits: options.limits }) }),
   }).then((code) => ({ code, stdout, stderr }));
   return {

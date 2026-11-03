@@ -151,7 +151,7 @@ describe('built depcurfew executable', () => {
       expect(doctor.status).toBe(1);
       expect(doctor.stdout).toContain('package-lock.json\n  20: error package-lock.json installs ghshort from a git repository');
       expect(doctor.stdout).toContain(`\nNotes:\n  note ${note('doctor')} (policy-from-parent)\n`);
-      expect(JSON.parse(depcurfewIn(deep, 'doctor', '--json').stdout)).toMatchObject({ policy: 'valid', notices: [{ message: note('doctor') }] });
+      expect(JSON.parse(depcurfewIn(deep, 'doctor', '--json').stdout)).toMatchObject({ policy: 'valid', notices: [{ message: note('doctor') }, { code: 'known-malicious' }] });
 
       const explain = depcurfewIn(deep, 'explain');
       expect([explain.status, explain.stderr]).toEqual([0, `note: ${note('explain')} (policy-from-parent)\n`]);
@@ -191,7 +191,9 @@ describe('built depcurfew executable', () => {
   it('doctor exits with 0 on a repository without depcurfew.json that the default policy would change', () => {
     const result = depcurfew('doctor', fileURLToPath(new URL('tests/fixtures/doctor-default/npm-plain/repo', root)));
     expect(result.status).toBe(0);
-    expect(result.stdout).toMatch(/^0 errors, 0 warnings, 3 notes\n\nCompared with the default policy \(no depcurfew\.json\):\n/u);
+    // Two notes against the default policy (decision D-149), the missing policy and the missing local OSV.dev data, which the
+    // tests never have (tests/setup/no-user-cache.ts, decision D-150).
+    expect(result.stdout).toMatch(/^0 errors, 0 warnings, 4 notes\n\nCompared with the default policy \(no depcurfew\.json\):\n/u);
   });
 
   it('an unknown command exits with 2', () => {

@@ -6427,6 +6427,7 @@ const yarn$1 = {
 
 // src/knowledge/osv.ts
 const { verified: verified$1 } = verifiedOn("2026-11-02");
+const { verified: verifiedLater } = verifiedOn("2026-11-03");
 const OSV_DOCS = "https://github.com/google/osv.dev/blob/master/docs";
 const OSV_SCHEMA = "https://github.com/ossf/osv-schema/blob/main/docs/schema.md";
 /** The Go code of the API and the workers of OSV.dev, at the commit that was read. */
@@ -6471,7 +6472,37 @@ const osv = {
 		pypi: "PyPI",
 		packagist: "Packagist"
 	}, `${OSV_SCHEMA}#affectedpackage-field`, "Keys are the ecosystems of depcurfew (npm, pypi and packagist; in package names of the policy no prefix, pypi: and composer:), values the ecosystem names of the OSV schema: \"npm\" (an NPM package name), \"PyPI\" (a normalized PyPI package name), \"Packagist\" (a PHP package name; without a :<REMOTE-REPO-URL> suffix it means https://packagist.org). OSV.dev covers all three (google/osv.dev docs/data.md, Covered Ecosystems). How it compares Packagist versions: versionMatching."),
-	versionMatching: verified$1({ packagist: { ignoredPrefixes: ["v", "V"] } }, `${OSV_GO}/internal/database/datastore/vulnerability_matching.go`, "The API (go/cmd/api, with the Datastore store of go/internal/database/datastore) answers a query with a version by buildVersionMatcher: for an ecosystem it knows, it parses the version with the ecosystem helper and keeps the AffectedVersions whose coarse range holds Coarse(version), then matches each listed version of a record by parsing it too and comparing the two (versionIsMatchEcosystemVersionsList, cmp == 0), and the events of its ranges the same way. The Packagist helper (go/osv/ecosystem/packagist.go) parses with semantic.ParsePackagistVersion of google/osv-scalibr v0.5.3 (go/go.mod), whose canonicalizePackagistVersion removes one leading v or V before it compares as PHP's version_compare does (semantic/version-packagist.go at v0.5.3), and its Coarse removes them too, so v8.1.9 and 8.1.9 are the same version both in a query and in a record (also the coarse range the importer stores, go/internal/database/datastore/affected_versions.go). The Python helper of the workers (osv/ecosystems/packagist.py, PackagistVersion.php_canonicalize_version) removes a leading v as well. All at google/osv.dev b7449847246af793439d06284d340af40cdae854 (master on 2026-11-02). A version of composer.lock is therefore sent as Composer wrote it.")
+	versionMatching: verified$1({ packagist: { ignoredPrefixes: ["v", "V"] } }, `${OSV_GO}/internal/database/datastore/vulnerability_matching.go`, "The API (go/cmd/api, with the Datastore store of go/internal/database/datastore) answers a query with a version by buildVersionMatcher: for an ecosystem it knows, it parses the version with the ecosystem helper and keeps the AffectedVersions whose coarse range holds Coarse(version), then matches each listed version of a record by parsing it too and comparing the two (versionIsMatchEcosystemVersionsList, cmp == 0), and the events of its ranges the same way. The Packagist helper (go/osv/ecosystem/packagist.go) parses with semantic.ParsePackagistVersion of google/osv-scalibr v0.5.3 (go/go.mod), whose canonicalizePackagistVersion removes one leading v or V before it compares as PHP's version_compare does (semantic/version-packagist.go at v0.5.3), and its Coarse removes them too, so v8.1.9 and 8.1.9 are the same version both in a query and in a record (also the coarse range the importer stores, go/internal/database/datastore/affected_versions.go). The Python helper of the workers (osv/ecosystems/packagist.py, PackagistVersion.php_canonicalize_version) removes a leading v as well. All at google/osv.dev b7449847246af793439d06284d340af40cdae854 (master on 2026-11-02). A version of composer.lock is therefore sent as Composer wrote it."),
+	dataExport: verifiedLater({
+		url: "https://storage.googleapis.com/osv-vulnerabilities",
+		archivePath: "/{folder}/all.zip",
+		folders: {
+			npm: "npm",
+			pypi: "PyPI",
+			packagist: "Packagist"
+		},
+		recordEntry: "{id}.json",
+		withdrawnIncluded: true
+	}, `${OSV_DOCS}/data.md`, "The sources \"are aggregated and continuously exported to a GCS bucket maintained by OSV: gs://osv-vulnerabilities\"; \"Individual vulnerability records can be found at gs://osv-vulnerabilities/<ECOSYSTEM>/<ID>.json\" and \"A zip containing all vulnerabilities for each ecosystem is available at gs://osv-vulnerabilities/<ECOSYSTEM>/all.zip\", with the example \"download over HTTP via https://storage.googleapis.com/osv-vulnerabilities/PyPI/all.zip\"; the zip of all ecosystems holds withdrawn records too. The folder of an ecosystem is its name: gs://osv-vulnerabilities/ecosystems.txt lists npm, PyPI and Packagist, and ecosystems with a :suffix are exported only under the main ecosystem. Read on 2026-11-03 from the bucket itself: npm/all.zip 219,811,588 bytes with 231,076 entries (223,001 MAL- records, 334 of them withdrawn; more than 65,535 entries, so the end of its central directory is in the ZIP64 format), PyPI/all.zip 37,606,501 bytes with 26,779 entries (11,976 MAL-, 25 withdrawn), Packagist/all.zip 11,087,467 bytes with 7,397 entries (1 MAL-); every entry is a file <ID>.json at the top of the zip, deflated, without encryption, data descriptor or extra field; the largest MAL- entry is 1,148,610 bytes. The bucket answers with Last-Modified, the time the zip was written."),
+	affected: verifiedLater({
+		affectedField: "affected",
+		packageField: "package",
+		nameField: "name",
+		ecosystemField: "ecosystem",
+		versionsField: "versions",
+		rangesField: "ranges",
+		typeField: "type",
+		eventsField: "events",
+		versionRangeTypes: ["SEMVER", "ECOSYSTEM"],
+		events: {
+			introduced: "introduced",
+			fixed: "fixed",
+			lastAffected: "last_affected",
+			limit: "limit"
+		},
+		earliest: "0",
+		unlimited: "*"
+	}, "https://github.com/ossf/osv-schema/blob/v1.9.2/docs/schema.md#evaluation", "OSV schema 1.9.2: \"A version is considered affected if it lies within any one of the ranges or is listed in the versions list\"; versions holds \"a single affected version in whatever version syntax is used by the given package ecosystem\". A range has a type: SEMVER (SemVer 2.0.0 versions without a leading v), ECOSYSTEM (\"arbitrary, uninterpreted strings specific to the package ecosystem\", ordered by the ecosystem) or GIT (full commit hashes, which need the commit graph). Its events each hold one of introduced, fixed, last_affected and limit; introduced \"0\" is a version that sorts before any other, limit \"*\" is infinity, and without a limit event an implicit {\"limit\": \"*\"} is assumed. The Evaluation section: IncludedInVersions is v == version; IncludedInRanges, for each range that BeforeLimits(v) (no limit events, or some limit with v < limit), sets vulnerable = false and for evt in sorted(range.events): introduced and v >= introduced sets it true, else fixed and v >= fixed sets it false, else last_affected and v > last_affected sets it false; the version is affected when vulnerable is true. Records are matched to a package by affected[].package (name and ecosystem; a PyPI name is the normalized one of PEP 503).")
 };
 
 // src/knowledge/environment.ts
@@ -32643,6 +32674,19 @@ function linkedIds(ids) {
 function versionLabel(ecosystem, name, version) {
 	return `${name}${ecosystem === "pypi" ? "==" : ecosystem === "packagist" ? ":" : "@"}${version}`;
 }
+/**
+* The answer of the local data where api.osv.dev gave none (decision D-150): a version the local data lists as
+* malicious is reported from it; one it does not list stays unchecked, since --osv asked for the answer of the API.
+*/
+function withLocalAnswer(pkg, verdict, local) {
+	if (verdict.status === "checked" || local === void 0) return verdict;
+	const ids = local.lookup(pkg);
+	return ids !== void 0 && ids.length > 0 ? {
+		status: "checked",
+		malicious: ids,
+		source: "osv-local"
+	} : verdict;
+}
 
 // src/doctor/rules/known-malicious.ts
 /** What to do when OSV.dev did not answer, in doctor. */
@@ -32654,16 +32698,24 @@ function plural(count, word) {
 const MAX_NAMED = 5;
 const knownMalicious = {
 	id: "known-malicious",
-	checks: "With --osv: no locked package version is a known malicious version in OSV.dev",
-	summary: "With --osv: a lockfile locks a package version that OSV.dev lists as malicious.",
-	description: "With --osv, doctor sends the name and version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) to api.osv.dev in batch queries, and reports each version that has a record of the OpenSSF malicious-packages database there (an id starting with MAL-). Such a version was published to steal or damage, and installing from the lockfile brings it back. It looks up what the tool installs: for npm the registry tarball of resolved, for pnpm the one of resolution.tarball (each path read as the registry reads it), for Yarn the version of resolution; an entry whose name or version says otherwise gets a warning, as does a registry entry without an exact version. Only reported malware is found, and the database admits false positives. Without --osv nothing is sent and the rule does not run; when OSV.dev cannot be reached it gives a warning instead of passing.",
+	checks: "With --osv or the local OSV.dev data of depcurfew osv update: no locked package version is a known malicious version in OSV.dev",
+	summary: "With --osv or the local OSV.dev data of depcurfew osv update: a lockfile locks a package version that OSV.dev lists as malicious.",
+	description: "Doctor looks up the exact version of every package the lockfiles it reads lock (npm, pnpm, Yarn, Bun and Deno lockfiles, uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml, requirements pinned with == and the releases in composer.lock) and reports each version that has a record of the OpenSSF malicious-packages database (an id starting with MAL-): with --osv in api.osv.dev (which then gets the names and versions), else offline in the local OSV.dev data of depcurfew osv update. It looks up what the tool installs (for npm the registry tarball of resolved, for pnpm that of resolution.tarball, for Yarn the resolution); an entry that says otherwise gets a warning, as does a registry entry without an exact version. Local data older than 7 days gives a note, older than 30 days a warning; OSV.dev out of reach gives a warning. Only reported malware is found, and the database admits false positives. With neither --osv nor local data, a note says how to get them.",
 	help: "Remove or replace the package version and lock again; if it was installed anywhere, read the record on OSV.dev and treat that machine as exposed.",
 	level: "error",
 	requiresPolicy: false,
-	applies: (scope) => scope.osv !== void 0 && hasLockfile(scope),
+	applies: (scope) => scope.osv !== void 0 && !("unavailable" in scope.osv) && hasLockfile(scope),
 	check(context) {
 		const osv = context.osv;
 		if (osv === void 0) return;
+		if ("unavailable" in osv) {
+			const file = firstLockfile(context);
+			if (file !== void 0) context.notice(NO_DATA_MESSAGE, file, NO_DATA_FIX);
+			return;
+		}
+		const local = "answers" in osv ? osv.local : void 0;
+		const again = local === void 0 ? "depcurfew doctor --osv" : "depcurfew doctor";
+		const checker = local === void 0 ? "doctor --osv" : "doctor";
 		const workspaces = context.detection.workspaces?.packages ?? [];
 		for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
 			const tool = context.tools.find((entry) => entry.id === manager.id);
@@ -32675,6 +32727,11 @@ const knownMalicious = {
 					continue;
 				}
 				const { lockfile } = result;
+				const data = local === void 0 ? void 0 : local.ecosystems[ecosystem] ?? { status: "missing" };
+				if (data !== void 0 && data.status !== "ready") {
+					if ("answers" in osv) reportNoLocalData(context, lockfile.file, ecosystem, data);
+					continue;
+				}
 				const seen = /* @__PURE__ */ new Set();
 				const unchecked = /* @__PURE__ */ new Map();
 				const unpinned = [];
@@ -32715,16 +32772,18 @@ const knownMalicious = {
 							file: lockfile.file,
 							line
 						},
+						source: verdict.source ?? "osv-api",
 						message: `${lockfile.file} locks ${label}, a known malicious version: OSV.dev lists it as ${linkedIds(verdict.malicious)}`,
 						fix: `Remove ${label} from the project: update or replace the package and lock again. If it was installed anywhere, read the record on OSV.dev for what it does and treat that machine as exposed`
 					});
 				}
 				if ("collect" in osv) continue;
 				reportUnchecked(context, lockfile.file, locked, unchecked);
+				if (data !== void 0 && data.status === "ready" && locked > 0) reportOldData(context, lockfile.file, ecosystem, data);
 				const count = unpinned.length;
-				if (count > 0 && ecosystem === "packagist") context.notice(`known-malicious did not check ${plural(count, "package")} of ${lockfile.file}, which locks a branch of ${count === 1 ? "it" : "them"} (a dev- or -dev version), not a release`, lockfile.file, `Require tagged releases of ${count === 1 ? "this package" : "these packages"} in composer.json and run composer update, so that doctor --osv can check ${count === 1 ? "it" : "them"}`);
-				else if (count > 0 && lockfile.requirements === true) context.notice(`known-malicious did not check ${plural(count, "package")} of ${lockfile.file}, which pins no exact version of ${count === 1 ? "it" : "them"}`, lockfile.file, "Pin exact versions (name==version), for example with a lockfile exported by the tool that resolves them, so that doctor --osv can check them");
-				else if (count > 0) reportUnpinned(context, lockfile, tool, unpinned);
+				if (count > 0 && ecosystem === "packagist") context.notice(`known-malicious did not check ${plural(count, "package")} of ${lockfile.file}, which locks a branch of ${count === 1 ? "it" : "them"} (a dev- or -dev version), not a release`, lockfile.file, `Require tagged releases of ${count === 1 ? "this package" : "these packages"} in composer.json and run composer update, so that ${checker} can check ${count === 1 ? "it" : "them"}`);
+				else if (count > 0 && lockfile.requirements === true) context.notice(`known-malicious did not check ${plural(count, "package")} of ${lockfile.file}, which pins no exact version of ${count === 1 ? "it" : "them"}`, lockfile.file, `Pin exact versions (name==version), for example with a lockfile exported by the tool that resolves them, so that ${checker} can check them`);
+				else if (count > 0) reportUnpinned(context, lockfile, tool, unpinned, again);
 			}
 		}
 	}
@@ -32770,7 +32829,7 @@ function reportMislabel(context, lockfile, entry, installs) {
 * Registry entries of a lockfile a tool wrote that give no exact version (decision D-135): a warning, as for versions
 * OSV.dev did not answer for, since the tool installs some version that was not checked. At the first of them.
 */
-function reportUnpinned(context, lockfile, tool, entries) {
+function reportUnpinned(context, lockfile, tool, entries, again) {
 	const lines = entries.map((entry) => lockfile.lineOf(entry));
 	const named = entries.slice(0, MAX_NAMED).map((entry, index) => lines[index] === void 0 ? entry.name : `${entry.name} (line ${lines[index]})`);
 	const more = entries.length - named.length;
@@ -32783,7 +32842,7 @@ function reportUnpinned(context, lockfile, tool, entries) {
 			line: first
 		},
 		message: `known-malicious could not check ${plural(entries.length, "registry package")} of ${lockfile.file}, whose ${one ? "entry gives" : "entries give"} no exact version that ${tool.name} installs: ${more > 0 ? `${named.join(", ")} and ${more} more` : listing$1(named)}`,
-		fix: one ? `Lock this package again with ${tool.name}, so that ${lockfile.file} names its exact version, and find out why it does not; then run depcurfew doctor --osv again` : `Lock these packages again with ${tool.name}, so that ${lockfile.file} names the exact version of each, and find out why it does not; then run depcurfew doctor --osv again`
+		fix: one ? `Lock this package again with ${tool.name}, so that ${lockfile.file} names its exact version, and find out why it does not; then run ${again} again` : `Lock these packages again with ${tool.name}, so that ${lockfile.file} names the exact version of each, and find out why it does not; then run ${again} again`
 	});
 }
 /** One warning per lockfile and reason for the versions OSV.dev did not answer for: the check did not pass. */
@@ -32797,6 +32856,39 @@ function reportUnchecked(context, file, locked, unchecked) {
 			fix: OSV_DOCTOR_RETRY_FIX
 		});
 	}
+}
+/** The note without --osv and without local data (decision D-150): one for the whole repository. */
+const NO_DATA_MESSAGE = "known-malicious did not check the locked package versions: there is no local OSV.dev data, and --osv was not given";
+const NO_DATA_FIX = "Run depcurfew osv update to download the OSV.dev data of known malicious packages (it requests only the public export files and sends no package names), then run depcurfew doctor again; or run depcurfew doctor --osv to ask api.osv.dev";
+/** The first lockfile (or requirements file of pip) of the directory, from detection: where the note without data stands. */
+function firstLockfile(context) {
+	for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
+		const lockfile = manager.evidence.find((evidence) => evidence.kind === "lockfile");
+		if (lockfile !== void 0) return lockfile.file;
+		if (manager.id === "pip" && manager.configFiles.length > 0) return manager.configFiles[0];
+	}
+}
+/** A lockfile of an ecosystem whose local data is missing or cannot be read, without --osv (decision D-150). */
+function reportNoLocalData(context, file, ecosystem, data) {
+	const name = osvEcosystem(ecosystem) ?? ecosystem;
+	if (data.status === "missing") {
+		context.notice(`known-malicious did not check ${file}: there is no local OSV.dev data for ${name}`, file, `Run depcurfew osv update --ecosystem ${ecosystem} to download it, then run depcurfew doctor again; or run depcurfew doctor --osv to ask api.osv.dev`);
+		return;
+	}
+	context.notice(`known-malicious did not check ${file}: the local OSV.dev data for ${name} cannot be read (${data.reason})`, file, `Run depcurfew osv update --ecosystem ${ecosystem} to write it again, then run depcurfew doctor again`);
+}
+/** Local data older than 7 days: a note per lockfile checked against it; older than 30 days a warning (decision D-150). */
+function reportOldData(context, file, ecosystem, data) {
+	if (data.staleness === "fresh") return;
+	const message = `known-malicious checked ${file} against the local OSV.dev data for ${osvEcosystem(ecosystem) ?? ecosystem} from ${data.date}, ${plural(data.days, "day")} old: malicious versions reported since then are not in it`;
+	const fix = "Run depcurfew osv update to download the current data, then run depcurfew doctor again; or run depcurfew doctor --osv to ask api.osv.dev";
+	if (data.staleness === "note") context.notice(message, file, fix);
+	else context.report({
+		level: "warning",
+		location: { file },
+		message,
+		fix
+	});
 }
 
 // src/doctor/rules/lockfile.ts
@@ -34480,7 +34572,10 @@ function toSarif(report, rules, version, readLine = () => void 0, errors = []) {
 				level: finding.level,
 				message: { text: finding.fix === void 0 ? finding.message : `${finding.message}. Fix: ${finding.fix}` },
 				locations: [location(finding.location.file, finding.location.line, finding.location.column)],
-				...finding.policy === void 0 ? {} : { properties: { policy: finding.policy } }
+				...finding.policy === void 0 && finding.source === void 0 ? {} : { properties: {
+					...finding.policy === void 0 ? {} : { policy: finding.policy },
+					...finding.source === void 0 ? {} : { source: finding.source }
+				} }
 			}))
 		}]
 	};
@@ -34864,6 +34959,9 @@ function checkedOf(detection, repository, tools, policyRead) {
 	};
 }
 
+// src/check/composer-version.ts
+const UTF16 = new TextDecoder("utf-16le");
+
 // src/doctor/osv.ts
 /** The locked versions of the repository at `root`, as known-malicious reads them. */
 function lockedVersions(root, options = {}) {
@@ -34875,11 +34973,14 @@ function lockedVersions(root, options = {}) {
 	});
 	return collect;
 }
-/** The answers of OSV.dev for `packages`, by osvKey, as the second run of doctor takes them. */
+/**
+* The answers of OSV.dev for `packages`, by osvKey, as the second run of doctor takes them. A version OSV.dev did not
+* answer for is answered by the local data (`local`) when that lists it as malicious.
+*/
 async function osvAnswers(packages, options) {
 	const verdicts = await queryOsv(packages, options);
 	const answers = /* @__PURE__ */ new Map();
-	packages.forEach((pkg, index) => answers.set(osvKey(pkg), verdicts[index]));
+	packages.forEach((pkg, index) => answers.set(osvKey(pkg), withLocalAnswer(pkg, verdicts[index], options.local)));
 	return { answers };
 }
 

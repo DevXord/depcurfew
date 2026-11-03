@@ -60,6 +60,15 @@ const NOTICE = {
   fix: 'Run depcurfew init to write depcurfew.json with this policy, then depcurfew apply (depcurfew apply --dry-run shows the changes first)',
 };
 
+// The tests see no local OSV.dev data (tests/setup/no-user-cache.ts), so known-malicious says how to get it (decision D-150).
+const OSV_NOTICE = {
+  level: 'note',
+  code: 'known-malicious',
+  message: 'known-malicious did not check the locked package versions: there is no local OSV.dev data, and --osv was not given',
+  fix: 'Run depcurfew osv update to download the OSV.dev data of known malicious packages (it requests only the public export files and sends no package names), then run depcurfew doctor again; or run depcurfew doctor --osv to ask api.osv.dev',
+  location: expect.anything(),
+};
+
 describe('doctor without depcurfew.json', () => {
   it('shows a plain npm repository what the default policy would change, in a block of notes, and exits with 0', async () => {
     const result = await exec('doctor', repo('npm-plain'));
@@ -79,7 +88,7 @@ describe('doctor without depcurfew.json', () => {
     expect(code).toBe(EXIT_OK);
     expect(report).toMatchObject({ schemaVersion: 1, policy: 'missing', policySource: 'default', summary: { error: 0, warning: 0, note: 2 }, failOn: 'error', failOnFrom: 'default', strict: false });
     expect(report.findings).toEqual(JSON.parse(readFileSync(join(FIXTURES, 'npm-plain', 'expected.json'), 'utf8')));
-    expect(report.notices).toEqual([NOTICE]);
+    expect(report.notices).toEqual([NOTICE, expect.objectContaining(OSV_NOTICE)]);
     const results = report.checked?.rules ?? [];
     expect(results.find((entry) => entry.rule === 'config-drift')).toEqual({
       rule: 'config-drift',
@@ -134,7 +143,11 @@ describe('doctor without depcurfew.json', () => {
       },
     ]);
     // What a rule could not check against the default policy is a note too.
-    expect(report.notices).toEqual([NOTICE, expect.objectContaining({ code: 'lockfile-install-scripts', message: 'lockfile-install-scripts could not check pnpm-lock.yaml: pnpm does not record install scripts in it' })]);
+    expect(report.notices).toEqual([
+      NOTICE,
+      expect.objectContaining(OSV_NOTICE),
+      expect.objectContaining({ code: 'lockfile-install-scripts', message: 'lockfile-install-scripts could not check pnpm-lock.yaml: pnpm does not record install scripts in it' }),
+    ]);
   });
 
   it('Dependabot without a cooldown: one note for the file, not one per entry', async () => {
@@ -153,7 +166,7 @@ describe('doctor without depcurfew.json', () => {
     const result = await exec('doctor', repo(name));
     expect(result.code).toBe(EXIT_OK);
     expect(head(result.stdout)).toBe(
-      `No problems found.\n\nNotes:\n  note ${NOTICE.message} (policy-missing)\n    fix: ${NOTICE.fix}\n\n`,
+      `No problems found.\n\nNotes:\n  note ${NOTICE.message} (policy-missing)\n    fix: ${NOTICE.fix}\n  note ${OSV_NOTICE.message} (known-malicious)\n    fix: ${OSV_NOTICE.fix}\n\n`,
     );
     expect(result.stdout).toMatch(/^ {4}passed {10}Configuration files match what depcurfew apply writes for depcurfew\.json \(compared with the default policy\) \[config-drift\]$/mu);
     const { report } = await json(repo(name));

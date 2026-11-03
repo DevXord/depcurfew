@@ -38,9 +38,10 @@ describe('depcurfew doctor', () => {
     const result = await exec('doctor', FAILING);
     expect(result.code).toBe(EXIT_FAILURE);
     // The notes below count in the line of counts (decision D-116). The fixture has no depcurfew.json, so two of them
-    // compare it with the policy depcurfew init would write, in a block after the findings (decision D-149), and two
-    // are notices: the missing policy and what lockfile-install-scripts cannot check in pnpm-lock.yaml.
-    expect(result.stdout).toMatch(/^1 error, 0 warnings, 4 notes\n\n\.github\/dependabot\.yml\n {2}7: error Dependabot proposes npm updates after 3 days/u);
+    // compare it with the policy depcurfew init would write, in a block after the findings (decision D-149), one says
+    // how to get the local OSV.dev data (decision D-150), and two are notices: the missing policy and what
+    // lockfile-install-scripts cannot check in pnpm-lock.yaml.
+    expect(result.stdout).toMatch(/^1 error, 0 warnings, 5 notes\n\n\.github\/dependabot\.yml\n {2}7: error Dependabot proposes npm updates after 3 days/u);
     expect(result.stdout).toContain('(bot-cooldown-mismatch)\n    fix: Make the Dependabot delay at least 1 week, or run depcurfew apply\n');
     expect(result.stdout).toContain('\n\nCompared with the default policy (no depcurfew.json):\n\n.github/dependabot.yml\n  8: note .github/dependabot.yml: with the default policy of depcurfew init');
     expect(result.stdout).toContain(
@@ -53,8 +54,8 @@ describe('depcurfew doctor', () => {
     const result = await exec('doctor', WARNING_ONLY);
     expect(result.code).toBe(EXIT_OK);
     // Besides the notice of the missing policy: a note against the default policy and a notice of what
-    // lockfile-install-scripts cannot check there (decision D-149).
-    expect(result.stdout.startsWith('0 errors, 1 warning, 3 notes\n')).toBe(true);
+    // lockfile-install-scripts cannot check there (decision D-149), and the note on the local OSV.dev data (decision D-150).
+    expect(result.stdout.startsWith('0 errors, 1 warning, 4 notes\n')).toBe(true);
   });
 
   it('says so when nothing is found', async () => {

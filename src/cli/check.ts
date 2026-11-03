@@ -25,7 +25,11 @@ import { blockingExitCode, decide, formatDecision, hookEventExample, readHookEve
 import { missingDirectory, notVirtualEnvironment, overrideDoubt, TOO_MANY, unknownDirectory, type CommandDirectory, type Override } from '../check/command.ts';
 import { defaultRegistry, type FetchLike, isLinkLocal, type LookupCache } from '../check/registry.ts';
 import { defaultIndex } from '../check/pypi.ts';
-import { addOsvFindings } from '../check/osv.ts';
+import { addLocalOsvFindings, addOsvFindings, checkedEcosystems, type OsvLocalLookup } from '../check/osv.ts';
+import { LocalOsvData } from '../osv/data.ts';
+import { localDataNotices } from '../osv/notices.ts';
+import { osvDataDirectory } from '../user/cache-path.ts';
+import { currentEnvironment } from '../user/environment.ts';
 import {
   composerProject,
   hasRegistrySettings,
@@ -79,6 +83,17 @@ export interface CheckDependencies {
   platform?: () => NodeJS.Platform;
   /** depcurfew mcp: the streams the server talks over, its environment and signals (tests replace them). */
   mcpProcess?: () => McpProcess;
+  /**
+   * The directory of the local OSV.dev data that depcurfew osv update writes (decision D-150); undefined for none. By
+   * default the one in depcurfew's user cache directory; tests replace it.
+   */
+  osvData?: () => string | undefined;
+}
+
+/** The local OSV.dev data of the user cache directory (or of the directory the dependencies name). */
+export function localOsvData(dependencies: Pick<CheckDependencies, 'osvData' | 'userEnvironment'>): LocalOsvData {
+  const directory = dependencies.osvData === undefined ? osvDataDirectory(dependencies.userEnvironment?.() ?? currentEnvironment()) : dependencies.osvData();
+  return new LocalOsvData(directory);
 }
 
 export interface CheckFlags {
@@ -589,6 +604,11 @@ export interface RunSettings {
   lookups?: LookupCache;
   /** --osv: the versions picked are looked up in OSV.dev too (decision D-129); nothing is sent to it without. */
   osv?: boolean;
+  /**
+   * The local OSV.dev data (decision D-150): without --osv the versions picked are looked up in it; with --osv it
+   * answers only for the versions api.osv.dev did not answer for.
+   */
+  local?: OsvLocalLookup;
 }
 
 /**
@@ -655,7 +675,8 @@ export async function checkApplied(given: readonly CheckRequest[], applied: Appl
     report.findings.splice(at, 0, { ...finding, message: missingMessage(missing, setting, report, applied) });
   }
   // Known malicious versions do not depend on the policy: looked up once, after the policies are merged.
-  if (settings.osv === true) await addOsvFindings(reports, { fetch: settings.fetch, signal: settings.signal, lookups });
+  if (settings.osv === true) await addOsvFindings(reports, { fetch: settings.fetch, signal: settings.signal, lookups, local: settings.local });
+  else if (settings.local !== undefined) addLocalOsvFindings(reports, settings.local);
   return { reports: withStableReadings(reports, asked.length, again, composer?.file), skipped: [...applied.skipped, ...tools.skipped] };
 }
 
@@ -979,8 +1000,13 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
       // The message names the file that sets the delay or the rule, relative to the project (decision D-123).
       doubt ??= overrideDoubt(group.overrides, policies, sources.map((source) => source.file));
     }
-    if (flags.osv === true) await addOsvFindings(reports, { fetch: dependencies.fetch, lookups });
-    io.stdout(formatDecision(decide(reports, unreadable ?? doubt, [...new Set(notes)], skipped.map(skippedNotice))) ?? '');
+    // Known malicious versions, once for the whole command: from api.osv.dev with --osv, else from the local OSV.dev
+    // data (decision D-150), whose age the agent hears about in the context.
+    const local = localOsvData(dependencies);
+    if (flags.osv === true) await addOsvFindings(reports, { fetch: dependencies.fetch, lookups, local });
+    else addLocalOsvFindings(reports, local);
+    const dataNotes = flags.osv === true ? [] : localDataNotices(local, checkedEcosystems(reports), dependencies.now(), 'agent').map((notice) => `${notice.message}. ${notice.fix}`);
+    io.stdout(formatDecision(decide(reports, unreadable ?? doubt, [...new Set(notes)], [...skipped.map(skippedNotice), ...dataNotes])) ?? '');
   } catch (error) {
     io.stdout(formatDecision({ decision: 'ask', reason: `depcurfew cannot check this command: ${reasonText(messageOf(error))}` }) ?? '');
   }
@@ -1000,6 +1026,7 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     fetch: dependencies.fetch,
     now: dependencies.now(),
     ...(flags.osv === true ? { osv: true } : {}),
+    local: localOsvData(dependencies),
   });
   const { document } = outcome;
   const code = outcome.status === 'directory-error' ? EXIT_USAGE : outcome.status === 'policy-error' || failedCheck(document) ? EXIT_FAILURE : EXIT_OK;
@@ -1013,7 +1040,8 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
   // Each notice starts with its level and ends with its code, as in doctor; what to do follows on its own line.
   const colors = paint(io.colors?.stderr);
   for (const notice of document.notices) {
-    io.stderr(`${colors.cyan('note:')} ${printable(notice.message)} ${colors.dim(`(${notice.code})`)}\n`);
+    const level = notice.level === 'warning' ? 'warning:' : colors.cyan('note:');
+    io.stderr(`${level} ${printable(notice.message)} ${colors.dim(`(${notice.code})`)}\n`);
     if (notice.fix !== undefined) io.stderr(`  ${colors.green('fix:')} ${printable(notice.fix)}\n`);
   }
   io.stdout(render(document.packages, paint(io.colors?.stdout)));
@@ -1057,6 +1085,11 @@ export interface CheckSettings {
   project?: string;
   /** --osv: the versions picked are looked up in OSV.dev too (decision D-129). */
   osv?: boolean;
+  /**
+   * The local OSV.dev data of depcurfew osv update (decision D-150): without --osv the versions picked are looked up in
+   * it, and a note or warning says when it is old.
+   */
+  local?: LocalOsvData;
 }
 
 /**
@@ -1075,11 +1108,12 @@ export function failedCheck(document: CheckDocument): boolean {
 
 /**
  * A notice of check --json and of check_packages and explain_policy of depcurfew mcp, with the fields of a notice of
- * doctor (decision D-116): the level, always note; a code; the file (and line) it concerns, when one does; the message;
- * and what to do, when there is something to do (decision D-118).
+ * doctor (decision D-116): the level, a note, or a warning for local OSV.dev data older than 30 days (decision D-150); a
+ * code; the file (and line) it concerns, when one does; the message; and what to do, when there is something to do
+ * (decision D-118).
  */
 export interface CheckNotice {
-  level: 'note';
+  level: 'note' | 'warning';
   code: string;
   location?: { file: string; line?: number };
   message: string;
@@ -1175,8 +1209,20 @@ export async function checkDocument(specs: readonly string[], settings: CheckSet
     ...(settings.scriptBodies === undefined ? {} : { scriptBodies: settings.scriptBodies }),
     ...(settings.signal === undefined ? {} : { signal: settings.signal }),
     ...(settings.osv === true ? { osv: true } : {}),
+    ...(settings.local === undefined ? {} : { local: settings.local }),
   });
   const npm = specs.some((spec) => !isPythonSpec(spec) && !isComposerSpec(spec));
-  const notices = policyNotices(applied, npm, { ...(settings.audience === undefined ? {} : { audience: settings.audience }), skipped });
+  // Without --osv the versions were looked up in the local OSV.dev data: say when it is old or cannot be read.
+  const data =
+    settings.local === undefined || settings.osv === true
+      ? []
+      : localDataNotices(settings.local, checkedEcosystems(reports), settings.now, settings.audience).map((entry): CheckNotice => ({
+          level: entry.level,
+          code: entry.code,
+          location: { file: entry.file },
+          message: entry.message,
+          fix: entry.fix,
+        }));
+  const notices = [...policyNotices(applied, npm, { ...(settings.audience === undefined ? {} : { audience: settings.audience }), skipped }), ...data];
   return { status: 'checked', document: { schemaVersion: 1, policy: applied.file, packages: reports, notices, errors: [] } };
 }

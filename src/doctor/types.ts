@@ -3,7 +3,7 @@ import type { Detection } from '../detect/types.ts';
 import type { PlanOptions } from '../apply/index.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
-import type { OsvPackage, OsvVerdict } from '../check/osv.ts';
+import type { OsvPackage, OsvSource, OsvVerdict } from '../check/osv.ts';
 
 /** The SARIF levels: an error fails `doctor`, warnings and notes do not. */
 export type Level = 'error' | 'warning' | 'note';
@@ -31,6 +31,11 @@ export interface Finding {
    * policy depcurfew init would write (decision D-149). Such a finding is always a note. Absent otherwise.
    */
   policy?: 'default';
+  /**
+   * known-malicious: where the answer comes from, api.osv.dev (--osv) or the local copy of the OSV.dev data that
+   * depcurfew osv update writes (decision D-150).
+   */
+  source?: OsvSource;
 }
 
 /**
@@ -99,10 +104,24 @@ export interface RuleContext {
 }
 
 /**
- * What known-malicious gets with --osv: a list to fill with the locked versions (the first run, before OSV.dev is
- * asked), or the answers of OSV.dev by osvKey (the second run, which reports).
+ * What known-malicious gets: a list to fill with the locked versions (the first run, before OSV.dev is asked or the
+ * local data is read), or the answers by osvKey (the second run, which reports). With `local` the answers come from
+ * the local OSV.dev data of depcurfew osv update, without --osv (decision D-150), and `local` says, by ecosystem of
+ * depcurfew, whether there is such data and how old it is. `unavailable`: neither --osv nor any local data, so the
+ * rule only says how to get them.
  */
-export type OsvDoctor = { collect: OsvPackage[] } | { answers: ReadonlyMap<string, OsvVerdict> };
+export type OsvDoctor = { collect: OsvPackage[] } | { answers: ReadonlyMap<string, OsvVerdict>; local?: OsvLocalDoctor } | { unavailable: true };
+
+/** The local OSV.dev data of each ecosystem, as known-malicious reports it (decision D-150). */
+export interface OsvLocalDoctor {
+  ecosystems: Readonly<Record<string, OsvLocalEcosystem>>;
+}
+
+/** missing, unreadable with the reason, or ready with its date, its age in days and whether that gives a note or a warning. */
+export type OsvLocalEcosystem =
+  | { status: 'missing' }
+  | { status: 'unreadable'; reason: string }
+  | { status: 'ready'; date: string; days: number; staleness: 'fresh' | 'note' | 'warning' };
 
 /** A directory listed in projects, as the rules at the repository root see it. */
 export interface ProjectView {

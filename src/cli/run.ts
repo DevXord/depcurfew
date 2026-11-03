@@ -2,7 +2,8 @@ import { parseArgs } from 'node:util';
 import { getVersion } from '../version.ts';
 import { apply } from './apply.ts';
 import { paint, paintDiagnostics } from '../color.ts';
-import { check, HOOKS, type CheckDependencies } from './check.ts';
+import { check, HOOKS, localOsvData, type CheckDependencies } from './check.ts';
+import { osvUpdate, parseEcosystems } from './osv.ts';
 import { reportInputError } from './directory.ts';
 import { defaultRegistry } from '../check/registry.ts';
 import { defaultIndex } from '../check/pypi.ts';
@@ -216,7 +217,7 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
         ...(values['osv'] === true ? { osv: true } : {}),
       },
       io,
-      { fetch: dependencies.fetch },
+      { fetch: dependencies.fetch, local: () => localOsvData(dependencies), now: dependencies.now },
     );
   }
   // --registry and --index are URLs; anything else would only fail as a registry that cannot be reached (decision D-113).
@@ -253,7 +254,17 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
       now: dependencies.now,
       ...(dependencies.home === undefined ? {} : { home: dependencies.home }),
       ...(dependencies.mcpProcess === undefined ? {} : { process: dependencies.mcpProcess }),
+      local: () => localOsvData(dependencies),
     });
+  }
+  if (command.name === 'osv') {
+    // osv update is the only subcommand (decision D-150).
+    if (rest[0] !== 'update') {
+      return usage(rest[0] === undefined ? "'osv' needs a subcommand: depcurfew osv update" : `unknown subcommand 'osv ${rest[0]}'; the subcommand is update`, "Run 'depcurfew osv --help' for usage.");
+    }
+    const ecosystems = parseEcosystems(Array.isArray(values['ecosystem']) ? values['ecosystem'] : []);
+    if (!ecosystems.ok) return usage(ecosystems.message, "Run 'depcurfew osv --help' for usage.");
+    return osvUpdate({ ecosystems: ecosystems.ecosystems, json: values['json'] === true }, io, dependencies);
   }
 
   io.stderr(`error: '${command.name}' is not implemented yet\n`);
