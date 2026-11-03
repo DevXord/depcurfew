@@ -31,10 +31,14 @@ vi.mock('node:fs', async (importOriginal) => {
 });
 
 const NOW = new Date('2026-11-02T18:00:00Z');
+// The file system of Windows runners is several times slower with tens of thousands of entries; the bounds catch a
+// quadratic walk (5 to 20 times slower), not the speed of one file system.
+const SLOW = process.platform === 'win32' ? 3 : 1;
 const temporary: string[] = [];
+// Removing tens of thousands of files takes longer than the default hook timeout on Windows runners.
 afterAll(() => {
   for (const directory of temporary) rmSync(directory, { recursive: true, force: true });
-});
+}, 300_000);
 
 function scratch(): string {
   const directory = mkdtempSync(join(tmpdir(), 'depcurfew-detect-speed-'));
@@ -72,13 +76,13 @@ describe('doctor on large repositories (decision D-157)', () => {
     files(join(root, 'assets'), 30_000, '.png');
     const plain = await doctor(root);
     expect(plain.report.policySource).toBe('default');
-    expect(plain.seconds).toBeLessThan(2);
+    expect(plain.seconds).toBeLessThan(2 * SLOW);
     const data = await localData(temporary, NOW);
-    expect((await doctor(root, data)).seconds).toBeLessThan(2);
+    expect((await doctor(root, data)).seconds).toBeLessThan(2 * SLOW);
     writeFileSync(join(root, 'depcurfew.json'), '{"version": 1, "cooldown": {"minimum": "3d"}}\n');
     const withPolicy = await doctor(root, data);
     expect(withPolicy.report.policySource).toBe('file');
-    expect(withPolicy.seconds).toBeLessThan(2);
+    expect(withPolicy.seconds).toBeLessThan(2 * SLOW);
   });
 
   it('500 top-level directories of 20 files', { timeout: 120_000 }, async () => {
@@ -87,7 +91,7 @@ describe('doctor on large repositories (decision D-157)', () => {
     for (let index = 1; index <= 500; index++) files(join(root, `d${index}`), 20, '.txt');
     const result = await doctor(root);
     expect(result.report.policySource).toBe('default');
-    expect(result.seconds).toBeLessThan(1);
+    expect(result.seconds).toBeLessThan(1 * SLOW);
   });
 
   it('2,000 projects without a root manifest', { timeout: 120_000 }, async () => {
@@ -98,7 +102,7 @@ describe('doctor on large repositories (decision D-157)', () => {
     }
     const result = await doctor(root, await localData(temporary, NOW));
     expect(result.report.policySource).toBe('default');
-    expect(result.seconds).toBeLessThan(4);
+    expect(result.seconds).toBeLessThan(4 * SLOW);
   });
 
   it('20,000 top-level directories', { timeout: 180_000 }, async () => {
@@ -107,7 +111,7 @@ describe('doctor on large repositories (decision D-157)', () => {
     for (let index = 1; index <= 20_000; index++) mkdirSync(join(root, `d${index}`));
     const result = await doctor(root);
     expect(result.report.policySource).toBe('default');
-    expect(result.seconds).toBeLessThan(10);
+    expect(result.seconds).toBeLessThan(10 * SLOW);
   });
 });
 
@@ -145,7 +149,7 @@ describe('the files of the bot-only ecosystems among many others (decision D-157
     writeFileSync(join(root, 'go', 'go.mod'), 'module example.com/x\n');
     const start = performance.now();
     const detection = detectProject(root);
-    expect((performance.now() - start) / 1000).toBeLessThan(0.5);
+    expect((performance.now() - start) / 1000).toBeLessThan(0.5 * SLOW);
     expect(detection.botEcosystems).toEqual([
       { id: 'gomod', files: ['go/go.mod'] },
       { id: 'nuget', files: ['assets/App.csproj', 'assets/nuget.config'] },

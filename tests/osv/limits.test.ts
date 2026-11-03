@@ -305,6 +305,9 @@ describe('another format version', () => {
   });
 });
 
+/** Names that only a file system telling case apart keeps apart from '.npm.123.abcdef012345.zip.part'. */
+const CASE_SENSITIVE_NAMES = process.platform === 'win32' || process.platform === 'darwin' ? [] : ['.npm.123.ABCDEF012345.zip.part'];
+
 describe('temporary files of osv update', () => {
   it('removes only its own names that are older than a day', async () => {
     const data = directory();
@@ -316,7 +319,9 @@ describe('temporary files of osv update', () => {
       // Not names osv update writes.
       '.notes.part',
       '.npm.123.abcdef.zip.part',
-      '.npm.123.ABCDEF012345.zip.part',
+      // Upper-case hex digits are no name it writes; on a file system that ignores case (Windows, macOS) it would be
+      // the same file as the first name.
+      ...CASE_SENSITIVE_NAMES,
       '.cargo.123.abcdef012345.zip.part',
       '.npm.x.abcdef012345.zip.part',
       '.npm.123.abcdef012345.tar.part',
@@ -342,7 +347,7 @@ describe('temporary files of osv update', () => {
         '.cargo.123.abcdef012345.zip.part',
         '.notes.part',
         '.npm.1.aaaaaaaaaaaa.zip.part',
-        '.npm.123.ABCDEF012345.zip.part',
+        ...CASE_SENSITIVE_NAMES,
         '.npm.123.abcdef.zip.part',
         '.npm.123.abcdef012345.tar.part',
         '.npm.123.abcdef012345.zip.part.part',
@@ -357,7 +362,8 @@ describe('temporary files of osv update', () => {
   });
 });
 
-describe('a directory of the data that other users can write', () => {
+// POSIX modes and owners: Windows has neither (no process.getuid, so depcurfew does not check there).
+describe.skipIf(process.platform === 'win32')('a directory of the data that other users can write', () => {
   const self = { uid: process.getuid?.() ?? 0, gid: process.getgid?.() ?? 0 };
 
   it('is found by its mode and its owner', () => {
