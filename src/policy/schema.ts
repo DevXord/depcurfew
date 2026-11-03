@@ -17,7 +17,10 @@ import {
   withDefault,
   type Input,
   type Output,
+  type Shape,
 } from './shape.ts';
+import type { Duration } from './duration.ts';
+import type { ToolId } from '../knowledge/types.ts';
 
 const duration = text({
   label: 'a duration such as "3d"',
@@ -145,7 +148,37 @@ export const doctorShape = object(
   },
 );
 
-export const policyShape = object(
+type Access = 'allow' | 'deny';
+
+/**
+ * The policy as written in depcurfew.json. Written out instead of inferred from policyShape: the declaration file would
+ * otherwise list the inferred properties in an order that depends on the order TypeScript happens to check the files
+ * in, so two builds of the same commit could differ (decision D-174). The annotation of policyShape keeps it in step.
+ */
+export interface Policy {
+  $schema?: string;
+  version: 1;
+  cooldown?: { minimum: string; exclude?: readonly string[]; securityUpdates?: 'bypass' | 'delay' };
+  installScripts?: { default: Access; allow?: readonly string[]; deny?: readonly string[] };
+  sources?: { git?: Access; remoteTarball?: Access; file?: Access; directory?: Access };
+  targets?: 'auto' | readonly ToolId[];
+  projects?: readonly string[];
+  doctor?: { failOn?: (typeof FAIL_ON_LEVELS)[number] };
+}
+
+/** The policy after validation: defaults filled in, durations parsed. */
+export interface ResolvedPolicy {
+  $schema?: string;
+  version: 1;
+  cooldown?: { minimum: Duration; exclude: readonly string[]; securityUpdates: 'bypass' | 'delay' };
+  installScripts?: { default: Access; allow: readonly string[]; deny: readonly string[] };
+  sources?: { git?: Access; remoteTarball?: Access; file?: Access; directory?: Access };
+  targets: 'auto' | readonly ToolId[];
+  projects: readonly string[];
+  doctor?: { failOn?: (typeof FAIL_ON_LEVELS)[number] };
+}
+
+const inferredPolicyShape = object(
   {
     $schema: optional(anyString({ description: 'JSON Schema of this file, for editor support.' })),
     version: required(literal(1, { description: 'Version of the policy format.' })),
@@ -159,7 +192,11 @@ export const policyShape = object(
   { description: 'One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Composer, Bundler, Renovate and Dependabot.' },
 );
 
-/** The policy as written in depcurfew.json. */
-export type Policy = Input<typeof policyShape>;
-/** The policy after validation: defaults filled in, durations parsed. */
-export type ResolvedPolicy = Output<typeof policyShape>;
+export const policyShape: Shape<Policy, ResolvedPolicy> = inferredPolicyShape;
+
+// The interfaces above must match what policyShape parses: both directions are checked here.
+type Same<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
+const inputMatches: Same<Policy, Input<typeof inferredPolicyShape>> = true;
+const outputMatches: Same<ResolvedPolicy, Output<typeof inferredPolicyShape>> = true;
+void inputMatches;
+void outputMatches;

@@ -2,7 +2,7 @@
 // facts of its own (no setting name from the knowledge base appears outside the generated sections).
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ACTION_RELEASE, handWritten, renderReadme } from '../../src/docs/readme.ts';
+import { ACTION_RELEASE, handWritten, renderReadme, VERIFIED_RELEASE } from '../../src/docs/readme.ts';
 import { compareVersions, parseVersion } from '../../src/apply/version.ts';
 import { values } from '../../src/apply/facts.ts';
 import { environment } from '../../src/knowledge/environment.ts';
@@ -92,7 +92,7 @@ describe('README.md', () => {
   });
 
   it('checks the same release in "Verifying a release"', () => {
-    expect(readme).toContain(`git clone --branch v${ACTION_RELEASE.version} https://github.com/DevXord/depcurfew.git\n`);
-    expect(readme).toContain(`npm view depcurfew@${ACTION_RELEASE.version} dist.shasum\n`);
+    expect(readme).toContain(`git clone --branch v${VERIFIED_RELEASE.version} https://github.com/DevXord/depcurfew.git\n`);
+    expect(readme).toContain(`npm view depcurfew@${VERIFIED_RELEASE.version} dist.shasum\n`);
   });
 });
