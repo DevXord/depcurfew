@@ -20,7 +20,8 @@ export interface Evidence {
  * configuration requires, e.g. required-version in [tool.uv]. lockfile: the
  * version of the tool that wrote the lockfile, which the tool switches to (BUNDLED WITH in Gemfile.lock). nvmrc and
  * node-version: the files .nvmrc and .node-version; engines: engines.node in package.json (a range of the Node.js
- * versions the package works on, advisory); dockerfile: a Dockerfile (FROM node:22, RUN npm install -g npm@11).
+ * versions the package works on, advisory); dockerfile: a Dockerfile (FROM node:22, RUN npm install -g npm@11); mise:
+ * [tools] of mise.toml and the files beside it (decision D-173).
  */
 export type VersionSource =
   | 'yarnPath'
@@ -30,6 +31,7 @@ export type VersionSource =
   | 'devEngines'
   | 'volta'
   | 'tool-versions'
+  | 'mise'
   | 'nvmrc'
   | 'node-version'
   | 'engines'
@@ -59,6 +61,11 @@ export type VersionDeclaration = ({ version: string; versionFile?: string } | { 
    * (decision D-115); the line is the image's, and it stands for the job's steps until a setup step.
    */
   container?: string;
+  /**
+   * github-actions: mise reads the version (jdx/mise-action), so it is a mise request (24 is a 24.x release), not a
+   * version of setup-node (decision D-173).
+   */
+  reader?: 'mise';
 };
 
 /**
@@ -73,9 +80,10 @@ export interface ToolCommand {
    * pnpm, Yarn and Bun only install (their versions come from packageManager and the setup actions); poetry only
    * upgrades: pipx install poetry==2.3.0 or pip install poetry==2.3.0 installs that Poetry (decision D-115). bundler:
    * bundle install, update, lock, add and cache resolve the Gemfile, and gem install bundler -v 4.0.23 upgrades (decision
-   * D-152).
+   * D-152). pdm, pipenv and uv only upgrade too: pip install pipenv==2025.0.4, pipx install pdm==2.20.1, uv tool install
+   * pdm==2.20.1, pip install uv==0.8.22 (decision D-173).
    */
-  tool: 'npm' | 'pip' | 'pnpm' | 'yarn' | 'bun' | 'poetry' | 'bundler';
+  tool: 'npm' | 'pip' | 'pnpm' | 'yarn' | 'bun' | 'poetry' | 'pdm' | 'pipenv' | 'uv' | 'bundler';
   /**
    * upgrade: the version asked for as written, latest when none is; absent when the command does not say (corepack
    * enable npm). A bundler install: the version bundle _4.0.12_ install runs (decision D-159).
@@ -130,6 +138,13 @@ export interface WorkflowJob {
   pipConfig?: true;
   /** The line of the first run step command that installs Corepack (npm install -g corepack) or runs it (decision D-128). */
   corepack?: number;
+  /** The values of PIP_CONFIG_FILE in the env of its run steps, as written (decision D-173); absent when none sets it. */
+  pipConfigFiles?: string[];
+  /**
+   * The working directories of its run steps, as ToolCommand.directory writes them ('' for the root), each once and at
+   * most 64, for the project a job works in (decision D-173); absent when every run step works in the root.
+   */
+  directories?: string[];
 }
 
 /** The official runtime image a build stage starts from. */
@@ -157,6 +172,8 @@ export interface DockerStage {
   commands: ToolCommand[];
   /** A RUN may change pip's configuration (pip config set, a pip.conf it writes), as for jobs (decision D-115). */
   pipConfig?: true;
+  /** The values of PIP_CONFIG_FILE its pip installs see (ENV, ARG, also of a stage it starts from), as written (decision D-173). */
+  pipConfigFiles?: string[];
   /** The line of the first RUN command that installs Corepack (npm install -g corepack) or runs it (decision D-128). */
   corepack?: number;
   /**

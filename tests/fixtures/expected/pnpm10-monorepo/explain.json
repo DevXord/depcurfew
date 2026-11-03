@@ -13,10 +13,8 @@
       "tools": [
         {
           "tool": "pnpm",
-          "ok": true,
-          "unit": "minutes",
-          "value": 4320,
-          "exact": true
+          "ok": false,
+          "reason": "pnpm 10.12.1 does not support minimumReleaseAge (added in 10.16.0), blockExoticSubdeps (added in 10.26.0); not written"
         }
       ]
     },

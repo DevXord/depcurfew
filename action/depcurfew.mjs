@@ -2022,6 +2022,7 @@ const finalReview$3 = verifiedOn("2026-11-01");
 const release14$5 = verifiedOn("2026-11-02");
 const runners$2 = verifiedOn("2026-11-03");
 const secrets$3 = verifiedOn("2026-11-03");
+const d173$4 = verifiedOn("2026-11-03");
 const CONFIG$2 = "https://docs.npmjs.com/cli/v12/using-npm/config";
 const NPMRC$1 = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
 const release$4 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
@@ -2415,6 +2416,61 @@ const npm$1 = {
 			trailingOnly: false
 		}, NPM_DEFINITIONS, "min-release-age-exclude takes package names or minimatch globs from its first version."),
 		latestVersion: verified$11("12.2.1", release$4("12.2.1"), "Marked as the latest GitHub release on 2026-10-28; the 11.x line is still maintained (11.21.1)."),
+		lineReleases: d173$4.verified([
+			"6.14.18",
+			"7.24.2",
+			"8.19.4",
+			"9.0.1",
+			"9.1.3",
+			"9.2.0",
+			"9.3.1",
+			"9.4.2",
+			"9.5.1",
+			"9.6.7",
+			"9.7.2",
+			"9.8.1",
+			"9.9.4",
+			"10.0.0",
+			"10.1.0",
+			"10.2.5",
+			"10.3.0",
+			"10.4.0",
+			"10.5.2",
+			"10.6.0",
+			"10.7.0",
+			"10.8.3",
+			"10.9.9",
+			"11.0.0",
+			"11.1.0",
+			"11.2.0",
+			"11.3.0",
+			"11.4.2",
+			"11.5.2",
+			"11.6.4",
+			"11.7.0",
+			"11.8.0",
+			"11.9.0",
+			"11.10.1",
+			"11.11.1",
+			"11.12.1",
+			"11.13.0",
+			"11.14.1",
+			"11.15.0",
+			"11.16.0",
+			"11.17.0",
+			"11.18.0",
+			"11.19.1",
+			"11.20.0",
+			"11.21.1",
+			"12.0.2",
+			"12.1.0",
+			"12.2.1"
+		], "https://registry.npmjs.org/npm", "The newest release of each minor line from 9.0 to 12.2, and of the major lines 6, 7 and 8, among the versions of the npm package in the registry on 2026-11-03 (modified 2026-10-21); none of 10.x to 12.x is deprecated. The dist-tags agree (https://registry.npmjs.org/-/package/npm/dist-tags: latest 12.2.1, next-11 11.21.1, next-10 10.9.9, next-9 9.9.4, next-8 8.19.4, latest-7 7.24.2, latest-6 6.14.18), and so do the v<version> tags of npm/cli. npm does not publish a release twice, so a later run of npm install -g npm@11 installs this release or a newer 11.x."),
+		rangeInstall: d173$4.verified({
+			picks: "highest",
+			prefersTag: "latest",
+			enginesFirst: true
+		}, "https://github.com/npm/npm-pick-manifest/blob/v12.0.0/lib/index.js", "npm 12.2.1 depends on npm-pick-manifest ^12.0.0 and npm 11.21.1 on ^11.0.3 (package.json of npm/cli at those tags). For a range (npm install -g npm@11, npm@^11.10.0) or a tag (npm@latest, a bare npm), pickManifest returns the version of the latest dist-tag when it satisfies the range, runs on the Node.js in use (engineOk with nodeVersion, process.version by default) and is not deprecated; otherwise it sorts the versions that satisfy the range by: not avoided, not restricted, not staged, not deprecated and engine ok, engine ok, not deprecated, then semver.rcompare, and returns the first. So npm installs the newest release of the range that runs on that Node.js, and the newest release of the range when none does."),
 		beforeInteraction: reviewed$2.verified({
 			setting: "before",
 			exclusive: {
@@ -3994,6 +4050,7 @@ function platformdirsMacos(app) {
 
 // src/knowledge/pdm.ts
 const { verified: verified$9, uncertain: uncertain$7 } = verifiedOn("2026-10-30");
+const d173$3 = verifiedOn("2026-11-03");
 const rechecked$2 = verifiedOn("2026-10-31");
 const user$5 = verifiedOn("2026-10-31");
 const leftovers$3 = verifiedOn("2026-11-01");
@@ -4138,6 +4195,18 @@ const pdm$1 = {
 		], `${PDM}/src/pdm/project/core.py`, "env_or_setting returns os.getenv(var) or the pyproject.toml setting, so a non-empty PDM_ONLY_BINARY or PDM_NO_BINARY wins (environments/base.py). -c/--config and PDM_CONFIG_FILE name the home config file (src/pdm/core.py). PDM_USE_UV is the variable of use_uv, and variables beat pdm.toml and config.toml (src/pdm/project/config.py).")
 	},
 	extra: {
+		installedPackage: d173$3.verified({
+			name: "pdm",
+			commands: [
+				[
+					"uv",
+					"tool",
+					"install"
+				],
+				["pipx", "install"],
+				["pip", "install"]
+			]
+		}, `${PDM}/docs/index.md`, "The installation page lists uv tool install pdm, pipx install pdm and pip install --user pdm among the other installation methods. Each takes a version with the package: uv tool install \"package versions can be included without --from\" (uv tool install 'httpie>0.1.0', https://github.com/astral-sh/uv/blob/0.13.6/docs/guides/tools.md), as pipx and pip install do (pipx install poetry==1.8.4 on the installation page of Poetry). So pdm==<version> in such a command of a CI job or a Dockerfile is the PDM the later commands run (decision D-173)."),
 		environmentNames: current$1.verified([{
 			prefix: "",
 			match: "exact"
@@ -4395,6 +4464,7 @@ const pdm$1 = {
 
 // src/knowledge/pipenv.ts
 const { verified: verified$8, uncertain: uncertain$6 } = verifiedOn("2026-10-30");
+const d173$2 = verifiedOn("2026-11-03");
 const PIPENV = "https://github.com/pypa/pipenv/blob/v2026.10.4";
 const PIPFILE = `${PIPENV}/docs/pipfile.md`;
 const CHANGELOG$1 = `${PIPENV}/CHANGELOG.md`;
@@ -4477,6 +4547,10 @@ const pipenv$1 = {
 		], `${PIPENV}/pipenv/utils/resolver.py`, "PIPENV_RESOLVER is not documented. The code ranks it above the resolver key of the Pipfile (\"CLI/caller > env > current project's Pipfile > default\"), and the pure-python backend locked the newest versions despite cool-down-period when chosen in the Pipfile (extra.resolverBypass, tested on 2026-10-30); the variable itself was not tested. PIPENV_PYPI_MIRROR: \"When the index does not provide upload-time metadata (e.g. most private mirrors) the setting is accepted but has no filtering effect\" (docs/pipfile.md). PIP_* variables are merged over the environment of the pip subprocess (pipenv/utils/processes.py), so they still reach it while pip.conf does not; pipenv/routines/install.py also reads PIP_NO_BINARY.")
 	},
 	extra: {
+		installedPackage: d173$2.verified({
+			name: "pipenv",
+			commands: [["pipx", "install"], ["pip", "install"]]
+		}, `${PIPENV}/docs/installation.md`, "The installation page installs Pipenv with pipx install pipenv and pip install pipenv (pip install --user pipenv), and a given version with pip install --user pipenv==2022.1.8. So pipenv==<version> in such a command of a CI job or a Dockerfile is the Pipenv the later commands run (decision D-173)."),
 		environmentNames: osvFacts.verified([{
 			prefix: "PIPENV_",
 			match: "exact"
@@ -6127,6 +6201,7 @@ const renovate$1 = {
 
 // src/knowledge/uv.ts
 const { verified: verified$4, uncertain: uncertain$2 } = verifiedOn("2026-10-30");
+const d173$1 = verifiedOn("2026-11-03");
 const guard = verifiedOn("2026-11-01");
 const secrets$1 = verifiedOn("2026-11-03");
 const UV = "https://github.com/astral-sh/uv/blob/0.13.6";
@@ -6412,6 +6487,14 @@ const uv$1 = {
 				whenMissing: "nothing"
 			}
 		}, `${UV}/crates/uv-static/src/env_vars.rs`, "UV_DEFAULT_INDEX (\"uv will use this index as the default index\") and UV_INDEX_URL (the same, deprecated) replace PyPI; UV_INDEX (\"this space-separated list of additional indexes\", entries may be name=url), UV_EXTRA_INDEX_URL (space-separated, deprecated) and UV_FIND_LINKS (\"this comma-separated list of additional locations\") add places to install from; UV_CONFIG_FILE \"Expects a path to a local uv.toml file to use as the configuration file\", which \"will be used in place of any discovered configuration files (e.g., user-level configuration will be ignored)\" (docs/concepts/configuration-files.md at the same tag, which also says that variables win over configuration files and that the user uv.toml is merged under the project's, arrays concatenated). uv reads none of pip's variables or files (docs/pip/compatibility.md)."),
+		dockerImage: d173$1.verified({
+			image: "ghcr.io/astral-sh/uv",
+			versionTag: "^(\\d+\\.\\d+(?:\\.\\d+)?)(?:-.+)?$"
+		}, `${UV}/docs/guides/integration/docker.md`, "The distroless image is published as ghcr.io/astral-sh/uv:latest, :{major}.{minor}.{patch} and :{major}.{minor} (\"the latest patch version\"), and each derived image (uv on a base such as python3.12-bookworm-slim, alpine or debian) \"is published with uv version tags as ghcr.io/astral-sh/uv:{major}.{minor}.{patch}-{base} and ghcr.io/astral-sh/uv:{major}.{minor}-{base}\"; tags of a base alone (debian, alpine) and latest name no version. \"Use one of the above images with uv pre-installed or install uv by copying the binary from the official distroless Docker image\": COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /uvx /bin/, which it calls best practice to pin. COPY --from takes an image, a build stage or a named context (frontend/dockerfile/docs/reference.md of moby/buildkit at c1cfdbd30b79b4a4908cdccc3c0f9849c30e34e5)."),
+		installedPackage: d173$1.verified({
+			name: "uv",
+			commands: [["pipx", "install"], ["pip", "install"]]
+		}, `${UV}/docs/getting-started/installation.md`, "Besides the standalone installer, the installation page installs uv from PyPI with pipx install uv or pip install uv. So uv==<version> in such a command of a CI job or a Dockerfile is the uv the later commands run (decision D-173)."),
 		environmentNames: release14$2.verified([{
 			prefix: "",
 			match: "exact"
@@ -7557,6 +7640,8 @@ const release14 = verifiedOn("2026-11-02");
 const ruby = verifiedOn("2026-11-03");
 const ciOverrides = verifiedOn("2026-11-03");
 const secrets = verifiedOn("2026-11-03");
+const d173 = verifiedOn("2026-11-03");
+const MISE = "https://github.com/jdx/mise/blob/v2026.11.0/docs";
 const COREPACK_README = "https://github.com/nodejs/corepack/blob/v0.36.0/README.md";
 const COREPACK_CHANGELOG = "https://github.com/nodejs/corepack/blob/v0.36.0/CHANGELOG.md";
 const COREPACK_V0_36_0 = "https://github.com/nodejs/corepack/blob/v0.36.0";
@@ -8526,6 +8611,23 @@ const environment = {
 			poetry: "poetry"
 		}, "https://github.com/asdf-vm/asdf-plugins/tree/master/plugins", "Short names in the asdf plugin index; there is no plugin named node. python, uv and poetry checked on 2026-10-30 (danhper/asdf-python, asdf-community/asdf-uv, asdf-community/asdf-poetry).")
 	},
+	mise: { config: d173.verified({
+		files: [
+			".mise.toml",
+			"mise.toml",
+			"mise/config.toml",
+			".mise/config.toml",
+			".config/mise.toml",
+			".config/mise/mise.toml",
+			".config/mise/config.toml"
+		],
+		table: "tools",
+		versionKey: "version",
+		tools: {
+			node: "node",
+			python: "python"
+		}
+	}, `${MISE}/configuration.md`, "Config file locations: in each directory \"a file higher in the table overrides one lower down\": mise.local.toml (personal overrides, kept out of version control), mise.toml, mise/config.toml, mise/conf.d/*.toml, .mise/config.toml, .config/mise.toml, .config/mise/mise.toml, .config/mise/config.toml, then .tool-versions; \".mise.toml overrides mise.toml\". [tools] merges per tool: \"The nearest file's entry replaces that tool's whole entry\". Requests (dev-tools/versions.md at the same tag): node = \"24\" is \"a 24.x release\", python = \"3.14.8\" exactly that release, a table names the request kind (node = { path = ... }, a version key in the examples of dev-tools/index.md), and python = [\"3.14\", \"3.13\"] installs both, \"the first one provides the unversioned command\". \"mise does not accept npm-style ranges such as ^24 or >=20 outside package.json\". MISE_NODE_VERSION overrides every file.") },
 	githubActions: {
 		workflows: verified({
 			directory: ".github/workflows",
@@ -8556,15 +8658,20 @@ const environment = {
 			ltsPrefix: "lts/",
 			previousLtsPrefix: "lts/-"
 		}, `${SETUP_NODE}/README.md`, "Tag v7.1.0. node-version takes semver (22, 24.8.0, >=10.15.0, 12.x), the NVM LTS syntax (lts/jod, lts/*, lts/-n) and latest, current, node or * for the latest release. A matching version in the runner's tool cache is used first, so a major version such as 24 may give an older release of the line unless check-latest is set."),
-		setupNodeVersionFile: runtimes.verified({
+		setupNodeVersionFile: d173.verified({
 			packageJson: "package.json",
 			packageJsonOrder: [
 				"volta.node",
 				"devEngines.runtime",
 				"engines.node"
 			],
-			textPattern: "^(?:node(js)?\\s+)?v?(?<version>[^\\s]+)$"
-		}, `${SETUP_NODE}/docs/advanced-usage.md`, "node-version-file accepts .nvmrc, .node-version, .tool-versions, mise.toml or package.json, relative to GITHUB_WORKSPACE. In package.json it checks volta.node, then the devEngines.runtime entry named node, then engines.node, then volta.extends. getNodeVersionFromFile in src/util.ts tries JSON, then TOML tools.node, then the first line that matches the pattern, then the whole text trimmed."),
+			textPattern: "^(?:node(js)?\\s+)?v?(?<version>[^\\s]+)$",
+			toml: {
+				table: "tools",
+				key: "node",
+				versionKey: "version"
+			}
+		}, `${SETUP_NODE}/src/util.ts`, "node-version-file accepts .nvmrc, .node-version, .tool-versions, mise.toml or package.json, relative to GITHUB_WORKSPACE (docs/advanced-usage.md at the same commit). In package.json it checks volta.node, then the devEngines.runtime entry named node, then engines.node, then volta.extends. getNodeVersionFromFile tries JSON, then parses the file as TOML (\"Try parsing the file as a mise `mise.toml` file\") and returns tools.node when it is a string, or tools.node.version when it is a table with one, and null for any other tools.node (a list included), then the first line that matches the pattern, then the whole text trimmed."),
 		jobContainer: finalReview.verified({
 			key: "container",
 			imageKey: "image",
@@ -8675,6 +8782,37 @@ const environment = {
 				tool: "uv"
 			}]
 		}, "https://github.com/astral-sh/setup-uv/blob/v10.3.3/action.yml", "Current version v10.3.3, with no moving v10 tag. Without version or version-file it reads required-version from uv.toml, then pyproject.toml, in the working directory, and installs the latest uv when neither has one."),
+		setupPdm: d173.verified({
+			action: "pdm-project/setup-pdm",
+			installs: ["pdm"],
+			inputs: [
+				{
+					name: "version",
+					kind: "version",
+					tool: "pdm",
+					keywords: ["head"]
+				},
+				{
+					name: "python-version",
+					kind: "version",
+					tool: "python"
+				},
+				{
+					name: "python-version-file",
+					kind: "version-file",
+					tool: "python"
+				}
+			]
+		}, "https://github.com/pdm-project/setup-pdm/blob/v4.6/action.yml", "Current version v4.6 (the moving tag v4 is the same commit). version: \"The version of PDM to install, or 'head' to install from the main branch\"; without it the installer installs the latest PDM. src/setup-pdm.ts passes it as --version to the installer script (cmdArgs.push('--version', pdmVersion)). python-version and python-version-file choose the Python it sets up."),
+		miseAction: d173.verified({
+			action: "jdx/mise-action",
+			inputs: {
+				install: "install",
+				inlineConfig: "mise_toml",
+				workingDirectory: "working_directory"
+			},
+			inlineFile: "mise.toml"
+		}, "https://github.com/jdx/mise-action/blob/v5.2.6/action.yml", "Current version v5.2.6 (the moving tag v5 is the same commit). install (default \"true\"): \"if false, will not run `mise install` or `mise bootstrap`\"; mise_toml: \"If present, this value will be written to the mise.toml file\"; working_directory: \"The directory that mise runs in\"; add_shims_to_path (default \"true\") puts the shims of the installed tools on PATH, so the later steps of the job run the Node.js and Python of the mise configuration."),
 		installPoetry: python.verified({
 			action: "snok/install-poetry",
 			installs: ["poetry"],
@@ -9470,6 +9608,19 @@ function requiredVersions(tool, pythonProject) {
 		path: [...table === "" ? [] : table.split("."), key]
 	}));
 }
+/** The official images that hold a tool (ghcr.io/astral-sh/uv), with the tags that name its version (decision D-173). */
+function toolImages(tools) {
+	return ["uv"].flatMap((id) => {
+		const entry = tools.find((candidate) => candidate.id === id);
+		const value = entry === void 0 ? void 0 : extraValue$1(entry, "dockerImage");
+		if (!isRecord(value) || typeof value["image"] !== "string" || typeof value["versionTag"] !== "string") return [];
+		return [{
+			tool: id,
+			image: value["image"],
+			versionTag: new RegExp(value["versionTag"], "u")
+		}];
+	});
+}
 function workspaceFacts(declaration, objectKey) {
 	return declaration === null ? null : {
 		...declaration,
@@ -9540,8 +9691,21 @@ function detectionFacts(tools, environment) {
 	const pipConfig = extraValue$1(pip, "configFileVariable");
 	const pipConfigCommand = extraValue$1(pip, "configCommand");
 	const pipConfigFiles = extraValue$1(pip, "configFileNames");
-	const poetryTool = tools.find((candidate) => candidate.id === "poetry");
-	const poetryPackage = poetryTool === void 0 ? void 0 : extraValue$1(poetryTool, "installedPackage");
+	const installed = [
+		"poetry",
+		"pdm",
+		"pipenv",
+		"uv"
+	].flatMap((id) => {
+		const entry = tools.find((candidate) => candidate.id === id);
+		const value = entry === void 0 ? void 0 : extraValue$1(entry, "installedPackage");
+		if (!isRecord(value) || typeof value["name"] !== "string" || !Array.isArray(value["commands"])) return [];
+		return [{
+			tool: id,
+			name: value["name"],
+			commands: value["commands"].filter((item) => Array.isArray(item) && item.every((word) => typeof word === "string"))
+		}];
+	});
 	const off = extraValue$1(npm, "scriptsOff");
 	const omitOptional = npm.extra?.["omitOptional"] === void 0 ? void 0 : extraValue$1(npm, "omitOptional");
 	const localPrefix = npm.extra?.["localPrefix"] === void 0 ? void 0 : extraValue$1(npm, "localPrefix");
@@ -9615,10 +9779,7 @@ function detectionFacts(tools, environment) {
 			enableCommand: first$1(environment.corepack.enableNpm).command,
 			package: corepackInstall.package
 		},
-		...isRecord(poetryPackage) && typeof poetryPackage["name"] === "string" && Array.isArray(poetryPackage["commands"]) ? { poetry: {
-			name: poetryPackage["name"],
-			commands: poetryPackage["commands"].filter((item) => Array.isArray(item))
-		} } : {},
+		installed,
 		...isRecord(resolve) && typeof resolve["option"] === "string" && isRecord(bundlerSetting) && typeof bundlerSetting["variable"] === "string" && isRecord(gemInstall) && typeof gemInstall["name"] === "string" && typeof gemInstall["separator"] === "string" ? { bundler: {
 			executables: strings(resolve["executables"]),
 			commands: strings(resolve["commands"]),
@@ -9661,6 +9822,8 @@ function detectionFacts(tools, environment) {
 			file: first$1(environment.asdf.toolVersionsFile),
 			plugins: first$1(environment.asdf.plugins)
 		},
+		mise: first$1(environment.mise.config),
+		miseAction: first$1(actions.miseAction),
 		workflows: first$1(actions.workflows),
 		jobContainer: first$1(actions.jobContainer),
 		workflowEnvironment: { key: first$1(actions.environmentKeys).key },
@@ -9673,6 +9836,7 @@ function detectionFacts(tools, environment) {
 			actions.setupDeno,
 			actions.setupPython,
 			actions.setupUv,
+			actions.setupPdm,
 			actions.installPoetry,
 			actions.actionsPoetry,
 			actions.setupRuby
@@ -9702,6 +9866,7 @@ function detectionFacts(tools, environment) {
 			codenames: first$1(environment.node.releaseSchedule).flatMap((line) => line.codename === void 0 ? [] : [line.codename]),
 			environment: first$1(docker.environment),
 			buildArguments: first$1(docker.buildArguments),
+			toolImages: toolImages(tools),
 			commands
 		},
 		commands
@@ -17740,18 +17905,25 @@ function pipVersion(spec) {
 	}
 	return spec.trim();
 }
-/** poetry==2.3.0 (or poetry>=2.4) among the operands of an install: the Poetry it installs, as written (decision D-115). */
-function poetryVersions(words, at, facts) {
-	const name = facts.poetry?.name;
-	if (name === void 0) return [];
+/**
+* poetry==2.3.0 (or poetry>=2.4), pdm==2.20.1, pipenv==2025.0.4 or uv==0.8.22 among the operands of an install that the
+* tool's documentation names (`via`, such as pipx install): the tool it installs, with the version as written
+* (decisions D-115 and D-173).
+*/
+function installedVersions(words, at, facts, via) {
+	const tools = facts.installed.filter((entry) => entry.commands.some((command) => command.length === via.length && command.every((word, index) => word === via[index])));
+	if (tools.length === 0) return [];
 	return words.flatMap((word) => {
-		const spec = new RegExp(`^${name}(?:\\[[^\\]]*\\])?\\s*([=<>~!].*)$`, "iu").exec(word.text)?.[1];
-		return spec === void 0 ? [] : [{
-			kind: "upgrade",
-			tool: "poetry",
-			version: pipVersion(spec),
-			offset: at
-		}];
+		for (const tool of tools) {
+			const spec = new RegExp(`^${tool.name}(?:\\[[^\\]]*\\])?\\s*([=<>~!].*)$`, "iu").exec(word.text)?.[1];
+			if (spec !== void 0) return [{
+				kind: "upgrade",
+				tool: tool.tool,
+				version: pipVersion(spec),
+				offset: at
+			}];
+		}
+		return [];
 	});
 }
 /**
@@ -17797,7 +17969,7 @@ function pipCommand(args, at, facts, environment) {
 		tool: "pip",
 		...pipDelay(rest, environment, facts),
 		offset: at
-	}, ...poetryVersions(operands(rest, values), at, facts)];
+	}, ...installedVersions(operands(rest, values), at, facts, ["pip", "install"])];
 }
 /**
 * The command Bundler's CLI runs for its first argument (Thor, extra.cliCommands): a command, an alias (i, package), or
@@ -17893,12 +18065,23 @@ function gemCommand(args, at, facts) {
 		offset: at
 	}] : [];
 }
-/** pipx install poetry==2.3.0: the Poetry it installs. */
+/** pipx install poetry==2.3.0: the Poetry it installs, or the PDM, Pipenv or uv (decision D-173). */
 function pipxCommand(args, at, facts) {
-	const pipx = facts.poetry?.commands.find((command) => command[0] === "pipx");
 	const index = args.findIndex((word) => !word.text.startsWith("-"));
-	if (pipx === void 0 || args[index]?.text !== pipx[1]) return [];
-	return poetryVersions(args.slice(index + 1).filter((word) => !word.text.startsWith("-")), at, facts);
+	const command = args[index]?.text;
+	if (command === void 0) return [];
+	return installedVersions(args.slice(index + 1).filter((word) => !word.text.startsWith("-")), at, facts, ["pipx", command]);
+}
+/** uv tool install pdm==2.20.1: the tool it installs (decision D-173); --from pdm==2.20.1 names it too. */
+function uvCommand(args, at, facts) {
+	const words = args.filter((word) => !word.text.startsWith("-"));
+	const [group, command] = words;
+	if (group === void 0 || command === void 0) return [];
+	return installedVersions(words.slice(2), at, facts, [
+		"uv",
+		group.text,
+		command.text
+	]);
 }
 /**
 * Whether a simple command may change pip's configuration: pip config set, unset or edit, or a word naming pip.conf or
@@ -17961,6 +18144,10 @@ function readCommand(words, facts, depth, environment = /* @__PURE__ */ new Map(
 	};
 	if (name === "pipx") return {
 		found: pipxCommand(args, first.offset, facts),
+		runsNode
+	};
+	if (name === "uv") return {
+		found: uvCommand(args, first.offset, facts),
 		runsNode
 	};
 	if (facts.bundler !== void 0 && facts.bundler.executables.includes(name)) return {
@@ -18449,6 +18636,73 @@ function substitute(text, args, escape, unreadable = /* @__PURE__ */ new Map()) 
 	};
 }
 
+// src/detect/mise.ts
+function isTable(value) {
+	return typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof TomlDateTime);
+}
+/**
+* The request of a tool's entry: "24", ["24", "22"] (the first provides the command) or { version = "24" }; undefined
+* for anything else (a table without a version, such as { path = ... }). `lists`: whether a list gives its first entry.
+*/
+function miseRequest(value, versionKey, lists = true) {
+	if (typeof value === "string") return {
+		request: value,
+		path: []
+	};
+	if (lists && Array.isArray(value)) {
+		const found = miseRequest(value[0], versionKey, false);
+		return found === void 0 ? void 0 : {
+			request: found.request,
+			path: [0, ...found.path]
+		};
+	}
+	if (isTable(value) && typeof value[versionKey] === "string") return {
+		request: value[versionKey],
+		path: [versionKey]
+	};
+}
+/** A tool's request in one parsed mise file, with the line of the request. */
+function requestIn(document, facts, name) {
+	const table = document.root[facts.table];
+	if (!isTable(table) || !Object.hasOwn(table, name)) return void 0;
+	const found = miseRequest(table[name], facts.versionKey);
+	if (found === void 0) return void 0;
+	const line = document.lineOf([
+		facts.table,
+		name,
+		...found.path
+	]) ?? document.lineOf([facts.table, name]);
+	return {
+		request: found.request.trim(),
+		...line === void 0 ? {} : { line }
+	};
+}
+/**
+* The request of each tool mise reads in `directory` (relative to the root, '' or '.' for it), from the nearest
+* directory up to the root and in each from the file that wins first; a file that cannot be parsed is skipped.
+*/
+function miseTools(read, facts, directory = "") {
+	const found = /* @__PURE__ */ new Map();
+	const parts = directory === "" || directory === "." ? [] : directory.split("/").filter((part) => part !== "" && part !== ".");
+	for (let depth = parts.length; depth >= 0; depth--) {
+		const base = depth === 0 ? "." : parts.slice(0, depth).join("/");
+		for (const name of facts.files) {
+			const file = joinPath(base, name);
+			const document = read(file);
+			if (document === void 0) continue;
+			for (const [key, tool] of Object.entries(facts.tools)) {
+				if (found.has(tool)) continue;
+				const request = requestIn(document, facts, key);
+				if (request !== void 0) found.set(tool, {
+					...request,
+					file
+				});
+			}
+		}
+	}
+	return found;
+}
+
 // src/detect/dockerfiles.ts
 const IGNORE_FILE = ".dockerignore";
 function isDockerfileName(name, facts) {
@@ -18659,6 +18913,38 @@ function copySources(text) {
 	if (/(?:^|\s)--from\b/iu.test(text.trim().slice(0, offset))) return [];
 	return (execWords(rest.trim()) ?? rest.trim().split(/\s+/u).filter(Boolean)).slice(0, -1).filter((word) => !word.startsWith("<<")).slice(0, MAX_COPIES);
 }
+/** The tool an image holds and the version its tag names (ghcr.io/astral-sh/uv:0.8.22, decision D-173). */
+function toolImageVersion(reference, facts) {
+	const [named = ""] = reference.split("@", 1);
+	const slash = named.lastIndexOf("/");
+	const colon = named.lastIndexOf(":");
+	if (colon <= slash) return void 0;
+	const name = named.slice(0, colon).toLowerCase();
+	const tag = named.slice(colon + 1);
+	for (const image of facts.toolImages) {
+		if (name !== image.image.toLowerCase()) continue;
+		const version = image.versionTag.exec(tag)?.[1];
+		return version === void 0 ? void 0 : {
+			tool: image.tool,
+			version
+		};
+	}
+}
+/** The image of COPY --from=<image> (or a stage name, which is no image of a tool). */
+function copyFrom(text) {
+	const { offset } = withoutOptions(text.trim());
+	return /(?:^|\s)--from=(\S+)/iu.exec(text.trim().slice(0, offset))?.[1];
+}
+/** The most variables of a stage kept to expand the versions of its RUN instructions (decision D-173). */
+const MAX_STAGE_VARIABLES = 256;
+/** Tools whose versions read like pip's: ==2.0.1 is 2.0.1. */
+const PIP_SPECS = /* @__PURE__ */ new Set([
+	"pip",
+	"poetry",
+	"pdm",
+	"pipenv",
+	"uv"
+]);
 /** Reads one Dockerfile. */
 function readDockerStages(file, text, facts) {
 	const instructions = readDockerfileOnce(text, facts.syntax);
@@ -18671,6 +18957,39 @@ function readDockerStages(file, text, facts) {
 	const buildArguments = [];
 	const versions = [];
 	const notices = [];
+	const stageEnvironment = [];
+	const stageArguments = [];
+	const owned = [];
+	const setVariable = (kind, name, value) => {
+		const index = stageEnvironment.length - 1;
+		const own = owned[index];
+		const list = kind === "env" ? stageEnvironment : stageArguments;
+		const map = list[index];
+		if (own === void 0 || map === void 0) return;
+		if (!own[kind]) {
+			list[index] = new Map(map);
+			own[kind] = true;
+		}
+		const target = list[index];
+		if (target.has(name) || target.size < MAX_STAGE_VARIABLES) target.set(name, value);
+	};
+	const lookup = { get: (name) => {
+		const env = stageEnvironment.at(-1)?.get(name);
+		const arg = stageArguments.at(-1)?.get(name);
+		return facts.buildArguments.environmentWins ? env ?? arg : arg ?? env;
+	} };
+	/** A version written with $VAR or ${VAR}, with the values of the stage; as written when one has none. */
+	const expand = (command) => {
+		const version = command.version;
+		if (version === void 0 || !version.includes("$")) return command;
+		const result = substitute(version, lookup, escape);
+		if (!result.ok) return command;
+		return {
+			...command,
+			version: PIP_SPECS.has(command.tool) ? pipVersion(result.value) : result.value.trim()
+		};
+	};
+	const configVariable = facts.commands.pip.delay?.configVariable;
 	for (const instruction of instructions) {
 		if (instruction.keyword === facts.syntax.globalArgInstruction && stages.length === 0) {
 			for (const [name, value] of argDeclarations(instruction.text)) {
@@ -18734,6 +19053,23 @@ function readDockerStages(file, text, facts) {
 			environments.push(parent ?? /* @__PURE__ */ new Map());
 			const parentArguments = stage.from === void 0 || !facts.buildArguments.inheritedByStages ? void 0 : buildArguments[stage.from];
 			buildArguments.push(parentArguments ?? /* @__PURE__ */ new Map());
+			stageEnvironment.push((stage.from === void 0 || !facts.environment.inheritedByStages ? void 0 : stageEnvironment[stage.from]) ?? /* @__PURE__ */ new Map());
+			stageArguments.push((stage.from === void 0 || !facts.buildArguments.inheritedByStages ? void 0 : stageArguments[stage.from]) ?? /* @__PURE__ */ new Map());
+			owned.push({
+				env: false,
+				args: false
+			});
+			const held = stage.image === void 0 ? void 0 : toolImageVersion(stage.image, facts);
+			if (held !== void 0) versions.push({
+				tool: held.tool,
+				declaration: {
+					version: held.version,
+					source: "dockerfile",
+					file,
+					line: instruction.line,
+					stage: alias ?? String(stages.length)
+				}
+			});
 			stages.push({
 				...fields,
 				commands: []
@@ -18748,19 +19084,40 @@ function readDockerStages(file, text, facts) {
 				return given === void 0 ? [] : [[name, given]];
 			});
 			buildArguments[buildArguments.length - 1] = withVariables(facts.commands, buildArguments.at(-1), declared);
+			for (const [name, value] of declared) setVariable("args", name, value);
 			continue;
 		}
 		if (instruction.keyword === facts.environment.instruction && environment !== void 0) {
-			environments[environments.length - 1] = withVariables(facts.commands, environment, envDeclarations(instruction.text, facts.environment.spaceForm));
+			const declared = envDeclarations(instruction.text, facts.environment.spaceForm);
+			environments[environments.length - 1] = withVariables(facts.commands, environment, declared);
+			for (const [name, value] of declared) setVariable("env", name, value);
 			continue;
 		}
 		if ((instruction.keyword === "COPY" || instruction.keyword === "ADD") && stage !== void 0) {
+			const from = instruction.keyword === "COPY" ? copyFrom(instruction.text) : void 0;
+			const held = from === void 0 ? void 0 : toolImageVersion(from, facts);
+			if (held !== void 0) versions.push({
+				tool: held.tool,
+				declaration: {
+					version: held.version,
+					source: "dockerfile",
+					file,
+					line: instruction.line,
+					stage: stage.name ?? String(stages.length - 1)
+				}
+			});
 			const sources = copySources(instruction.text);
 			if (sources.length > 0) stage.copies = [...stage.copies ?? [], ...sources].slice(0, MAX_COPIES);
 			continue;
 		}
 		if (instruction.keyword !== "RUN" || stage === void 0) continue;
-		const run = runCommands(instruction, facts, facts.buildArguments.environmentWins ? withVariables(facts.commands, buildArguments.at(-1), environment) : withVariables(facts.commands, environment, buildArguments.at(-1)));
+		const runEnvironment = facts.buildArguments.environmentWins ? withVariables(facts.commands, buildArguments.at(-1), environment) : withVariables(facts.commands, environment, buildArguments.at(-1));
+		const run = runCommands(instruction, facts, runEnvironment);
+		const configFile = configVariable === void 0 ? void 0 : runEnvironment.get(configVariable);
+		if (configFile !== void 0 && configFile !== "" && run.commands.some((command) => command.tool === "pip" && command.kind === "install")) {
+			const files = stage.pipConfigFiles ?? [];
+			if (!files.includes(configFile) && files.length < 16) stage.pipConfigFiles = [...files, configFile];
+		}
 		if (run.pipConfig === true) stage.pipConfig = true;
 		const seenCorepack = stage.corepack !== void 0;
 		if (run.corepack !== void 0) stage.corepack ??= run.corepack;
@@ -18768,12 +19125,13 @@ function readDockerStages(file, text, facts) {
 			message,
 			line: instruction.line
 		});
-		for (const command of run.commands) {
+		for (const found of run.commands) {
+			const command = expand(found);
 			stage.commands.push(seenCorepack && command.afterCorepack !== true ? {
 				...command,
 				afterCorepack: true
 			} : command);
-			if ((command.kind === "upgrade" || command.tool === "bundler") && command.version !== void 0 && (command.tool === "npm" || command.tool === "pip" || command.tool === "poetry" || command.tool === "bundler")) versions.push({
+			if ((command.kind === "upgrade" || command.tool === "bundler") && command.version !== void 0 && command.tool !== "pnpm" && command.tool !== "yarn" && command.tool !== "bun") versions.push({
 				tool: command.tool,
 				declaration: {
 					version: command.version,
@@ -18915,7 +19273,11 @@ function readScript(script, environmentFile) {
 }
 
 // src/detect/workflows.ts
-const MATRIX_VALUE = /^\$\{\{\s*matrix\.([A-Za-z_][A-Za-z0-9_-]*)\s*\}\}$/u;
+/**
+* One ${{ matrix.<key> }} or ${{ matrix.<key>.<property> }} in a value, with text around it (${{ matrix.node }}.x,
+* decision D-173): the path of the value and the text before and after it.
+*/
+const MATRIX_VALUE = /^([^$]*)\$\{\{\s*matrix\.([A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z_][A-Za-z0-9_-]*)*)\s*\}\}([^$]*)$/u;
 /** At most this many values of one matrix key are checked; a longer list is reported as not checked (a notice). */
 const MAX_MATRIX_VALUES = 256;
 /** The ids GitHub accepts as keys of jobs (environment.githubActions.jobId). */
@@ -18942,43 +19304,60 @@ function findAction(actions, uses) {
 	const name = uses.split("@", 1)[0]?.toLowerCase();
 	return actions.find((action) => action.action.toLowerCase() === name);
 }
+/** The scalar of a matrix value at the properties after its key (matrix.cfg.node: node of each object of cfg). */
+function valueAt$1(node, properties) {
+	let current = node;
+	for (const property of properties) {
+		if (!(0, import_dist.isMap)(current)) return void 0;
+		current = current.get(property, true);
+	}
+	return (0, import_dist.isScalar)(current) ? current : void 0;
+}
 /**
-* The values of a matrix key: its list and the values include entries give it, each value once (at its first line),
-* without the values an exclude entry with only this key removes (an entry with more keys removes some combinations
-* only, so the value stays). undefined when they cannot be listed, `too-many` past MAX_MATRIX_VALUES.
+* The values of a matrix key, or of a property of its objects (cfg.node, decision D-173): its list and the values
+* include entries give it, each value once (at its first line), without the values an exclude entry with only this key
+* removes (an entry with more keys removes some combinations only, so the value stays; an object is removed only by an
+* exclude entry equal to it). undefined when they cannot be listed, `too-many` past MAX_MATRIX_VALUES.
 */
-function matrixValues(job, key) {
+function matrixValues(job, path) {
+	const [key = "", ...properties] = path.split(".");
 	const strategy = job.get("strategy");
 	const matrix = (0, import_dist.isMap)(strategy) ? strategy.get("matrix") : void 0;
 	if (!(0, import_dist.isMap)(matrix)) return void 0;
 	const values = /* @__PURE__ */ new Map();
 	const add = (item) => {
 		const text = scalarText$1(item);
-		if (text === void 0 || values.has(text)) return true;
+		if (item === void 0 || text === void 0 || values.has(text)) return true;
 		if (values.size >= 256) return false;
 		values.set(text, item);
 		return true;
 	};
 	const list = matrix.get(key, true);
-	if ((0, import_dist.isSeq)(list)) for (const item of list.items) {
-		if (!(0, import_dist.isScalar)(item)) return void 0;
-		if (!add(item)) return "too-many";
-	}
-	else if (list !== void 0) return;
-	const include = matrix.get("include");
-	if ((0, import_dist.isSeq)(include)) for (const entry of include.items) {
-		const value = (0, import_dist.isMap)(entry) ? entry.get(key, true) : void 0;
-		if ((0, import_dist.isScalar)(value) && !add(value)) return "too-many";
-	}
+	const excluded = /* @__PURE__ */ new Set();
 	const exclude = matrix.get("exclude");
-	if ((0, import_dist.isSeq)(exclude) && (0, import_dist.isSeq)(list)) {
-		const included = new Set((0, import_dist.isSeq)(include) ? include.items.map((item) => (0, import_dist.isMap)(item) ? scalarText$1(item.get(key, true)) : void 0) : []);
+	const include = matrix.get("include");
+	if ((0, import_dist.isSeq)(list) && (0, import_dist.isSeq)(exclude)) {
+		const same = (a, b) => JSON.stringify((0, import_dist.isScalar)(a) || (0, import_dist.isMap)(a) || (0, import_dist.isSeq)(a) ? a.toJSON() : a) === JSON.stringify((0, import_dist.isScalar)(b) || (0, import_dist.isMap)(b) || (0, import_dist.isSeq)(b) ? b.toJSON() : b);
+		const included = new Set((0, import_dist.isSeq)(include) ? include.items.map((item) => (0, import_dist.isMap)(item) ? scalarText$1(valueAt$1(item.get(key, true), properties)) : void 0) : []);
 		for (const entry of exclude.items) {
 			if (!(0, import_dist.isMap)(entry) || entry.items.length !== 1) continue;
 			const value = entry.get(key, true);
-			const text = (0, import_dist.isScalar)(value) ? scalarText$1(value) : void 0;
-			if (text !== void 0 && !included.has(text)) values.delete(text);
+			for (const item of list.items) {
+				if (!same(item, value)) continue;
+				if (properties.length === 0 && included.has(scalarText$1(item))) continue;
+				excluded.add(item);
+			}
 		}
+	}
+	if ((0, import_dist.isSeq)(list)) for (const item of list.items) {
+		if (properties.length === 0 ? !(0, import_dist.isScalar)(item) : !(0, import_dist.isMap)(item)) return void 0;
+		if (excluded.has(item)) continue;
+		if (!add(valueAt$1(item, properties))) return "too-many";
+	}
+	else if (list !== void 0) return;
+	if ((0, import_dist.isSeq)(include)) for (const entry of include.items) {
+		const value = (0, import_dist.isMap)(entry) ? valueAt$1(entry.get(key, true), properties) : void 0;
+		if (value !== void 0 && !add(value)) return "too-many";
 	}
 	return values.size === 0 ? void 0 : [...values.values()];
 }
@@ -19073,6 +19452,11 @@ function readWorkflows(repository, facts) {
 		const jobs = resolve(document.get("jobs"));
 		if (!(0, import_dist.isMap)(jobs)) continue;
 		const workflowDirectory = defaultDirectory(document.contents);
+		let workflowValues;
+		const workflowLookup = () => {
+			workflowValues ??= environmentOf((0, import_dist.isMap)(document.contents) ? document.contents.get(facts.workflowEnvironment.key) : void 0, resolve);
+			return workflowValues;
+		};
 		const { key: envKey } = facts.workflowEnvironment;
 		const workflowEnvironment = withVariables(facts.commands, environmentOf((0, import_dist.isMap)(document.contents) ? document.contents.get(envKey) : void 0, resolve, asWritten));
 		for (const pair of jobs.items) {
@@ -19081,7 +19465,8 @@ function readWorkflows(repository, facts) {
 			if (id === void 0 || !(0, import_dist.isMap)(job)) continue;
 			const keyLine = (0, import_dist.isScalar)(pair.key) ? lineOf(pair.key) : void 0;
 			const declare = (tool, value, node, step) => {
-				const matrix = "version" in value ? MATRIX_VALUE.exec(value.version)?.[1] : void 0;
+				const parts = "version" in value ? MATRIX_VALUE.exec(value.version) : null;
+				const matrix = parts?.[2];
 				const expanded = matrix === void 0 ? void 0 : matrixValues(job, matrix);
 				if (matrix !== void 0 && expanded === "too-many") {
 					const line = lineOf(node);
@@ -19103,7 +19488,8 @@ function readWorkflows(repository, facts) {
 				}
 				if (matrix !== void 0 && Array.isArray(expanded)) {
 					for (const item of expanded) {
-						const version = scalarText$1(item);
+						const text = scalarText$1(item);
+						const version = text === void 0 ? void 0 : `${parts?.[1] ?? ""}${text}${parts?.[3] ?? ""}`;
 						const line = lineOf(item);
 						if (version !== void 0) findings.versions.push({
 							tool,
@@ -19140,6 +19526,14 @@ function readWorkflows(repository, facts) {
 				commands: [],
 				runsNode: false
 			};
+			let jobValues;
+			const jobLookup = () => {
+				jobValues ??= {
+					job: environmentOf(job.get(envKey), resolve),
+					container: environmentOf((0, import_dist.isMap)(container) ? container.get(containerEnvKey) : void 0, resolve)
+				};
+				return jobValues;
+			};
 			findings.jobs.push(record);
 			const jobDirectory = defaultDirectory(job) ?? workflowDirectory;
 			const { key: containerKey, imageKey, envKey: containerEnvKey } = facts.jobContainer;
@@ -19169,7 +19563,61 @@ function readWorkflows(repository, facts) {
 				}
 			}
 			const jobEnvironment = withVariables(facts.commands, environmentOf((0, import_dist.isMap)(container) ? container.get(containerEnvKey) : void 0, resolve, asWritten), workflowEnvironment, environmentOf(job.get(envKey), resolve, asWritten));
+			/**
+			* jdx/mise-action (decision D-173): the Node.js and Python of the mise configuration of its working directory, which
+			* detection reads from the files there (reader mise, versionFile the directory), or of its mise_toml input; none
+			* with install: false.
+			*/
+			const declareMise = (step, stepLine) => {
+				const known = facts.miseAction;
+				const inputs = step.get("with");
+				const input = (name) => (0, import_dist.isMap)(inputs) ? inputs.get(name, true) : void 0;
+				if (scalarText$1(input(known.inputs.install))?.trim().toLowerCase() === "false") return;
+				const at = {
+					source: "github-actions",
+					file,
+					...stepLine === void 0 ? {} : {
+						line: stepLine,
+						step: stepLine
+					},
+					job: id,
+					reader: "mise"
+				};
+				const inline = input(known.inputs.inlineConfig);
+				const text = scalarText$1(inline);
+				if (text !== void 0) {
+					let document;
+					try {
+						document = parseToml(text);
+					} catch {
+						document = void 0;
+					}
+					for (const [name, tool] of Object.entries(facts.mise.tools)) {
+						const found = document === void 0 ? void 0 : requestIn(document, facts.mise, name);
+						const line = (0, import_dist.isScalar)(inline) ? lineOf(inline) : void 0;
+						if (found !== void 0) findings.versions.push({
+							tool,
+							declaration: {
+								version: found.request,
+								versionFile: `the ${known.inputs.inlineConfig} input`,
+								...at,
+								...line === void 0 ? {} : { line }
+							}
+						});
+					}
+					return;
+				}
+				const directory = workingDirectory(input(known.inputs.workingDirectory)) ?? "";
+				for (const tool of new Set(Object.values(facts.mise.tools))) findings.versions.push({
+					tool,
+					declaration: {
+						versionFile: directory,
+						...at
+					}
+				});
+			};
 			let written = /* @__PURE__ */ new Map();
+			const runDirectories = [];
 			const steps = resolve(job.get("steps"));
 			if (!(0, import_dist.isSeq)(steps)) continue;
 			for (const item of steps.items) {
@@ -19196,6 +19644,7 @@ function readWorkflows(repository, facts) {
 						}
 					}
 				}
+				if (uses !== void 0 && uses.split("@", 1)[0]?.toLowerCase() === facts.miseAction.action.toLowerCase()) declareMise(step, lineOf(step));
 				const run = resolve(step.get("run", true));
 				if ((0, import_dist.isScalar)(run) && typeof run.value === "string" && run.range !== void 0 && run.range !== null) {
 					const start = run.range[0];
@@ -19210,11 +19659,29 @@ function readWorkflows(repository, facts) {
 					for (const message of overLimitMessages(found.overLimit, `the run step of ${jobLabel(id, keyLine)} in ${file} (line ${runLine})`)) repository.warn("script-not-followed", message, [file], runLine);
 					record.runsNode ||= found.runsNode;
 					const configVariable = facts.commands.pip.delay?.configVariable;
-					if (found.pipConfig === true || configVariable !== void 0 && (environment.get(configVariable) ?? "") !== "") record.pipConfig = true;
+					const configFile = configVariable === void 0 ? void 0 : environment.get(configVariable);
+					if (found.pipConfig === true || (configFile ?? "") !== "") record.pipConfig = true;
+					if (configFile !== void 0 && configFile !== "" && !(record.pipConfigFiles ?? []).includes(configFile) && (record.pipConfigFiles?.length ?? 0) < 16) record.pipConfigFiles = [...record.pipConfigFiles ?? [], configFile];
 					const seenCorepack = record.corepack !== void 0;
 					if (found.corepack !== void 0) record.corepack ??= lineCounter.linePos(start + found.corepack).line;
 					const stepDirectory = step.has("working-directory") ? workingDirectory(step.get("working-directory", true)) : jobDirectory;
-					for (const { offset, cd, ...command } of found.commands) {
+					if (!runDirectories.includes(stepDirectory ?? "") && runDirectories.length < 64) runDirectories.push(stepDirectory ?? "");
+					let stepValues;
+					const lookup = { get: (name) => {
+						stepValues ??= environmentOf(stepEnvironment, resolve);
+						const { job: own, container: image } = jobLookup();
+						return stepValues.get(name) ?? own.get(name) ?? workflowLookup().get(name) ?? image.get(name);
+					} };
+					const stepEnvironment = step.get(envKey);
+					for (const { offset, cd, ...written } of found.commands) {
+						let command = written;
+						if (command.version?.includes("$") === true) {
+							const result = substitute(command.version, lookup, "\\");
+							if (result.ok) command = {
+								...command,
+								version: command.tool === "npm" || command.tool === "bundler" ? result.value.trim() : pipVersion(result.value)
+							};
+						}
 						const line = lineCounter.linePos(start + offset).line;
 						const directory = commandDirectory(stepDirectory, cd);
 						const afterCorepack = seenCorepack || found.corepack !== void 0 && found.corepack < offset;
@@ -19224,7 +19691,7 @@ function readWorkflows(repository, facts) {
 							...directory === void 0 ? {} : { directory },
 							...afterCorepack ? { afterCorepack: true } : {}
 						});
-						if ((command.tool === "npm" || command.tool === "poetry" || command.tool === "bundler") && (command.kind === "upgrade" || command.tool === "bundler") && command.version !== void 0) findings.versions.push({
+						if (command.tool !== "pip" && command.tool !== "pnpm" && command.tool !== "yarn" && command.tool !== "bun" && (command.kind === "upgrade" || command.tool === "bundler") && command.version !== void 0) findings.versions.push({
 							tool: command.tool,
 							declaration: {
 								version: command.version,
@@ -19237,6 +19704,7 @@ function readWorkflows(repository, facts) {
 					}
 				}
 			}
+			if (runDirectories.some((directory) => directory !== "")) record.directories = runDirectories;
 		}
 	}
 	return findings;
@@ -22751,6 +23219,7 @@ const SOURCE_ORDER = [
 	"devEngines",
 	"volta",
 	"tool-versions",
+	"mise",
 	"nvmrc",
 	"node-version",
 	"engines",
@@ -22912,6 +23381,26 @@ function readVolta(facts, manifest, collector) {
 		});
 	}
 }
+/** A TOML file of the repository, parsed once, without a warning when it is no TOML (mise files and version files). */
+function quietToml(repository, file) {
+	if (!repository.isFile(file)) return void 0;
+	const text = repository.readText(file);
+	if (text === void 0) return void 0;
+	try {
+		return parseToml(text);
+	} catch {
+		return;
+	}
+}
+/** The Node.js and Python [tools] of the mise files of the root request (decision D-173). */
+function readMise(repository, facts, collector) {
+	for (const [tool, found] of miseTools((file) => quietToml(repository, file), facts.mise)) collector.addVersion(tool, {
+		version: found.request,
+		source: "mise",
+		file: found.file,
+		...found.line === void 0 ? {} : { line: found.line }
+	});
+}
 function readToolVersions(repository, facts, collector) {
 	const file = facts.toolVersions.file;
 	const text = repository.isFile(file) ? repository.readText(file) : void 0;
@@ -22984,9 +23473,20 @@ function versionFromFile(repository, facts, path, manifest) {
 		}
 		return;
 	}
-	if (file.endsWith(".toml")) return void 0;
 	const text = repository.readText(file);
 	if (text === void 0) return void 0;
+	const toml = versionFile.toml;
+	if (toml !== void 0) {
+		let document;
+		try {
+			document = parseToml(text);
+		} catch {
+			document = void 0;
+		}
+		const table = document === void 0 ? void 0 : tomlAt(document, [toml.table]);
+		if (typeof table === "object" && table !== null && !Array.isArray(table) && Object.hasOwn(table, toml.key)) return miseRequest(table[toml.key], toml.versionKey, false)?.request;
+		if (document !== void 0 && file.endsWith(".toml")) return void 0;
+	}
 	const version = new RegExp(versionFile.textPattern, "mu").exec(text)?.groups?.["version"] ?? text.trim();
 	return version === "" ? void 0 : version;
 }
@@ -23201,6 +23701,7 @@ function detectProject(root, tools = knowledgeBase, environment$2 = environment,
 	}
 	readYarnPath(repository, facts, collector);
 	readToolVersions(repository, facts, collector);
+	readMise(repository, facts, collector);
 	readNodeFiles(repository, facts, manifest, collector);
 	readPythonConfig(repository, facts, collector);
 	const owners = /* @__PURE__ */ new Map();
@@ -23222,6 +23723,15 @@ function detectProject(root, tools = knowledgeBase, environment$2 = environment,
 	}
 	const workflows = readWorkflows(repository, facts);
 	for (const { tool, declaration } of workflows.versions) {
+		if (declaration.reader === "mise" && !("version" in declaration)) {
+			const found = miseTools((file) => quietToml(repository, file), facts.mise, declaration.versionFile).get(tool);
+			if (found !== void 0) collector.addVersion(tool, {
+				...declaration,
+				version: found.request,
+				versionFile: found.file
+			});
+			continue;
+		}
 		const version = tool === "node" && !("version" in declaration) ? versionFromFile(repository, facts, declaration.versionFile, manifest) : void 0;
 		collector.addVersion(tool, version === void 0 ? declaration : {
 			version,
@@ -25789,13 +26299,27 @@ function policyName(entry) {
 function covers$1(entry, patterns) {
 	return entry.composerKey === true ? keyCoveredBy(entry.name, patterns) : patterns.some((pattern) => matchesPattern$1(entry.package, pattern));
 }
+function unreadAllowList(tool, version) {
+	const since = tool === void 0 ? void 0 : sinceOf(tool.installScripts.allowList.availableSince);
+	const required = since === void 0 ? void 0 : parseVersion(since);
+	if (tool === void 0 || since === void 0 || required === void 0 || version === void 0 || compareVersions$1(version, required) >= 0) return void 0;
+	return {
+		tool: tool.name,
+		version: formatVersion(version),
+		since
+	};
+}
+/** "Deno 2.5.6 does not read allowScripts (added in 2.6.0), so it runs no install scripts of sharp now, but …". */
+function unreadText(entry, unread) {
+	return `${unread.tool} ${unread.version} does not read ${entry.setting} (added in ${unread.since}), so it runs no install scripts of ${entry.name} now, but ${unread.tool} ${unread.since} and later would let it run them`;
+}
 /**
 * What is wrong with an entry that lets a package the policy does not list run its install scripts, and what to do:
 * for apply (allow-list-entry-outside-policy, `apply` true: with the line, and the entry removed by hand) and doctor
 * (config-drift). A Composer key that matches every plugin, or one the policy cannot name, is not offered for
 * installScripts.allow, since the policy rejects such a name.
 */
-function outsideConflictText(entry, apply = false) {
+function outsideConflictText(entry, apply = false, unread) {
 	const where = `${entry.setting} in ${entry.file}${apply && entry.line !== void 0 ? ` (line ${entry.line})` : ""}`;
 	if (entry.composerKey === true && (matchesEveryComposerName(entry.name) || entry.policyName === void 0)) {
 		const every = matchesEveryComposerName(entry.name);
@@ -25809,7 +26333,7 @@ function outsideConflictText(entry, apply = false) {
 		fix: `Remove ${JSON.stringify(entry.name)} from ${entry.setting} in ${entry.file}${apply ? " by hand" : ""}, or add ${policyName(entry)} to installScripts.allow in ${POLICY_FILE}`
 	};
 	return {
-		message: `${where} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it`,
+		message: unread === void 0 ? `${where} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it` : `${where} lists ${entry.name}, which ${POLICY_FILE} does not allow; ${unreadText(entry, unread)}`,
 		fix: apply ? `Remove ${entry.name} from ${entry.setting} by hand, or add ${policyName(entry)} to installScripts.allow in ${POLICY_FILE}` : `Remove ${entry.name} from ${entry.setting}, or add ${entry.policyName ?? (entry.name === entry.package ? "it" : entry.package)} to installScripts.allow in ${POLICY_FILE}`
 	};
 }
@@ -26001,7 +26525,7 @@ function remainingConflicts(now, planned, manager, configFiles, options, scripts
 * What is wrong with an entry that contradicts installScripts.allow or installScripts.deny, and what to do: the same in
 * apply (deny-conflicts-with-file) and doctor (config-drift). `line` puts the line into the message, for apply's text.
 */
-function denyConflictText(conflict, line = false) {
+function denyConflictText(conflict, line = false, unread) {
 	const { entry } = conflict;
 	const where = `${entry.setting} in ${entry.file}${line && entry.line !== void 0 ? ` (line ${entry.line})` : ""}`;
 	if (entry.composerKey === true) {
@@ -26015,7 +26539,7 @@ function denyConflictText(conflict, line = false) {
 		};
 	}
 	if (conflict.kind === "denied") return {
-		message: `${where} lets ${entry.name} run its install scripts, although installScripts.deny in ${POLICY_FILE} says they must not run`,
+		message: unread === void 0 ? `${where} lets ${entry.name} run its install scripts, although installScripts.deny in ${POLICY_FILE} says they must not run` : `${where} lists ${entry.name}, which installScripts.deny in ${POLICY_FILE} denies; ${unreadText(entry, unread)}`,
 		fix: `Remove ${entry.name} from ${entry.setting} in ${entry.file}, or move ${policyName(entry)} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing its scripts`
 	};
 	return {
@@ -27062,6 +27586,7 @@ function namingOf(source) {
 }
 /** The names a declaration may use: a job container's image tag reads like a Dockerfile's (decision D-115). */
 function namingFor(declaration) {
+	if (declaration.reader === "mise") return "semver";
 	return declaration.container === void 0 ? namingOf(declaration.source) : "docker";
 }
 function segmentsOf(lines) {
@@ -27326,6 +27851,7 @@ const SOURCE_LABEL = {
 	devEngines: "devEngines",
 	volta: "Volta",
 	"tool-versions": ".tool-versions",
+	mise: "mise",
 	nvmrc: ".nvmrc",
 	"node-version": ".node-version",
 	engines: "engines",
@@ -27339,6 +27865,7 @@ const DEVELOPER_SOURCES = /* @__PURE__ */ new Set([
 	"node-version",
 	"volta",
 	"tool-versions",
+	"mise",
 	"devEngines",
 	"engines"
 ]);
@@ -27706,22 +28233,39 @@ function builtByProject(projects) {
 	};
 }
 const AT_ROOT = " at the repository root";
-/** The versions from which npm treats dependency scripts and the settings of the policy otherwise. */
-function npmMarks() {
-	return [
-		...(values$1(npm$1.installScripts.defaultPolicy)[0] ?? []).map((entry) => entry.since),
-		sinceOf(npm$1.installScripts.allowList.availableSince),
-		sinceOf(npm$1.cooldown.availableSince)
-	].flatMap((text) => {
-		const version = text === void 0 ? void 0 : parseVersion(text);
-		return version === void 0 ? [] : [version];
-	});
+/** The npm releases depcurfew knows: the newest of each minor line (extra.lineReleases), the latest one and those Node.js releases come with. */
+let knownNpm;
+function knownNpmReleases() {
+	if (knownNpm !== void 0) return knownNpm;
+	const lines = npm$1.extra?.["lineReleases"] === void 0 ? void 0 : values$1(npm$1.extra["lineReleases"])[0];
+	const latest = npm$1.extra?.["latestVersion"] === void 0 ? void 0 : values$1(npm$1.extra["latestVersion"])[0];
+	const sorted = [...[...Array.isArray(lines) ? lines : [], latest].filter((text) => typeof text === "string").map((text) => parseVersion(text)), ...sharedFacts().node.map((segment) => segment.bundled)].filter((version) => version !== void 0 && version.length === 3).sort(compareVersions$1).filter((version, index, list) => index === 0 || compareVersions$1(version, list[index - 1]) !== 0);
+	knownNpm = sorted;
+	return sorted;
 }
 /**
-* The npm of npm install -g npm@<spec> (decision D-115): an exact version; for a range (npm@11, npm@^11.10.0) its lowest
-* version and the versions it allows from which npm treats dependency scripts otherwise, as for a range in
-* packageManager; for a spec depcurfew cannot read (npm@latest, npm@${NPM_VERSION}) an npm it cannot tell, which
-* counts as one that runs every dependency install script (decision D-111).
+* The npm npm install -g npm@<range> installs (npm extra.rangeInstall, decision D-173): the newest release of the range
+* that runs on the Node.js of the place (one whose engines leave out every release the place allows does not), else the
+* newest release of the range; npm@latest and a bare npm are the range *. It is taken from the releases depcurfew knows
+* (knownNpmReleases): npm installs that one or a newer release. undefined for a dist-tag other than latest and for a
+* range no release depcurfew knows satisfies.
+*/
+function pickedNpm(spec, nodes) {
+	const range = spec === "latest" || spec === "" ? "*" : spec;
+	if (range !== "*" && lowestVersion(range).kind === "unknown") return void 0;
+	const candidates = knownNpmReleases().filter((version) => satisfies(formatVersion(version), range)).sort((a, b) => compareVersions$1(b, a));
+	const facts = sharedFacts();
+	const version = candidates.find((version) => enginesVerdict(version, nodes, facts)?.verdict !== "none") ?? candidates[0];
+	return version === void 0 ? void 0 : {
+		version,
+		newerElsewhere: version !== candidates[0]
+	};
+}
+/**
+* The npm of npm install -g npm@<spec> (decisions D-115 and D-173): an exact version; for a range (npm@11, npm@^11.10.0)
+* or npm@latest the release pickedNpm takes for it; for a spec depcurfew cannot read (npm@next, npm@${NPM_VERSION}, a
+* range with no release it knows) an npm it cannot tell, which counts as one that runs every dependency install script
+* (decision D-111).
 */
 function upgradeEntry(spec, where, location, nodes = []) {
 	const fields = {
@@ -27734,17 +28278,15 @@ function upgradeEntry(spec, where, location, nodes = []) {
 		versions: [exact],
 		...fields
 	};
-	const lowest = lowestVersion(spec);
-	if (lowest.kind === "unknown") return {
+	const picked = pickedNpm(spec, nodes);
+	if (picked === void 0) return {
 		versions: [],
-		unknown: `npm@${spec} names no version depcurfew can read`,
+		unknown: `npm@${spec} names no version depcurfew can read, or none of the npm releases it knows`,
 		spec,
 		...fields
 	};
-	const candidates = [lowest.version, ...npmMarks()].filter((version) => satisfies(formatVersion(version), spec)).sort(compareVersions$1);
-	const versions = candidates.filter((version, index) => index === 0 || compareVersions$1(version, candidates[index - 1]) !== 0);
 	return {
-		versions: versions.length === 0 ? [lowest.version] : versions,
+		versions: [picked.version],
 		range: spec,
 		...fields
 	};
@@ -27763,6 +28305,7 @@ function upgradeEntry(spec, where, location, nodes = []) {
 function npmInUse(detection, manifest, label, options = {}) {
 	const resolve = resolver$1(sharedFacts());
 	const found = [];
+	const locked = (installs) => installs?.lockfile === true && lockedVersionsInstalled() ? { lockfile: true } : {};
 	const keys = /* @__PURE__ */ new Set();
 	const push = (entry) => {
 		const key = `${entry.where}\u0000${entry.versions.map(formatVersion).join(" ")}\u0000${entry.unknown ?? ""}`;
@@ -27770,11 +28313,12 @@ function npmInUse(detection, manifest, label, options = {}) {
 		keys.add(key);
 		found.push(entry);
 	};
-	const add = (resolution, where, location, node) => {
+	const add = (resolution, where, location, node, installs) => {
 		const fields = {
 			where: `with ${where}`,
 			...location === void 0 ? {} : { location },
-			...node === void 0 ? {} : { nodes: [node] }
+			...node === void 0 ? {} : { nodes: [node] },
+			...locked(installs)
 		};
 		push(resolution.kind === "unknown" ? {
 			versions: [],
@@ -27785,16 +28329,19 @@ function npmInUse(detection, manifest, label, options = {}) {
 			...fields
 		});
 	};
-	const unknownNode = (reason, where, location) => add({
+	const unknownNode = (reason, where, location, installs) => add({
 		kind: "unknown",
 		reason
-	}, where, location);
+	}, where, location, void 0, installs);
 	const at = (file, line) => ({
 		file,
 		...line === void 0 ? {} : { line }
 	});
-	const upgrade = (command, where, location, nodes = []) => {
-		if (command.version !== void 0) push(upgradeEntry(command.version, where, location, nodes));
+	const upgrade = (command, where, location, nodes = [], installs) => {
+		if (command.version !== void 0) push({
+			...upgradeEntry(command.version, where, location, nodes),
+			...locked(installs)
+		});
 	};
 	const stageNodes = (place) => {
 		const version = place.stage.runtime?.tool === "node" ? place.stage.runtime.version : void 0;
@@ -27818,6 +28365,7 @@ function npmInUse(detection, manifest, label, options = {}) {
 				versions: [exact],
 				where: `${label(declaration)} in ${declaration.file}`,
 				location: at(declaration.file, declaration.line),
+				declared: label(declaration),
 				...isPin ? { pin: true } : {}
 			});
 			continue;
@@ -27827,7 +28375,8 @@ function npmInUse(detection, manifest, label, options = {}) {
 		if (version !== void 0) push({
 			versions: [version],
 			where: `the lowest version ${label(declaration)} in ${declaration.file} allows`,
-			location: at(declaration.file, declaration.line)
+			location: at(declaration.file, declaration.line),
+			declared: label(declaration)
 		});
 	}
 	const views = [detection];
@@ -27849,38 +28398,38 @@ function npmInUse(detection, manifest, label, options = {}) {
 	});
 	for (const { place, ownFile } of jobs) {
 		if (place.upgrade === void 0 || place.project !== "" || place.installs.scriptsOff) continue;
-		upgrade(place.upgrade, `installed in ${jobLabel(place.job.id, place.job.line)} of ${place.job.file}${ownFile ? "" : AT_ROOT}, line ${place.upgrade.line}`, ownFile ? at(place.job.file, place.upgrade.line) : void 0, place.nodes.flatMap(nodeOf));
+		upgrade(place.upgrade, `installed in ${jobLabel(place.job.id, place.job.line)} of ${place.job.file}${ownFile ? "" : AT_ROOT}, line ${place.upgrade.line}`, ownFile ? at(place.job.file, place.upgrade.line) : void 0, place.nodes.flatMap(nodeOf), place.installs);
 	}
-	for (const place of own) if (place.upgrade !== void 0 && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}, line ${place.upgrade.line}`, at(place.file.file, place.upgrade.line), stageNodes(place));
-	for (const place of fromRoot) if (place.upgrade !== void 0 && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}${AT_ROOT}, line ${place.upgrade.line}`, void 0, stageNodes(place));
+	for (const place of own) if (place.upgrade !== void 0 && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}, line ${place.upgrade.line}`, at(place.file.file, place.upgrade.line), stageNodes(place), place.installs);
+	for (const place of fromRoot) if (place.upgrade !== void 0 && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}${AT_ROOT}, line ${place.upgrade.line}`, void 0, stageNodes(place), place.installs);
 	for (const { place, ownFile } of jobs) {
 		const declaration = place.declaration;
 		if (declaration === void 0 || place.project !== "" || place.installs.scriptsOff) continue;
 		const location = ownFile ? at(declaration.file, declaration.line) : void 0;
 		const job = `${jobLabel(place.job.id, place.job.line)} of ${declaration.file}${ownFile ? "" : AT_ROOT}`;
 		if (!("version" in declaration)) {
-			unknownNode("depcurfew cannot read the version from that file", `Node.js from ${declaration.versionFile} in ${job}`, location);
+			unknownNode("depcurfew cannot read the version from that file", `Node.js from ${declaration.versionFile} in ${job}`, location, place.installs);
 			continue;
 		}
 		const matrix = declaration.matrix === void 0 ? "" : ` (matrix.${declaration.matrix})`;
 		const container = declaration.container === void 0 ? "" : ` of the job container ${declaration.container}`;
 		const from = declaration.versionFile === void 0 ? "" : ` from ${declaration.versionFile}`;
 		const where = `Node.js ${declaration.version}${matrix}${container}${from} in ${job}`;
-		if (declaration.unknown !== void 0) unknownNode(declaration.unknown, where, location);
+		if (declaration.unknown !== void 0) unknownNode(declaration.unknown, where, location, place.installs);
 		else add(resolve(declaration.version, namingFor(declaration)), where, location, {
 			version: declaration.version,
 			naming: namingFor(declaration)
-		});
+		}, place.installs);
 	}
 	const subject = (place) => `Node.js ${place.stage.runtime?.version === void 0 ? "" : `${place.stage.runtime.version} `}of ${place.root.image ?? "node"} in ${place.file.file}`;
 	const stage = (place, suffix, location) => {
 		if (place.upgrade !== void 0 || place.installs.scriptsOff) return;
 		const version = place.stage.runtime?.version;
-		if (version === void 0) unknownNode(place.stage.runtime?.unknown ?? "the tag names no version", `${subject(place)}${suffix}`, location);
+		if (version === void 0) unknownNode(place.stage.runtime?.unknown ?? "the tag names no version", `${subject(place)}${suffix}`, location, place.installs);
 		else add(resolve(version, "docker"), `${subject(place)}${suffix}`, location, {
 			version,
 			naming: "docker"
-		});
+		}, place.installs);
 	};
 	for (const place of own) stage(place, "", at(place.file.file, place.root.line));
 	for (const declaration of developerPlaces(detection, manager, manifest, (options.root?.versions.length ?? 0) > 0)) {
@@ -28062,25 +28611,30 @@ function checkUpgrade(context, helpers, check, place, facts) {
 	if (spec === void 0) return;
 	const name = check.tool.name;
 	const where = place.label === place.file ? place.label : `${place.label} (${place.file})`;
-	const lowest = lowestVersion(spec);
-	if (lowest.kind === "unknown") {
-		context.notice(`${RULE$5} cannot evaluate ${name} version "${spec}" in ${place.file}`, place.file);
+	const written = lowestVersion(spec);
+	const picked = written.kind === "exact" ? void 0 : pickedNpm(spec, place.nodes);
+	if (written.kind !== "exact" && picked === void 0) {
+		context.notice(`${RULE$5} cannot evaluate ${name} version "${spec}" in ${place.file}: it is no version, range or latest, or none of the ${name} releases depcurfew knows is in it`, place.file);
 		return;
 	}
+	const lowest = picked === void 0 ? written : {
+		kind: "exact",
+		version: picked.version
+	};
 	const missing = helpers.missing(placeFeatures(check.features, place.of), (since) => belowVersion(lowest, since));
 	if (missing.length === 0) return;
 	const needed = newest(missing.map((item) => parseVersion(item.since)));
 	const list = describeRequirements(missing);
-	const subject = lowest.kind === "exact" ? `${name} ${formatBound(lowest)} in ${where} does not support ${list}` : `${where} allows ${name} ${formatBound(lowest)} ("${spec}"), which does not support ${list}`;
+	const subject = picked === void 0 ? `${name} ${formatBound(lowest)} in ${where} does not support ${list}` : `${where} installs ${name} ${formatVersion(picked.version)} ("${spec}": the newest release of it depcurfew knows${picked.newerElsewhere ? " that runs on the Node.js there" : ""}), which does not support ${list}`;
 	const alternative = helpers.alternative(missing, name, check.advice);
 	const engines = (version) => {
 		const found = enginesVerdict(version, place.nodes, facts);
 		if (found === void 0) return "";
 		return found.verdict === "none" ? ` (npm ${formatVersion(version)} runs on Node.js ${found.range}, so move to such a Node.js release first)` : ` (npm ${formatVersion(version)} runs on Node.js ${found.range} only)`;
 	};
-	const fix = alternative !== void 0 && lowest.kind === "exact" && compareVersions$1(lowest.version, alternative.version) >= 0 ? `${alternative.set.charAt(0).toUpperCase()}${alternative.set.slice(1)}, or require ${name} ${formatVersion(needed)} or later in ${place.label}${engines(needed)}` : `Require ${name} ${formatVersion(needed)} or later in ${place.label}${engines(needed)}${alternative === void 0 ? "" : `, or ${alternative.text}`}`;
+	const fix = alternative !== void 0 && picked === void 0 && compareVersions$1(lowest.version, alternative.version) >= 0 ? `${alternative.set.charAt(0).toUpperCase()}${alternative.set.slice(1)}, or require ${name} ${formatVersion(needed)} or later in ${place.label}${engines(needed)}` : `Require ${name} ${formatVersion(needed)} or later in ${place.label}${engines(needed)}${alternative === void 0 ? "" : `, or ${alternative.text}`}`;
 	context.report({
-		level: lowest.kind === "exact" ? "error" : "warning",
+		level: picked === void 0 ? "error" : "warning",
 		location: {
 			file: place.file,
 			line: place.command.line
@@ -28704,7 +29258,7 @@ const managerVersionTooOld = {
 	id: "manager-version-too-old",
 	checks: "The declared package manager versions, and the npm and pip that come with the declared Node.js and Python versions, support the settings the repository relies on",
 	summary: "A declared package manager version, or the npm or pip that comes with a declared Node.js or Python version, is older than a setting the repository relies on.",
-	description: "Package managers ignore settings they do not know yet; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, a CI step or a Dockerfile pins an older version, the setting is silently not applied there. The same holds for the npm that comes with the Node.js a CI job, a Dockerfile stage or a version file (.nvmrc, .node-version) chooses, and for the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age. Composer cannot pin its own version: a composer.lock whose plugin-api-version shows that a Composer older than 2.11 wrote it gives a warning, and otherwise a note says that the cooldown needs Composer 2.11. Bundler switches to the version of BUNDLED WITH in Gemfile.lock, which counts as a pin (the cooldown: of a Gemfile source needs 4.0.14 once Gemfile.lock exists), as do the bundler input of ruby/setup-ruby and gem install bundler -v. The release yarnPath in .yarnrc.yml names (yarn-<version>.cjs) is a pin too: every Yarn from 1.18 runs it.",
+	description: "Package managers ignore settings they do not know; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, mise.toml, a CI step or a Dockerfile (pipx install poetry==X, the uv image) pins an older version, the setting is silently not applied there, and so for the npm of the Node.js a CI job, a Dockerfile stage or a version file chooses and the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age. npm install -g npm@<range> counts as the newest release of it depcurfew knows. Composer pins no version: a composer.lock whose plugin-api-version shows a Composer older than 2.11 gives a warning, otherwise a note says the cooldown needs 2.11. Bundler switches to the version of BUNDLED WITH in Gemfile.lock, which counts as a pin (cooldown: in a Gemfile needs 4.0.14 once Gemfile.lock exists), as do the bundler input of ruby/setup-ruby and gem install bundler -v. So is the release yarnPath in .yarnrc.yml names (yarn-<version>.cjs), which every Yarn from 1.18 runs.",
 	help: "Raise the declared version to at least the version that introduced the setting, everywhere it is declared, or install a newer npm or pip before installing packages.",
 	level: "error",
 	requiresPolicy: false,
@@ -31894,6 +32448,62 @@ function scriptsForVersionsInUse(context, file, entries, managed) {
 		});
 	}
 }
+/**
+* version-in-use-too-old (decision D-173): the npm versions the directory runs besides the pinned one (npmInUse, the list
+* doctor's manager-version-too-old checks too) that lack a setting apply writes for the release-age delay or a dependency
+* source, such as the npm 11.3 to 11.9 of Node.js 24.0 to 24.14 without min-release-age. A place that only runs npm ci
+* needs no delay; the install-script settings have warnings of their own (strict-allow-scripts-for-npm-in-use,
+* scripts-not-enforceable).
+*/
+function versionsInUseTooOld(context, written) {
+	const lacking = context.inUse.flatMap((entry) => {
+		if (entry.pin === true || entry.unknown !== void 0 || entry.versions.length === 0) return [];
+		const missing = written.filter((item) => {
+			if (entry.lockfile === true && item.kind === "cooldown") return false;
+			const since = parseVersion(item.since);
+			return since !== void 0 && entry.versions.some((version) => compareVersions$1(version, since) < 0);
+		});
+		if (missing.length === 0) return [];
+		const newest = entry.versions.reduce((a, b) => compareVersions$1(a, b) >= 0 ? a : b);
+		const none = missing.filter((item) => compareVersions$1(newest, parseVersion(item.since)) < 0);
+		return [{
+			entry,
+			missing,
+			none,
+			key: `${missing.map((item) => item.setting).join(",")}\u0000${none.map((item) => item.setting).join(",")}`
+		}];
+	});
+	const groups = /* @__PURE__ */ new Map();
+	for (const item of lacking) groups.set(item.key, [...groups.get(item.key) ?? [], item]);
+	for (const group of groups.values()) {
+		const first = group[0];
+		if (first === void 0) continue;
+		const texts = group.map((item) => npmInUseText(item.entry));
+		const shown = texts.length <= MAX_PLACES ? listing$1(texts) : `${texts.slice(0, 5).join(", ")} and ${texts.length - MAX_PLACES + 1} more places`;
+		const several = group.length > 1 || npmInUseSeveral(first.entry);
+		const all = first.none.length === first.missing.length;
+		const list = describeRequirements(first.missing.map(({ setting, since }) => ({
+			setting,
+			since
+		})));
+		const disputed = first.missing.some((item) => item.disputed === true) ? "; where official sources disagree on the version, depcurfew assumes the later one" : "";
+		const subject = all ? `${shown} ${several ? "do" : "does"} not support ${list}` : `${shown} ${group.length > 1 ? "include" : "includes"} npm releases that do not support ${list}`;
+		const needed = first.missing.map((item) => item.since).reduce((a, b) => compareVersions$1(parseVersion(a), parseVersion(b)) >= 0 ? a : b);
+		const engines = npmEnginesOn(parseVersion(needed), group.flatMap((item) => item.entry.nodes ?? []));
+		const only = engines?.verdict === "some" ? `; npm ${needed} runs on Node.js ${engines.range} only` : "";
+		const declared = [...new Set(group.flatMap((item) => item.entry.declared === void 0 ? [] : [item.entry.declared]))];
+		const raise = declared.length === 0 ? "" : `require npm ${needed} or later in ${listing$1(declared)}`;
+		const others = group.some((item) => item.entry.declared === void 0);
+		const install = [...raise === "" ? [] : [raise], ...others ? [`install npm ${needed} or later before packages are installed there (npm install -g npm@${needed}${only}), or move to a Node.js release that comes with it`] : []].join(", and ");
+		const location = group.find((item) => item.entry.location !== void 0)?.entry.location;
+		context.warn({
+			code: "version-in-use-too-old",
+			...location === void 0 ? {} : { location },
+			message: `${subject}, which depcurfew apply writes for ${context.project ?? "the repository"}, so ${first.missing.length === 1 ? "it has" : "they have"} no effect there${disputed}`,
+			fix: `${engines?.verdict === "none" ? `Move to a Node.js release that npm ${needed} runs on (${engines.range}), then ${install}` : `${install.charAt(0).toUpperCase()}${install.slice(1)}`}; depcurfew doctor reports each place (manager-version-too-old)`
+		});
+	}
+}
 /** Whether some npm in use (or the pinned one) has a setting available since `since`. */
 function someSupports(context, since, setting) {
 	if (context.inUse.length === 0) return context.supports(since, setting);
@@ -31908,6 +32518,16 @@ const npm = (context) => {
 	const entries = [];
 	const managed = [];
 	let minutes;
+	const written = [];
+	const requirement = (setting, fact, kind) => {
+		const since = sinceOf(fact);
+		if (since !== void 0) written.push({
+			setting,
+			since,
+			kind,
+			...fact?.status === "disputed" ? { disputed: true } : {}
+		});
+	};
 	if (policy.cooldown !== void 0) {
 		const setting = settingOf(tool.cooldown.setting) ?? "min-release-age";
 		const cooldown = cooldownValue(context);
@@ -31915,6 +32535,7 @@ const npm = (context) => {
 			minutes = cooldown.minutes;
 			entries.push(`${setting}=${cooldown.value}`);
 			managed.push(setting);
+			requirement(setting, tool.cooldown.availableSince, "cooldown");
 			const fact = extraOf(tool, "beforeInteraction", isBefore$1);
 			const date = iniEntries(context.read(file)).filter((entry) => entry.key === fact.setting).at(-1);
 			if (date !== void 0 && context.atLeast(fact.exclusive.since)) {
@@ -31939,6 +32560,7 @@ const npm = (context) => {
 				const suffix = extraOf(tool, "npmrcListSyntax", isString$1);
 				for (const pattern of patterns) entries.push(`${excludeSetting}${suffix}=${pattern}`);
 				managed.push(excludeSetting);
+				if (patterns.length > 0) requirement(excludeSetting, tool.cooldown.exclude.availableSince, "cooldown");
 			}
 		}
 	}
@@ -31998,7 +32620,9 @@ const npm = (context) => {
 		entries.push(`${setting}=${access === "deny" ? "none" : "all"}`);
 		managed.push(setting);
 		context.writes("sources", setting, file);
+		requirement(setting, tool.sources?.[kind].availableSince, "sources");
 	});
+	versionsInUseTooOld(context, written);
 	if (entries.length > 0 || hasManagedLines(context.read(file)) || managed.length > 0 && context.exists(file)) context.ini(file, entries, managed);
 	return minutes;
 };
@@ -34916,6 +35540,20 @@ function omittedOptionalText(known, place) {
 }
 
 // src/apply/index.ts
+/**
+* The versions root CI jobs declare for the package managers of a project (decision D-173): the declarations of setup
+* steps (source github-actions) of a job of the root whose run steps all work in the project's directory, from the
+* root's package managers and those its CI sets up for the projects (ciForProjects).
+*/
+function rootCiVersions(rootDetection, project) {
+	const found = {};
+	const inProject = (job) => job?.directories !== void 0 && job.directories.length > 0 && job.directories.every((directory) => directory !== "" && projectOf({ directory }, [project]) === project);
+	for (const manager of [...rootDetection.packageManagers, ...rootDetection.ciForProjects ?? []]) {
+		const declarations = manager.versions.filter((declaration) => declaration.source === "github-actions" && inProject(rootDetection.jobs.find((job) => job.file === declaration.file && job.id === declaration.job)));
+		if (declarations.length > 0) found[manager.id] = [...found[manager.id] ?? [], ...declarations];
+	}
+	return found;
+}
 const DETAILS = /* @__PURE__ */ new WeakMap();
 /** What planApply configured for this report; undefined for a report it did not make. */
 function planDetails(report) {
@@ -35025,6 +35663,7 @@ function allowListWarnings(root, workspace, policy, detection, targets, tools) {
 			...tool === void 0 ? {} : { tool },
 			...version === void 0 ? {} : { version }
 		};
+		const unread = unreadAllowList(tool, version);
 		return remainingConflicts(repository, planned, manager.id, manager.configFiles, options, scripts).map((conflict) => {
 			const { entry } = conflict;
 			const location = {
@@ -35033,7 +35672,7 @@ function allowListWarnings(root, workspace, policy, detection, targets, tools) {
 			};
 			const name = `${tool?.name ?? manager.id}: `;
 			if (conflict.kind === "outside") {
-				const text = outsideConflictText(entry, true);
+				const text = outsideConflictText(entry, true, unread);
 				return {
 					code: "allow-list-entry-outside-policy",
 					tool: manager.id,
@@ -35045,7 +35684,7 @@ function allowListWarnings(root, workspace, policy, detection, targets, tools) {
 			const text = denyConflictText({
 				kind: conflict.kind,
 				entry
-			}, true);
+			}, true, unread);
 			return {
 				code: "deny-conflicts-with-file",
 				tool: manager.id,
@@ -35232,7 +35871,12 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 	for (const tool of tools) {
 		const generator = MANAGERS[tool.id];
 		if (generator === void 0 || !targets.has(tool.id)) continue;
-		const manager = detection.packageManagers.find((entry) => entry.id === tool.id);
+		const own = detection.packageManagers.find((entry) => entry.id === tool.id);
+		const inherited = options.pins?.[tool.id] ?? [];
+		const manager = own === void 0 || inherited.length === 0 ? own : {
+			...own,
+			versions: [...own.versions, ...inherited]
+		};
 		const version = manager === void 0 ? void 0 : pinnedVersion(manager);
 		if (version === void 0) {
 			const latest = latestVersion(tool);
@@ -35299,10 +35943,12 @@ function npmVersionsInUse(root, detection, policy, options) {
 function projectPlanOptions(rootDetection, project, detection) {
 	const ci = jobsInProject(rootDetection, project);
 	const root = rootPlaces(rootDetection, project, detection);
+	const pins = rootCiVersions(rootDetection, project);
 	return {
 		project,
 		...ci.jobs.length === 0 ? {} : { ci },
-		...root.versions.length === 0 && root.dockerfiles.length === 0 ? {} : { root }
+		...root.versions.length === 0 && root.dockerfiles.length === 0 ? {} : { root },
+		...Object.keys(pins).length === 0 ? {} : { pins }
 	};
 }
 /** The files a message about a project may name, relative to the project: what detection found and what the plan touched. */
@@ -38815,6 +39461,7 @@ function checkAllowLists(context, plan) {
 			...knowledge === void 0 ? {} : { tool: knowledge },
 			...version === void 0 ? {} : { version }
 		};
+		const unread = unreadAllowList(knowledge, version);
 		for (const conflict of remainingConflicts(context.repository, planned, manager.id, manager.configFiles, options, scripts)) {
 			const { entry } = conflict;
 			const location = entry.line === void 0 ? { file: entry.file } : {
@@ -38823,19 +39470,19 @@ function checkAllowLists(context, plan) {
 			};
 			if (conflict.kind !== "outside") {
 				context.report({
-					level: conflict.kind === "denied" ? "error" : "warning",
+					level: conflict.kind === "denied" && unread === void 0 ? "error" : "warning",
 					location,
 					...denyConflictText({
 						kind: conflict.kind,
 						entry
-					})
+					}, false, unread)
 				});
 				continue;
 			}
 			context.report({
 				level: "warning",
 				location,
-				...outsideConflictText(entry)
+				...outsideConflictText(entry, false, unread)
 			});
 		}
 	}
@@ -38973,7 +39620,7 @@ const configDrift = {
 	id: "config-drift",
 	checks: "Configuration files match what depcurfew apply writes for depcurfew.json",
 	summary: "A configuration file does not match what depcurfew apply writes for depcurfew.json.",
-	description: "A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool's own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning. So is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, which apply keeps unless it wrote the entry itself. What apply cannot write is an error where it says: the cooldown of Bundler in a Gemfile (a source with a block, a modifier or in other code, cooldown: twice, a URL from ENV, no rubygems.org source, a Gemfile depcurfew cannot read as Ruby does; a warning if that call waits as long as the policy), and a --no-binary or --only-binary=:none: of pip it cannot comment out.",
+	description: "A generated setting was edited by hand, or depcurfew.json changed without depcurfew apply, so the tools enforce something other than the policy. Entries in a tool's own install-script lists that apply does not change are reported too: one that lets a package of installScripts.deny run its scripts is an error; one that lets a package the policy does not name run them, blocks a package the policy allows, or is not read by the version in use yet (Deno before 2.6.0) is a warning, as is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, unless apply wrote it. What apply cannot write is an error where it says: the cooldown of Bundler in a Gemfile (a source with a block, a modifier or in other code, cooldown: twice, a URL from ENV, no rubygems.org source, a Gemfile depcurfew cannot read as Ruby does; a warning if that call waits as long as the policy), and a --no-binary or --only-binary=:none: of pip it cannot comment out.",
 	help: "Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.",
 	level: "error",
 	requiresPolicy: true,
@@ -41434,12 +42081,39 @@ function checkPipenv(context, tool) {
 		});
 	}
 }
+/** A COPY or ADD source of the build context that brings `file` into the image: the file, or a directory that holds it. */
+function copiesFile(source, file) {
+	const path = contextPath(source);
+	return path !== void 0 && (path === "." || path === file || file.startsWith(`${path}/`));
+}
+/**
+* Whether a CI job or a Dockerfile stage points PIP_CONFIG_FILE to `file` (decision D-173): a job with the path of the
+* file from the root of the workspace (pip.conf, ./pip.conf, ${{ github.workspace }}/pip.conf, $GITHUB_WORKSPACE/pip.conf),
+* a stage with a path whose name is the file's name, when it or a stage it starts from copies the file from the build
+* context. Then pip reads the file there.
+*/
+function pointedTo(context, file) {
+	const workspace = /^(?:\$\{\{\s*github\.workspace\s*\}\}|\$\{?GITHUB_WORKSPACE\}?)\//u;
+	const normalized = (value) => value.trim().replace(workspace, "").replace(/^(?:\.\/)+/u, "");
+	if (context.detection.jobs.some((job) => (job.pipConfigFiles ?? []).some((value) => normalized(value) === file))) return true;
+	const name = file.split("/").at(-1) ?? file;
+	return context.detection.dockerfiles.some(({ stages }) => stages.some((stage, index) => {
+		if (!(stage.pipConfigFiles ?? []).some((value) => value.trim().split("/").at(-1) === name)) return false;
+		for (let at = index, seen = 0; at !== void 0 && seen <= index; seen++) {
+			const current = stages[at];
+			if (current === void 0) break;
+			if ((current.copies ?? []).some((source) => copiesFile(source, file))) return true;
+			at = current.from !== void 0 && current.from < at ? current.from : void 0;
+		}
+		return false;
+	}));
+}
 function checkPip(context, tool, configFiles) {
 	const names = extraOf(tool, "configFileNames", isStrings);
 	const configVariable = extraOf(tool, "configFileVariable", (value) => typeof value === "string");
 	for (const directory of [".", ...context.detection.workspaces?.packages ?? []]) for (const name of names) {
 		const file = joinPath(directory, name);
-		if (!context.repository.isFile(file)) continue;
+		if (!context.repository.isFile(file) || pointedTo(context, file)) continue;
 		context.report({
 			level: "warning",
 			location: { file },
@@ -41587,7 +42261,7 @@ const pythonConfigIgnored = {
 	id: "python-config-ignored",
 	checks: "Python tools read their settings where they are written",
 	summary: "A Python tool ignores a setting where it is written.",
-	description: "uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files, so a CI job or a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = \"pure-python\" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.",
+	description: "uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project (a pip.conf counts only where PIP_CONFIG_FILE names it) and rejects options it does not know in requirements files, so a CI job or a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = \"pure-python\" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.",
 	help: "Move the setting to the file the tool reads.",
 	level: "error",
 	requiresPolicy: false,

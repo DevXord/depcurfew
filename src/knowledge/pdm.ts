@@ -3,6 +3,8 @@ import { PLATFORMDIRS_CHANGELOG, PLATFORMDIRS_NOTE, platformdirsMacos } from './
 import type { DirectoryOptionsKnowledge, EnvironmentNameRule, RegistrySettingKnowledge, SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
+// Versions that CI jobs and Dockerfiles install (decision D-173).
+const d173 = verifiedOn('2026-11-03');
 const rechecked = verifiedOn('2026-10-31');
 const user = verifiedOn('2026-10-31');
 const leftovers = verifiedOn('2026-11-01');
@@ -166,6 +168,11 @@ export const pdm: ToolKnowledge = {
     ),
   },
   extra: {
+    installedPackage: d173.verified(
+      { name: 'pdm', commands: [['uv', 'tool', 'install'], ['pipx', 'install'], ['pip', 'install']] },
+      `${PDM}/docs/index.md`,
+      'The installation page lists uv tool install pdm, pipx install pdm and pip install --user pdm among the other installation methods. Each takes a version with the package: uv tool install "package versions can be included without --from" (uv tool install \'httpie>0.1.0\', https://github.com/astral-sh/uv/blob/0.13.6/docs/guides/tools.md), as pipx and pip install do (pipx install poetry==1.8.4 on the installation page of Poetry). So pdm==<version> in such a command of a CI job or a Dockerfile is the PDM the later commands run (decision D-173).',
+    ),
     environmentNames: current.verified<EnvironmentNameRule[]>(
       [{ prefix: '', match: 'exact' }],
       `${PDM}/src/pdm/project/config.py`,

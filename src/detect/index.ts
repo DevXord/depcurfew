@@ -20,6 +20,7 @@ import type {
 } from './types.ts';
 import { parseToml, tomlValueAt, type TomlDocument, type TomlValue } from './toml.ts';
 import { projectOf, readWorkflows } from './workflows.ts';
+import { miseRequest, miseTools } from './mise.ts';
 import { dockerfileCandidates, readDockerStages } from './dockerfiles.ts';
 import { expandWorkspaces } from './workspaces.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
@@ -46,6 +47,7 @@ const SOURCE_ORDER: readonly VersionSource[] = [
   'devEngines',
   'volta',
   'tool-versions',
+  'mise',
   'nvmrc',
   'node-version',
   'engines',
@@ -214,6 +216,25 @@ function readVolta(facts: DetectionFacts, manifest: Json, collector: Collector):
   }
 }
 
+/** A TOML file of the repository, parsed once, without a warning when it is no TOML (mise files and version files). */
+function quietToml(repository: Repository, file: string): TomlDocument | undefined {
+  if (!repository.isFile(file)) return undefined;
+  const text = repository.readText(file);
+  if (text === undefined) return undefined;
+  try {
+    return parseToml(text);
+  } catch {
+    return undefined;
+  }
+}
+
+/** The Node.js and Python [tools] of the mise files of the root request (decision D-173). */
+function readMise(repository: Repository, facts: DetectionFacts, collector: Collector): void {
+  for (const [tool, found] of miseTools((file) => quietToml(repository, file), facts.mise)) {
+    collector.addVersion(tool, { version: found.request, source: 'mise', file: found.file, ...(found.line === undefined ? {} : { line: found.line }) });
+  }
+}
+
 function readToolVersions(repository: Repository, facts: DetectionFacts, collector: Collector): void {
   const file = facts.toolVersions.file;
   const text = repository.isFile(file) ? repository.readText(file) : undefined;
@@ -270,9 +291,23 @@ function versionFromFile(repository: Repository, facts: DetectionFacts, path: st
     }
     return undefined;
   }
-  if (file.endsWith('.toml')) return undefined;
   const text = repository.readText(file);
   if (text === undefined) return undefined;
+  // setup-node parses any other file as TOML first and takes tools.node of a mise.toml (decision D-173).
+  const toml = versionFile.toml;
+  if (toml !== undefined) {
+    let document: TomlDocument | undefined;
+    try {
+      document = parseToml(text);
+    } catch {
+      document = undefined;
+    }
+    const table = document === undefined ? undefined : tomlAt(document, [toml.table]);
+    if (typeof table === 'object' && table !== null && !Array.isArray(table) && Object.hasOwn(table, toml.key)) {
+      return miseRequest((table as Record<string, TomlValue>)[toml.key], toml.versionKey, false)?.request;
+    }
+    if (document !== undefined && file.endsWith('.toml')) return undefined;
+  }
   const match = new RegExp(versionFile.textPattern, 'mu').exec(text);
   const version = match?.groups?.['version'] ?? text.trim();
   return version === '' ? undefined : version;
@@ -469,6 +504,7 @@ export function detectProject(
   }
   readYarnPath(repository, facts, collector);
   readToolVersions(repository, facts, collector);
+  readMise(repository, facts, collector);
   readNodeFiles(repository, facts, manifest, collector);
   readPythonConfig(repository, facts, collector);
 
@@ -495,6 +531,12 @@ export function detectProject(
 
   const workflows = readWorkflows(repository, facts);
   for (const { tool, declaration } of workflows.versions) {
+    // jdx/mise-action: the tool mise reads in the directory the step names, from the file that wins (decision D-173).
+    if (declaration.reader === 'mise' && !('version' in declaration)) {
+      const found = miseTools((file) => quietToml(repository, file), facts.mise, declaration.versionFile).get(tool);
+      if (found !== undefined) collector.addVersion(tool, { ...declaration, version: found.request, versionFile: found.file });
+      continue;
+    }
     const version = tool === 'node' && !('version' in declaration) ? versionFromFile(repository, facts, declaration.versionFile, manifest) : undefined;
     collector.addVersion(tool, version === undefined ? declaration : { version, ...declaration });
   }

@@ -14,10 +14,8 @@
       "tools": [
         {
           "tool": "npm",
-          "ok": true,
-          "unit": "days",
-          "value": 3,
-          "exact": true
+          "ok": false,
+          "reason": "npm 11.6.2 does not support min-release-age and allow-git (added in 11.10.0), allow-remote, allow-file and allow-directory (added in 11.15.0), allowScripts (added in 11.16.0); not written"
         },
         {
           "tool": "renovate",

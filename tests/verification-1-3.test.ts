@@ -222,8 +222,10 @@ describe('the npm a fix offers runs on the Node.js of the place (V4)', () => {
   });
 
   it('checks the Node.js of the job for npm install -g npm@X there, also for strict-allow-scripts', () => {
+    // npm@~11.15.0 is 11.15.0, which has no allow-list; npm@11 is the newest 11.x (decision D-173).
+    const old = npmRepo({ '.github/workflows/ci.yml': workflow(`${setupNode('20')}      - run: npm install -g npm@~11.15.0 && npm install\n`) });
     const directory = npmRepo({ '.github/workflows/ci.yml': workflow(`${setupNode('20')}      - run: npm install -g npm@11 && npm install\n`) });
-    expect(warning(directory, 'scripts-not-enforceable')?.fix).toBe(
+    expect(warning(old, 'scripts-not-enforceable')?.fix).toBe(
       'Install npm 11.16.0 or later before packages are installed there (npm install -g npm@11.16.0; npm 11.16.0 runs on Node.js ^20.17.0 || >=22.9.0 only), or move to a Node.js release that comes with it; npm 12 blocks dependency scripts by default',
     );
     expect(warning(directory, 'strict-allow-scripts-for-npm-in-use')?.fix).toMatch(
@@ -239,7 +241,8 @@ describe('the verb agrees with the list of npm places (V8)', () => {
   const ciRepo = (spec: string) =>
     repository({ 'depcurfew.json': policy(DENY), 'package.json': manifest, 'package-lock.json': LOCK, '.github/workflows/ci.yml': workflow(`${setupNode('24')}      - run: npm install -g npm@${spec} && npm install\n`) });
 
-  // npm@11.15 allows no npm 11.16 to 11.x, so apply writes no strict-allow-scripts for it.
+  // npm@11 and npm@^11.10.0 are the newest 11.x, 11.21.1, and npm@11.15 is 11.15.0, which runs every script, so apply
+  // writes no strict-allow-scripts for it (decision D-173).
   it.each([
     ['11', true],
     ['^11.10.0', true],
@@ -248,7 +251,7 @@ describe('the verb agrees with the list of npm places (V8)', () => {
     const directory = ciRepo(spec);
     const where = `npm@${spec} (installed in job test of .github/workflows/ci.yml, line 9)`;
     const warnings = plan(directory).warningDetails;
-    expect(warnings.find((item) => item.code === 'scripts-not-enforceable')?.message).toBe(`${where} runs every dependency install script and has no allow-list, so "deny" cannot be enforced there`);
+    expect(warnings.find((item) => item.code === 'scripts-not-enforceable')?.message).toBe(strict ? undefined : `${where} runs every dependency install script and has no allow-list, so "deny" cannot be enforced there`);
     expect(warnings.find((item) => item.code === 'strict-allow-scripts-for-npm-in-use')?.message?.includes(`, and ${where} runs dependency install scripts that allowScripts does not cover`) ?? false).toBe(strict);
     expect(runDoctor(directory).findings.find((item) => item.rule === 'lockfile-install-scripts')?.message).toBe(`core-js has install scripts and ${where} runs them, but depcurfew.json does not allow it`);
   });

@@ -12,6 +12,8 @@ const finalReview = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
 const runners = verifiedOn('2026-11-03');
 const secrets = verifiedOn('2026-11-03');
+// The npm that npm install -g npm@<range> installs (decision D-173).
+const d173 = verifiedOn('2026-11-03');
 
 const CONFIG = 'https://docs.npmjs.com/cli/v12/using-npm/config';
 const CONFIG_V11 = 'https://docs.npmjs.com/cli/v11/using-npm/config';
@@ -319,6 +321,22 @@ export const npm: ToolKnowledge = {
       '12.2.1',
       release('12.2.1'),
       'Marked as the latest GitHub release on 2026-10-28; the 11.x line is still maintained (11.21.1).',
+    ),
+    lineReleases: d173.verified(
+      [
+        '6.14.18', '7.24.2', '8.19.4',
+        '9.0.1', '9.1.3', '9.2.0', '9.3.1', '9.4.2', '9.5.1', '9.6.7', '9.7.2', '9.8.1', '9.9.4',
+        '10.0.0', '10.1.0', '10.2.5', '10.3.0', '10.4.0', '10.5.2', '10.6.0', '10.7.0', '10.8.3', '10.9.9',
+        '11.0.0', '11.1.0', '11.2.0', '11.3.0', '11.4.2', '11.5.2', '11.6.4', '11.7.0', '11.8.0', '11.9.0', '11.10.1', '11.11.1', '11.12.1', '11.13.0', '11.14.1', '11.15.0', '11.16.0', '11.17.0', '11.18.0', '11.19.1', '11.20.0', '11.21.1',
+        '12.0.2', '12.1.0', '12.2.1',
+      ],
+      'https://registry.npmjs.org/npm',
+      'The newest release of each minor line from 9.0 to 12.2, and of the major lines 6, 7 and 8, among the versions of the npm package in the registry on 2026-11-03 (modified 2026-10-21); none of 10.x to 12.x is deprecated. The dist-tags agree (https://registry.npmjs.org/-/package/npm/dist-tags: latest 12.2.1, next-11 11.21.1, next-10 10.9.9, next-9 9.9.4, next-8 8.19.4, latest-7 7.24.2, latest-6 6.14.18), and so do the v<version> tags of npm/cli. npm does not publish a release twice, so a later run of npm install -g npm@11 installs this release or a newer 11.x.',
+    ),
+    rangeInstall: d173.verified(
+      { picks: 'highest', prefersTag: 'latest', enginesFirst: true },
+      'https://github.com/npm/npm-pick-manifest/blob/v12.0.0/lib/index.js',
+      'npm 12.2.1 depends on npm-pick-manifest ^12.0.0 and npm 11.21.1 on ^11.0.3 (package.json of npm/cli at those tags). For a range (npm install -g npm@11, npm@^11.10.0) or a tag (npm@latest, a bare npm), pickManifest returns the version of the latest dist-tag when it satisfies the range, runs on the Node.js in use (engineOk with nodeVersion, process.version by default) and is not deprecated; otherwise it sorts the versions that satisfy the range by: not avoided, not restricted, not staged, not deprecated and engine ok, engine ok, not deprecated, then semver.rcompare, and returns the first. So npm installs the newest release of the range that runs on that Node.js, and the newest release of the range when none does.',
     ),
     beforeInteraction: reviewed.verified(
       { setting: 'before', exclusive: { since: '11.10.0', until: '11.15.0' }, beforeWinsSince: '11.15.0' },

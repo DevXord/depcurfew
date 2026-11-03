@@ -42,7 +42,10 @@
           "directory": "app"
         }
       ],
-      "runsNode": true
+      "runsNode": true,
+      "directories": [
+        "app"
+      ]
     }
   ],
   "dockerfiles": [],

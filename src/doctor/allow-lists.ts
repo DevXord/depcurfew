@@ -1,7 +1,7 @@
 // The install-script allow-lists written in each package manager's own format, read back as package names with
 // the line that names them, and the entries that block a package's scripts on purpose (installScripts.deny).
-import { extraOf, isRecord, yamlOptionsFor } from '../apply/facts.ts';
-import { compareVersions, parseVersion, type Version } from '../apply/version.ts';
+import { extraOf, isRecord, sinceOf, yamlOptionsFor } from '../apply/facts.ts';
+import { compareVersions, formatVersion, parseVersion, type Version } from '../apply/version.ts';
 import { pnpmOwner, readPnpmIncludes } from '../apply/pnpm-includes.ts';
 import type { PackageManagerId } from '../detect/types.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
@@ -50,12 +50,35 @@ function covers(entry: AllowEntry, patterns: readonly string[]): boolean {
 }
 
 /**
+ * The version in use when it does not read the tool's install-script allow-list yet (Deno before 2.6.0 has no
+ * allowScripts in deno.json, decision D-173): an entry there then lets no package run its scripts, though a later
+ * version would. undefined when the version reads it or is not known.
+ */
+export interface UnreadList {
+  tool: string;
+  version: string;
+  since: string;
+}
+
+export function unreadAllowList(tool: ToolKnowledge | undefined, version: Version | undefined): UnreadList | undefined {
+  const since = tool === undefined ? undefined : sinceOf(tool.installScripts.allowList.availableSince);
+  const required = since === undefined ? undefined : parseVersion(since);
+  if (tool === undefined || since === undefined || required === undefined || version === undefined || compareVersions(version, required) >= 0) return undefined;
+  return { tool: tool.name, version: formatVersion(version), since };
+}
+
+/** "Deno 2.5.6 does not read allowScripts (added in 2.6.0), so it runs no install scripts of sharp now, but …". */
+function unreadText(entry: AllowEntry, unread: UnreadList): string {
+  return `${unread.tool} ${unread.version} does not read ${entry.setting} (added in ${unread.since}), so it runs no install scripts of ${entry.name} now, but ${unread.tool} ${unread.since} and later would let it run them`;
+}
+
+/**
  * What is wrong with an entry that lets a package the policy does not list run its install scripts, and what to do:
  * for apply (allow-list-entry-outside-policy, `apply` true: with the line, and the entry removed by hand) and doctor
  * (config-drift). A Composer key that matches every plugin, or one the policy cannot name, is not offered for
  * installScripts.allow, since the policy rejects such a name.
  */
-export function outsideConflictText(entry: AllowEntry, apply = false): { message: string; fix: string } {
+export function outsideConflictText(entry: AllowEntry, apply = false, unread?: UnreadList): { message: string; fix: string } {
   const where = `${entry.setting} in ${entry.file}${apply && entry.line !== undefined ? ` (line ${entry.line})` : ''}`;
   if (entry.composerKey === true && (matchesEveryComposerName(entry.name) || entry.policyName === undefined)) {
     const every = matchesEveryComposerName(entry.name);
@@ -73,7 +96,7 @@ export function outsideConflictText(entry: AllowEntry, apply = false): { message
     };
   }
   return {
-    message: `${where} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it`,
+    message: unread === undefined ? `${where} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it` : `${where} lists ${entry.name}, which ${POLICY_FILE} does not allow; ${unreadText(entry, unread)}`,
     fix: apply
       ? `Remove ${entry.name} from ${entry.setting} by hand, or add ${policyName(entry)} to installScripts.allow in ${POLICY_FILE}`
       : `Remove ${entry.name} from ${entry.setting}, or add ${entry.policyName ?? (entry.name === entry.package ? 'it' : entry.package)} to installScripts.allow in ${POLICY_FILE}`,
@@ -280,7 +303,7 @@ export function remainingConflicts(
  * What is wrong with an entry that contradicts installScripts.allow or installScripts.deny, and what to do: the same in
  * apply (deny-conflicts-with-file) and doctor (config-drift). `line` puts the line into the message, for apply's text.
  */
-export function denyConflictText(conflict: ListConflict & { kind: 'denied' | 'allowed' }, line = false): { message: string; fix: string } {
+export function denyConflictText(conflict: ListConflict & { kind: 'denied' | 'allowed' }, line = false, unread?: UnreadList): { message: string; fix: string } {
   const { entry } = conflict;
   const where = `${entry.setting} in ${entry.file}${line && entry.line !== undefined ? ` (line ${entry.line})` : ''}`;
   if (entry.composerKey === true) {
@@ -298,7 +321,10 @@ export function denyConflictText(conflict: ListConflict & { kind: 'denied' | 'al
   }
   if (conflict.kind === 'denied') {
     return {
-      message: `${where} lets ${entry.name} run its install scripts, although installScripts.deny in ${POLICY_FILE} says they must not run`,
+      message:
+        unread === undefined
+          ? `${where} lets ${entry.name} run its install scripts, although installScripts.deny in ${POLICY_FILE} says they must not run`
+          : `${where} lists ${entry.name}, which installScripts.deny in ${POLICY_FILE} denies; ${unreadText(entry, unread)}`,
       fix: `Remove ${entry.name} from ${entry.setting} in ${entry.file}, or move ${policyName(entry)} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing its scripts`,
     };
   }

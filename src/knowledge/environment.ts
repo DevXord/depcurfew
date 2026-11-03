@@ -24,6 +24,9 @@ const release14 = verifiedOn('2026-11-02');
 const ruby = verifiedOn('2026-11-03');
 const ciOverrides = verifiedOn('2026-11-03');
 const secrets = verifiedOn('2026-11-03');
+// Tool versions of CI steps, Dockerfiles and mise (decision D-173).
+const d173 = verifiedOn('2026-11-03');
+const MISE = 'https://github.com/jdx/mise/blob/v2026.11.0/docs';
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/v0.36.0/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/v0.36.0/CHANGELOG.md';
@@ -362,6 +365,13 @@ export const environment: EnvironmentKnowledge = {
       'Short names in the asdf plugin index; there is no plugin named node. python, uv and poetry checked on 2026-10-30 (danhper/asdf-python, asdf-community/asdf-uv, asdf-community/asdf-poetry).',
     ),
   },
+  mise: {
+    config: d173.verified(
+      { files: ['.mise.toml', 'mise.toml', 'mise/config.toml', '.mise/config.toml', '.config/mise.toml', '.config/mise/mise.toml', '.config/mise/config.toml'], table: 'tools', versionKey: 'version', tools: { node: 'node', python: 'python' } },
+      `${MISE}/configuration.md`,
+      'Config file locations: in each directory "a file higher in the table overrides one lower down": mise.local.toml (personal overrides, kept out of version control), mise.toml, mise/config.toml, mise/conf.d/*.toml, .mise/config.toml, .config/mise.toml, .config/mise/mise.toml, .config/mise/config.toml, then .tool-versions; ".mise.toml overrides mise.toml". [tools] merges per tool: "The nearest file\'s entry replaces that tool\'s whole entry". Requests (dev-tools/versions.md at the same tag): node = "24" is "a 24.x release", python = "3.14.8" exactly that release, a table names the request kind (node = { path = ... }, a version key in the examples of dev-tools/index.md), and python = ["3.14", "3.13"] installs both, "the first one provides the unversioned command". "mise does not accept npm-style ranges such as ^24 or >=20 outside package.json". MISE_NODE_VERSION overrides every file.',
+    ),
+  },
   githubActions: {
     workflows: verified(
       { directory: '.github/workflows', extensions: ['.yml', '.yaml'] },
@@ -389,10 +399,15 @@ export const environment: EnvironmentKnowledge = {
       `${SETUP_NODE}/README.md`,
       "Tag v7.1.0. node-version takes semver (22, 24.8.0, >=10.15.0, 12.x), the NVM LTS syntax (lts/jod, lts/*, lts/-n) and latest, current, node or * for the latest release. A matching version in the runner's tool cache is used first, so a major version such as 24 may give an older release of the line unless check-latest is set.",
     ),
-    setupNodeVersionFile: runtimes.verified(
-      { packageJson: 'package.json', packageJsonOrder: ['volta.node', 'devEngines.runtime', 'engines.node'], textPattern: '^(?:node(js)?\\s+)?v?(?<version>[^\\s]+)$' },
-      `${SETUP_NODE}/docs/advanced-usage.md`,
-      'node-version-file accepts .nvmrc, .node-version, .tool-versions, mise.toml or package.json, relative to GITHUB_WORKSPACE. In package.json it checks volta.node, then the devEngines.runtime entry named node, then engines.node, then volta.extends. getNodeVersionFromFile in src/util.ts tries JSON, then TOML tools.node, then the first line that matches the pattern, then the whole text trimmed.',
+    setupNodeVersionFile: d173.verified(
+      {
+        packageJson: 'package.json',
+        packageJsonOrder: ['volta.node', 'devEngines.runtime', 'engines.node'],
+        textPattern: '^(?:node(js)?\\s+)?v?(?<version>[^\\s]+)$',
+        toml: { table: 'tools', key: 'node', versionKey: 'version' },
+      },
+      `${SETUP_NODE}/src/util.ts`,
+      'node-version-file accepts .nvmrc, .node-version, .tool-versions, mise.toml or package.json, relative to GITHUB_WORKSPACE (docs/advanced-usage.md at the same commit). In package.json it checks volta.node, then the devEngines.runtime entry named node, then engines.node, then volta.extends. getNodeVersionFromFile tries JSON, then parses the file as TOML ("Try parsing the file as a mise `mise.toml` file") and returns tools.node when it is a string, or tools.node.version when it is a table with one, and null for any other tools.node (a list included), then the first line that matches the pattern, then the whole text trimmed.',
     ),
     jobContainer: finalReview.verified(
       { key: 'container', imageKey: 'image', envKey: 'env' },
@@ -480,6 +495,24 @@ export const environment: EnvironmentKnowledge = {
       },
       'https://github.com/astral-sh/setup-uv/blob/v10.3.3/action.yml',
       'Current version v10.3.3, with no moving v10 tag. Without version or version-file it reads required-version from uv.toml, then pyproject.toml, in the working directory, and installs the latest uv when neither has one.',
+    ),
+    setupPdm: d173.verified(
+      {
+        action: 'pdm-project/setup-pdm',
+        installs: ['pdm'],
+        inputs: [
+          { name: 'version', kind: 'version', tool: 'pdm', keywords: ['head'] },
+          { name: 'python-version', kind: 'version', tool: 'python' },
+          { name: 'python-version-file', kind: 'version-file', tool: 'python' },
+        ],
+      },
+      'https://github.com/pdm-project/setup-pdm/blob/v4.6/action.yml',
+      'Current version v4.6 (the moving tag v4 is the same commit). version: "The version of PDM to install, or \'head\' to install from the main branch"; without it the installer installs the latest PDM. src/setup-pdm.ts passes it as --version to the installer script (cmdArgs.push(\'--version\', pdmVersion)). python-version and python-version-file choose the Python it sets up.',
+    ),
+    miseAction: d173.verified(
+      { action: 'jdx/mise-action', inputs: { install: 'install', inlineConfig: 'mise_toml', workingDirectory: 'working_directory' }, inlineFile: 'mise.toml' },
+      'https://github.com/jdx/mise-action/blob/v5.2.6/action.yml',
+      'Current version v5.2.6 (the moving tag v5 is the same commit). install (default "true"): "if false, will not run `mise install` or `mise bootstrap`"; mise_toml: "If present, this value will be written to the mise.toml file"; working_directory: "The directory that mise runs in"; add_shims_to_path (default "true") puts the shims of the installed tools on PATH, so the later steps of the job run the Node.js and Python of the mise configuration.',
     ),
     installPoetry: python.verified(
       { action: 'snok/install-poetry', installs: ['poetry'], inputs: [{ name: 'version', kind: 'version', tool: 'poetry' }] },

@@ -1,7 +1,7 @@
 // Dockerfiles and Containerfiles: which official node or python image each build stage starts from, and where npm
 // and pip install packages or are replaced. File names, image names and tags come from the knowledge base.
 import type { DockerfileSyntaxKnowledge, ImageReferenceKnowledge, RuntimeImageKnowledge } from '../knowledge/types.ts';
-import { findExecCommands, findToolCommands, overLimitMessages, withVariables, type CommandFacts, type Environment, type ScriptCommands, type Word } from './commands.ts';
+import { findExecCommands, findToolCommands, overLimitMessages, pipVersion, withVariables, type CommandFacts, type Environment, type ScriptCommands, type Word } from './commands.ts';
 import { argDeclarations, lineAt, readDockerfileOnce, substitute, type Instruction } from './dockerfile.ts';
 import { joinPath, type Repository } from './repository.ts';
 import type { DockerfileInfo, DockerStage, StageRuntime, ToolCommand, VersionDeclaration } from './types.ts';
@@ -22,6 +22,8 @@ export interface DockerFacts {
   environment: { instruction: string; inheritedByStages: boolean; spaceForm: boolean };
   /** ARG in a stage: a variable of the later RUN instructions, under ENV (decision D-166). */
   buildArguments: { instruction: string; runEnvironment: boolean; inheritedByStages: boolean; globalNeedsDeclaration: boolean; environmentWins: boolean };
+  /** Images that hold a tool, by name and with the tags that name its version (the uv image, decision D-173). */
+  toolImages: readonly { tool: 'uv'; image: string; versionTag: RegExp }[];
   commands: CommandFacts;
 }
 
@@ -214,10 +216,40 @@ function copySources(text: string): string[] {
   return words.slice(0, -1).filter((word) => !word.startsWith('<<')).slice(0, MAX_COPIES);
 }
 
+/** The tool an image holds and the version its tag names (ghcr.io/astral-sh/uv:0.8.22, decision D-173). */
+function toolImageVersion(reference: string, facts: DockerFacts): { tool: 'uv'; version: string } | undefined {
+  const [named = ''] = reference.split('@', 1);
+  const slash = named.lastIndexOf('/');
+  const colon = named.lastIndexOf(':');
+  if (colon <= slash) return undefined;
+  const name = named.slice(0, colon).toLowerCase();
+  const tag = named.slice(colon + 1);
+  for (const image of facts.toolImages) {
+    if (name !== image.image.toLowerCase()) continue;
+    const version = image.versionTag.exec(tag)?.[1];
+    return version === undefined ? undefined : { tool: image.tool, version };
+  }
+  return undefined;
+}
+
+/** The image of COPY --from=<image> (or a stage name, which is no image of a tool). */
+function copyFrom(text: string): string | undefined {
+  const { offset } = withoutOptions(text.trim());
+  return /(?:^|\s)--from=(\S+)/iu.exec(text.trim().slice(0, offset))?.[1];
+}
+
+/** The most variables of a stage kept to expand the versions of its RUN instructions (decision D-173). */
+const MAX_STAGE_VARIABLES = 256;
+/** Tools whose versions read like pip's: ==2.0.1 is 2.0.1. */
+const PIP_SPECS = new Set(['pip', 'poetry', 'pdm', 'pipenv', 'uv']);
+
 export interface DockerfileReading {
   info: DockerfileInfo;
-  /** Node.js from FROM, npm, pip and Poetry from RUN (npm install -g npm@X, pip install pip==X, pipx install poetry==X). */
-  versions: { tool: 'node' | 'npm' | 'pip' | 'poetry' | 'bundler'; declaration: VersionDeclaration }[];
+  /**
+   * Node.js from FROM, npm, pip, Poetry, PDM, Pipenv, uv and Bundler from RUN (npm install -g npm@X, pip install pip==X,
+   * pipx install poetry==X, pip install pipenv==X), and uv from the uv image (COPY --from, FROM; decision D-173).
+   */
+  versions: { tool: 'node' | 'npm' | 'pip' | 'poetry' | 'pdm' | 'pipenv' | 'uv' | 'bundler'; declaration: VersionDeclaration }[];
   /** RUN instructions that went over a limit of the command reader, as the notices say it (decision D-121), with the line of the instruction (decision D-124). */
   notices: { message: string; line: number }[];
 }
@@ -240,6 +272,41 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
   const buildArguments: Environment[] = [];
   const versions: DockerfileReading['versions'] = [];
   const notices: DockerfileReading['notices'] = [];
+  // The values ENV and ARG give in each stage, for the versions of its RUN instructions ("poetry==${POETRY_VERSION}",
+  // decision D-173): at most MAX_STAGE_VARIABLES of each, a stage sharing those of the stage it starts from until it sets
+  // one of its own (only an earlier stage is started from, and it has no instructions left).
+  const stageEnvironment: Map<string, string>[] = [];
+  const stageArguments: Map<string, string>[] = [];
+  const owned: { env: boolean; args: boolean }[] = [];
+  const setVariable = (kind: 'env' | 'args', name: string, value: string) => {
+    const index = stageEnvironment.length - 1;
+    const own = owned[index];
+    const list = kind === 'env' ? stageEnvironment : stageArguments;
+    const map = list[index];
+    if (own === undefined || map === undefined) return;
+    if (!own[kind]) {
+      list[index] = new Map(map);
+      own[kind] = true;
+    }
+    const target = list[index] as Map<string, string>;
+    if (target.has(name) || target.size < MAX_STAGE_VARIABLES) target.set(name, value);
+  };
+  const lookup = {
+    get: (name: string): string | undefined => {
+      const env = stageEnvironment.at(-1)?.get(name);
+      const arg = stageArguments.at(-1)?.get(name);
+      return facts.buildArguments.environmentWins ? (env ?? arg) : (arg ?? env);
+    },
+  };
+  /** A version written with $VAR or ${VAR}, with the values of the stage; as written when one has none. */
+  const expand = (command: ToolCommand): ToolCommand => {
+    const version = command.version;
+    if (version === undefined || !version.includes('$')) return command;
+    const result = substitute(version, lookup, escape);
+    if (!result.ok) return command;
+    return { ...command, version: PIP_SPECS.has(command.tool) ? pipVersion(result.value) : result.value.trim() };
+  };
+  const configVariable = facts.commands.pip.delay?.configVariable;
   for (const instruction of instructions) {
     if (instruction.keyword === facts.syntax.globalArgInstruction && stages.length === 0) {
       for (const [name, value] of argDeclarations(instruction.text)) {
@@ -290,6 +357,12 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
       environments.push(parent ?? new Map());
       const parentArguments = stage.from === undefined || !facts.buildArguments.inheritedByStages ? undefined : buildArguments[stage.from];
       buildArguments.push(parentArguments ?? new Map());
+      stageEnvironment.push((stage.from === undefined || !facts.environment.inheritedByStages ? undefined : stageEnvironment[stage.from]) ?? new Map());
+      stageArguments.push((stage.from === undefined || !facts.buildArguments.inheritedByStages ? undefined : stageArguments[stage.from]) ?? new Map());
+      owned.push({ env: false, args: false });
+      // An image with a tool in it (ghcr.io/astral-sh/uv:0.8.22-python3.12-bookworm) declares that tool (decision D-173).
+      const held = stage.image === undefined ? undefined : toolImageVersion(stage.image, facts);
+      if (held !== undefined) versions.push({ tool: held.tool, declaration: { version: held.version, source: 'dockerfile', file, line: instruction.line, stage: alias ?? String(stages.length) } });
       stages.push({ ...fields, commands: [] });
       continue;
     }
@@ -301,28 +374,43 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
         return given === undefined ? [] : [[name, given]];
       });
       buildArguments[buildArguments.length - 1] = withVariables(facts.commands, buildArguments.at(-1), declared);
+      for (const [name, value] of declared) setVariable('args', name, value);
       continue;
     }
     if (instruction.keyword === facts.environment.instruction && environment !== undefined) {
-      environments[environments.length - 1] = withVariables(facts.commands, environment, envDeclarations(instruction.text, facts.environment.spaceForm));
+      const declared = envDeclarations(instruction.text, facts.environment.spaceForm);
+      environments[environments.length - 1] = withVariables(facts.commands, environment, declared);
+      for (const [name, value] of declared) setVariable('env', name, value);
       continue;
     }
     if ((instruction.keyword === 'COPY' || instruction.keyword === 'ADD') && stage !== undefined) {
+      // COPY --from=ghcr.io/astral-sh/uv:0.8.22 /uv /uvx /bin/ installs that uv (decision D-173).
+      const from = instruction.keyword === 'COPY' ? copyFrom(instruction.text) : undefined;
+      const held = from === undefined ? undefined : toolImageVersion(from, facts);
+      if (held !== undefined) versions.push({ tool: held.tool, declaration: { version: held.version, source: 'dockerfile', file, line: instruction.line, stage: stage.name ?? String(stages.length - 1) } });
       const sources = copySources(instruction.text);
       if (sources.length > 0) stage.copies = [...(stage.copies ?? []), ...sources].slice(0, MAX_COPIES);
       continue;
     }
     if (instruction.keyword !== 'RUN' || stage === undefined) continue;
     // ENV wins over an ARG of the same name (docker.buildArguments.environmentWins), whichever comes first.
-    const run = runCommands(instruction, facts, facts.buildArguments.environmentWins ? withVariables(facts.commands, buildArguments.at(-1), environment) : withVariables(facts.commands, environment, buildArguments.at(-1)));
+    const runEnvironment = facts.buildArguments.environmentWins ? withVariables(facts.commands, buildArguments.at(-1), environment) : withVariables(facts.commands, environment, buildArguments.at(-1));
+    const run = runCommands(instruction, facts, runEnvironment);
+    // The pip configuration file its pip installs read (decision D-173).
+    const configFile = configVariable === undefined ? undefined : runEnvironment.get(configVariable);
+    if (configFile !== undefined && configFile !== '' && run.commands.some((command) => command.tool === 'pip' && command.kind === 'install')) {
+      const files = stage.pipConfigFiles ?? [];
+      if (!files.includes(configFile) && files.length < 16) stage.pipConfigFiles = [...files, configFile];
+    }
     if (run.pipConfig === true) stage.pipConfig = true;
     const seenCorepack = stage.corepack !== undefined;
     if (run.corepack !== undefined) stage.corepack ??= run.corepack;
     for (const message of overLimitMessages(run.overLimit, `the RUN instruction in ${file} (line ${instruction.line})`)) notices.push({ message, line: instruction.line });
-    for (const command of run.commands) {
+    for (const found of run.commands) {
+      const command = expand(found);
       stage.commands.push(seenCorepack && command.afterCorepack !== true ? { ...command, afterCorepack: true } : command);
       // bundle _4.0.12_ install runs that Bundler, so its version counts too (decision D-159).
-      if ((command.kind === 'upgrade' || command.tool === 'bundler') && command.version !== undefined && (command.tool === 'npm' || command.tool === 'pip' || command.tool === 'poetry' || command.tool === 'bundler')) {
+      if ((command.kind === 'upgrade' || command.tool === 'bundler') && command.version !== undefined && command.tool !== 'pnpm' && command.tool !== 'yarn' && command.tool !== 'bun') {
         versions.push({ tool: command.tool, declaration: { version: command.version, source: 'dockerfile', file, line: command.line, stage: stage.name ?? String(stages.length - 1) } });
       }
     }

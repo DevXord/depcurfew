@@ -14,7 +14,7 @@ import { listing } from '../../apply/requirements.ts';
 import { extraOf, isRecord, settingOf, values, yamlOptionsFor } from '../../apply/facts.ts';
 import { parseJsonc } from '../../detect/jsonc.ts';
 import { parseYaml } from '../../yaml-parse.ts';
-import { denyConflictText, outsideConflictText, remainingConflicts, type TextSource } from '../allow-lists.ts';
+import { denyConflictText, outsideConflictText, remainingConflicts, unreadAllowList, type TextSource } from '../allow-lists.ts';
 import { ignoreOutsidePolicy, ignoreOutsideText } from '../composer.ts';
 import { latestVersion, managerDelay } from '../effective.ts';
 import { APPLY_NEXT, DEFAULT_POLICY_NAME, INIT_FIRST } from '../default-policy.ts';
@@ -264,17 +264,20 @@ function checkAllowLists(context: RuleContext, plan: ApplyReport): void {
     const scripts = policyFor(policy, knowledge === undefined ? 'npm' : ecosystemOfTool(knowledge)).installScripts ?? { allow: [], deny: [] };
     const version = pinnedVersion(manager) ?? (knowledge === undefined ? undefined : latestVersion(knowledge));
     const options = { ...(knowledge === undefined ? {} : { tool: knowledge }), ...(version === undefined ? {} : { version }) };
+    // A version that does not read the allow-list yet runs no script an entry names (Deno before 2.6.0, decision D-173).
+    const unread = unreadAllowList(knowledge, version);
     for (const conflict of remainingConflicts(context.repository, planned, manager.id, manager.configFiles, options, scripts)) {
       const { entry } = conflict;
       const location = entry.line === undefined ? { file: entry.file } : { file: entry.file, line: entry.line };
       // An entry that lets a package of installScripts.deny run its scripts contradicts the policy, so it is an error,
       // like the differences apply would fix; entries for packages the policy does not name, and entries that only
-      // block a package the policy allows, are warnings (decision D-092).
+      // block a package the policy allows, are warnings (decision D-092). One the version in use does not read is a
+      // warning: it lets nothing run there yet.
       if (conflict.kind !== 'outside') {
-        context.report({ level: conflict.kind === 'denied' ? 'error' : 'warning', location, ...denyConflictText({ kind: conflict.kind, entry }) });
+        context.report({ level: conflict.kind === 'denied' && unread === undefined ? 'error' : 'warning', location, ...denyConflictText({ kind: conflict.kind, entry }, false, unread) });
         continue;
       }
-      context.report({ level: 'warning', location, ...outsideConflictText(entry) });
+      context.report({ level: 'warning', location, ...outsideConflictText(entry, false, unread) });
     }
   }
 }
@@ -409,7 +412,7 @@ export const configDrift: Rule = {
   checks: 'Configuration files match what depcurfew apply writes for depcurfew.json',
   summary: 'A configuration file does not match what depcurfew apply writes for depcurfew.json.',
   description:
-    'A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool\'s own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning. So is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, which apply keeps unless it wrote the entry itself. What apply cannot write is an error where it says: the cooldown of Bundler in a Gemfile (a source with a block, a modifier or in other code, cooldown: twice, a URL from ENV, no rubygems.org source, a Gemfile depcurfew cannot read as Ruby does; a warning if that call waits as long as the policy), and a --no-binary or --only-binary=:none: of pip it cannot comment out.',
+    'A generated setting was edited by hand, or depcurfew.json changed without depcurfew apply, so the tools enforce something other than the policy. Entries in a tool\'s own install-script lists that apply does not change are reported too: one that lets a package of installScripts.deny run its scripts is an error; one that lets a package the policy does not name run them, blocks a package the policy allows, or is not read by the version in use yet (Deno before 2.6.0) is a warning, as is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, unless apply wrote it. What apply cannot write is an error where it says: the cooldown of Bundler in a Gemfile (a source with a block, a modifier or in other code, cooldown: twice, a URL from ENV, no rubygems.org source, a Gemfile depcurfew cannot read as Ruby does; a warning if that call waits as long as the policy), and a --no-binary or --only-binary=:none: of pip it cannot comment out.',
   help: 'Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.',
   level: 'error',
   requiresPolicy: true,

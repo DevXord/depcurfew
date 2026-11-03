@@ -7,6 +7,8 @@ import type {
   Ecosystem,
   EnvironmentKnowledge,
   Fact,
+  MiseActionKnowledge,
+  MiseConfigKnowledge,
   RuntimeOrTool,
   SetupActionKnowledge,
   SetupNodeVersionFileKnowledge,
@@ -72,6 +74,9 @@ export interface DetectionFacts {
   devEngines: { key: string; packageManagerKey: string; runtimeKey: string };
   volta: { key: string; tools: readonly RuntimeOrTool[] };
   toolVersions: { file: string; plugins: Readonly<Record<string, RuntimeOrTool>> };
+  /** mise.toml and the files beside it, and jdx/mise-action (decision D-173). */
+  mise: MiseConfigKnowledge;
+  miseAction: MiseActionKnowledge;
   workflows: { directory: string; extensions: readonly string[] };
   /** jobs.<id>.container and the env maps of workflows, jobs and steps (decision D-115). */
   jobContainer: { key: string; imageKey: string; envKey: string };
@@ -142,6 +147,16 @@ function requiredVersions(tool: ToolKnowledge, pythonProject: string): RequiredV
     ? Object.entries(tables).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
     : [[pythonProject, required['table']]];
   return files.map(([file, table]) => ({ file, path: [...(table === '' ? [] : table.split('.')), key] }));
+}
+
+/** The official images that hold a tool (ghcr.io/astral-sh/uv), with the tags that name its version (decision D-173). */
+function toolImages(tools: readonly ToolKnowledge[]): DockerFacts['toolImages'] {
+  return (['uv'] as const).flatMap((id) => {
+    const entry = tools.find((candidate) => candidate.id === id);
+    const value = entry === undefined ? undefined : extraValue(entry, 'dockerImage');
+    if (!isRecord(value) || typeof value['image'] !== 'string' || typeof value['versionTag'] !== 'string') return [];
+    return [{ tool: id, image: value['image'], versionTag: new RegExp(value['versionTag'], 'u') }];
+  });
 }
 
 function workspaceFacts(declaration: WorkspaceDeclaration | null, objectKey: string | null): ManagerFacts['workspaces'] {
@@ -215,8 +230,13 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
   const pipConfig = extraValue(pip, 'configFileVariable');
   const pipConfigCommand = extraValue(pip, 'configCommand');
   const pipConfigFiles = extraValue(pip, 'configFileNames');
-  const poetryTool = tools.find((candidate) => candidate.id === 'poetry');
-  const poetryPackage = poetryTool === undefined ? undefined : extraValue(poetryTool, 'installedPackage');
+  // Poetry, PDM, Pipenv and uv as Python packages that pip, pipx or uv tool install install (decisions D-115 and D-173).
+  const installed = (['poetry', 'pdm', 'pipenv', 'uv'] as const).flatMap((id) => {
+    const entry = tools.find((candidate) => candidate.id === id);
+    const value = entry === undefined ? undefined : extraValue(entry, 'installedPackage');
+    if (!isRecord(value) || typeof value['name'] !== 'string' || !Array.isArray(value['commands'])) return [];
+    return [{ tool: id, name: value['name'], commands: (value['commands'] as unknown[]).filter((item): item is string[] => Array.isArray(item) && item.every((word) => typeof word === 'string')) }];
+  });
   const off = extraValue(npm, 'scriptsOff');
   const omitOptional = npm.extra?.['omitOptional'] === undefined ? undefined : extraValue(npm, 'omitOptional');
   const localPrefix = npm.extra?.['localPrefix'] === undefined ? undefined : extraValue(npm, 'localPrefix');
@@ -275,9 +295,7 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
     },
     python: interpreter,
     corepack: { enableCommand: first(environment.corepack.enableNpm).command, package: corepackInstall.package },
-    ...(isRecord(poetryPackage) && typeof poetryPackage['name'] === 'string' && Array.isArray(poetryPackage['commands'])
-      ? { poetry: { name: poetryPackage['name'], commands: (poetryPackage['commands'] as unknown[]).filter((item): item is string[] => Array.isArray(item)) } }
-      : {}),
+    installed,
     ...(isRecord(resolve) && typeof resolve['option'] === 'string' && isRecord(bundlerSetting) && typeof bundlerSetting['variable'] === 'string' && isRecord(gemInstall) && typeof gemInstall['name'] === 'string' && typeof gemInstall['separator'] === 'string'
       ? {
           bundler: {
@@ -316,6 +334,8 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
     devEngines: first(environment.devEngines),
     volta: first(environment.volta.manifest),
     toolVersions: { file: first(environment.asdf.toolVersionsFile), plugins: first(environment.asdf.plugins) },
+    mise: first(environment.mise.config),
+    miseAction: first(actions.miseAction),
     workflows: first(actions.workflows),
     jobContainer: first(actions.jobContainer),
     workflowEnvironment: { key: first(actions.environmentKeys).key },
@@ -328,6 +348,7 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
       actions.setupDeno,
       actions.setupPython,
       actions.setupUv,
+      actions.setupPdm,
       actions.installPoetry,
       actions.actionsPoetry,
       actions.setupRuby,
@@ -345,6 +366,7 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
       codenames: first(environment.node.releaseSchedule).flatMap((line) => (line.codename === undefined ? [] : [line.codename])),
       environment: first(docker.environment),
       buildArguments: first(docker.buildArguments),
+      toolImages: toolImages(tools),
       commands,
     },
     commands,

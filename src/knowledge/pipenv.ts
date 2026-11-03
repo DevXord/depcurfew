@@ -2,6 +2,8 @@ import { verifiedOn } from './define.ts';
 import type { DirectoryOptionsKnowledge, EnvironmentNameRule, RegistrySettingKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
+// Versions that CI jobs and Dockerfiles install (decision D-173).
+const d173 = verifiedOn('2026-11-03');
 
 // pipenv.pypa.io is built from docs/ in the repository.
 const PIPENV = 'https://github.com/pypa/pipenv/blob/v2026.10.4';
@@ -91,6 +93,11 @@ export const pipenv: ToolKnowledge = {
     ),
   },
   extra: {
+    installedPackage: d173.verified(
+      { name: 'pipenv', commands: [['pipx', 'install'], ['pip', 'install']] },
+      `${PIPENV}/docs/installation.md`,
+      'The installation page installs Pipenv with pipx install pipenv and pip install pipenv (pip install --user pipenv), and a given version with pip install --user pipenv==2022.1.8. So pipenv==<version> in such a command of a CI job or a Dockerfile is the Pipenv the later commands run (decision D-173).',
+    ),
     environmentNames: osvFacts.verified<EnvironmentNameRule[]>(
       [
         { prefix: 'PIPENV_', match: 'exact' },

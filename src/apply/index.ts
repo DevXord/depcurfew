@@ -4,9 +4,10 @@
 import { join } from 'node:path';
 import { detectProject } from '../detect/index.ts';
 import { Repository } from '../detect/repository.ts';
-import { denyConflictText, outsideConflictText, remainingConflicts } from '../doctor/allow-lists.ts';
+import { denyConflictText, outsideConflictText, remainingConflicts, unreadAllowList } from '../doctor/allow-lists.ts';
 import { UNREADABLE_WARNINGS, yarnClassicFix } from '../doctor/unreadable-warnings.ts';
 import type { Detection, PackageManagerInfo, VersionDeclaration, WorkflowJob } from '../detect/types.ts';
+import { projectOf } from '../detect/workflows.ts';
 import { jobsInProject, npmInUse, rootPlaces, type NpmInUse, type RootPlaces } from '../doctor/rules/bundled-versions.ts';
 import { SOURCE_LABEL } from '../doctor/rules/manager-version.ts';
 import { environment as environmentKnowledge } from '../knowledge/environment.ts';
@@ -97,6 +98,28 @@ export interface PlanOptions {
    * of its own, and the stages of root Dockerfiles that build it; rootPlaces gives them.
    */
   root?: RootPlaces;
+  /**
+   * The versions root CI jobs set up for a package manager of the project: the setup steps of jobs whose run steps all
+   * work in its directory (working-directory: backend, decision D-173); rootCiVersions gives them. They count after the
+   * project's own declarations.
+   */
+  pins?: Readonly<Partial<Record<ToolId, readonly VersionDeclaration[]>>>;
+}
+
+/**
+ * The versions root CI jobs declare for the package managers of a project (decision D-173): the declarations of setup
+ * steps (source github-actions) of a job of the root whose run steps all work in the project's directory, from the
+ * root's package managers and those its CI sets up for the projects (ciForProjects).
+ */
+export function rootCiVersions(rootDetection: Detection, project: string): Partial<Record<ToolId, VersionDeclaration[]>> {
+  const found: Partial<Record<ToolId, VersionDeclaration[]>> = {};
+  const inProject = (job: WorkflowJob | undefined) =>
+    job?.directories !== undefined && job.directories.length > 0 && job.directories.every((directory) => directory !== '' && projectOf({ directory }, [project]) === project);
+  for (const manager of [...rootDetection.packageManagers, ...(rootDetection.ciForProjects ?? [])]) {
+    const declarations = manager.versions.filter((declaration) => declaration.source === 'github-actions' && inProject(rootDetection.jobs.find((job) => job.file === declaration.file && job.id === declaration.job)));
+    if (declarations.length > 0) found[manager.id] = [...(found[manager.id] ?? []), ...declarations];
+  }
+  return found;
 }
 
 /** What a plan configured, for the plan of the root in a repository with projects (and doctor's). */
@@ -193,16 +216,18 @@ function allowListWarnings(root: string, workspace: ManifestGuard, policy: Resol
       const scripts = policyFor(policy, tool === undefined ? 'npm' : ecosystemOfTool(tool)).installScripts ?? { allow: [], deny: [] };
       const version = pinnedVersion(manager) ?? (tool === undefined ? undefined : parseVersion(latestVersion(tool) ?? ''));
       const options = { ...(tool === undefined ? {} : { tool }), ...(version === undefined ? {} : { version }) };
+      // A version that does not read the allow-list yet runs no script an entry names (Deno before 2.6.0, decision D-173).
+      const unread = unreadAllowList(tool, version);
       return remainingConflicts(repository, planned, manager.id, manager.configFiles, options, scripts).map((conflict): ApplyWarning => {
         const { entry } = conflict;
         const location = { file: entry.file, ...(entry.line === undefined ? {} : { line: entry.line }) };
         // The tool's name first, as in the other warnings of apply (decision D-141).
         const name = `${tool?.name ?? manager.id}: `;
         if (conflict.kind === 'outside') {
-          const text = outsideConflictText(entry, true);
+          const text = outsideConflictText(entry, true, unread);
           return { code: 'allow-list-entry-outside-policy', tool: manager.id, location, message: `${name}${text.message}; depcurfew apply does not remove entries it did not write`, fix: text.fix };
         }
-        const text = denyConflictText({ kind: conflict.kind, entry }, true);
+        const text = denyConflictText({ kind: conflict.kind, entry }, true, unread);
         return { code: 'deny-conflicts-with-file', tool: manager.id, location, message: `${name}${text.message}; depcurfew apply does not change entries it did not write`, fix: text.fix };
       });
     });
@@ -402,7 +427,10 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   for (const tool of tools) {
     const generator = MANAGERS[tool.id];
     if (generator === undefined || !targets.has(tool.id)) continue;
-    const manager = detection.packageManagers.find((entry) => entry.id === tool.id);
+    const own = detection.packageManagers.find((entry) => entry.id === tool.id);
+    // A project also takes the version a root CI job sets up for it (decision D-173).
+    const inherited = options.pins?.[tool.id] ?? [];
+    const manager = own === undefined || inherited.length === 0 ? own : { ...own, versions: [...own.versions, ...inherited] };
     const version = manager === undefined ? undefined : pinnedVersion(manager);
     if (version === undefined) {
       const latest = latestVersion(tool);
@@ -468,7 +496,13 @@ function npmVersionsInUse(root: string, detection: Detection, policy: ResolvedPo
 export function projectPlanOptions(rootDetection: Detection, project: string, detection?: Detection): PlanOptions {
   const ci = jobsInProject(rootDetection, project);
   const root = rootPlaces(rootDetection, project, detection);
-  return { project, ...(ci.jobs.length === 0 ? {} : { ci }), ...(root.versions.length === 0 && root.dockerfiles.length === 0 ? {} : { root }) };
+  const pins = rootCiVersions(rootDetection, project);
+  return {
+    project,
+    ...(ci.jobs.length === 0 ? {} : { ci }),
+    ...(root.versions.length === 0 && root.dockerfiles.length === 0 ? {} : { root }),
+    ...(Object.keys(pins).length === 0 ? {} : { pins }),
+  };
 }
 
 /** The files a message about a project may name, relative to the project: what detection found and what the plan touched. */

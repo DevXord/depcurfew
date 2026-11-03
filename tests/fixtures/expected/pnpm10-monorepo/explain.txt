@@ -1,7 +1,7 @@
 Policy (depcurfew.json):
   targets: pnpm (detected)
   cooldown 3d:
-    pnpm: 4320 minutes
+    pnpm: cannot apply: pnpm 10.12.1 does not support minimumReleaseAge (added in 10.16.0), blockExoticSubdeps (added in 10.26.0); not written
   installScripts deny, allow esbuild and @scope/*:
     pnpm: onlyBuiltDependencies in pnpm-workspace.yaml; warning: pnpm: onlyBuiltDependencies takes package names only; "@scope/*" not written (allow-pattern-unsupported); fix: List the package names in installScripts.allow
   sources git deny, remoteTarball deny, file allow, directory allow:

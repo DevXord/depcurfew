@@ -2,6 +2,8 @@ import { verifiedOn } from './define.ts';
 import type { DirectoryOptionsKnowledge, EnvironmentNameRule, IndexEntriesKnowledge, MachineSettingsKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
+// Versions that CI jobs and Dockerfiles install (decision D-173).
+const d173 = verifiedOn('2026-11-03');
 const guard = verifiedOn('2026-11-01');
 const secrets = verifiedOn('2026-11-03');
 
@@ -233,6 +235,16 @@ export const uv: ToolKnowledge = {
       },
       `${UV}/crates/uv-static/src/env_vars.rs`,
       'UV_DEFAULT_INDEX ("uv will use this index as the default index") and UV_INDEX_URL (the same, deprecated) replace PyPI; UV_INDEX ("this space-separated list of additional indexes", entries may be name=url), UV_EXTRA_INDEX_URL (space-separated, deprecated) and UV_FIND_LINKS ("this comma-separated list of additional locations") add places to install from; UV_CONFIG_FILE "Expects a path to a local uv.toml file to use as the configuration file", which "will be used in place of any discovered configuration files (e.g., user-level configuration will be ignored)" (docs/concepts/configuration-files.md at the same tag, which also says that variables win over configuration files and that the user uv.toml is merged under the project\'s, arrays concatenated). uv reads none of pip\'s variables or files (docs/pip/compatibility.md).',
+    ),
+    dockerImage: d173.verified(
+      { image: 'ghcr.io/astral-sh/uv', versionTag: '^(\\d+\\.\\d+(?:\\.\\d+)?)(?:-.+)?$' },
+      `${UV}/docs/guides/integration/docker.md`,
+      'The distroless image is published as ghcr.io/astral-sh/uv:latest, :{major}.{minor}.{patch} and :{major}.{minor} ("the latest patch version"), and each derived image (uv on a base such as python3.12-bookworm-slim, alpine or debian) "is published with uv version tags as ghcr.io/astral-sh/uv:{major}.{minor}.{patch}-{base} and ghcr.io/astral-sh/uv:{major}.{minor}-{base}"; tags of a base alone (debian, alpine) and latest name no version. "Use one of the above images with uv pre-installed or install uv by copying the binary from the official distroless Docker image": COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /uvx /bin/, which it calls best practice to pin. COPY --from takes an image, a build stage or a named context (frontend/dockerfile/docs/reference.md of moby/buildkit at c1cfdbd30b79b4a4908cdccc3c0f9849c30e34e5).',
+    ),
+    installedPackage: d173.verified(
+      { name: 'uv', commands: [['pipx', 'install'], ['pip', 'install']] },
+      `${UV}/docs/getting-started/installation.md`,
+      'Besides the standalone installer, the installation page installs uv from PyPI with pipx install uv or pip install uv. So uv==<version> in such a command of a CI job or a Dockerfile is the uv the later commands run (decision D-173).',
     ),
     environmentNames: release14.verified<EnvironmentNameRule[]>(
       [{ prefix: '', match: 'exact' }],

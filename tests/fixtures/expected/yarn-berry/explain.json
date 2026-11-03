@@ -13,10 +13,8 @@
       "tools": [
         {
           "tool": "yarn",
-          "ok": true,
-          "unit": "minutes",
-          "value": 4320,
-          "exact": true
+          "ok": false,
+          "reason": "Yarn (Berry) 4.9.2 does not support npmMinimalAgeGate (added in 4.10.2), approvedGitRepositories (added in 4.14.0); not written"
         }
       ]
     },

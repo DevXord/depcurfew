@@ -116,19 +116,21 @@ describe('npm install -g npm with a range or a version depcurfew cannot read (B2
       '.github/workflows/ci.yml': workflow(`${setupNode('24.18.0')}      - run: npm install -g npm@${spec}\n      - run: npm ci\n`),
     });
 
-  it('counts npm@^11.10.0 from its lowest version and as the 11.16 to 11.x it allows, in doctor and apply', () => {
+  // npm installs the newest release of the range, so npm@^11.10.0 is the newest 11.x depcurfew knows (decision D-173).
+  it('counts npm@^11.10.0 as the newest 11.x it allows, in doctor and apply', () => {
     const directory = ciRepo('^11.10.0');
     const report = runDoctor(directory);
     expect(rule(report, 'lockfile-install-scripts').map((finding) => [finding.level, finding.message])).toEqual([
       ['error', 'core-js has install scripts and npm@^11.10.0 (installed in job test of .github/workflows/ci.yml, line 9) runs them, but depcurfew.json does not allow it'],
     ]);
     expect(npmrcOf(directory)).toContain('strict-allow-scripts=true');
-    expect(codes(directory)).toEqual(expect.arrayContaining(['scripts-not-enforceable', 'strict-allow-scripts-for-npm-in-use']));
+    expect(codes(directory)).toContain('strict-allow-scripts-for-npm-in-use');
+    expect(codes(directory)).not.toContain('scripts-not-enforceable');
     const manager = rule(report, 'manager-version-too-old');
     expect(manager.map((finding) => [finding.level, finding.message])).toEqual([
       [
         'warning',
-        'GitHub Actions (.github/workflows/ci.yml) allows npm 11.10.0 ("^11.10.0"), which does not support blocking dependency install scripts without strict-allow-scripts (added in 12.0.0)',
+        'GitHub Actions (.github/workflows/ci.yml) installs npm 11.21.1 ("^11.10.0": the newest release of it depcurfew knows), which does not support blocking dependency install scripts without strict-allow-scripts (added in 12.0.0)',
       ],
     ]);
   });
@@ -139,7 +141,16 @@ describe('npm install -g npm with a range or a version depcurfew cannot read (B2
     expect(codes(ciRepo('11.15'))).toContain('scripts-not-enforceable');
   });
 
-  for (const spec of ['latest', '${NPM_VERSION}']) {
+  it('counts npm@latest as the latest npm depcurfew knows, which blocks dependency install scripts (decision D-173)', () => {
+    const directory = ciRepo('latest');
+    expect(rule(runDoctor(directory), 'lockfile-install-scripts').map((finding) => finding.message)).toEqual([
+      'core-js has install scripts that npm will not run because depcurfew.json does not allow it; the package may need them',
+    ]);
+    expect(codes(directory)).not.toContain('scripts-not-enforceable');
+    expect(npmrcOf(directory)).not.toContain('strict-allow-scripts');
+  });
+
+  for (const spec of ['next', '${NPM_VERSION}']) {
     it(`counts npm@${spec} as an npm that may run every dependency install script`, () => {
       const directory = ciRepo(spec);
       const report = runDoctor(directory);

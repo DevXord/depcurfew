@@ -11,6 +11,9 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
     { host: 'docs.npmjs.com' },
     { host: 'github.com', pathPrefix: '/npm/' },
     { host: 'github.blog', pathPrefix: '/changelog/' },
+    // The registry's own documents of the npm package: its versions and dist-tags (decision D-173).
+    { host: 'registry.npmjs.org', pathPrefix: '/npm' },
+    { host: 'registry.npmjs.org', pathPrefix: '/-/package/npm/' },
   ],
   pnpm: [{ host: 'pnpm.io' }, { host: 'github.com', pathPrefix: '/pnpm/' }],
   // Clipanion (arcanis) is the library Yarn parses its command line with (extra.runnerOptions).
@@ -101,6 +104,11 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'github.com', pathPrefix: '/abatilo/' },
   // ruby/setup-ruby, the action that installs Ruby and Bundler (decision D-152).
   { host: 'github.com', pathPrefix: '/ruby/setup-ruby/' },
+  // pdm-project/setup-pdm, the action that installs PDM, and mise with jdx/mise-action, which pin Node.js and Python
+  // (decision D-173).
+  { host: 'github.com', pathPrefix: '/pdm-project/setup-pdm/' },
+  { host: 'github.com', pathPrefix: '/jdx/mise/' },
+  { host: 'github.com', pathPrefix: '/jdx/mise-action/' },
   // git: git-scm.com/docs is built from Documentation/ in git/git.
   { host: 'github.com', pathPrefix: '/git/' },
   // PowerShell and cmd.exe: learn.microsoft.com is built from MicrosoftDocs repositories such as PowerShell-Docs.

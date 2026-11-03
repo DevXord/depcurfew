@@ -1503,6 +1503,34 @@ export interface SetupNodeVersionFileKnowledge {
   packageJsonOrder: readonly string[];
   /** Any other file: the first line that matches (multiline), group "version"; otherwise the whole text, trimmed. */
   textPattern: string;
+  /**
+   * A file that is no JSON but TOML (mise.toml, decision D-173): the key of `table`, a string, or a table whose
+   * `versionKey` is a string; any other value names no version. Tried before textPattern.
+   */
+  toml?: { table: string; key: string; versionKey: string };
+}
+
+/**
+ * mise (decision D-173): the files of a directory it reads its [tools] from, the one that wins first, and how a tool's
+ * request is written there (a string, a list whose first entry is the default, or a table with the request under
+ * versionKey); `tools` maps the names of [tools] to the runtimes depcurfew reads.
+ */
+export interface MiseConfigKnowledge {
+  files: readonly string[];
+  table: string;
+  versionKey: string;
+  tools: Readonly<Record<string, RuntimeOrTool>>;
+}
+
+/**
+ * jdx/mise-action (decision D-173): the step installs the tools of the mise configuration of its working directory
+ * (or of the TOML text of `inlineConfig`, which it writes to mise.toml) and puts them on PATH for the later steps,
+ * unless `install` is false.
+ */
+export interface MiseActionKnowledge {
+  action: string;
+  inputs: { install: string; inlineConfig: string; workingDirectory: string };
+  inlineFile: string;
 }
 
 /** How an image reference names the registry, the namespace and the tag when they are left out. */
@@ -1701,6 +1729,10 @@ export interface EnvironmentKnowledge {
     /** Plugin names mapped to the tools they install. */
     plugins: Fact<Readonly<Record<string, RuntimeOrTool>>>;
   };
+  /** mise.toml and the files beside it that pin tool versions (decision D-173). */
+  mise: {
+    config: Fact<MiseConfigKnowledge>;
+  };
   githubActions: {
     workflows: Fact<WorkflowsKnowledge>;
     /** The ids GitHub accepts as keys of jobs, as a regular expression (decision D-135). */
@@ -1729,6 +1761,10 @@ export interface EnvironmentKnowledge {
     setupDeno: Fact<SetupActionKnowledge>;
     setupPython: Fact<SetupActionKnowledge>;
     setupUv: Fact<SetupActionKnowledge>;
+    /** pdm-project/setup-pdm: the PDM of its version input (decision D-173). */
+    setupPdm: Fact<SetupActionKnowledge>;
+    /** jdx/mise-action: the tools of the mise configuration (decision D-173). */
+    miseAction: Fact<MiseActionKnowledge>;
     /** Third-party actions that install Poetry; Poetry has no official action. */
     installPoetry: Fact<SetupActionKnowledge>;
     actionsPoetry: Fact<SetupActionKnowledge>;

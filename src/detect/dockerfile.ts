@@ -263,7 +263,7 @@ const TOO_LONG = `it is longer than ${MAX_SUBSTITUTED_LENGTH} characters after A
  * `unreadable` (an ARG whose own value depcurfew did not read) and a result past MAX_SUBSTITUTED_LENGTH characters or
  * MAX_SUBSTITUTIONS variables are unknown too, with the reason.
  */
-export function substitute(text: string, args: ReadonlyMap<string, string | undefined>, escape: string, unreadable: ReadonlyMap<string, string> = new Map()): Substitution {
+export function substitute(text: string, args: Pick<ReadonlyMap<string, string | undefined>, 'get'>, escape: string, unreadable: ReadonlyMap<string, string> = new Map()): Substitution {
   let result = '';
   let substitutions = 0;
   if (text.length > MAX_SUBSTITUTED_LENGTH) return { ok: false, variable: '', reason: TOO_LONG };

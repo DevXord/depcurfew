@@ -5,7 +5,7 @@
 // places tell `apply` which npm versions a repository without a pinned npm runs (npmInUse, decision D-105).
 import { describeRequirements, type Requirement } from '../../apply/requirements.ts';
 import { compareVersions, formatVersion, parseVersion, pinnedVersion, type Version } from '../../apply/version.ts';
-import { sinceOf, values } from '../../apply/facts.ts';
+import { values } from '../../apply/facts.ts';
 import { satisfies } from '../../check/semver.ts';
 import { npm as npmFacts } from '../../knowledge/npm.ts';
 import type { PlanOptions } from '../../apply/index.ts';
@@ -67,6 +67,7 @@ export const SOURCE_LABEL: Record<VersionDeclaration['source'], string> = {
   devEngines: 'devEngines',
   volta: 'Volta',
   'tool-versions': '.tool-versions',
+  mise: 'mise',
   nvmrc: '.nvmrc',
   'node-version': '.node-version',
   engines: 'engines',
@@ -76,7 +77,7 @@ export const SOURCE_LABEL: Record<VersionDeclaration['source'], string> = {
 
 const RULE = 'manager-version-too-old';
 /** Where developers choose their Node.js; anyone can install another npm, so these give warnings. */
-const DEVELOPER_SOURCES = new Set<VersionDeclaration['source']>(['nvmrc', 'node-version', 'volta', 'tool-versions', 'devEngines', 'engines']);
+const DEVELOPER_SOURCES = new Set<VersionDeclaration['source']>(['nvmrc', 'node-version', 'volta', 'tool-versions', 'mise', 'devEngines', 'engines']);
 
 function newest(versions: readonly Version[]): Version {
   return versions.reduce((a, b) => (compareVersions(a, b) >= 0 ? a : b));
@@ -416,6 +417,13 @@ export interface NpmInUse {
    * a fix offers runs there (decision D-121); absent for a pin and other declarations of npm itself.
    */
   nodes?: readonly NodeOf[];
+  /**
+   * A CI job or Dockerfile stage whose installs are all npm ci, which installs the versions of package-lock.json, so
+   * that it needs no release-age delay (decisions D-115 and D-173).
+   */
+  lockfile?: true;
+  /** A declaration of npm itself (packageManager, devEngines, Volta, .tool-versions), by where it is: "devEngines" (decision D-173). */
+  declared?: string;
 }
 
 /** What a directory listed in projects takes from the repository root besides its CI installs (decision D-109). */
@@ -529,34 +537,50 @@ export function builtByProject(projects: readonly string[]): (file: DockerfileIn
 
 const AT_ROOT = ' at the repository root';
 
-/** The versions from which npm treats dependency scripts and the settings of the policy otherwise. */
-function npmMarks(): Version[] {
-  const since = [
-    ...(values(npmFacts.installScripts.defaultPolicy)[0] ?? []).map((entry) => entry.since),
-    sinceOf(npmFacts.installScripts.allowList.availableSince),
-    sinceOf(npmFacts.cooldown.availableSince),
-  ];
-  return since.flatMap((text) => {
-    const version = text === undefined ? undefined : parseVersion(text);
-    return version === undefined ? [] : [version];
-  });
+/** The npm releases depcurfew knows: the newest of each minor line (extra.lineReleases), the latest one and those Node.js releases come with. */
+let knownNpm: Version[] | undefined;
+function knownNpmReleases(): Version[] {
+  if (knownNpm !== undefined) return knownNpm;
+  const lines = npmFacts.extra?.['lineReleases'] === undefined ? undefined : values(npmFacts.extra['lineReleases'])[0];
+  const latest = npmFacts.extra?.['latestVersion'] === undefined ? undefined : values(npmFacts.extra['latestVersion'])[0];
+  const texts = [...(Array.isArray(lines) ? (lines as unknown[]) : []), latest].filter((text): text is string => typeof text === 'string');
+  const found = [...texts.map((text) => parseVersion(text)), ...sharedFacts().node.map((segment) => segment.bundled)].filter((version): version is Version => version !== undefined && version.length === 3);
+  const sorted = found.sort(compareVersions).filter((version, index, list) => index === 0 || compareVersions(version, list[index - 1] as Version) !== 0);
+  knownNpm = sorted;
+  return sorted;
 }
 
 /**
- * The npm of npm install -g npm@<spec> (decision D-115): an exact version; for a range (npm@11, npm@^11.10.0) its lowest
- * version and the versions it allows from which npm treats dependency scripts otherwise, as for a range in
- * packageManager; for a spec depcurfew cannot read (npm@latest, npm@${NPM_VERSION}) an npm it cannot tell, which
- * counts as one that runs every dependency install script (decision D-111).
+ * The npm npm install -g npm@<range> installs (npm extra.rangeInstall, decision D-173): the newest release of the range
+ * that runs on the Node.js of the place (one whose engines leave out every release the place allows does not), else the
+ * newest release of the range; npm@latest and a bare npm are the range *. It is taken from the releases depcurfew knows
+ * (knownNpmReleases): npm installs that one or a newer release. undefined for a dist-tag other than latest and for a
+ * range no release depcurfew knows satisfies.
+ */
+export function pickedNpm(spec: string, nodes: readonly NodeOf[]): { version: Version; newerElsewhere: boolean } | undefined {
+  const range = spec === 'latest' || spec === '' ? '*' : spec;
+  if (range !== '*' && lowestVersion(range).kind === 'unknown') return undefined;
+  const candidates = knownNpmReleases().filter((version) => satisfies(formatVersion(version), range)).sort((a, b) => compareVersions(b, a));
+  const facts = sharedFacts();
+  const runs = candidates.find((version) => enginesVerdict(version, nodes, facts)?.verdict !== 'none');
+  const version = runs ?? candidates[0];
+  // newerElsewhere: a newer release of the range exists, but not for the Node.js of the place.
+  return version === undefined ? undefined : { version, newerElsewhere: version !== candidates[0] };
+}
+
+/**
+ * The npm of npm install -g npm@<spec> (decisions D-115 and D-173): an exact version; for a range (npm@11, npm@^11.10.0)
+ * or npm@latest the release pickedNpm takes for it; for a spec depcurfew cannot read (npm@next, npm@${NPM_VERSION}, a
+ * range with no release it knows) an npm it cannot tell, which counts as one that runs every dependency install script
+ * (decision D-111).
  */
 function upgradeEntry(spec: string, where: string, location: NpmInUse['location'], nodes: readonly NodeOf[] = []): NpmInUse {
   const fields = { where, ...(location === undefined ? {} : { location }), ...(nodes.length === 0 ? {} : { nodes }) };
   const exact = parseVersion(spec);
   if (exact !== undefined) return { versions: [exact], ...fields };
-  const lowest = lowestVersion(spec);
-  if (lowest.kind === 'unknown') return { versions: [], unknown: `npm@${spec} names no version depcurfew can read`, spec, ...fields };
-  const candidates = [lowest.version, ...npmMarks()].filter((version) => satisfies(formatVersion(version), spec)).sort(compareVersions);
-  const versions = candidates.filter((version, index) => index === 0 || compareVersions(version, candidates[index - 1] as Version) !== 0);
-  return { versions: versions.length === 0 ? [lowest.version] : versions, range: spec, ...fields };
+  const picked = pickedNpm(spec, nodes);
+  if (picked === undefined) return { versions: [], unknown: `npm@${spec} names no version depcurfew can read, or none of the npm releases it knows`, spec, ...fields };
+  return { versions: [picked.version], range: spec, ...fields };
 }
 
 /**
@@ -579,6 +603,7 @@ export function npmInUse(
   const facts = sharedFacts();
   const resolve = resolver(facts);
   const found: NpmInUse[] = [];
+  const locked = (installs: Installs | undefined) => (installs?.lockfile === true && lockedVersionsInstalled() ? { lockfile: true as const } : {});
   const keys = new Set<string>();
   const push = (entry: NpmInUse) => {
     const key = `${entry.where}\u0000${entry.versions.map(formatVersion).join(' ')}\u0000${entry.unknown ?? ''}`;
@@ -587,14 +612,14 @@ export function npmInUse(
     found.push(entry);
   };
   // A version depcurfew cannot map to an npm stays in the list as unknown: it must not pass for one that blocks scripts.
-  const add = (resolution: Resolved, where: string, location: NpmInUse['location'], node?: NodeOf) => {
-    const fields = { where: `with ${where}`, ...(location === undefined ? {} : { location }), ...(node === undefined ? {} : { nodes: [node] }) };
+  const add = (resolution: Resolved, where: string, location: NpmInUse['location'], node?: NodeOf, installs?: Installs) => {
+    const fields = { where: `with ${where}`, ...(location === undefined ? {} : { location }), ...(node === undefined ? {} : { nodes: [node] }), ...locked(installs) };
     push(resolution.kind === 'unknown' ? { versions: [], unknown: resolution.reason, ...fields } : { versions: [...resolution.bundled], ...fields });
   };
-  const unknownNode = (reason: string, where: string, location: NpmInUse['location']) => add({ kind: 'unknown', reason }, where, location);
+  const unknownNode = (reason: string, where: string, location: NpmInUse['location'], installs?: Installs) => add({ kind: 'unknown', reason }, where, location, undefined, installs);
   const at = (file: string, line: number | undefined) => ({ file, ...(line === undefined ? {} : { line }) });
-  const upgrade = (command: ToolCommand, where: string, location: NpmInUse['location'], nodes: readonly NodeOf[] = []) => {
-    if (command.version !== undefined) push(upgradeEntry(command.version, where, location, nodes));
+  const upgrade = (command: ToolCommand, where: string, location: NpmInUse['location'], nodes: readonly NodeOf[] = [], installs?: Installs) => {
+    if (command.version !== undefined) push({ ...upgradeEntry(command.version, where, location, nodes), ...locked(installs) });
   };
   const stageNodes = (place: DockerPlace): NodeOf[] => {
     const version = place.stage.runtime?.tool === 'node' ? place.stage.runtime.version : undefined;
@@ -613,12 +638,12 @@ export function npmInUse(
     if (exact !== undefined) {
       const isPin: boolean = !pinned && pin !== undefined && compareVersions(exact, pin) === 0;
       pinned ||= isPin;
-      push({ versions: [exact], where: `${label(declaration)} in ${declaration.file}`, location: at(declaration.file, declaration.line), ...(isPin ? { pin: true as const } : {}) });
+      push({ versions: [exact], where: `${label(declaration)} in ${declaration.file}`, location: at(declaration.file, declaration.line), declared: label(declaration), ...(isPin ? { pin: true as const } : {}) });
       continue;
     }
     const lowest = lowestVersion(declaration.version);
     const version = lowest.kind === 'unknown' ? undefined : parseVersion(formatBound(lowest));
-    if (version !== undefined) push({ versions: [version], where: `the lowest version ${label(declaration)} in ${declaration.file} allows`, location: at(declaration.file, declaration.line) });
+    if (version !== undefined) push({ versions: [version], where: `the lowest version ${label(declaration)} in ${declaration.file} allows`, location: at(declaration.file, declaration.line), declared: label(declaration) });
   }
   const views: Detection[] = [detection];
   if (options.extra !== undefined && options.extra.jobs.length > 0) {
@@ -634,13 +659,13 @@ export function npmInUse(
   // The npm CI jobs and Dockerfile stages install for this directory, then the npm of the Node.js they set up.
   for (const { place, ownFile } of jobs) {
     if (place.upgrade === undefined || place.project !== '' || place.installs.scriptsOff) continue;
-    upgrade(place.upgrade, `installed in ${jobLabel(place.job.id, place.job.line)} of ${place.job.file}${ownFile ? '' : AT_ROOT}, line ${place.upgrade.line}`, ownFile ? at(place.job.file, place.upgrade.line) : undefined, place.nodes.flatMap(nodeOf));
+    upgrade(place.upgrade, `installed in ${jobLabel(place.job.id, place.job.line)} of ${place.job.file}${ownFile ? '' : AT_ROOT}, line ${place.upgrade.line}`, ownFile ? at(place.job.file, place.upgrade.line) : undefined, place.nodes.flatMap(nodeOf), place.installs);
   }
   for (const place of own) {
-    if (place.upgrade !== undefined && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}, line ${place.upgrade.line}`, at(place.file.file, place.upgrade.line), stageNodes(place));
+    if (place.upgrade !== undefined && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}, line ${place.upgrade.line}`, at(place.file.file, place.upgrade.line), stageNodes(place), place.installs);
   }
   for (const place of fromRoot) {
-    if (place.upgrade !== undefined && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}${AT_ROOT}, line ${place.upgrade.line}`, undefined, stageNodes(place));
+    if (place.upgrade !== undefined && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}${AT_ROOT}, line ${place.upgrade.line}`, undefined, stageNodes(place), place.installs);
   }
   for (const { place, ownFile } of jobs) {
     const declaration = place.declaration;
@@ -648,22 +673,22 @@ export function npmInUse(
     const location = ownFile ? at(declaration.file, declaration.line) : undefined;
     const job = `${jobLabel(place.job.id, place.job.line)} of ${declaration.file}${ownFile ? '' : AT_ROOT}`;
     if (!('version' in declaration)) {
-      unknownNode('depcurfew cannot read the version from that file', `Node.js from ${declaration.versionFile} in ${job}`, location);
+      unknownNode('depcurfew cannot read the version from that file', `Node.js from ${declaration.versionFile} in ${job}`, location, place.installs);
       continue;
     }
     const matrix = declaration.matrix === undefined ? '' : ` (matrix.${declaration.matrix})`;
     const container = declaration.container === undefined ? '' : ` of the job container ${declaration.container}`;
     const from = declaration.versionFile === undefined ? '' : ` from ${declaration.versionFile}`;
     const where = `Node.js ${declaration.version}${matrix}${container}${from} in ${job}`;
-    if (declaration.unknown !== undefined) unknownNode(declaration.unknown, where, location);
-    else add(resolve(declaration.version, namingFor(declaration)), where, location, { version: declaration.version, naming: namingFor(declaration) });
+    if (declaration.unknown !== undefined) unknownNode(declaration.unknown, where, location, place.installs);
+    else add(resolve(declaration.version, namingFor(declaration)), where, location, { version: declaration.version, naming: namingFor(declaration) }, place.installs);
   }
   const subject = (place: DockerPlace) => `Node.js ${place.stage.runtime?.version === undefined ? '' : `${place.stage.runtime.version} `}of ${place.root.image ?? 'node'} in ${place.file.file}`;
   const stage = (place: DockerPlace, suffix: string, location: NpmInUse['location']) => {
     if (place.upgrade !== undefined || place.installs.scriptsOff) return;
     const version = place.stage.runtime?.version;
-    if (version === undefined) unknownNode(place.stage.runtime?.unknown ?? 'the tag names no version', `${subject(place)}${suffix}`, location);
-    else add(resolve(version, 'docker'), `${subject(place)}${suffix}`, location, { version, naming: 'docker' });
+    if (version === undefined) unknownNode(place.stage.runtime?.unknown ?? 'the tag names no version', `${subject(place)}${suffix}`, location, place.installs);
+    else add(resolve(version, 'docker'), `${subject(place)}${suffix}`, location, { version, naming: 'docker' }, place.installs);
   };
   for (const place of own) stage(place, '', at(place.file.file, place.root.line));
   for (const declaration of developerPlaces(detection, manager, manifest, (options.root?.versions.length ?? 0) > 0)) {
@@ -911,19 +936,22 @@ function checkUpgrade(context: RuleContext, helpers: BundledHelpers, check: Chec
   if (spec === undefined) return;
   const name = check.tool.name;
   const where = place.label === place.file ? place.label : `${place.label} (${place.file})`;
-  const lowest = lowestVersion(spec);
-  if (lowest.kind === 'unknown') {
-    context.notice(`${RULE} cannot evaluate ${name} version "${spec}" in ${place.file}`, place.file);
+  const written = lowestVersion(spec);
+  // A range or latest is the newest release of it that runs there (decision D-173), never its lowest version.
+  const picked = written.kind === 'exact' ? undefined : pickedNpm(spec, place.nodes);
+  if (written.kind !== 'exact' && picked === undefined) {
+    context.notice(`${RULE} cannot evaluate ${name} version "${spec}" in ${place.file}: it is no version, range or latest, or none of the ${name} releases depcurfew knows is in it`, place.file);
     return;
   }
+  const lowest: Exclude<ReturnType<typeof lowestVersion>, { kind: 'unknown' }> = picked === undefined ? (written as Exclude<typeof written, { kind: 'unknown' }>) : { kind: 'exact', version: picked.version };
   const missing = helpers.missing(placeFeatures(check.features, place.of), (since) => belowVersion(lowest, since));
   if (missing.length === 0) return;
   const needed = newest(missing.map((item) => parseVersion(item.since) as Version));
   const list = describeRequirements(missing);
   const subject =
-    lowest.kind === 'exact'
+    picked === undefined
       ? `${name} ${formatBound(lowest)} in ${where} does not support ${list}`
-      : `${where} allows ${name} ${formatBound(lowest)} ("${spec}"), which does not support ${list}`;
+      : `${where} installs ${name} ${formatVersion(picked.version)} ("${spec}": the newest release of it depcurfew knows${picked.newerElsewhere ? ' that runs on the Node.js there' : ''}), which does not support ${list}`;
   const alternative = helpers.alternative(missing, name, check.advice);
   // npm 11 does not run on Node.js 18: then the Node.js has to change first (decision D-115).
   const engines = (version: Version) => {
@@ -934,11 +962,11 @@ function checkUpgrade(context: RuleContext, helpers: BundledHelpers, check: Chec
       : ` (npm ${formatVersion(version)} runs on Node.js ${found.range} only)`;
   };
   const fix =
-    alternative !== undefined && lowest.kind === 'exact' && compareVersions(lowest.version, alternative.version) >= 0
+    alternative !== undefined && picked === undefined && compareVersions(lowest.version, alternative.version) >= 0
       ? `${alternative.set.charAt(0).toUpperCase()}${alternative.set.slice(1)}, or require ${name} ${formatVersion(needed)} or later in ${place.label}${engines(needed)}`
       : `Require ${name} ${formatVersion(needed)} or later in ${place.label}${engines(needed)}${alternative === undefined ? '' : `, or ${alternative.text}`}`;
   context.report({
-    level: lowest.kind === 'exact' ? 'error' : 'warning',
+    level: picked === undefined ? 'error' : 'warning',
     location: { file: place.file, line: place.command.line },
     message: `${subject}${place.installs === undefined ? '' : `, and ${place.installs}`}`,
     fix,
