@@ -287,7 +287,7 @@ export function init(directory: string | undefined, options: InitOptions, io: Cl
   }
   // The longest delay the repository sets, the known install-script packages and the projects (decision D-149: doctor
   // compares a repository without depcurfew.json with the same policy).
-  const { detection, projects, leftOut, kept, minimum, scripts, text } = initialPolicy(absolute);
+  const { detection, projects, leftOut, kept, minimum, scripts, keptNotes, text } = initialPolicy(absolute);
   try {
     if (existing === undefined || !options.force) {
       // 'wx' fails if the file appeared in the meantime, so nothing is overwritten without --force.
@@ -328,6 +328,7 @@ export function init(directory: string | undefined, options: InitOptions, io: Cl
     before.push({ code: 'project-left-out', level: 'warning', location: { file: entry.file }, message: `${entry.project} is not in projects: ${entry.reason}`, fix: entry.fix });
   }
   if (kept !== undefined) before.push(keptNote(kept, minimum, POLICY_FILE, 'depcurfew apply'));
+  before.push(...keptNotes);
   const after: InitMessage[] = [];
   // Building from source runs the package's own build code, so the default deny blocks it (decision D-065); a package
   // without wheels then stops installing, which a team should see before apply (user feedback before 1.3.0).

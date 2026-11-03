@@ -11,7 +11,7 @@ import { ecosystemOfTool } from '../../policy/ecosystem.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { patternsFor } from '../../policy/package-pattern.ts';
 import { extraOf, isRecord, settingOf, values } from '../facts.ts';
-import { exclusions, sameList } from './common.ts';
+import { commentReplacedList, droppedYamlList, exclusions, sameList } from './common.ts';
 import type { BotGenerator } from './context.ts';
 import { rejectsYamlAliases, yamlAliasLine } from '../../doctor/settings.ts';
 import type { BotOnlyEcosystemId, ToolKnowledge } from '../../knowledge/types.ts';
@@ -109,6 +109,7 @@ export const dependabot: BotGenerator = (context, duration, repository) => {
   const others = new Set<string>();
   // A dependabot.yml may have an entry for every directory of a monorepo: the edits are made together.
   const edits: [(string | number)[], unknown][] = [];
+  const dropped: { path: string[]; old: unknown[] }[] = [];
   (Array.isArray(updates) ? updates : []).forEach((entry: unknown, index) => {
     if (!isRecord(entry)) return;
     const ecosystem = String(entry['package-ecosystem']);
@@ -132,9 +133,14 @@ export const dependabot: BotGenerator = (context, duration, repository) => {
     }
     if (patterns !== undefined && (patterns.length > 0 || keys.exclude in current) && !sameList(current[keys.exclude], patterns)) {
       edits.push([['updates', index, setting, keys.exclude], patterns]);
+      // Entries written by hand that the policy does not name stay as a comment (decision D-167).
+      const path = ['updates', String(index), setting, keys.exclude];
+      const old = droppedYamlList(context, file, path, patterns);
+      if (old !== undefined) dropped.push({ path, old });
     }
   });
   if (edits.length > 0) yaml.setMany(edits);
+  for (const { path, old } of dropped) commentReplacedList(context, file, path, old);
   // Without package managers to update, entries for the actions and the ecosystems updated by bots only are what there
   // is to configure.
   const managersInUse = context.tools.some((entry) => entry.kind === 'package-manager' && context.targets.has(entry.id));

@@ -191,7 +191,11 @@ function keyOf(line: string): string | undefined {
 }
 
 /** What is wrong, in words: a value to change, a line to add or remove, or a hand-written line to comment out. */
-function describe(file: string, difference: Difference, before: string, after: string): string {
+function describe(file: string, original: Difference, before: string, after: string): string {
+  // In YAML apply keeps the entries it drops from a list as a comment above it (decision D-167); the difference is the
+  // value it writes, which says more than the comment.
+  const kept = /\.ya?ml$/u.test(file) ? original.added.filter((text) => !isCommentedOut(text)) : original.added;
+  const difference = kept.length > 0 ? { ...original, added: kept } : original;
   const commented = difference.added.filter(isCommentedOut);
   if (commented.length > 0) {
     // Every line apply comments out, also those further down: each one is a setting that does not hold.
@@ -324,6 +328,19 @@ function checkBundlerCooldown(context: RuleContext, plan: ApplyReport): void {
   }
 }
 
+/**
+ * pip: a --no-binary or --only-binary=:none: in requirements.txt or a file it includes that apply cannot comment out
+ * (after a requirement, next to other options, on a continued line) undoes --only-binary=:all: after apply too; each
+ * build-switch-undone of the plan is reported where it points, with apply's text (decision D-167). Lines apply comments
+ * out are differences of the plan, reported above.
+ */
+function checkPipOptions(context: RuleContext, plan: ApplyReport): void {
+  for (const warning of plan.warningDetails) {
+    if (warning.code !== 'build-switch-undone' || warning.location === undefined) continue;
+    context.report({ location: warning.location, message: warning.message, ...(warning.fix === undefined ? {} : { fix: warning.fix }) });
+  }
+}
+
 /** The most settings a note against the default policy names; the rest are counted (decision D-149). */
 export const MAX_SETTINGS = 6;
 
@@ -392,7 +409,7 @@ export const configDrift: Rule = {
   checks: 'Configuration files match what depcurfew apply writes for depcurfew.json',
   summary: 'A configuration file does not match what depcurfew apply writes for depcurfew.json.',
   description:
-    'A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool\'s own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning. So is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, which apply keeps unless it wrote the entry itself. A Gemfile apply cannot write the cooldown of Bundler into (a source with a block or a modifier or inside other code, a cooldown: given twice, a URL from ENV, no rubygems.org source, a Gemfile depcurfew cannot read as Ruby does) is an error where apply says so, or a warning when that call already waits as long as the policy.',
+    'A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool\'s own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning. So is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, which apply keeps unless it wrote the entry itself. What apply cannot write is an error where it says: the cooldown of Bundler in a Gemfile (a source with a block, a modifier or in other code, cooldown: twice, a URL from ENV, no rubygems.org source, a Gemfile depcurfew cannot read as Ruby does; a warning if that call waits as long as the policy), and a --no-binary or --only-binary=:none: of pip it cannot comment out.',
   help: 'Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.',
   level: 'error',
   requiresPolicy: true,
@@ -402,6 +419,7 @@ export const configDrift: Rule = {
     if (context.defaultPolicy === true) {
       reportAgainstDefault(context, plan);
       checkBundlerCooldown(context, plan);
+      checkPipOptions(context, plan);
       checkAllowLists(context, plan);
       checkComposerExclusions(context, plan);
       return;
@@ -430,6 +448,7 @@ export const configDrift: Rule = {
       }
     }
     checkBundlerCooldown(context, plan);
+    checkPipOptions(context, plan);
     checkAllowLists(context, plan);
     checkComposerExclusions(context, plan);
   },

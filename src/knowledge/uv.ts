@@ -20,6 +20,7 @@ const user = verifiedOn('2026-10-31');
 const release13 = verifiedOn('2026-11-01');
 const final = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
+const d167 = verifiedOn('2026-11-03');
 /** The values clap's BoolishValueParser reads as true, compared without regard to case (user.variables). */
 const TRUE_VALUES = ['1', 'true', 't', 'yes', 'y', 'on'];
 
@@ -299,6 +300,11 @@ export const uv: ToolKnowledge = {
       'Either a "friendly" duration (24 hours, 1 week, 30 days) or an ISO 8601 duration (PT24H, P7D, P30D).',
     ),
     durationUnits: verified(['hours', 'days', 'weeks'], RESOLUTION, 'Units in the documented examples: 24 hours, 1 week, 30 days.'),
+    cutoffDates: d167.verified(
+      { timestamps: true, offsetRequired: true, dates: 'next-day-system-time-zone' },
+      `${UV}/crates/uv-distribution-types/src/exclude_newer.rs`,
+      'FromStr of ExcludeNewerValue tries an RFC 3339 timestamp (jiff Timestamp, which needs an offset), then a date, which counts from the start of the next day in the system time zone (date.checked_add(1.day()) and to_zoned(TimeZone::system())), then a span. A timestamp or a date is a fixed cutoff: uv uses no file uploaded after it (docs/concepts/resolution.md, "Reproducible resolutions"), so it holds back more every day.',
+    ),
     excludeWildcards: verified({ since: null, trailingOnly: false }, SETTINGS, 'exclude-newer-package keys are exact package names.'),
     excludeValue: verified(false, changelog('0.9', '0.9.25'), 'exclude-newer-package = { name = false } exempts the package from the delay.'),
     missingUploadTime: verified(

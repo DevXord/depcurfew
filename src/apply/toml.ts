@@ -7,11 +7,102 @@
 // in several tables names the table in each block's marker.
 import { blockLabel, blockStart, commentedOut, insertBlock, joinLines, removeBlock, removeBlockAt, splitLines, SUPERSEDED, TURNED_OFF, type BlockScope, type RemovedBlock } from './block.ts';
 
-const HEADER = /^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(?:#.*)?$/u;
+const BARE_KEY = /^[A-Za-z0-9_-]+/u;
+const ESCAPES: Readonly<Record<string, string>> = { b: '\b', t: '\t', n: '\n', f: '\f', r: '\r', e: '\u001b', '"': '"', '\\': '\\' };
 
-function keyOf(line: string): string | undefined {
+/** A "basic" or 'literal' key part from the quote at `start`, with the index after it; undefined when it does not close on the line. */
+function quotedPart(text: string, start: number): { value: string; end: number } | undefined {
+  const quote = text[start] ?? '';
+  if (text.startsWith(quote.repeat(3), start)) return undefined;
+  let value = '';
+  let index = start + 1;
+  for (;;) {
+    const char = text[index];
+    if (char === undefined) return undefined;
+    index += 1;
+    if (char === quote) return { value, end: index };
+    if (quote === "'" || char !== '\\') {
+      value += char;
+      continue;
+    }
+    const escape = text[index] ?? '';
+    const digits = escape === 'u' ? 4 : escape === 'U' ? 8 : escape === 'x' ? 2 : 0;
+    if (digits === 0) {
+      const replaced = ESCAPES[escape];
+      if (replaced === undefined) return undefined;
+      value += replaced;
+      index += 1;
+      continue;
+    }
+    const hex = text.slice(index + 1, index + 1 + digits);
+    if (hex.length !== digits || !/^[0-9A-Fa-f]+$/u.test(hex) || Number.parseInt(hex, 16) > 0x10ffff) return undefined;
+    value += String.fromCodePoint(Number.parseInt(hex, 16));
+    index += 1 + digits;
+  }
+}
+
+/**
+ * A key as TOML reads it, from `start` of `text`: bare, "basic" (with escapes) and 'literal' parts joined by dots, with
+ * spaces or tabs around each dot (decision D-167), and the index after it; undefined when no key starts there.
+ */
+function readKey(text: string, start: number): { parts: string[]; end: number } | undefined {
+  const parts: string[] = [];
+  let index = start;
+  const spaces = () => {
+    while (text[index] === ' ' || text[index] === '\t') index += 1;
+  };
+  for (;;) {
+    spaces();
+    const char = text[index];
+    if (char === '"' || char === "'") {
+      const part = quotedPart(text, index);
+      if (part === undefined) return undefined;
+      parts.push(part.value);
+      index = part.end;
+    } else {
+      const bare = BARE_KEY.exec(text.slice(index, index + 256))?.[0];
+      if (bare === undefined) return undefined;
+      parts.push(bare);
+      index += bare.length;
+    }
+    spaces();
+    if (text[index] !== '.') return { parts, end: index };
+    index += 1;
+  }
+}
+
+/**
+ * A key path in one spelling, so that [tool."uv"], [tool . uv] and [tool.uv] name the same table, as they do in TOML:
+ * parts that can be bare are written bare, the others as JSON strings.
+ */
+function keyName(parts: readonly string[]): string {
+  return parts.map((part) => (/^[A-Za-z0-9_-]+$/u.test(part) ? part : JSON.stringify(part))).join('.');
+}
+
+/** The table a header line names ([table] or [[table]]), in the spelling of keyName; undefined for any other line. */
+export function headerOf(line: string): { name: string; array: boolean } | undefined {
+  const start = line.search(/\S/u);
+  if (start === -1 || line[start] !== '[') return undefined;
+  const array = line[start + 1] === '[';
+  const key = readKey(line, start + (array ? 2 : 1));
+  if (key === undefined) return undefined;
+  const close = array ? ']]' : ']';
+  if (!line.startsWith(close, key.end)) return undefined;
+  const rest = line.slice(key.end + close.length).trim();
+  return rest === '' || rest.startsWith('#') ? { name: keyName(key.parts), array } : undefined;
+}
+
+function isHeader(line: string): boolean {
+  return headerOf(line) !== undefined;
+}
+
+/** The key of a `key = value` line in the spelling of keyName: quoted and dotted keys as TOML reads them. */
+export function keyOf(line: string): string | undefined {
   const trimmed = line.trim();
   if (trimmed === '' || trimmed.startsWith('#') || trimmed.startsWith('[')) return undefined;
+  const key = readKey(trimmed, 0);
+  if (key !== undefined && trimmed[key.end] === '=') return keyName(key.parts);
+  // Not a key TOML reads: the text before = as it is, so that the value after it is still followed.
   const equals = trimmed.indexOf('=');
   if (equals === -1) return undefined;
   return trimmed.slice(0, equals).trim().replace(/^["']|["']$/gu, '');
@@ -76,10 +167,10 @@ function tablesOf(lines: readonly string[]): (string | undefined)[] {
   let current: string | undefined;
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index] ?? '';
-    const header = HEADER.exec(line);
-    if (header !== null) current = header[1];
+    const header = headerOf(line);
+    if (header !== undefined) current = header.name;
     tables[index] = current;
-    if (header === null && keyOf(line) !== undefined) {
+    if (header === undefined && keyOf(line) !== undefined) {
       const end = valueEnd(lines, index);
       for (let next = index + 1; next <= end; next++) tables[next] = current;
       index = end;
@@ -112,9 +203,9 @@ function restoreLines(lines: string[], table: string, isManaged: (key: string) =
   let section: 'table' | 'restored' | 'kept' = 'table';
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index] ?? '';
-    const header = HEADER.exec(line);
-    if (header !== null) {
-      current = header[1];
+    const header = headerOf(line);
+    if (header !== undefined) {
+      current = header.name;
       section = 'table';
       continue;
     }
@@ -123,9 +214,9 @@ function restoreLines(lines: string[], table: string, isManaged: (key: string) =
       if (keyOf(line) !== undefined) index = valueEnd(lines, index);
       continue;
     }
-    const noted = HEADER.exec(original);
-    if (noted !== null) {
-      const name = noted[1] ?? '';
+    const noted = headerOf(original);
+    if (noted !== undefined) {
+      const name = noted.name;
       section = name.startsWith(prefix) && !isManaged(name.slice(prefix.length)) ? 'restored' : 'kept';
       if (section === 'restored') lines[index] = original;
       continue;
@@ -169,9 +260,9 @@ export function writeTomlBlock(body: string, table: string, entries: readonly st
   let inManagedTable = false;
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index] ?? '';
-    const header = HEADER.exec(line);
-    if (header !== null) {
-      const name = header[1] ?? '';
+    const header = headerOf(line);
+    if (header !== undefined) {
+      const name = header.name;
       inManagedTable = name.startsWith(prefix) && isManaged(name.slice(prefix.length));
       if (inManagedTable) {
         lines[index] = `${note}${line.trim()}`;
@@ -179,7 +270,7 @@ export function writeTomlBlock(body: string, table: string, entries: readonly st
       }
       current = name;
       boundaries.push(index);
-      if (!line.trim().startsWith('[[')) headers.set(index, current);
+      if (!header.array) headers.set(index, current);
       continue;
     }
     const key = keyOf(line);
@@ -237,7 +328,7 @@ function withoutCreatedTable(lines: string[], table: string, removed: RemovedBlo
   const header = at - 1;
   if (lines[header]?.trim() !== `[${table}]`) return lines;
   let end = at;
-  while (end < lines.length && !HEADER.test(lines[end] ?? '')) {
+  while (end < lines.length && !isHeader(lines[end] ?? '')) {
     if ((lines[end] ?? '').trim() !== '') return lines;
     end += 1;
   }
@@ -254,6 +345,6 @@ function withoutCreatedTable(lines: string[], table: string, removed: RemovedBlo
 function topBlock(lines: string[], at: number, entries: readonly string[], separate: boolean | undefined, marker: string): string[] {
   const result = insertBlock(lines, at, entries, separate, marker);
   const after = at + (result.length - lines.length);
-  if (HEADER.test(result[after] ?? '')) result.splice(after, 0, '');
+  if (isHeader(result[after] ?? '')) result.splice(after, 0, '');
   return result;
 }

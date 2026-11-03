@@ -32,7 +32,8 @@ import { allowEntries, denyEntries, matchesPattern, type AllowEntry } from '../a
 import { latestVersion, versionedValue } from '../effective.ts';
 import { readLockfiles, type Lockfile, type LockEntry, type Source } from '../lockfiles.ts';
 import { requirementsFormatOf } from '../python-lockfiles.ts';
-import { readPythonSetting, requirementsOptions } from '../python.ts';
+import { readPythonSetting, requirementsLongOptions } from '../python.ts';
+import { formatControlAfter, formatControlFacts } from '../../apply/pip-includes.ts';
 import { iniValue, readSetting } from '../settings.ts';
 import { readRuleSetting } from '../pnpm-config.ts';
 import type { Rule, RuleContext } from '../types.ts';
@@ -381,10 +382,16 @@ function buildsForbiddenBy(context: RuleContext, tool: ToolKnowledge, lockfile: 
   if (build === undefined) return undefined;
   if (tool.id === 'pip') {
     const format = requirementsFormatOf(tool);
-    // The options of the requirements file pip is given, and of the files it includes, apply to the whole install.
+    const facts = formatControlFacts(tool);
+    // The options of the requirements file pip is given, and of the files it includes, apply to the whole install, in
+    // the order pip reads them: a later --no-binary=:all: or --only-binary=:none: undoes the switch (decision D-167).
     const files = lockfile.optionFiles ?? [];
-    const found = files.find((file) => requirementsOptions(context.repository, file, format).some((line) => line.option === build.setting && line.value === build.value));
-    return found === undefined ? undefined : `${build.setting}=${String(build.value)} in ${found} forbids building`;
+    const roots = files.filter((file) => context.detection.packageManagers.some((manager) => manager.id === 'pip' && manager.configFiles.includes(file)));
+    if (facts === undefined || roots.length === 0) return undefined;
+    const reading = { facts, format, longOptions: requirementsLongOptions(format) };
+    const results = roots.map((root) => formatControlAfter((file) => context.repository.readText(file), root, reading));
+    const found = results[0]?.from;
+    return found === undefined || !results.every((result) => result.onlyAll) ? undefined : `${build.setting}=${String(build.value)} in ${found} forbids building`;
   }
   const found = readPythonSetting(context.repository, tool, build.setting);
   return found !== undefined && switchIsOn(found.value, build.value) ? `${build.setting} in ${found.file} forbids building` : undefined;

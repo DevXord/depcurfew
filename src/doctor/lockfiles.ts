@@ -9,12 +9,11 @@ import type { PackageManagerInfo } from '../detect/types.ts';
 import { environment } from '../knowledge/environment.ts';
 import type { RegistryTarballLayoutKnowledge, ToolKnowledge } from '../knowledge/types.ts';
 import { listing } from '../apply/requirements.ts';
-import { isAbsoluteAnywhere } from '../paths.ts';
 import { parseYaml, parseYamlDocuments } from '../yaml-parse.ts';
 import { iniEntries } from './settings.ts';
 import { composerEntries, composerManifest, declaredRepositories } from './composer.ts';
 import { classicYarnEntries, UnsupportedClassicLockfile, type ClassicTarballs } from './yarn-classic-lockfile.ts';
-import { pdmEntries, pipfileLockEntries, poetryEntries, pylockEntries, requirementsEntries, requirementsFormatOf, requirementsIncludes, uvEntries } from './python-lockfiles.ts';
+import { includedFile, pdmEntries, pipfileLockEntries, poetryEntries, pylockEntries, requirementsEntries, requirementsFormatOf, requirementsIncludes, uvEntries } from './python-lockfiles.ts';
 
 /** The limit of lockfiles, which every reader of a lockfile uses (Repository.readText, decision D-166). */
 export { MAX_LOCKFILE_SIZE };
@@ -698,7 +697,6 @@ function extraFormat(tool: ToolKnowledge, key: string): Format | undefined {
   return isRecord(value) ? value : undefined;
 }
 
-const URL_LIKE = /^[a-z][a-z0-9+.-]+:/iu;
 
 /**
  * pip reads the files a requirements file includes with -r and -c too, relative to the including file, and their
@@ -718,15 +716,9 @@ function requirementsTrees(repository: Repository, roots: readonly string[], for
       if (text === undefined) continue;
       const unreadable: string[] = [];
       for (const { path, line } of requirementsIncludes(text, format)) {
-        const target = posix.normalize(posix.join(posix.dirname(file), path.replaceAll('\\', '/')));
-        const reason = URL_LIKE.test(path)
-          ? 'a URL'
-          : isAbsoluteAnywhere(path) || target === '..' || target.startsWith('../')
-            ? 'outside the repository'
-            : repository.isFile(target)
-              ? undefined
-              : 'missing';
-        if (reason === undefined) queue.push(target);
+        const included = includedFile(file, path);
+        const reason = included.url ? 'a URL' : included.outside ? 'outside the repository' : repository.isFile(included.target) ? undefined : 'missing';
+        if (reason === undefined) queue.push(included.target);
         else unreadable.push(`${path} (line ${line}, ${reason})`);
       }
       if (unreadable.length > 0) repository.warn('unreadable-include', `cannot read the files that ${file} includes: ${listing(unreadable)}`, [file]);

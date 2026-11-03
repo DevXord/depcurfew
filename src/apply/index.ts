@@ -20,7 +20,8 @@ import { readPolicyFile } from '../policy/file.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { formatIssue, parsePolicy } from '../policy/validate.ts';
 import { shortenedDelays } from './delays.ts';
-import { isRecord, values } from './facts.ts';
+import { droppedExclusions } from './exclusions.ts';
+import { isRecord, sinceOf, values } from './facts.ts';
 import { foldCase, ignoredByGit, ignoresCase, trackedFiles } from './gitignore.ts';
 import { bun } from './generators/bun.ts';
 import { bundler } from './generators/bundler.ts';
@@ -435,6 +436,8 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   warnings.push(...optionalDependencyWarnings(root, policy, detection, targets, tools));
   const changes = workspace.changes();
   if (policy.cooldown !== undefined) warnings.push(...shortenedDelays(root, changes, detection, tools, targets, policy.cooldown.minimum.text));
+  // Exceptions written by hand that the change removes (decision D-167).
+  if (policy.cooldown !== undefined) warnings.push(...droppedExclusions(root, changes, detection, tools, targets));
   // A project's files may match a .gitignore of the root, which planRepository reads for all of them.
   if (options.project === undefined) warnings.push(...ignoredFileWarnings(root, changes));
   const errors = failures.map((failure) => `${tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool}: cannot edit ${failure.file}: ${failure.message}`);

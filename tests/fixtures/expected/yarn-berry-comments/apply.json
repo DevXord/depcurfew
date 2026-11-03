@@ -15,6 +15,16 @@
       "tool": "yarn",
       "message": "Yarn (Berry) has no setting for remote tarball dependencies, so \"deny\" cannot be enforced",
       "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "exclusion-dropped",
+      "tool": "yarn",
+      "location": {
+        "file": ".yarnrc.yml",
+        "line": 2
+      },
+      "message": "Yarn (Berry): npmPreapprovedPackages in .yarnrc.yml (line 2) exempts react from the release-age delay, but cooldown.exclude in depcurfew.json does not; depcurfew apply comments it out, so Yarn (Berry) delays it like every other package",
+      "fix": "To keep the exception, add \"react\" to cooldown.exclude in depcurfew.json and run depcurfew apply again"
     }
   ],
   "snippets": []

@@ -17,6 +17,8 @@ import { ecosystemOfTool } from '../../policy/ecosystem.ts';
 import { patternsFor } from '../../policy/package-pattern.ts';
 import { extraOf, isRecord, settingOf, values } from '../facts.ts';
 import { exclusions } from './common.ts';
+import { jsonSetting } from '../../doctor/settings.ts';
+import { POLICY_FILE } from '../../policy/defaults.ts';
 import type { BotGenerator, BotRepository } from './context.ts';
 
 export const RULE_DESCRIPTION = 'depcurfew: packages excluded from minimumReleaseAge';
@@ -124,6 +126,18 @@ export const renovate: BotGenerator = (context, duration, repository) => {
     } else if (index >= 0) {
       json.remove([rule.list], index);
     }
+  }
+  // A delay of security updates set by hand goes when the policy lets them through at once (decision D-167).
+  const current = json.get(securityPath);
+  const delay = current === undefined || security !== null ? undefined : delayMinutes(tool, current, undefined);
+  if (delay?.ok === true && delay.minutes > 0) {
+    const line = jsonSetting(context.read(file), securityPath)?.line;
+    context.warn({
+      code: 'security-delay-removed',
+      location: line === undefined ? { file } : { file, line },
+      message: `${context.name}: ${securityPath.join('.')} ${JSON.stringify(current)} in ${file}${line === undefined ? '' : ` (line ${line})`} delays security updates by ${formatMinutes(delay.minutes)}; because cooldown.securityUpdates is "bypass" in ${POLICY_FILE}, depcurfew apply sets it to null, so ${context.name} proposes security updates at once`,
+      fix: `To keep a delay, set cooldown.securityUpdates to "delay" in ${POLICY_FILE} (security updates then wait as long as cooldown.minimum) and run depcurfew apply again; if an earlier depcurfew apply wrote this value and you changed cooldown.securityUpdates on purpose, nothing to do`,
+    });
   }
   json.set(securityPath, security);
 };

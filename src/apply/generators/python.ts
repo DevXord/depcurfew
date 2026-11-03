@@ -42,6 +42,21 @@ export function buildSwitchScopeWarning(context: Context, setting: string, cover
   });
 }
 
+/** A key of a TOML table ('' for the top level) of a file as it is now, with its line; undefined when unset or unreadable. */
+export function tomlCurrent(context: Context, file: string, table: string, key: string): { value: unknown; line: number | undefined } | undefined {
+  if (!context.exists(file)) return undefined;
+  let document: TomlDocument;
+  try {
+    document = parseToml(context.read(file));
+  } catch {
+    // The edit of the file reports it (cannot-edit).
+    return undefined;
+  }
+  const path = [...(table === '' ? [] : table.split('.')), key];
+  const value = tomlValueAt(document, path);
+  return value === undefined ? undefined : { value, line: document.lineOf(path) };
+}
+
 /** A TOML string or array value. */
 export function tomlValue(value: unknown): string {
   return Array.isArray(value) ? `[${value.map((item) => tomlValue(item)).join(', ')}]` : JSON.stringify(value);

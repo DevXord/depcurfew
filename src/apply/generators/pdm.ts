@@ -4,9 +4,9 @@
 import { hasManagedLines } from '../block.ts';
 import { extraOf, isRecord, isSwitch, settingOf, sinceOf } from '../facts.ts';
 import { writeTomlBlock } from '../toml.ts';
-import { cooldownValue, eachSource, exclusions } from './common.ts';
+import { cooldownValue, eachSource, exclusions, unreadableDelay } from './common.ts';
 import type { ManagerGenerator } from './context.ts';
-import { buildAllowList, buildSwitchScopeWarning, compactDuration, forcedBuildWarning, pythonNames, relockWarning, tomlValue } from './python.ts';
+import { buildAllowList, buildSwitchScopeWarning, compactDuration, forcedBuildWarning, pythonNames, relockWarning, tomlCurrent, tomlValue } from './python.ts';
 
 export const pdm: ManagerGenerator = (context) => {
   const { tool, policy } = context;
@@ -21,9 +21,14 @@ export const pdm: ManagerGenerator = (context) => {
     const setting = settingOf(tool.cooldown.setting) ?? 'exclude-newer';
     const cooldown = cooldownValue(context);
     if (cooldown !== undefined) {
-      minutes = cooldown.minutes;
-      entries.push(`${setting} = ${tomlValue(compactDuration(String(cooldown.value)))}`);
-      managed.push(setting);
+      // A value depcurfew cannot read stays as it is (decision D-167).
+      const current = tomlCurrent(context, file, table, setting);
+      const written = { ...cooldown, value: compactDuration(String(cooldown.value)) };
+      if (!unreadableDelay(context, file, setting, current?.value, current?.line, written)) {
+        minutes = cooldown.minutes;
+        entries.push(`${setting} = ${tomlValue(written.value)}`);
+        managed.push(setting);
+      }
       const excludeSetting = settingOf(tool.cooldown.exclude.setting);
       const patterns = exclusions(context);
       if (excludeSetting !== null && patterns !== undefined) {

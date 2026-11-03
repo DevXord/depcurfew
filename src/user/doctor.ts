@@ -30,7 +30,7 @@ import { userPolicyPath } from './policy-path.ts';
 import { loadUserPolicy, userPolicyFix } from './policy.ts';
 import { environmentOverrides } from './variables.ts';
 import { iniKeyAsRead, repeatedIniKey, type IniRepeat } from './ini-keys.ts';
-import { installedUserFile, possibleUserFiles } from './user-file.ts';
+import { exactSections, iniSection, installedUserFile, possibleUserFiles } from './user-file.ts';
 import { findExecutable, installedToolName, toolVersion, type InstalledVersion } from './versions.ts';
 
 const noCheck = (): void => undefined;
@@ -154,15 +154,29 @@ function blockLines(lines: readonly string[]): Set<number> {
 /** The key as the tool reads it: pip takes only_binary and --only-binary as only-binary (UserFile.underscoresAsDashes). */
 const iniKey = iniKeyAsRead;
 
-function iniRead(text: string, file?: UserFile): Entry[] {
-  const managed = blockLines(text.split(/\r\n|\r|\n/u));
-  return iniLines(text).map((entry) => ({
-    path: [file === undefined ? entry.key.replace(/\[\]$/u, '') : iniKey(file, entry.key.replace(/\[\]$/u, ''))],
-    ...(entry.section === undefined ? {} : { section: entry.section }),
-    value: entry.value,
-    line: entry.line,
-    managed: managed.has(entry.line),
-  }));
+function iniRead(text: string, file?: UserFile, exact = false): Entry[] {
+  const lines = text.split(/\r\n|\r|\n/u);
+  const managed = blockLines(lines);
+  // pip reads [Global] and [ global ] as sections of those names, not as [global] (decision D-167): the section of
+  // each line, in one pass.
+  const sectionAt: (string | undefined)[] = [];
+  if (exact) {
+    let section: string | undefined;
+    for (const raw of lines) {
+      section = iniSection(raw, true) ?? section;
+      sectionAt.push(section);
+    }
+  }
+  return iniLines(text).map((entry) => {
+    const section = exact ? sectionAt[entry.line - 1] : entry.section;
+    return {
+      path: [file === undefined ? entry.key.replace(/\[\]$/u, '') : iniKey(file, entry.key.replace(/\[\]$/u, ''))],
+      ...(section === undefined ? {} : { section }),
+      value: entry.value,
+      line: entry.line,
+      managed: managed.has(entry.line),
+    };
+  });
 }
 
 const isTable = (value: unknown): value is TomlTable => typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof TomlDateTime);
@@ -229,9 +243,9 @@ function yamlRead(text: string, merge = false): Read {
 }
 
 /** The keys of a user file as the tool reads them, or why it cannot be parsed; init --user reads delays with it too. */
-export function parseUserFile(file: UserFile, text: string): Read {
+export function parseUserFile(file: UserFile, text: string, tool?: ToolKnowledge): Read {
   if (file.format === 'yaml') return yamlRead(text, file.mergeKeys === true);
-  if (file.format === 'ini') return { ok: true, entries: iniRead(text, file) };
+  if (file.format === 'ini') return { ok: true, entries: iniRead(text, file, tool !== undefined && exactSections(tool)) };
   try {
     return { ok: true, entries: tomlRead(text) };
   } catch (thrown) {
@@ -618,7 +632,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
       else if (read.ok) {
         filesRead.add(shown);
         const text = read.bytes.toString('utf8');
-        result = parseUserFile(file, text);
+        result = parseUserFile(file, text, tool);
         if (!result.ok) {
           reportUnreadable(shown, {
             message: `${shown} cannot be parsed (${result.message}), so depcurfew cannot check it`,
@@ -653,11 +667,11 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     return since === undefined || since === '0.0.0' ? `${tool.name} stops` : `${tool.name} ${since} and newer stop`;
   };
   /** The entries of the planned text of a file apply --user covers. */
-  const plannedEntries = (file: UserFile, path: string, current: readonly Entry[]): readonly Entry[] | undefined => {
+  const plannedEntries = (file: UserFile, path: string, current: readonly Entry[], tool?: ToolKnowledge): readonly Entry[] | undefined => {
     if (!planned.has(path)) return undefined;
     const text = planned.get(path);
     if (text === undefined) return current;
-    const result = parseUserFile(file, text);
+    const result = parseUserFile(file, text, tool);
     return result.ok ? result.entries : undefined;
   };
   const reported = new Set<string>();
@@ -683,7 +697,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
       seen.add(path);
       const shown = shownPath(path, environment);
       const entries = entriesOf(file, path, tool);
-      const plannedHere = entries === undefined ? undefined : plannedEntries(file, path, entries);
+      const plannedHere = entries === undefined ? undefined : plannedEntries(file, path, entries, tool);
       for (const entry of entries ?? []) {
         if (!readsSection(file, entry) || sameAsPlanned(entry, plannedHere)) continue;
         for (const rule of weakening) {
@@ -698,7 +712,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
         if (otherPath === undefined) continue;
         const otherShown = shownPath(otherPath, environment);
         const otherEntries = entriesOf(other, otherPath, tool);
-        const otherPlanned = otherEntries === undefined ? undefined : plannedEntries(other, otherPath, otherEntries);
+        const otherPlanned = otherEntries === undefined ? undefined : plannedEntries(other, otherPath, otherEntries, tool);
         const read = (otherEntries ?? []).filter((entry) => readsSection(other, entry));
         for (const entry of read) {
           if (sameAsPlanned(entry, otherPlanned)) continue;

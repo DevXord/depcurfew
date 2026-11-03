@@ -33,7 +33,7 @@ function userDelay(tool: ToolKnowledge, environment: UserEnvironment): Configure
   if (file === null || path === undefined) return undefined;
   const read = readLimited(path, MAX_FILE);
   if (!read.ok) return undefined;
-  const parsed = parseUserFile(file, read.bytes.toString('utf8'));
+  const parsed = parseUserFile(file, read.bytes.toString('utf8'), tool);
   // A file doctor --user cannot read is reported there and by apply --user; it holds no delay to keep.
   if (!parsed.ok) return undefined;
   const keys = (evidenceOf(tool.user.settings)[0]?.value ?? []).filter((setting) => setting.purpose === 'cooldown' && reads(setting, version)).map((setting) => setting.key);

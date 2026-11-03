@@ -19,11 +19,13 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   deno: [{ host: 'docs.deno.com' }, { host: 'deno.com' }, { host: 'github.com', pathPrefix: '/denoland/' }],
   // jiff (BurntSushi) is the library uv reads and prints exclude-newer spans with (extra.spanSyntax).
   uv: [{ host: 'docs.astral.sh' }, { host: 'github.com', pathPrefix: '/astral-sh/' }, { host: 'github.com', pathPrefix: '/burntsushi/jiff/' }],
+  // configparser of the standard library (python/cpython) is what pip reads pip.conf with (extra.configSectionNames).
   pip: [
     { host: 'pip.pypa.io' },
     { host: 'github.com', pathPrefix: '/pypa/' },
     { host: 'packaging.python.org' },
     { host: 'peps.python.org' },
+    { host: 'github.com', pathPrefix: '/python/cpython/' },
   ],
   // platformdirs (tox-dev) is the library both Poetry and PDM call for their user config directory, without an override.
   poetry: [{ host: 'python-poetry.org' }, { host: 'github.com', pathPrefix: '/python-poetry/' }, { host: 'github.com', pathPrefix: '/tox-dev/' }],

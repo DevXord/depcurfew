@@ -4,6 +4,7 @@ import { LineCounter, isAlias, isMap, isPair, isScalar, isSeq, type Document, ty
 import { extraOf, isRecord, yamlOptionsFor } from '../apply/facts.ts';
 import { jsonElementOffsets, jsonGet, jsonOffset } from '../apply/json-edit.ts';
 import { BLOCK_END, isBlockStart } from '../apply/block.ts';
+import { headerOf as tomlHeader, keyOf as tomlKey } from '../apply/toml.ts';
 import type { Repository } from '../detect/repository.ts';
 import { npm } from '../knowledge/npm.ts';
 import { bundler } from '../knowledge/bundler.ts';
@@ -309,15 +310,16 @@ export function tomlSetting(text: string, table: string, key: string): { value: 
   let found: { value: unknown; line: number } | undefined;
   text.split(/\r?\n/u).forEach((raw, index) => {
     const line = raw.trim();
-    const header = /^\[\s*([^\]]+?)\s*\]/u.exec(line);
-    if (header !== null) {
-      current = header[1] ?? '';
+    // [tool."uv"], [ "install" ] and "key" = as TOML reads them, as apply does (decision D-167).
+    const header = tomlHeader(line);
+    if (header !== undefined) {
+      current = header.name;
       return;
     }
-    if (line === '' || line.startsWith('#')) return;
+    if (line === '' || line.startsWith('#') || line.startsWith('[')) return;
     const equals = line.indexOf('=');
     if (equals === -1) return;
-    const name = line.slice(0, equals).trim().replace(/^["']|["']$/gu, '');
+    const name = tomlKey(line) ?? '';
     const matches = (current === table && name === key) || (current === '' && name === `${table}.${key}`);
     if (matches) found = { value: tomlScalar(line.slice(equals + 1)), line: index + 1 };
   });

@@ -12,6 +12,8 @@ import { parseDuration } from '../policy/duration.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { parsePolicy } from '../policy/validate.ts';
 import { proposedProjects, type LeftOutProject } from './init-projects.ts';
+import { keptSettings } from './init-kept.ts';
+import type { InitMessage } from './init-codes.ts';
 import { installScriptHints, type ScriptHints } from './init-scripts.ts';
 
 export interface InitialPolicy {
@@ -29,6 +31,11 @@ export interface InitialPolicy {
   minimum: string;
   /** What init says about install scripts, and the packages it puts into installScripts.deny. */
   scripts: ScriptHints;
+  /**
+   * The notes on what init carries over from the repository besides the delay (decision D-167): sources it denies, a
+   * delay of security updates, cooldown exceptions and install-script approvals.
+   */
+  keptNotes: InitMessage[];
   /** The text of depcurfew.json as init writes it. */
   text: string;
 }
@@ -60,17 +67,18 @@ export function initialPolicy(directory: string, detections: Detections = new De
   const minimum = kept === undefined ? DEFAULT_POLICY.cooldown.minimum : policyDuration(kept.minutes);
   // Packages of the lockfiles whose install scripts depcurfew knows go into installScripts.deny, each with a note, and
   // the other packages with install scripts are listed to review (decision D-127).
-  const scripts =
-    DEFAULT_POLICY.installScripts.default === 'deny'
-      ? installScriptHints(directory, [{ detection }, ...projects.map((entry) => ({ project: entry.project, detection: entry.detection }))])
-      : { deny: [], notes: [] };
+  const directories = [{ detection }, ...projects.map((entry) => ({ project: entry.project, detection: entry.detection }))];
+  const scripts = DEFAULT_POLICY.installScripts.default === 'deny' ? installScriptHints(directory, directories) : { deny: [], notes: [] };
+  // What the repository is already stricter in, or already exempts, is carried over (decision D-167).
+  const carried = keptSettings(directory, directories);
   const text = renderPolicy({
     ...DEFAULT_POLICY,
-    cooldown: { ...DEFAULT_POLICY.cooldown, minimum },
-    installScripts: { ...DEFAULT_POLICY.installScripts, deny: scripts.deny },
+    cooldown: { ...DEFAULT_POLICY.cooldown, minimum, exclude: carried.exclude, securityUpdates: carried.securityUpdates ?? DEFAULT_POLICY.cooldown.securityUpdates },
+    installScripts: { ...DEFAULT_POLICY.installScripts, allow: carried.allow, deny: scripts.deny },
+    sources: { ...DEFAULT_POLICY.sources, ...carried.sources },
     ...(projects.length === 0 ? {} : { projects: projects.map((entry) => entry.project) }),
   });
-  return { detection, projects, leftOut: proposed.leftOut, notCompared: proposed.projects.slice(projects.length), kept, minimum, scripts, text };
+  return { detection, projects, leftOut: proposed.leftOut, notCompared: proposed.projects.slice(projects.length), kept, minimum, scripts, keptNotes: carried.notes, text };
 }
 
 function resolved(text: string): ResolvedPolicy {

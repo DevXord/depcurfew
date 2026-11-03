@@ -8,7 +8,7 @@ import { hasManagedLines } from '../block.ts';
 import { listing } from '../requirements.ts';
 import { extraOf, firstFile, isRecord, isSwitch, settingOf, sinceOf, values } from '../facts.ts';
 import { compareVersions, formatVersion, parseVersion, type Version } from '../version.ts';
-import { allowedNames, cooldownValue, eachSource, exclusions, scriptsDefault, writeDenyList } from './common.ts';
+import { allowedNames, cooldownValue, eachSource, exclusions, scriptsDefault, sourceLabel, sourceLoosened, writeDenyList, wrongListType } from './common.ts';
 import type { Context, ManagerGenerator } from './context.ts';
 
 const isString = (value: unknown): value is string => typeof value === 'string';
@@ -214,15 +214,34 @@ export const npm: ManagerGenerator = (context) => {
         if (wanted && someSupports(context, sinceOf(tool.installScripts.allowList.availableSince), setting)) {
           const json = context.json(listFile);
           const names = allowedNames(context, setting);
-          if (names.length > 0) context.writes('installScripts', setting, listFile);
-          for (const name of names) if (json.get([setting, name]) !== true) json.set([setting, name], true);
+          // allowScripts is an object of package names; one of another type is left as it is (decision D-167).
+          if (names.length > 0 && !wrongListType(context, listFile, [setting], json.get([setting]), 'object', names, `{${JSON.stringify(names[0])}: true}`)) {
+            context.writes('installScripts', setting, listFile);
+            for (const name of names) if (json.get([setting, name]) !== true) json.set([setting, name], true);
+          }
         }
       }
       writeDenyList(context);
     }
   }
 
-  eachSource(context, (_kind, setting, access) => {
+  eachSource(context, (kind, setting, access) => {
+    // npm reads the last line of a key; one written by hand with none or root is stricter than "allow" (decision D-167).
+    const last = iniEntries(context.read(file)).filter((entry) => entry.key === setting).at(-1);
+    if (access === 'allow' && last !== undefined && !last.managed && (last.value === 'none' || last.value === 'root')) {
+      const label = sourceLabel(context, kind);
+      sourceLoosened(
+        context,
+        [kind],
+        { file, line: last.line },
+        `${setting}=${last.value}`,
+        last.value === 'none' ? `blocks ${label} dependencies` : `allows ${label} dependencies only where the root package.json names them`,
+        `comments it out and writes ${setting}=all, so ${context.name} installs them ${last.value === 'none' ? 'again' : 'for every package'}`,
+        last.value === 'root'
+          ? `${POLICY_FILE} has no value for root: to keep such dependencies out, set sources.${kind} to "deny" (${setting}=none) in ${POLICY_FILE} and run depcurfew apply again; keep "allow" if the project needs them`
+          : undefined,
+      );
+    }
     entries.push(`${setting}=${access === 'deny' ? 'none' : 'all'}`);
     managed.push(setting);
     context.writes('sources', setting, file);

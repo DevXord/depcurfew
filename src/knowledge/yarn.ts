@@ -12,6 +12,7 @@ const novemberSecond = verifiedOn('2026-11-02');
 const release14 = verifiedOn('2026-11-02');
 const runners = verifiedOn('2026-11-03');
 const yarnPathPins = verifiedOn('2026-11-03');
+const d167 = verifiedOn('2026-11-03');
 const BERRY = 'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1';
 const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
 
@@ -345,7 +346,11 @@ export const yarn: ToolKnowledge = {
       release('4.11.0'),
       'The 4.11.0 release notes list "Core: Create DURATION settings type" (#6942): npmMinimalAgeGate accepts a number followed by ms, s, m, h, d or w (e.g. 3d, 1w) since 4.11.0 (the pattern ^(\\d*\\.?\\d+)(ms|s|m|h|d|w)?$ in the settings schema at 4.18.1); on 4.10.x such a string silently had no effect.',
     ),
-    scriptsSwitch: verified({ setting: 'enableScripts', allow: true, deny: false }, `${YARNRC}#enableScripts`),
+    scriptsSwitch: d167.verified(
+      { setting: 'enableScripts', allow: true, deny: false, off: [false, 0, 'false', '0'] },
+      `${BERRY}/packages/yarnpkg-core/sources/miscUtils.ts`,
+      'off: the values Yarn reads as false. Configuration.ts reads a BOOLEAN setting with parseBoolean of miscUtils.ts, which takes true, 1, "true" and "1" as true and false, 0, "false" and "0" as false and throws on anything else, so enableScripts: 1 or "true" runs dependency build scripts like true (yarnrc docs: enableScripts, default true); depcurfew counts every value but the off ones as on, as for YARN_ENABLE_SCRIPTS (decision D-092).',
+    ),
     excludeWildcards: verified(
       { since: '4.10.0', trailingOnly: false },
       `${YARNRC}#npmPreapprovedPackages`,

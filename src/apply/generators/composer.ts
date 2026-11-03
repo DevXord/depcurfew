@@ -10,7 +10,7 @@ import { POLICY_FILE } from '../../policy/defaults.ts';
 import { COMPOSER_PREFIX } from '../../policy/package-pattern.ts';
 import { extraOf, firstFile, isRecord, settingOf, sinceOf, values } from '../facts.ts';
 import { listing } from '../requirements.ts';
-import { cooldownValue, eachSource, exclusions } from './common.ts';
+import { cooldownValue, eachSource, exclusions, unreadableDelay } from './common.ts';
 import type { Context, JsonFile, ManagerGenerator, StrictJson } from './context.ts';
 import type { ApplyWarningCode } from '../warnings.ts';
 
@@ -86,10 +86,12 @@ function writeCooldown(context: Context, json: JsonFile, manifest: Manifest): nu
   }
   // The same delay written another way (259200 seconds, "72 hours") stays, so that composer.lock stays up to date.
   const current = json.get(path);
+  // A value depcurfew cannot read ("1 month", "P30D", "30d", which Composer rejects too) stays as it is (decision D-167).
+  const kept = unreadableDelay(context, manifest.file, setting, current, locationOf(manifest, path).line, cooldown);
   const written = current === undefined ? undefined : delayMinutes(tool, current, undefined);
-  if (written === undefined || !written.ok || written.minutes !== cooldown.minutes) json.set(path, cooldown.value);
+  if (!kept && (written === undefined || !written.ok || written.minutes !== cooldown.minutes)) json.set(path, cooldown.value);
   writeExclusions(context, json, manifest);
-  return cooldown.minutes;
+  return kept ? undefined : cooldown.minutes;
 }
 
 /**

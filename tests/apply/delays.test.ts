@@ -3,7 +3,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { configuredDelays, policyDuration } from '../../src/apply/delays.ts';
 import { applyProject } from '../../src/apply/index.ts';
 import { detectProject } from '../../src/detect/index.ts';
@@ -68,11 +68,19 @@ describe('configured delays', () => {
     expect(delays(deno)).toMatchObject([{ tool: 'deno', minutes: 10080, location: { file: 'deno.json', line: 2 } }]);
   });
 
-  it('reads Python tools, but not a fixed date', () => {
+  it('reads Python tools, and a fixed date as the whole days since it (decision D-167)', () => {
     const uv = repo({ 'pyproject.toml': '[project]\nname = "app"\n\n[tool.uv]\nexclude-newer = "7 days"\n', 'uv.lock': 'version = 1\n' });
     expect(delays(uv)).toMatchObject([{ tool: 'uv', minutes: 10080, location: { file: 'pyproject.toml', line: 5 } }]);
     const date = repo({ 'pyproject.toml': '[project]\nname = "app"\n\n[tool.uv]\nexclude-newer = "2026-01-01T00:00:00Z"\n', 'uv.lock': 'version = 1\n' });
-    expect(delays(date)).toEqual([]);
+    vi.useFakeTimers({ now: new Date('2026-11-03T12:00:00Z'), toFake: ['Date'] });
+    try {
+      // 306.5 days, rounded up to whole days.
+      expect(delays(date)).toMatchObject([{ tool: 'uv', minutes: 307 * 1440, location: { file: 'pyproject.toml', line: 5 } }]);
+      const future = repo({ 'pyproject.toml': '[project]\nname = "app"\n\n[tool.uv]\nexclude-newer = "2027-01-01"\n', 'uv.lock': 'version = 1\n' });
+      expect(delays(future)).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
     const poetry = repo({ 'pyproject.toml': '[project]\nname = "app"\n\n[tool.poetry]\npackage-mode = false\n', 'poetry.toml': '[solver]\nmin-release-age = 10\n' });
     expect(delays(poetry)).toMatchObject([{ tool: 'poetry', minutes: 14400, location: { file: 'poetry.toml', line: 2 } }]);
     const pipenv = repo({ Pipfile: '[packages]\nrequests = "*"\n\n[pipenv]\ncool-down-period = "9d"\n' });

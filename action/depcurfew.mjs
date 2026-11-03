@@ -1615,6 +1615,7 @@ const user$8 = verifiedOn("2026-10-31");
 const leftovers$4 = verifiedOn("2026-11-01");
 const osvFacts$1 = verifiedOn("2026-11-02");
 const d170$8 = verifiedOn("2026-11-03");
+const d167$4 = verifiedOn("2026-11-03");
 const DENO_V2_9_8 = "https://github.com/denoland/deno/blob/v2.9.8";
 const NPMRC_PARSER = `${DENO_V2_9_8}/libs/npmrc/lib.rs`;
 const X_VALUE_OPTIONS = [
@@ -1819,6 +1820,11 @@ const deno$1 = {
 			since: null,
 			syntax: "iso8601"
 		}, SCHEMA$1, "Strings are ISO-8601 durations (P3D, PT72H), an absolute date or an RFC3339 timestamp; the last two set a fixed cut-off instead of a delay."),
+		cutoffDates: d167$4.verified({
+			timestamps: true,
+			offsetRequired: true,
+			dates: "start-utc"
+		}, `${DENO_V2_9_8}/libs/config/util.rs`, "parse_enabled_minutes_duration_or_date: a string of digits is minutes, then an RFC 3339 timestamp (DateTime::parse_from_rfc3339), a timestamp whose offset has no colon or that has no seconds (%Y-%m-%dT%H:%M:%S%z, %Y-%m-%dT%H:%M%z), a date YYYY-MM-DD (\"treat as midnight UTC\"), then an ISO 8601 duration; \"0\" turns the delay off. A timestamp or a date is a fixed cutoff (NewestDependencyDate::Enabled), in the age of the object form too (to_minimum_dependency_age_config in libs/config/deno_json/mod.rs); a time without an offset is none of these and an error. The schema names the same forms: \"'2025-09-16' for cutoff date, '2025-09-16T12:00:00+00:00' for cutoff time\" (cli/schemas/config-file.v1.json)."),
 		ageObjectKey: verified$13("age", SCHEMA$1, "In the object form of minimumDependencyAge, age holds the delay and exclude the exemptions."),
 		excludeWildcards: verified$13({
 			since: "2.9.2",
@@ -3164,6 +3170,8 @@ const finalReview$2 = verifiedOn("2026-11-01");
 const release14$4 = verifiedOn("2026-11-02");
 const d170$5 = verifiedOn("2026-11-03");
 const secrets$2 = verifiedOn("2026-11-03");
+const d167$3 = verifiedOn("2026-11-03");
+const CONFIGPARSER = "https://github.com/python/cpython/blob/v3.14.0/Lib/configparser.py";
 const noSetting$5 = (kind) => ({ setting: uncertain$8(null, `${PIP}/src/pip/_internal/cli/cmdoptions.py`, `No option allows or forbids ${kind} requirements (concluded from the list of options). Hash-checking mode (--require-hashes, or any --hash) rejects VCS and local directory requirements, unless --no-require-hashes (26.2) turns the automatic mode off.`) });
 const pip$1 = {
 	id: "pip",
@@ -3533,6 +3541,7 @@ const pip$1 = {
 				"edit"
 			]
 		}, `${PIP}/src/pip/_internal/commands/configuration.py`, "pip config: \"Manage local and global configuration\"; \"set: Set the command.option=value\", \"unset: Unset the value associated with command.option\", \"edit: Edit the configuration file in an editor\". Without --user, --global or --site it changes the configuration file of the active virtual environment when that file exists, otherwise the user file. So a CI step or RUN with pip config set can give the later pip installs a release-age delay that no environment variable shows (decision D-115)."),
+		configSectionNames: d167$3.verified({ exact: true }, CONFIGPARSER, "pip reads pip.conf with configparser.RawConfigParser (_construct_parser in src/pip/_internal/configuration.py at 26.2.2). configparser takes the name of a section from the header as written between [ and ] (SECTCRE, group \"header\", not stripped or lowercased; the same in Lib/configparser.py at v3.9.0 and v3.13.0), and pip keeps the keys of a section under that name (_normalized_keys: section + \".\" + key) and uses only the sections named exactly \"global\", the command and \":env:\" (section in override_order in src/pip/_internal/cli/parser.py). So [Global] and [ global ] are other sections, which pip ignores."),
 		configSections: user$6.verified({
 			global: "global",
 			commandsOverride: true
@@ -3602,6 +3611,14 @@ const pip$1 = {
 			since: "7.0.0",
 			covers: ["registry"]
 		}, NEWS, "The option exists since 7.0.0; when requirements files started to accept it is not recorded. pip applies it only to packages found on indexes and find-links (format_control is used only by the package finder), so VCS, local directory and direct URL source requirements are still built."),
+		formatControl: d167$3.verified({
+			noBinary: "--no-binary",
+			onlyBinary: "--only-binary",
+			all: ":all:",
+			none: ":none:",
+			separator: ",",
+			requirementLines: true
+		}, FORMAT_CONTROL, "One FormatControl holds no_binary and only_binary for the whole install. handle_mutual_excludes splits a value at commas: :all: clears both sets and puts :all: in its own, :none: clears its own set, and a name moves from the other set into its own; get_allowed_formats checks the name in only_binary, then in no_binary, then :all: in only_binary, then in no_binary. So after --only-binary=:all:, --no-binary <name> builds that package from source and --no-binary=:all: or --only-binary=:none: (or :none: after the last :all: of its value) builds every package again. req_file.py parses every line, requirement lines too, with the options of SUPPORTED_OPTIONS into the finder's FormatControl (get_line_parser: defaults.format_control = finder.format_control; break_args_options passes what follows the requirement to the option parser), in the order of the lines, with the lines of an included -r or -c file at the line that includes it (RequirementsFileParser._parse_and_recurse)."),
 		configFileNames: verified$10(["pip.conf", "pip.ini"], `${PIP}/src/pip/_internal/configuration.py`, "CONFIG_BASENAME is pip.ini on Windows and pip.conf elsewhere; pip looks for it only in the global, user and site locations, never in the project."),
 		configFileVariable: verified$10("PIP_CONFIG_FILE", `${CONFIGURATION$4}#environment-variable`, "Names a configuration file pip loads last; set to os.devnull it turns all configuration files off."),
 		environmentVariable: verified$10("PIP_UPLOADED_PRIOR_TO", `${CONFIGURATION$4}#environment-variables`, "Every long option has a PIP_<UPPER_LONG_NAME> variable with dashes replaced by underscores. Tested on 2026-10-30: pip 25.3 ignored PIP_UPLOADED_PRIOR_TO=P100000D without a word, 26.0 rejected the duration (dates only), 26.1 and 26.2.2 found no version."),
@@ -3981,6 +3998,7 @@ const rechecked$2 = verifiedOn("2026-10-31");
 const user$5 = verifiedOn("2026-10-31");
 const leftovers$3 = verifiedOn("2026-11-01");
 const current$1 = verifiedOn("2026-11-02");
+const d167$2 = verifiedOn("2026-11-03");
 const PDM = "https://github.com/pdm-project/pdm/blob/2.29.5";
 const LOCKFILE = `${PDM}/docs/usage/lockfile.md`;
 const CHANGELOG$2 = `${PDM}/CHANGELOG.md`;
@@ -4142,6 +4160,11 @@ const pdm$1 = {
 			"days",
 			"weeks"
 		], `${LOCKFILE}#exclude-packages-newer-than-specific-date`, "Written as Nh, Nd and Nw."),
+		cutoffDates: d167$2.verified({
+			timestamps: true,
+			offsetRequired: false,
+			dates: "start-utc"
+		}, `${PDM}/src/pdm/utils.py`, "convert_to_datetime: N{d|h|w} is a duration from the current UTC time; a value with T is read with datetime.fromisoformat (\"A timestamp without an offset is read as UTC, like a bare date\"); anything else as %Y-%m-%d at midnight UTC. docs/usage/lockfile.md lists \"A RFC 3339 timestamp\", \"A UTC date\" and \"A relative duration in the format N{d|h|w}\". A timestamp or a date is a fixed cutoff, which holds back more every day."),
 		excludeWildcards: verified$9({
 			since: null,
 			trailingOnly: false
@@ -6119,6 +6142,7 @@ const user$1 = verifiedOn("2026-10-31");
 const release13$1 = verifiedOn("2026-11-01");
 const final = verifiedOn("2026-11-01");
 const release14$2 = verifiedOn("2026-11-02");
+const d167$1 = verifiedOn("2026-11-03");
 /** The values clap's BoolishValueParser reads as true, compared without regard to case (user.variables). */
 const TRUE_VALUES = [
 	"1",
@@ -6543,6 +6567,11 @@ const uv$1 = {
 			"days",
 			"weeks"
 		], RESOLUTION, "Units in the documented examples: 24 hours, 1 week, 30 days."),
+		cutoffDates: d167$1.verified({
+			timestamps: true,
+			offsetRequired: true,
+			dates: "next-day-system-time-zone"
+		}, `${UV}/crates/uv-distribution-types/src/exclude_newer.rs`, "FromStr of ExcludeNewerValue tries an RFC 3339 timestamp (jiff Timestamp, which needs an offset), then a date, which counts from the start of the next day in the system time zone (date.checked_add(1.day()) and to_zoned(TimeZone::system())), then a span. A timestamp or a date is a fixed cutoff: uv uses no file uploaded after it (docs/concepts/resolution.md, \"Reproducible resolutions\"), so it holds back more every day."),
 		excludeWildcards: verified$4({
 			since: null,
 			trailingOnly: false
@@ -6957,6 +6986,7 @@ const novemberSecond = verifiedOn("2026-11-02");
 const release14$1 = verifiedOn("2026-11-02");
 const runners = verifiedOn("2026-11-03");
 const yarnPathPins = verifiedOn("2026-11-03");
+const d167 = verifiedOn("2026-11-03");
 const BERRY = "https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1";
 const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
 /** Variables for settings with a single value, which both the docs and the code accept. */
@@ -7272,11 +7302,17 @@ const yarn$1 = {
 			syntax: "compact",
 			before: "no effect"
 		}, release$1("4.11.0"), "The 4.11.0 release notes list \"Core: Create DURATION settings type\" (#6942): npmMinimalAgeGate accepts a number followed by ms, s, m, h, d or w (e.g. 3d, 1w) since 4.11.0 (the pattern ^(\\d*\\.?\\d+)(ms|s|m|h|d|w)?$ in the settings schema at 4.18.1); on 4.10.x such a string silently had no effect."),
-		scriptsSwitch: verified$3({
+		scriptsSwitch: d167.verified({
 			setting: "enableScripts",
 			allow: true,
-			deny: false
-		}, `${YARNRC}#enableScripts`),
+			deny: false,
+			off: [
+				false,
+				0,
+				"false",
+				"0"
+			]
+		}, `${BERRY}/packages/yarnpkg-core/sources/miscUtils.ts`, "off: the values Yarn reads as false. Configuration.ts reads a BOOLEAN setting with parseBoolean of miscUtils.ts, which takes true, 1, \"true\" and \"1\" as true and false, 0, \"false\" and \"0\" as false and throws on anything else, so enableScripts: 1 or \"true\" runs dependency build scripts like true (yarnrc docs: enableScripts, default true); depcurfew counts every value but the off ones as on, as for YARN_ENABLE_SCRIPTS (decision D-092)."),
 		excludeWildcards: verified$3({
 			since: "4.10.0",
 			trailingOnly: false
@@ -9958,10 +9994,10 @@ var TomlDateTime = class {
 		return this.text;
 	}
 };
-const BARE_KEY = /^[A-Za-z0-9_-]+/u;
+const BARE_KEY$1 = /^[A-Za-z0-9_-]+/u;
 const DATE_TIME = /^\d{4}-\d{2}-\d{2}(?:[Tt ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:[Zz]|[+-]\d{2}:\d{2})?)?|^\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?/u;
 const NUMBER = /^[+-]?(?:0x[0-9A-Fa-f_]+|0o[0-7_]+|0b[01_]+|inf|nan|[0-9][0-9_]*(?:\.[0-9][0-9_]*)?(?:[eE][+-]?[0-9_]+)?)/u;
-const ESCAPES = {
+const ESCAPES$1 = {
 	b: "\b",
 	t: "	",
 	n: "\n",
@@ -10040,7 +10076,7 @@ function parseToml(input) {
 		if (char === "u") return unicode(4);
 		if (char === "U") return unicode(8);
 		if (char === "x") return unicode(2);
-		return ESCAPES[char] ?? fail(`invalid escape \\${char}`);
+		return ESCAPES$1[char] ?? fail(`invalid escape \\${char}`);
 	};
 	const basicString = () => {
 		const start = line;
@@ -10103,7 +10139,7 @@ function parseToml(input) {
 		const char = text[index];
 		if (char === "\"") return text.startsWith("\"\"\"", index) ? fail("a key cannot be a multi-line string") : basicString();
 		if (char === "'") return text.startsWith("'''", index) ? fail("a key cannot be a multi-line string") : literalString();
-		const match = BARE_KEY.exec(text.slice(index, index + 256));
+		const match = BARE_KEY$1.exec(text.slice(index, index + 256));
 		if (match === null) return fail("expected a key");
 		index += match[0].length;
 		return match[0];
@@ -19879,6 +19915,342 @@ function insertBlock(lines, at, entries, separate, marker = BLOCK_START) {
 	];
 }
 
+// src/apply/toml.ts
+const BARE_KEY = /^[A-Za-z0-9_-]+/u;
+const ESCAPES = {
+	b: "\b",
+	t: "	",
+	n: "\n",
+	f: "\f",
+	r: "\r",
+	e: "\x1B",
+	"\"": "\"",
+	"\\": "\\"
+};
+/** A "basic" or 'literal' key part from the quote at `start`, with the index after it; undefined when it does not close on the line. */
+function quotedPart(text, start) {
+	const quote = text[start] ?? "";
+	if (text.startsWith(quote.repeat(3), start)) return void 0;
+	let value = "";
+	let index = start + 1;
+	for (;;) {
+		const char = text[index];
+		if (char === void 0) return void 0;
+		index += 1;
+		if (char === quote) return {
+			value,
+			end: index
+		};
+		if (quote === "'" || char !== "\\") {
+			value += char;
+			continue;
+		}
+		const escape = text[index] ?? "";
+		const digits = escape === "u" ? 4 : escape === "U" ? 8 : escape === "x" ? 2 : 0;
+		if (digits === 0) {
+			const replaced = ESCAPES[escape];
+			if (replaced === void 0) return void 0;
+			value += replaced;
+			index += 1;
+			continue;
+		}
+		const hex = text.slice(index + 1, index + 1 + digits);
+		if (hex.length !== digits || !/^[0-9A-Fa-f]+$/u.test(hex) || Number.parseInt(hex, 16) > 1114111) return void 0;
+		value += String.fromCodePoint(Number.parseInt(hex, 16));
+		index += 1 + digits;
+	}
+}
+/**
+* A key as TOML reads it, from `start` of `text`: bare, "basic" (with escapes) and 'literal' parts joined by dots, with
+* spaces or tabs around each dot (decision D-167), and the index after it; undefined when no key starts there.
+*/
+function readKey(text, start) {
+	const parts = [];
+	let index = start;
+	const spaces = () => {
+		while (text[index] === " " || text[index] === "	") index += 1;
+	};
+	for (;;) {
+		spaces();
+		const char = text[index];
+		if (char === "\"" || char === "'") {
+			const part = quotedPart(text, index);
+			if (part === void 0) return void 0;
+			parts.push(part.value);
+			index = part.end;
+		} else {
+			const bare = BARE_KEY.exec(text.slice(index, index + 256))?.[0];
+			if (bare === void 0) return void 0;
+			parts.push(bare);
+			index += bare.length;
+		}
+		spaces();
+		if (text[index] !== ".") return {
+			parts,
+			end: index
+		};
+		index += 1;
+	}
+}
+/**
+* A key path in one spelling, so that [tool."uv"], [tool . uv] and [tool.uv] name the same table, as they do in TOML:
+* parts that can be bare are written bare, the others as JSON strings.
+*/
+function keyName(parts) {
+	return parts.map((part) => /^[A-Za-z0-9_-]+$/u.test(part) ? part : JSON.stringify(part)).join(".");
+}
+/** The table a header line names ([table] or [[table]]), in the spelling of keyName; undefined for any other line. */
+function headerOf(line) {
+	const start = line.search(/\S/u);
+	if (start === -1 || line[start] !== "[") return void 0;
+	const array = line[start + 1] === "[";
+	const key = readKey(line, start + (array ? 2 : 1));
+	if (key === void 0) return void 0;
+	const close = array ? "]]" : "]";
+	if (!line.startsWith(close, key.end)) return void 0;
+	const rest = line.slice(key.end + close.length).trim();
+	return rest === "" || rest.startsWith("#") ? {
+		name: keyName(key.parts),
+		array
+	} : void 0;
+}
+function isHeader(line) {
+	return headerOf(line) !== void 0;
+}
+/** The key of a `key = value` line in the spelling of keyName: quoted and dotted keys as TOML reads them. */
+function keyOf$2(line) {
+	const trimmed = line.trim();
+	if (trimmed === "" || trimmed.startsWith("#") || trimmed.startsWith("[")) return void 0;
+	const key = readKey(trimmed, 0);
+	if (key !== void 0 && trimmed[key.end] === "=") return keyName(key.parts);
+	const equals = trimmed.indexOf("=");
+	if (equals === -1) return void 0;
+	return trimmed.slice(0, equals).trim().replace(/^["']|["']$/gu, "");
+}
+/** Follows a value through one line: strings (with escapes), multi-line strings, arrays, inline tables, comments. */
+function scanLine(line, state) {
+	let { depth, string } = state;
+	for (let index = 0; index < line.length; index++) {
+		const char = line[index];
+		if (string === "\"\"\"" || string === "'''") {
+			if (string === "\"\"\"" && char === "\\") index += 1;
+			else if (line.startsWith(string, index)) {
+				string = "";
+				index += 2;
+			}
+			continue;
+		}
+		if (string === "\"") {
+			if (char === "\\") index += 1;
+			else if (char === "\"") string = "";
+			continue;
+		}
+		if (string === "'") {
+			if (char === "'") string = "";
+			continue;
+		}
+		if (char === "#") break;
+		if (line.startsWith("\"\"\"", index) || line.startsWith("'''", index)) {
+			string = line.startsWith("\"\"\"", index) ? "\"\"\"" : "'''";
+			index += 2;
+		} else if (char === "\"" || char === "'") string = char;
+		else if (char === "[" || char === "{") depth += 1;
+		else if (char === "]" || char === "}") depth -= 1;
+	}
+	return {
+		depth,
+		string: string === "\"" || string === "'" ? "" : string
+	};
+}
+/** The index of the last line of the value that starts after the `=` on line `index`. */
+function valueEnd(lines, index) {
+	const line = lines[index] ?? "";
+	let state = scanLine(line.slice(line.indexOf("=") + 1), {
+		depth: 0,
+		string: ""
+	});
+	let end = index;
+	while ((state.depth > 0 || state.string !== "") && end + 1 < lines.length) {
+		end += 1;
+		state = scanLine(lines[end] ?? "", state);
+	}
+	return end;
+}
+/** The table each line is in (undefined before the first table), following values over several lines. */
+function tablesOf(lines) {
+	const tables = [];
+	let current;
+	for (let index = 0; index < lines.length; index++) {
+		const line = lines[index] ?? "";
+		const header = headerOf(line);
+		if (header !== void 0) current = header.name;
+		tables[index] = current;
+		if (header === void 0 && keyOf$2(line) !== void 0) {
+			const end = valueEnd(lines, index);
+			for (let next = index + 1; next <= end; next++) tables[next] = current;
+			index = end;
+		}
+	}
+	return tables;
+}
+/**
+* Removes the block with this marker. A labeled block that is not there yet may have been written by an earlier
+* version without the label: an unlabeled block inside the same table is then taken for it.
+*/
+function removeOwnBlock(lines, table, label) {
+	const removed = removeBlock(lines, blockStart(label));
+	if (removed.at !== void 0 || label === void 0) return removed;
+	const tables = tablesOf(lines);
+	const legacy = lines.findIndex((line, index) => blockLabel(line) === "" && (tables[index] ?? "") === table);
+	return legacy === -1 ? removed : removeBlockAt(lines, legacy);
+}
+/**
+* Lines apply commented out in this table (and the dotted keys and subtables of it) come back as they were, every
+* line of the value, when the policy no longer manages their key. Lines commented out in other tables stay.
+*/
+function restoreLines(lines, table, isManaged) {
+	const topLevel = table === "";
+	const prefix = topLevel ? "" : `${table}.`;
+	let current;
+	let section = "table";
+	for (let index = 0; index < lines.length; index++) {
+		const line = lines[index] ?? "";
+		const header = headerOf(line);
+		if (header !== void 0) {
+			current = header.name;
+			section = "table";
+			continue;
+		}
+		const original = commentedOut(line);
+		if (original === void 0) {
+			if (keyOf$2(line) !== void 0) index = valueEnd(lines, index);
+			continue;
+		}
+		const noted = headerOf(original);
+		if (noted !== void 0) {
+			const name = noted.name;
+			section = name.startsWith(prefix) && !isManaged(name.slice(prefix.length)) ? "restored" : "kept";
+			if (section === "restored") lines[index] = original;
+			continue;
+		}
+		const key = keyOf$2(original);
+		if (key === void 0 || section === "kept") continue;
+		const dotted = !topLevel && current === void 0 && key.startsWith(prefix);
+		if (section === "table" && !((topLevel ? current === void 0 : current === table) && !isManaged(key) || dotted && !isManaged(key.slice(prefix.length)))) continue;
+		lines[index] = original;
+		let state = scanLine(original.slice(original.indexOf("=") + 1), {
+			depth: 0,
+			string: ""
+		});
+		while ((state.depth > 0 || state.string !== "") && lines[index + 1]?.startsWith("# ") === true) {
+			index += 1;
+			lines[index] = (lines[index] ?? "").slice(2);
+			state = scanLine(lines[index] ?? "", state);
+		}
+	}
+}
+function writeTomlBlock(body, table, entries, managedKeys, label, scope = "project") {
+	const managed = new Set(managedKeys);
+	const marker = blockStart(label, scope);
+	const removed = removeOwnBlock(splitLines(body), table, label);
+	const lines = [...removed.lines];
+	const topLevel = table === "";
+	if (topLevel && entries.length === 0 && removed.at === 0 && lines[0]?.trim() === "") lines.shift();
+	const headers = /* @__PURE__ */ new Map();
+	const boundaries = [];
+	let current;
+	let definedAtTop = false;
+	const isManaged = (key) => managed.has(key) || [...managed].some((name) => key.startsWith(`${name}.`));
+	restoreLines(lines, table, isManaged);
+	const prefix = topLevel ? "" : `${table}.`;
+	const note = entries.length === 0 ? TURNED_OFF : SUPERSEDED;
+	let inManagedTable = false;
+	for (let index = 0; index < lines.length; index++) {
+		const line = lines[index] ?? "";
+		const header = headerOf(line);
+		if (header !== void 0) {
+			const name = header.name;
+			inManagedTable = name.startsWith(prefix) && isManaged(name.slice(prefix.length));
+			if (inManagedTable) {
+				lines[index] = `${note}${line.trim()}`;
+				continue;
+			}
+			current = name;
+			boundaries.push(index);
+			if (!header.array) headers.set(index, current);
+			continue;
+		}
+		const key = keyOf$2(line);
+		if (key === void 0) continue;
+		const end = valueEnd(lines, index);
+		const inTable = (topLevel ? current === void 0 : current === table) && isManaged(key);
+		const dotted = !topLevel && current === void 0 && key.startsWith(`${table}.`) && isManaged(key.slice(table.length + 1));
+		if (inManagedTable || inTable || dotted) {
+			lines[index] = `${note}${line.trim()}`;
+			for (let next = index + 1; next <= end; next++) lines[next] = `# ${lines[next] ?? ""}`;
+		} else if (!topLevel && current === void 0 && (key === table || key.startsWith(`${table}.`) || table.startsWith(`${key}.`))) definedAtTop = true;
+		index = end;
+	}
+	if (entries.length === 0) return joinLines(withoutCreatedTable(lines, table, removed));
+	if (topLevel) {
+		const firstTable = boundaries[0] ?? lines.length;
+		if (removed.at !== void 0 && removed.at <= firstTable) return joinLines(topBlock(lines, removed.at, entries, removed.separated, marker));
+		let end = firstTable;
+		while (end > 0 && lines[end - 1]?.trim() === "") end -= 1;
+		return joinLines(topBlock(lines, end, entries, void 0, marker));
+	}
+	const headerIndex = [...headers].find(([, name]) => name === table)?.[0] ?? -1;
+	const nextHeaderAfter = (from) => boundaries.find((index) => index > from) ?? -1;
+	if (headerIndex === -1) {
+		if (definedAtTop) throw new Error(`${table} is defined with dotted keys or an inline table, so a [${table}] table cannot be added; move its settings under a [${table}] header`);
+		const prefix = lines.length > 0 && lines.at(-1)?.trim() !== "" ? [...lines, ""] : lines;
+		return joinLines([
+			...prefix,
+			`[${table}]`,
+			...insertBlock([], 0, entries, void 0, marker)
+		]);
+	}
+	if (removed.at !== void 0 && removed.at > headerIndex) {
+		const nextHeader = nextHeaderAfter(headerIndex);
+		if (nextHeader === -1 || removed.at <= nextHeader) return joinLines(insertBlock(lines, removed.at, entries, removed.separated, marker));
+	}
+	let end = nextHeaderAfter(headerIndex);
+	if (end === -1) end = lines.length;
+	while (end > headerIndex + 1 && lines[end - 1]?.trim() === "") end -= 1;
+	return joinLines(insertBlock(lines, end, entries, void 0, marker));
+}
+/**
+* The table apply created for its block goes away with the block when nothing else is in it (decision D-116). apply
+* writes such a table as its header with the block right below it, and the blank line before the header; a block it
+* added to a table that was there follows a blank line after the header, which removeBlockAt reports as `separated`.
+* So a table with anything else in it, with a comment on its header line, or with the block apart from the header, is
+* the user's and stays, also when it is empty.
+*/
+function withoutCreatedTable(lines, table, removed) {
+	const at = removed.at;
+	if (table === "" || at === void 0 || removed.separated || at === 0) return lines;
+	const header = at - 1;
+	if (lines[header]?.trim() !== `[${table}]`) return lines;
+	let end = at;
+	while (end < lines.length && !isHeader(lines[end] ?? "")) {
+		if ((lines[end] ?? "").trim() !== "") return lines;
+		end += 1;
+	}
+	const rest = [...lines.slice(0, header), ...lines.slice(at)];
+	if (header > 0 && rest[header - 1]?.trim() === "" && (header === rest.length || rest[header]?.trim() === "")) rest.splice(header - 1, 1);
+	return rest;
+}
+/**
+* A top-level block, with a blank line before a table header that follows it right away. A key that follows it stays
+* where it is, so that a second run changes nothing.
+*/
+function topBlock(lines, at, entries, separate, marker) {
+	const result = insertBlock(lines, at, entries, separate, marker);
+	const after = at + (result.length - lines.length);
+	if (isHeader(result[after] ?? "")) result.splice(after, 0, "");
+	return result;
+}
+
 // src/apply/gemfile-scan.ts
 const isStrings$7 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 const isSyntax = (value) => isRecord(value) && isRecord(value["endOfScript"]) && typeof value["endOfScript"]["marker"] === "string" && isStrings$7(value["endOfScript"]["characters"]) && isStrings$7(value["embeddedDocument"]) && value["embeddedDocument"].length === 2 && isRecord(value["percentLiterals"]) && isStrings$7(value["percentLiterals"]["expanding"]) && isStrings$7(value["percentLiterals"]["plain"]) && isRecord(value["pairedDelimiters"]) && isStrings$7(value["heredocIndent"]) && typeof value["globalPunctuation"] === "string" && isStrings$7(value["numberSuffixes"]) && typeof value["lineEnding"] === "string" && isRecord(value["keywords"]) && Object.values(value["keywords"]).every(isStrings$7) && [
@@ -21260,7 +21632,7 @@ const DIGITS$1 = {
 	10: /^[0-9](?:_?[0-9])*$/u,
 	16: /^[0-9a-fA-F](?:_?[0-9a-fA-F])*$/u
 };
-const PREFIXES$1 = {
+const PREFIXES$2 = {
 	x: 16,
 	b: 2,
 	o: 8,
@@ -21273,7 +21645,7 @@ const PREFIXES$1 = {
 function rubyInteger(text) {
 	let base = 10;
 	let body = text;
-	const prefix = PREFIXES$1[text[1]?.toLowerCase() ?? ""];
+	const prefix = PREFIXES$2[text[1]?.toLowerCase() ?? ""];
 	if (text[0] === "0" && prefix !== void 0) {
 		base = prefix;
 		body = text.slice(2);
@@ -21761,15 +22133,15 @@ function tomlSetting(text, table, key) {
 	let found;
 	text.split(/\r?\n/u).forEach((raw, index) => {
 		const line = raw.trim();
-		const header = /^\[\s*([^\]]+?)\s*\]/u.exec(line);
-		if (header !== null) {
-			current = header[1] ?? "";
+		const header = headerOf(line);
+		if (header !== void 0) {
+			current = header.name;
 			return;
 		}
-		if (line === "" || line.startsWith("#")) return;
+		if (line === "" || line.startsWith("#") || line.startsWith("[")) return;
 		const equals = line.indexOf("=");
 		if (equals === -1) return;
-		const name = line.slice(0, equals).trim().replace(/^["']|["']$/gu, "");
+		const name = keyOf$2(line) ?? "";
 		if (current === table && name === key || current === "" && name === `${table}.${key}`) found = {
 			value: tomlScalar(line.slice(equals + 1)),
 			line: index + 1
@@ -23293,7 +23665,7 @@ const COMPOSER_PREFIX = "composer:";
 * The prefix of each registry but npm, whose names have none. Ruby gems have no prefix (decision D-152): Bundler has no
 * per-gem setting a name in the policy could go to, so no name of the policy is a gem's.
 */
-const PREFIXES = {
+const PREFIXES$1 = {
 	pypi: PYPI_PREFIX,
 	packagist: COMPOSER_PREFIX
 };
@@ -23357,7 +23729,7 @@ function ecosystemOf(pattern) {
 }
 /** The prefix of an ecosystem's names in the policy: pypi:, composer:, or none for npm. */
 function prefixOf(ecosystem) {
-	return ecosystem === "npm" || ecosystem === "rubygems" ? "" : PREFIXES[ecosystem];
+	return ecosystem === "npm" || ecosystem === "rubygems" ? "" : PREFIXES$1[ecosystem];
 }
 /** The patterns of one ecosystem, without their prefix. */
 function patternsFor(patterns, ecosystem) {
@@ -24432,7 +24804,10 @@ function pylockEntries(input, format, workspaces = []) {
 		return [entry(item["name"], text(item[key("index")]) ?? "an index", "registry", isRecord(sdist) && wheels.length === 0, line, item["version"])];
 	});
 }
-/** The logical lines of a requirements file: continuations joined, comments removed, with the line each starts on. */
+/**
+* The logical lines of a requirements file: continuations joined, comments removed, with the line each starts on and
+* the line it ends on.
+*/
 function requirementsLines(input, format) {
 	const comment = String(format["comment"]);
 	const continuation = String(format["continuation"]);
@@ -24462,7 +24837,8 @@ function requirementsLines(input, format) {
 		const text = parts.join("").trim();
 		if (text !== "") result.push({
 			text,
-			line: start + 1
+			line: start + 1,
+			end: index + 1
 		});
 	}
 	return result;
@@ -24499,6 +24875,20 @@ function requirementsIncludes(input, format) {
 			line
 		}];
 	});
+}
+const URL_LIKE = /^[a-z][a-z0-9+.-]+:/iu;
+/**
+* The file an include (-r, -c) names, relative to the directory of the file that includes it, as pip joins them
+* (_parse_and_recurse); `url` when pip downloads it, `outside` when it leaves the directory checked.
+*/
+function includedFile(includer, path) {
+	const target = posix.normalize(posix.join(posix.dirname(includer), path.replaceAll("\\", "/")));
+	const url = URL_LIKE.test(path);
+	return {
+		target,
+		url,
+		outside: !url && (isAbsoluteAnywhere(path) || target === ".." || target.startsWith("../"))
+	};
 }
 /**
 * Classifies one requirement (without options or environment markers): a VCS URL, a URL, a local archive or
@@ -25185,7 +25575,6 @@ function extraFormat(tool, key) {
 	const value = fact === void 0 ? void 0 : values$1(fact)[0];
 	return isRecord(value) ? value : void 0;
 }
-const URL_LIKE = /^[a-z][a-z0-9+.-]+:/iu;
 /**
 * pip reads the files a requirements file includes with -r and -c too, relative to the including file, and their
 * global options apply to the whole install. For each requirements file of the trees under `roots`: every file of its
@@ -25204,9 +25593,9 @@ function requirementsTrees(repository, roots, format) {
 			if (text === void 0) continue;
 			const unreadable = [];
 			for (const { path, line } of requirementsIncludes(text, format)) {
-				const target = posix.normalize(posix.join(posix.dirname(file), path.replaceAll("\\", "/")));
-				const reason = URL_LIKE.test(path) ? "a URL" : isAbsoluteAnywhere(path) || target === ".." || target.startsWith("../") ? "outside the repository" : repository.isFile(target) ? void 0 : "missing";
-				if (reason === void 0) queue.push(target);
+				const included = includedFile(file, path);
+				const reason = included.url ? "a URL" : included.outside ? "outside the repository" : repository.isFile(included.target) ? void 0 : "missing";
+				if (reason === void 0) queue.push(included.target);
 				else unreadable.push(`${path} (line ${line}, ${reason})`);
 			}
 			if (unreadable.length > 0) repository.warn("unreadable-include", `cannot read the files that ${file} includes: ${listing$1(unreadable)}`, [file]);
@@ -26002,6 +26391,33 @@ function delayMinutes(tool, value, version) {
 	} : {
 		ok: true,
 		minutes
+	};
+}
+const CUTOFF = /^(\d{4})-(\d{2})-(\d{2})(?:[Tt ](\d{2}):(\d{2})(?::(\d{2})(\.\d+)?)?([Zz]|[+-]\d{2}:?\d{2})?)?$/u;
+/**
+* A fixed date or time that the tool reads in place of a delay (extra.cutoffDates: uv's and PDM's exclude-newer, Deno's
+* minimumDependencyAge): it holds back every version uploaded after it, so it counts as the time since it, in whole
+* days rounded up (decision D-167). A date without a time counts from its start in UTC, the earliest moment any time
+* zone gives it; a time without an offset only where the tool reads it as UTC. undefined for any other value.
+*/
+function cutoffAge(tool, value, now) {
+	const fact = tool.extra?.["cutoffDates"];
+	const format = fact === void 0 ? void 0 : values$1(fact)[0];
+	if (!isRecord(format)) return void 0;
+	const text = typeof value === "string" ? value.trim() : value instanceof TomlDateTime ? value.text : void 0;
+	const match = text === void 0 ? null : CUTOFF.exec(text);
+	if (text === void 0 || match === null) return void 0;
+	const [, year, month, day, hour, minute, second, fraction, offset] = match;
+	if (hour !== void 0 && offset === void 0 && format["offsetRequired"] !== false) return void 0;
+	const date = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour ?? 0), Number(minute ?? 0), Number(second ?? 0), Math.round(Number(fraction ?? 0) * 1e3));
+	const check = new Date(date);
+	if (check.getUTCMonth() !== Number(month) - 1 || check.getUTCDate() !== Number(day)) return void 0;
+	const sign = offset === void 0 || /^[Zz]$/u.test(offset) ? 0 : offset.startsWith("-") ? -1 : 1;
+	const digits = offset?.replace(/[^0-9]/gu, "") ?? "";
+	const age = (now - (date - sign * (Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2) || 0)) * 6e4)) / 6e4;
+	return {
+		minutes: age <= 0 ? 0 : Math.ceil(age / 1440) * 1440,
+		text
 	};
 }
 function formatMinutes(minutes) {
@@ -28112,7 +28528,7 @@ function configuredFeatures(context, tool) {
 	return candidates.filter(([setting]) => setting !== null && configured(setting)).map(([setting, since, kind]) => kind === void 0 ? feature(setting, since) : kinded(kind, feature(setting, since))).filter((item) => item !== void 0);
 }
 /** Where a version is declared, for messages; a tool's own required version is named by its key. */
-function sourceLabel(tool, declaration) {
+function sourceLabel$1(tool, declaration) {
 	if (declaration.source === "lockfile") return lockfileVersionOf(tool)?.section ?? SOURCE_LABEL[declaration.source];
 	if (declaration.source !== "tool-config") return SOURCE_LABEL[declaration.source];
 	const required = tool.extra?.["requiredVersion"] === void 0 ? void 0 : values$1(tool.extra["requiredVersion"])[0];
@@ -28204,7 +28620,7 @@ function checkManager(context, manager, tool, features) {
 		if (!("version" in declaration)) continue;
 		if (tool.id === "npm" && (declaration.source === "github-actions" || declaration.source === "dockerfile")) continue;
 		const lowest = lowestVersion(declaration.version);
-		const label = sourceLabel(tool, declaration);
+		const label = sourceLabel$1(tool, declaration);
 		const instead = declaration.source === "yarnPath" ? insteadText(manager, declaration) : "";
 		const where = `${label === declaration.file ? label : `${label} (${declaration.file})`}${instead === "" ? "" : `${instead},`}`;
 		if (lowest.kind === "unknown") {
@@ -28977,348 +29393,6 @@ function formatIssue(issue) {
 	return `${issue.path}: ${issue.message}`;
 }
 
-// src/apply/generators/common.ts
-const MINUTES = {
-	seconds: 1 / 60,
-	minutes: 1,
-	hours: 60,
-	days: 1440,
-	weeks: 10080
-};
-const SOURCE_LABELS$1 = {
-	npm: {
-		git: "git",
-		remoteTarball: "remote tarball",
-		file: "local tarball",
-		directory: "local directory"
-	},
-	pypi: {
-		git: "git",
-		remoteTarball: "URL",
-		file: "local archive",
-		directory: "local directory"
-	},
-	packagist: {
-		git: "VCS repository",
-		remoteTarball: "package repository",
-		file: "artifact repository",
-		directory: "path repository"
-	},
-	rubygems: {
-		git: "git",
-		remoteTarball: "archive URL",
-		file: "local archive",
-		directory: "path"
-	}
-};
-/** The cooldown in the tool's unit, or undefined (with a warning) when it cannot be written. */
-function cooldownValue(context, duration = context.policy.cooldown?.minimum) {
-	if (duration === void 0) return void 0;
-	const setting = settingOf(context.tool.cooldown.setting);
-	if (setting === null) return void 0;
-	const result = convertCooldown(context.tool, duration);
-	if (!result.ok) {
-		context.warn({
-			code: "cooldown-not-written",
-			message: `${context.name}: cooldown not written: ${result.reason}`,
-			fix: result.fix
-		});
-		return;
-	}
-	if (!context.supports(sinceOf(context.tool.cooldown.availableSince), setting)) return void 0;
-	if (typeof result.value === "string") {
-		const [count = "0", unit = ""] = result.value.split(" ");
-		return {
-			value: result.value,
-			minutes: Number(count) * (MINUTES[unit.endsWith("s") ? unit : `${unit}s`] ?? 0)
-		};
-	}
-	return {
-		value: result.value,
-		minutes: result.value * (MINUTES[result.unit] ?? 0)
-	};
-}
-/** The exclusions (the policy's by default) that the tool's exclusion setting accepts; undefined when the setting cannot be used. */
-function exclusions(context, patterns = context.policy.cooldown?.exclude ?? []) {
-	const setting = settingOf(context.tool.cooldown.exclude.setting);
-	if (setting === null) return void 0;
-	if (patterns.length > 0 && !context.supports(sinceOf(context.tool.cooldown.exclude.availableSince), setting)) return void 0;
-	const wildcards = extraOf(context.tool, "excludeWildcards", isWildcards);
-	const wildcardsWork = wildcards.since !== null && context.atLeast(wildcards.since);
-	return patterns.filter((pattern) => {
-		if (!pattern.includes("*")) return true;
-		const accepted = wildcardsWork && (!wildcards.trailingOnly || pattern.indexOf("*") === pattern.length - 1);
-		if (!accepted) context.warn({
-			code: "exclude-pattern-unsupported",
-			message: `${context.name}: ${setting} does not support the pattern "${pattern}"; not written`,
-			fix: "List the exact package names in cooldown.exclude"
-		});
-		return accepted;
-	});
-}
-function denyList(context) {
-	const fact = context.tool.extra?.["denyList"];
-	if (fact === void 0) return void 0;
-	const value = evidenceOf(fact)[0]?.value;
-	return isRecord(value) && typeof value["file"] === "string" && typeof value["setting"] === "string" && typeof value["since"] === "string" ? value : void 0;
-}
-/** The packages of installScripts.deny the tool can record: names only, patterns are dropped with a warning. */
-function deniedNames(context, setting) {
-	return (context.policy.installScripts?.deny ?? []).filter((pattern) => {
-		if (!pattern.includes("*")) return true;
-		context.warn({
-			code: "deny-pattern-unsupported",
-			message: `${context.name}: ${setting} takes package names only; "${pattern}" not written`,
-			fix: "List the package names in installScripts.deny"
-		});
-		return false;
-	});
-}
-/**
-* The files as this run has edited them so far, for reading the tools' own lists. A file the workspace cannot read
-* counts as missing: reading a list must not stop apply, and an edit of that file reports the problem itself.
-*/
-function workspaceText(workspace) {
-	return { readText(file) {
-		try {
-			return workspace.exists(file) ? workspace.read(file) : void 0;
-		} catch {
-			return;
-		}
-	} };
-}
-/**
-* The packages that an entry of the tool's own allow-list lets run their scripts, in any version. apply records no
-* denial for them, because that would change what the entry does, and apply never changes an entry it did not write
-* (decision D-088); the warning deny-conflicts-with-file names the entry instead.
-*/
-function allowedInFiles(context, configFiles = []) {
-	const id = context.tool.id;
-	const options = {
-		tool: context.tool,
-		...context.version === void 0 ? {} : { version: context.version }
-	};
-	return new Set(allowEntries(workspaceText(context.workspace), id, configFiles, options).map((entry) => entry.package));
-}
-/** The setting for messages: dependenciesMeta for the template dependenciesMeta.<package>.built. */
-function settingName(setting) {
-	const at = setting.indexOf(".<package>");
-	return at === -1 ? setting : setting.slice(0, at);
-}
-/**
-* Records installScripts.deny where the tool has an explicit denial (npm allowScripts, pnpm allowBuilds, Yarn
-* dependenciesMeta): the tool then keeps those scripts blocked without warning about them on every install. `fileFor`
-* gives the file that holds the setting when it is not always the same (pnpm include, decision D-164), undefined when
-* apply cannot write it.
-*/
-function writeDenyList(context, fileFor) {
-	const deny = denyList(context);
-	if (deny === void 0 || (context.policy.installScripts?.deny.length ?? 0) === 0) return;
-	if (!context.supports(deny.since, deny.setting)) return;
-	const allowed = allowedInFiles(context);
-	const names = deniedNames(context, settingName(deny.setting)).filter((name) => !allowed.has(name));
-	const target = names.length === 0 || fileFor === void 0 ? deny.file : fileFor(settingName(deny.setting));
-	if (target === void 0) return;
-	const file = target.endsWith(".yaml") || target.endsWith(".yml") ? context.yaml(target) : context.json(target);
-	if (names.length > 0) context.writes("installScripts", deny.setting, target);
-	for (const name of names) {
-		const path = deny.setting.includes("<package>") ? deny.setting.split(".").map((segment) => segment === "<package>" ? name : segment) : [...deny.setting.split("."), name];
-		if (file.get(path) !== deny.value) file.set(path, deny.value);
-	}
-}
-/** Allow-lists take package names only; patterns are dropped with a warning. */
-function allowedNames(context, setting) {
-	return (context.policy.installScripts?.allow ?? []).filter((pattern) => {
-		if (!pattern.includes("*")) return true;
-		context.warn({
-			code: "allow-pattern-unsupported",
-			message: `${context.name}: ${setting} takes package names only; "${pattern}" not written`,
-			fix: "List the package names in installScripts.allow"
-		});
-		return false;
-	});
-}
-/**
-* What the pinned version does with dependency install scripts by default (installScripts.defaultPolicy), and the
-* first later version that does something else.
-*/
-function scriptsDefault(context) {
-	let value;
-	let changesIn;
-	for (const entry of values$1(context.tool.installScripts.defaultPolicy)[0] ?? []) if (context.atLeast(entry.since)) {
-		value = entry.value;
-		changesIn = void 0;
-	} else changesIn ??= entry.since;
-	return {
-		value,
-		changesIn
-	};
-}
-/** Where depcurfew doctor finds a tool's dependencies: the lockfile, or pip's requirements files. */
-function dependencyFiles(context) {
-	return context.tool.extra?.["requirementsFormat"] === void 0 ? "the lockfile" : "the requirements files";
-}
-/** Whether depcurfew doctor can tell dependency sources apart in the tool's lockfile. */
-function lockfileShowsSources(tool) {
-	const fact = tool.extra?.["lockfileFormat"];
-	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	return isRecord(format) && format["sources"] !== null;
-}
-/** Calls `apply` for every dependency source the policy manages and the tool has a setting for. */
-function eachSource(context, apply) {
-	const sources = context.policy.sources;
-	if (sources === void 0) return;
-	for (const kind of SOURCE_KINDS) {
-		const access = sources[kind];
-		if (access === void 0) continue;
-		const knowledge = context.tool.sources?.[kind];
-		const setting = settingOf(knowledge?.setting);
-		if (setting === null) {
-			if (access === "deny") context.warn({
-				code: "source-not-enforceable",
-				message: `${context.name} has no setting for ${SOURCE_LABELS$1[ecosystemOfTool(context.tool)][kind]} dependencies, so "deny" cannot be enforced`,
-				fix: lockfileShowsSources(context.tool) ? `Run depcurfew doctor, which reports such dependencies in ${dependencyFiles(context)}` : "Review new dependencies by hand; depcurfew doctor cannot see them in the lockfile either"
-			});
-			continue;
-		}
-		if (!context.supports(sinceOf(knowledge?.availableSince), setting)) continue;
-		apply(kind, setting, access);
-	}
-}
-/** `install.minimumReleaseAge` → table `install`, key `minimumReleaseAge`. */
-function splitDotted(setting) {
-	const dot = setting.indexOf(".");
-	return dot === -1 ? {
-		table: "",
-		key: setting
-	} : {
-		table: setting.slice(0, dot),
-		key: setting.slice(dot + 1)
-	};
-}
-function sameList(a, b) {
-	return JSON.stringify(a) === JSON.stringify(b);
-}
-
-// src/apply/generators/dependabot.ts
-const isKeys = (value) => isRecord(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string" && Array.isArray(value["semverDays"]) && value["semverDays"].every((key) => typeof key === "string");
-const isActionsEcosystem = (value) => isRecord(value) && typeof value["ecosystem"] === "string" && typeof value["semverDays"] === "boolean";
-/** The ecosystems updated by bots only, by their package-ecosystem; empty without the fact. */
-function botOnlyEntries(tool) {
-	if (tool.extra?.["botOnlyEcosystems"] === void 0) return /* @__PURE__ */ new Map();
-	const fact = extraOf(tool, "botOnlyEcosystems", (value) => isRecord(value) && Object.values(value).every(isActionsEcosystem));
-	return new Map(Object.entries(fact).map(([id, entry]) => [entry.ecosystem, {
-		id,
-		...entry
-	}]));
-}
-const dependabot = (context, duration, repository) => {
-	const { tool, policy } = context;
-	if (policy.cooldown === void 0 || duration === void 0) return;
-	const file = (values$1(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
-	if (file === void 0) {
-		context.warn({
-			code: "bot-config-missing",
-			message: `${context.name}: no configuration file found; depcurfew does not create one`,
-			fix: "Add .github/dependabot.yml if you use Dependabot, then run depcurfew apply again"
-		});
-		return;
-	}
-	if (policy.cooldown.securityUpdates === "delay") context.warn({
-		code: "security-delay-unsupported",
-		message: `${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied`,
-		fix: `Review ${context.name} security pull requests before merging them, or set cooldown.securityUpdates to "bypass" in ${POLICY_FILE}, which is what ${context.name} does`
-	});
-	const result = convertCooldown(tool, duration);
-	if (!result.ok) {
-		context.warn({
-			code: "cooldown-not-written",
-			message: `${context.name}: cooldown not written: ${result.reason}`,
-			fix: result.fix
-		});
-		return;
-	}
-	const alias = rejectsYamlAliases(tool) ? yamlAliasLine(context.read(file)) : void 0;
-	if (alias !== void 0) context.warn({
-		code: "bot-config-unreadable",
-		location: {
-			file,
-			line: alias
-		},
-		message: `${context.name}: ${file} uses a YAML alias (line ${alias}), which ${context.name} does not accept, so it reads no configuration from the file, the cooldown depcurfew apply writes included; depcurfew does not read the delays such a file sets either, so it cannot tell whether this change shortens one`,
-		fix: `Write the value out in place of the alias on line ${alias} of ${file}, then run depcurfew apply again`
-	});
-	const keys = extraOf(tool, "cooldownKeys", isKeys);
-	const managers = extraOf(tool, "ecosystems", isRecord);
-	const ecosystems = Object.keys(managers);
-	const actions = tool.extra?.["githubActions"] === void 0 || repository.workflows.length === 0 ? void 0 : extraOf(tool, "githubActions", isActionsEcosystem);
-	const botOnly = botOnlyEntries(tool);
-	const setting = settingOf(tool.cooldown.setting) ?? "cooldown";
-	const yaml = context.yaml(file);
-	const updates = yaml.get(["updates"]);
-	const patternsOf = (ecosystem) => {
-		const covered = Array.isArray(managers[ecosystem]) ? managers[ecosystem] : [];
-		const tool = context.tools.find((entry) => covered.includes(entry.id));
-		const registry = tool === void 0 ? "npm" : ecosystemOfTool(tool);
-		if (registry === "rubygems") return void 0;
-		return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], registry)) ?? [];
-	};
-	let configured = 0;
-	const others = /* @__PURE__ */ new Set();
-	const edits = [];
-	(Array.isArray(updates) ? updates : []).forEach((entry, index) => {
-		if (!isRecord(entry)) return;
-		const ecosystem = String(entry["package-ecosystem"]);
-		const other = actions !== void 0 && ecosystem === actions.ecosystem ? actions : botOnly.get(ecosystem);
-		if (other === void 0 && !ecosystems.includes(ecosystem)) return;
-		if (other !== void 0) others.add(other.ecosystem);
-		else configured += 1;
-		const patterns = other !== void 0 ? void 0 : patternsOf(ecosystem);
-		const semverDays = other !== void 0 && !other.semverDays ? [] : keys.semverDays;
-		const current = entry[setting];
-		if (!isRecord(current)) {
-			edits.push([[
-				"updates",
-				index,
-				setting
-			], {
-				[keys.days]: result.value,
-				...patterns !== void 0 && patterns.length > 0 ? { [keys.exclude]: patterns } : {}
-			}]);
-			return;
-		}
-		edits.push([[
-			"updates",
-			index,
-			setting,
-			keys.days
-		], result.value]);
-		for (const key of semverDays) {
-			const days = current[key];
-			if (typeof days === "number" && typeof result.value === "number" && days < result.value) edits.push([[
-				"updates",
-				index,
-				setting,
-				key
-			], result.value]);
-		}
-		if (patterns !== void 0 && (patterns.length > 0 || keys.exclude in current) && !sameList(current[keys.exclude], patterns)) edits.push([[
-			"updates",
-			index,
-			setting,
-			keys.exclude
-		], patterns]);
-	});
-	if (edits.length > 0) yaml.setMany(edits);
-	const managersInUse = context.tools.some((entry) => entry.kind === "package-manager" && context.targets.has(entry.id));
-	if (configured === 0 && (others.size === 0 || managersInUse)) context.warn({
-		code: "bot-entries-missing",
-		location: { file },
-		message: others.size === 0 ? `${context.name}: no ${ecosystems.join(", ")} entries in ${file}; nothing to configure` : `${context.name}: no ${ecosystems.join(", ")} entries in ${file}; only the ${listing$1([...others])} entries get the cooldown`,
-		fix: `Add an updates entry for each package manager Dependabot should update to ${file}, then run depcurfew apply again`
-	});
-};
-
 // src/apply/yaml-edit.ts
 const YAML_MARKER = "# managed by depcurfew";
 const PLAIN$1 = {
@@ -29722,6 +29796,465 @@ function setValue(text, path, value, mode = PLAIN$1) {
 	return text;
 }
 
+// src/apply/generators/common.ts
+const MINUTES = {
+	seconds: 1 / 60,
+	minutes: 1,
+	hours: 60,
+	days: 1440,
+	weeks: 10080
+};
+const SOURCE_LABELS$1 = {
+	npm: {
+		git: "git",
+		remoteTarball: "remote tarball",
+		file: "local tarball",
+		directory: "local directory"
+	},
+	pypi: {
+		git: "git",
+		remoteTarball: "URL",
+		file: "local archive",
+		directory: "local directory"
+	},
+	packagist: {
+		git: "VCS repository",
+		remoteTarball: "package repository",
+		file: "artifact repository",
+		directory: "path repository"
+	},
+	rubygems: {
+		git: "git",
+		remoteTarball: "archive URL",
+		file: "local archive",
+		directory: "path"
+	}
+};
+/** The cooldown in the tool's unit, or undefined (with a warning) when it cannot be written. */
+function cooldownValue(context, duration = context.policy.cooldown?.minimum) {
+	if (duration === void 0) return void 0;
+	const setting = settingOf(context.tool.cooldown.setting);
+	if (setting === null) return void 0;
+	const result = convertCooldown(context.tool, duration);
+	if (!result.ok) {
+		context.warn({
+			code: "cooldown-not-written",
+			message: `${context.name}: cooldown not written: ${result.reason}`,
+			fix: result.fix
+		});
+		return;
+	}
+	if (!context.supports(sinceOf(context.tool.cooldown.availableSince), setting)) return void 0;
+	if (typeof result.value === "string") {
+		const [count = "0", unit = ""] = result.value.split(" ");
+		return {
+			value: result.value,
+			minutes: Number(count) * (MINUTES[unit.endsWith("s") ? unit : `${unit}s`] ?? 0)
+		};
+	}
+	return {
+		value: result.value,
+		minutes: result.value * (MINUTES[result.unit] ?? 0)
+	};
+}
+/**
+* Whether a release-age value in the tool's file is one depcurfew cannot read: neither a delay it understands nor a
+* fixed date the tool reads (decision D-167). apply leaves such a value as it is, with cooldown-not-written, instead of
+* replacing what may be a longer delay than the policy's; a value depcurfew wrote is always one it reads.
+*/
+function unreadableDelay(context, file, setting, value, line, written) {
+	if (value === void 0) return false;
+	const delay = delayMinutes(context.tool, value, context.version);
+	if (delay.ok || cutoffAge(context.tool, value, Date.now()) !== void 0) return false;
+	const shown = value instanceof TomlDateTime ? value.text : JSON.stringify(value);
+	const where = line === void 0 ? "" : ` (line ${line})`;
+	context.warn({
+		code: "cooldown-not-written",
+		location: line === void 0 ? { file } : {
+			file,
+			line
+		},
+		message: `${context.name}: cooldown not written: ${setting} in ${file}${where} is ${shown}, which depcurfew cannot read (${delay.reason}), so depcurfew apply leaves it as it is instead of replacing a delay that may be longer than cooldown.minimum`,
+		fix: `Write the delay in a form ${context.name} documents, such as ${JSON.stringify(written.value)}, or remove ${setting} so that depcurfew apply writes ${JSON.stringify(written.value)}, then run depcurfew apply again`
+	});
+	return true;
+}
+/** The exclusions (the policy's by default) that the tool's exclusion setting accepts; undefined when the setting cannot be used. */
+function exclusions(context, patterns = context.policy.cooldown?.exclude ?? []) {
+	const setting = settingOf(context.tool.cooldown.exclude.setting);
+	if (setting === null) return void 0;
+	if (patterns.length > 0 && !context.supports(sinceOf(context.tool.cooldown.exclude.availableSince), setting)) return void 0;
+	const wildcards = extraOf(context.tool, "excludeWildcards", isWildcards);
+	const wildcardsWork = wildcards.since !== null && context.atLeast(wildcards.since);
+	return patterns.filter((pattern) => {
+		if (!pattern.includes("*")) return true;
+		const accepted = wildcardsWork && (!wildcards.trailingOnly || pattern.indexOf("*") === pattern.length - 1);
+		if (!accepted) context.warn({
+			code: "exclude-pattern-unsupported",
+			message: `${context.name}: ${setting} does not support the pattern "${pattern}"; not written`,
+			fix: "List the exact package names in cooldown.exclude"
+		});
+		return accepted;
+	});
+}
+function denyList(context) {
+	const fact = context.tool.extra?.["denyList"];
+	if (fact === void 0) return void 0;
+	const value = evidenceOf(fact)[0]?.value;
+	return isRecord(value) && typeof value["file"] === "string" && typeof value["setting"] === "string" && typeof value["since"] === "string" ? value : void 0;
+}
+/** The packages of installScripts.deny the tool can record: names only, patterns are dropped with a warning. */
+function deniedNames(context, setting) {
+	return (context.policy.installScripts?.deny ?? []).filter((pattern) => {
+		if (!pattern.includes("*")) return true;
+		context.warn({
+			code: "deny-pattern-unsupported",
+			message: `${context.name}: ${setting} takes package names only; "${pattern}" not written`,
+			fix: "List the package names in installScripts.deny"
+		});
+		return false;
+	});
+}
+/**
+* The files as this run has edited them so far, for reading the tools' own lists. A file the workspace cannot read
+* counts as missing: reading a list must not stop apply, and an edit of that file reports the problem itself.
+*/
+function workspaceText(workspace) {
+	return { readText(file) {
+		try {
+			return workspace.exists(file) ? workspace.read(file) : void 0;
+		} catch {
+			return;
+		}
+	} };
+}
+/**
+* The packages that an entry of the tool's own allow-list lets run their scripts, in any version. apply records no
+* denial for them, because that would change what the entry does, and apply never changes an entry it did not write
+* (decision D-088); the warning deny-conflicts-with-file names the entry instead.
+*/
+function allowedInFiles(context, configFiles = []) {
+	const id = context.tool.id;
+	const options = {
+		tool: context.tool,
+		...context.version === void 0 ? {} : { version: context.version }
+	};
+	return new Set(allowEntries(workspaceText(context.workspace), id, configFiles, options).map((entry) => entry.package));
+}
+/** The setting for messages: dependenciesMeta for the template dependenciesMeta.<package>.built. */
+function settingName(setting) {
+	const at = setting.indexOf(".<package>");
+	return at === -1 ? setting : setting.slice(0, at);
+}
+/**
+* Records installScripts.deny where the tool has an explicit denial (npm allowScripts, pnpm allowBuilds, Yarn
+* dependenciesMeta): the tool then keeps those scripts blocked without warning about them on every install. `fileFor`
+* gives the file that holds the setting when it is not always the same (pnpm include, decision D-164), undefined when
+* apply cannot write it.
+*/
+function writeDenyList(context, fileFor) {
+	const deny = denyList(context);
+	if (deny === void 0 || (context.policy.installScripts?.deny.length ?? 0) === 0) return;
+	if (!context.supports(deny.since, deny.setting)) return;
+	const allowed = allowedInFiles(context);
+	const names = deniedNames(context, settingName(deny.setting)).filter((name) => !allowed.has(name));
+	if (names.length === 0) return;
+	const target = fileFor === void 0 ? deny.file : fileFor(settingName(deny.setting));
+	if (target === void 0) return;
+	const file = target.endsWith(".yaml") || target.endsWith(".yml") ? context.yaml(target) : context.json(target);
+	const list = settingName(deny.setting).split(".");
+	if (wrongListType(context, target, list, file.get(list), "object", names, `{${JSON.stringify(names[0])}: ${JSON.stringify(deny.setting.includes("<package>") ? { [deny.setting.split(".").at(-1) ?? ""]: deny.value } : deny.value)}}`)) return;
+	context.writes("installScripts", deny.setting, target);
+	for (const name of names) {
+		const path = deny.setting.includes("<package>") ? deny.setting.split(".").map((segment) => segment === "<package>" ? name : segment) : [...deny.setting.split("."), name];
+		if (deny.setting.includes("<package>") && wrongListType(context, target, path.slice(0, -1), file.get(path.slice(0, -1)), "object", [name], `{${JSON.stringify(path.at(-1))}: ${JSON.stringify(deny.value)}}`)) continue;
+		if (file.get(path) !== deny.value) file.set(path, deny.value);
+	}
+}
+/** A value for a message about its type: "a list", "an object", "the string \"x\"", "true". */
+function typeText(value) {
+	if (Array.isArray(value)) return "a list";
+	if (isRecord(value)) return "an object";
+	return typeof value === "string" ? `the string ${JSON.stringify(value)}` : String(JSON.stringify(value));
+}
+/**
+* Whether the allow-list or deny-list at `path` of a JSON or YAML file has a value of another type than the tool reads
+* there (npm's allowScripts as a list, Bun's trustedDependencies as an object, Yarn's dependenciesMeta as a list):
+* unexpected-value, and nothing is written into it, since replacing it would drop the packages it names (decision
+* D-167). A value that is not there is of no wrong type.
+*/
+function wrongListType(context, file, path, current, expected, names, example) {
+	if (current === void 0 || (expected === "list" ? Array.isArray(current) : isRecord(current))) return false;
+	const text = context.exists(file) ? context.read(file) : "";
+	const found = /\.ya?ml$/u.test(file) ? yamlSetting(text, path) : jsonSetting(text, path);
+	const setting = path.join(".");
+	const kind = expected === "object" ? "an object" : "a list";
+	context.warn({
+		code: "unexpected-value",
+		location: found === void 0 ? { file } : {
+			file,
+			line: found.line
+		},
+		message: `${context.name}: ${setting} in ${file}${found === void 0 ? "" : ` (line ${found.line})`} is ${typeText(current)}, not ${kind}, so depcurfew apply does not write ${names.length > 0 ? listing$1([...names]) : `the allow-list of ${POLICY_FILE}`} into it`,
+		fix: `Write ${setting} in ${file} as ${kind} such as ${example}, keeping the packages it names, then run depcurfew apply again`
+	});
+	return true;
+}
+/** Allow-lists take package names only; patterns are dropped with a warning. */
+function allowedNames(context, setting) {
+	return (context.policy.installScripts?.allow ?? []).filter((pattern) => {
+		if (!pattern.includes("*")) return true;
+		context.warn({
+			code: "allow-pattern-unsupported",
+			message: `${context.name}: ${setting} takes package names only; "${pattern}" not written`,
+			fix: "List the package names in installScripts.allow"
+		});
+		return false;
+	});
+}
+/**
+* What the pinned version does with dependency install scripts by default (installScripts.defaultPolicy), and the
+* first later version that does something else.
+*/
+function scriptsDefault(context) {
+	let value;
+	let changesIn;
+	for (const entry of values$1(context.tool.installScripts.defaultPolicy)[0] ?? []) if (context.atLeast(entry.since)) {
+		value = entry.value;
+		changesIn = void 0;
+	} else changesIn ??= entry.since;
+	return {
+		value,
+		changesIn
+	};
+}
+/** Where depcurfew doctor finds a tool's dependencies: the lockfile, or pip's requirements files. */
+function dependencyFiles(context) {
+	return context.tool.extra?.["requirementsFormat"] === void 0 ? "the lockfile" : "the requirements files";
+}
+/** Whether depcurfew doctor can tell dependency sources apart in the tool's lockfile. */
+function lockfileShowsSources(tool) {
+	const fact = tool.extra?.["lockfileFormat"];
+	const format = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord(format) && format["sources"] !== null;
+}
+/** Calls `apply` for every dependency source the policy manages and the tool has a setting for. */
+function eachSource(context, apply) {
+	const sources = context.policy.sources;
+	if (sources === void 0) return;
+	for (const kind of SOURCE_KINDS) {
+		const access = sources[kind];
+		if (access === void 0) continue;
+		const knowledge = context.tool.sources?.[kind];
+		const setting = settingOf(knowledge?.setting);
+		if (setting === null) {
+			if (access === "deny") context.warn({
+				code: "source-not-enforceable",
+				message: `${context.name} has no setting for ${SOURCE_LABELS$1[ecosystemOfTool(context.tool)][kind]} dependencies, so "deny" cannot be enforced`,
+				fix: lockfileShowsSources(context.tool) ? `Run depcurfew doctor, which reports such dependencies in ${dependencyFiles(context)}` : "Review new dependencies by hand; depcurfew doctor cannot see them in the lockfile either"
+			});
+			continue;
+		}
+		if (!context.supports(sinceOf(knowledge?.availableSince), setting)) continue;
+		apply(kind, setting, access);
+	}
+}
+/**
+* A YAML list apply is about to replace with `wanted`, when depcurfew did not write it (no marker above it) and the
+* replacement drops entries from it: the entries it drops; undefined otherwise (decision D-167).
+*/
+function droppedYamlList(context, file, path, wanted) {
+	if (!context.exists(file)) return void 0;
+	const text = context.read(file);
+	const found = yamlSetting(text, path);
+	if (found === void 0 || !Array.isArray(found.value) || text.split("\n")[found.line - 2]?.trim() === "# managed by depcurfew") return void 0;
+	const dropped = found.value.filter((item) => !wanted.includes(item));
+	return dropped.length > 0 ? dropped : void 0;
+}
+/**
+* Keeps the entries apply dropped from a YAML list as a comment above it, with the marker of the lines apply comments
+* out, so that they are not lost: `# depcurfew: superseded by the managed block: exclude: ["foo"]` (decision D-167).
+*/
+function commentReplacedList(context, file, path, old) {
+	context.text(file, (body) => {
+		const found = yamlSetting(body, path);
+		if (found === void 0) return body;
+		const lines = body.split("\n");
+		let at = found.line - 1;
+		if (lines[at - 1]?.trim() === "# managed by depcurfew") at -= 1;
+		const indent = /^\s*/u.exec(lines[at] ?? "")?.[0] ?? "";
+		lines.splice(at, 0, `${indent}${SUPERSEDED}${path.at(-1) ?? ""}: ${JSON.stringify(old)}`);
+		return lines.join("\n");
+	});
+}
+/** A dependency source in words for the tool's registry: "local tarball", "git". */
+function sourceLabel(context, kind) {
+	return SOURCE_LABELS$1[ecosystemOfTool(context.tool)][kind];
+}
+/**
+* source-loosened (decision D-167): a source setting depcurfew did not write is stricter than what the policy's "allow"
+* makes apply write in its place. `current` is the setting as written, `does` what it does now, `change` what apply
+* does to it.
+*/
+function sourceLoosened(context, kinds, location, current, does, change, fix) {
+	const fields = kinds.map((kind) => `sources.${kind}`);
+	const where = location.line === void 0 ? "" : ` (line ${location.line})`;
+	context.warn({
+		code: "source-loosened",
+		location,
+		message: `${context.name}: ${current} in ${location.file}${where} ${does}; because ${listing$1(fields)} ${kinds.length === 1 ? "is" : "are"} "allow" in ${POLICY_FILE}, depcurfew apply ${change}`,
+		fix: fix ?? `To keep it, set ${listing$1(fields)} to "deny" in ${"depcurfew.json"} and run depcurfew apply again`
+	});
+}
+/** `install.minimumReleaseAge` → table `install`, key `minimumReleaseAge`. */
+function splitDotted(setting) {
+	const dot = setting.indexOf(".");
+	return dot === -1 ? {
+		table: "",
+		key: setting
+	} : {
+		table: setting.slice(0, dot),
+		key: setting.slice(dot + 1)
+	};
+}
+function sameList(a, b) {
+	return JSON.stringify(a) === JSON.stringify(b);
+}
+
+// src/apply/generators/dependabot.ts
+const isKeys = (value) => isRecord(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string" && Array.isArray(value["semverDays"]) && value["semverDays"].every((key) => typeof key === "string");
+const isActionsEcosystem = (value) => isRecord(value) && typeof value["ecosystem"] === "string" && typeof value["semverDays"] === "boolean";
+/** The ecosystems updated by bots only, by their package-ecosystem; empty without the fact. */
+function botOnlyEntries(tool) {
+	if (tool.extra?.["botOnlyEcosystems"] === void 0) return /* @__PURE__ */ new Map();
+	const fact = extraOf(tool, "botOnlyEcosystems", (value) => isRecord(value) && Object.values(value).every(isActionsEcosystem));
+	return new Map(Object.entries(fact).map(([id, entry]) => [entry.ecosystem, {
+		id,
+		...entry
+	}]));
+}
+const dependabot = (context, duration, repository) => {
+	const { tool, policy } = context;
+	if (policy.cooldown === void 0 || duration === void 0) return;
+	const file = (values$1(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
+	if (file === void 0) {
+		context.warn({
+			code: "bot-config-missing",
+			message: `${context.name}: no configuration file found; depcurfew does not create one`,
+			fix: "Add .github/dependabot.yml if you use Dependabot, then run depcurfew apply again"
+		});
+		return;
+	}
+	if (policy.cooldown.securityUpdates === "delay") context.warn({
+		code: "security-delay-unsupported",
+		message: `${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied`,
+		fix: `Review ${context.name} security pull requests before merging them, or set cooldown.securityUpdates to "bypass" in ${POLICY_FILE}, which is what ${context.name} does`
+	});
+	const result = convertCooldown(tool, duration);
+	if (!result.ok) {
+		context.warn({
+			code: "cooldown-not-written",
+			message: `${context.name}: cooldown not written: ${result.reason}`,
+			fix: result.fix
+		});
+		return;
+	}
+	const alias = rejectsYamlAliases(tool) ? yamlAliasLine(context.read(file)) : void 0;
+	if (alias !== void 0) context.warn({
+		code: "bot-config-unreadable",
+		location: {
+			file,
+			line: alias
+		},
+		message: `${context.name}: ${file} uses a YAML alias (line ${alias}), which ${context.name} does not accept, so it reads no configuration from the file, the cooldown depcurfew apply writes included; depcurfew does not read the delays such a file sets either, so it cannot tell whether this change shortens one`,
+		fix: `Write the value out in place of the alias on line ${alias} of ${file}, then run depcurfew apply again`
+	});
+	const keys = extraOf(tool, "cooldownKeys", isKeys);
+	const managers = extraOf(tool, "ecosystems", isRecord);
+	const ecosystems = Object.keys(managers);
+	const actions = tool.extra?.["githubActions"] === void 0 || repository.workflows.length === 0 ? void 0 : extraOf(tool, "githubActions", isActionsEcosystem);
+	const botOnly = botOnlyEntries(tool);
+	const setting = settingOf(tool.cooldown.setting) ?? "cooldown";
+	const yaml = context.yaml(file);
+	const updates = yaml.get(["updates"]);
+	const patternsOf = (ecosystem) => {
+		const covered = Array.isArray(managers[ecosystem]) ? managers[ecosystem] : [];
+		const tool = context.tools.find((entry) => covered.includes(entry.id));
+		const registry = tool === void 0 ? "npm" : ecosystemOfTool(tool);
+		if (registry === "rubygems") return void 0;
+		return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], registry)) ?? [];
+	};
+	let configured = 0;
+	const others = /* @__PURE__ */ new Set();
+	const edits = [];
+	const dropped = [];
+	(Array.isArray(updates) ? updates : []).forEach((entry, index) => {
+		if (!isRecord(entry)) return;
+		const ecosystem = String(entry["package-ecosystem"]);
+		const other = actions !== void 0 && ecosystem === actions.ecosystem ? actions : botOnly.get(ecosystem);
+		if (other === void 0 && !ecosystems.includes(ecosystem)) return;
+		if (other !== void 0) others.add(other.ecosystem);
+		else configured += 1;
+		const patterns = other !== void 0 ? void 0 : patternsOf(ecosystem);
+		const semverDays = other !== void 0 && !other.semverDays ? [] : keys.semverDays;
+		const current = entry[setting];
+		if (!isRecord(current)) {
+			edits.push([[
+				"updates",
+				index,
+				setting
+			], {
+				[keys.days]: result.value,
+				...patterns !== void 0 && patterns.length > 0 ? { [keys.exclude]: patterns } : {}
+			}]);
+			return;
+		}
+		edits.push([[
+			"updates",
+			index,
+			setting,
+			keys.days
+		], result.value]);
+		for (const key of semverDays) {
+			const days = current[key];
+			if (typeof days === "number" && typeof result.value === "number" && days < result.value) edits.push([[
+				"updates",
+				index,
+				setting,
+				key
+			], result.value]);
+		}
+		if (patterns !== void 0 && (patterns.length > 0 || keys.exclude in current) && !sameList(current[keys.exclude], patterns)) {
+			edits.push([[
+				"updates",
+				index,
+				setting,
+				keys.exclude
+			], patterns]);
+			const path = [
+				"updates",
+				String(index),
+				setting,
+				keys.exclude
+			];
+			const old = droppedYamlList(context, file, path, patterns);
+			if (old !== void 0) dropped.push({
+				path,
+				old
+			});
+		}
+	});
+	if (edits.length > 0) yaml.setMany(edits);
+	for (const { path, old } of dropped) commentReplacedList(context, file, path, old);
+	const managersInUse = context.tools.some((entry) => entry.kind === "package-manager" && context.targets.has(entry.id));
+	if (configured === 0 && (others.size === 0 || managersInUse)) context.warn({
+		code: "bot-entries-missing",
+		location: { file },
+		message: others.size === 0 ? `${context.name}: no ${ecosystems.join(", ")} entries in ${file}; nothing to configure` : `${context.name}: no ${ecosystems.join(", ")} entries in ${file}; only the ${listing$1([...others])} entries get the cooldown`,
+		fix: `Add an updates entry for each package manager Dependabot should update to ${file}, then run depcurfew apply again`
+	});
+};
+
 // src/apply/delays.ts
 const isString$3 = (value) => typeof value === "string";
 const isNpmrcKey = (value) => isRecord(value) && isString$3(value["key"]) && isString$3(value["until"]);
@@ -29750,7 +30283,8 @@ function markedInYaml(text, path, all = lines$1(text)) {
 	}
 	return false;
 }
-function managed(text, file, path, line) {
+/** Whether depcurfew wrote the value at `path` of `file`: inside its managed block, or under its YAML marker. */
+function managedValue(text, file, path, line) {
 	if (text === void 0) return false;
 	const name = file.split("/").at(-1) ?? file;
 	if (/\.ya?ml$/u.test(name)) return markedInYaml(text, path);
@@ -29808,19 +30342,22 @@ function managerDelay(repository, manager, tool) {
 	const value = isRecord(found.value) && ageKey !== void 0 ? found.value[ageKey] : found.value;
 	if (typeof value === "bigint") return void 0;
 	const delay = delayMinutes(tool, value, version);
-	if (!delay.ok || delay.minutes <= 0) return void 0;
+	const cutoff = delay.ok ? void 0 : cutoffAge(tool, value, Date.now());
+	const minutes = cutoff?.minutes ?? (delay.ok ? delay.minutes : 0);
+	if (minutes <= 0) return void 0;
 	const path = found.setting.split(".");
 	return {
 		tool: tool.id,
 		scope: "",
 		setting: found.setting,
-		value,
-		minutes: delay.minutes,
+		value: cutoff?.text ?? value,
+		minutes,
 		location: {
 			file: found.file,
 			line: found.line
 		},
-		managed: managed(repository.readText(found.file), found.file, path, found.line)
+		managed: managedValue(repository.readText(found.file), found.file, path, found.line),
+		...cutoff === void 0 ? {} : { cutoff: true }
 	};
 }
 function dependabotDelays$1(repository, bot, file, workflows) {
@@ -29931,6 +30468,7 @@ function policyDuration(minutes) {
 */
 function describeDelay(delay) {
 	const where = `in ${delay.location.file} (line ${delay.location.line})`;
+	if (delay.cutoff === true) return `${settingText(delay.location.file, delay.setting, delay.value)} ${where}, a fixed date ${formatMinutes(delay.minutes)} ago`;
 	if (delay.written === void 0) return `${settingText(delay.location.file, delay.setting, delay.value)} ${where}`;
 	const name = knowledgeBase.find((tool) => tool.id === delay.tool)?.name ?? delay.tool;
 	return `${delay.setting}: ${delay.written} ${where}, which ${name} reads as ${String(delay.value)}`;
@@ -29986,12 +30524,165 @@ function shortenedDelays(root, changes, detection, tools, targets, policyMinimum
 		const name = tools.find((tool) => tool.id === old.tool)?.name ?? old.tool;
 		const scope = old.label === void 0 ? "" : ` for ${old.label}`;
 		const action = !(now.location.file === old.location.file && now.setting === old.setting) ? `writes ${settingText(now.location.file, now.setting, now.value)} to ${now.location.file}, which ${name} reads first` : lineBased(old.location.file) ? `comments it out and writes ${settingText(now.location.file, now.setting, now.value)} in its managed block` : `replaces it with ${JSON.stringify(now.value)}`;
+		const waits = old.cutoff === true ? `, holds back every version uploaded since${scope}` : `${old.written === void 0 ? "" : ","} waits ${formatMinutes(old.minutes)}${scope}`;
+		const json = old.location.file.endsWith(".json") || old.location.file.endsWith(".jsonc");
 		return [{
 			code: "cooldown-shortened",
 			tool: old.tool,
 			location: { ...old.location },
-			message: `${name}: ${describeDelay(old)}${old.written === void 0 ? "" : ","} waits ${formatMinutes(old.minutes)}${scope}, longer than cooldown.minimum "${policyMinimum}" in ${POLICY_FILE}; depcurfew apply ${action}, so ${name} waits only ${formatMinutes(now.minutes)}`,
-			fix: `To keep the longer delay, set cooldown.minimum to "${policyDuration(old.minutes)}" in ${POLICY_FILE} and run depcurfew apply again${old.location.file.endsWith(".json") || old.location.file.endsWith(".jsonc") ? `; if an earlier depcurfew apply wrote this value to ${old.location.file} and you lowered cooldown.minimum on purpose, nothing to do` : ""}`
+			message: `${name}: ${describeDelay(old)}${waits}, longer than cooldown.minimum "${policyMinimum}" in ${POLICY_FILE}; depcurfew apply ${action}, so ${name} waits only ${formatMinutes(now.minutes)}`,
+			fix: old.cutoff === true ? `To keep a delay at least that long, set cooldown.minimum to "${policyDuration(old.minutes)}" in ${POLICY_FILE} and run depcurfew apply again; ${POLICY_FILE} sets a delay that moves with time, not a fixed date` : `To keep the longer delay, set cooldown.minimum to "${policyDuration(old.minutes)}" in ${POLICY_FILE} and run depcurfew apply again${json ? `; if an earlier depcurfew apply wrote this value to ${old.location.file} and you lowered cooldown.minimum on purpose, nothing to do` : ""}`
+		}];
+	});
+}
+
+// src/apply/exclusions.ts
+const PREFIXES = {
+	pypi: PYPI_PREFIX,
+	packagist: COMPOSER_PREFIX
+};
+/** The pattern depcurfew.json writes for a package of the registry, or undefined when it cannot hold it. */
+function policyPattern(name, ecosystem) {
+	if (ecosystem === "rubygems") return void 0;
+	const pattern = `${PREFIXES[ecosystem] ?? ""}${name}`;
+	return validatePackagePattern(pattern) === void 0 ? pattern : void 0;
+}
+/** The names a list or table of exceptions holds: strings of a list, keys set to the tool's exempt value of a table. */
+function namesOf$1(tool, value) {
+	if (Array.isArray(value)) return value.filter((item) => typeof item === "string");
+	if (!isRecord(value)) return void 0;
+	const exempt = tool.extra?.["excludeValue"] === void 0 ? void 0 : values$1(tool.extra["excludeValue"])[0];
+	return exempt === void 0 ? void 0 : Object.keys(value).filter((key) => value[key] === exempt);
+}
+function managerExclusion(repository, tool, configFiles) {
+	const setting = settingOf(tool.cooldown.exclude.setting);
+	const ecosystem = ecosystemOfTool(tool);
+	if (setting === null || ecosystem === "packagist" || ecosystem === "rubygems") return void 0;
+	const key = setting.split(".").at(-1) ?? setting;
+	const mentions = (file) => repository.readText(file)?.includes(key) === true;
+	let found;
+	if (ecosystem === "pypi") found = pythonSettingPaths(repository, tool, setting).some(({ file }) => mentions(file)) ? readPythonSetting(repository, tool, setting) : void 0;
+	else {
+		const manifests = tool.id === "deno" && tool.project !== void 0 ? values$1(tool.project.manifests)[0] ?? [] : [];
+		const file = tool.id === "deno" ? manifests.find((name) => repository.isFile(name)) ?? configFiles.find((name) => /^deno\.jsonc?$/u.test(name)) : values$1(tool.cooldown.configFiles)[0]?.[0];
+		found = file === void 0 || !mentions(file) ? void 0 : readSetting(repository, file, setting);
+	}
+	if (found === void 0) return void 0;
+	const names = namesOf$1(tool, found.value);
+	if (names === void 0 || names.length === 0) return void 0;
+	const prefix = tool.extra?.["npmSpecifierPrefix"] === void 0 ? void 0 : extraOf(tool, "npmSpecifierPrefix", (value) => typeof value === "string");
+	const entries = names.map((written) => {
+		const name = prefix === void 0 ? written : written.startsWith(prefix) ? written.slice(prefix.length) : void 0;
+		return {
+			written,
+			policy: name === void 0 ? void 0 : policyPattern(name, ecosystem)
+		};
+	});
+	return {
+		tool: tool.id,
+		scope: "",
+		setting,
+		location: {
+			file: found.file,
+			line: found.line
+		},
+		entries,
+		managed: managedValue(repository.readText(found.file), found.file, setting.split("."), found.line)
+	};
+}
+function dependabotExclusions(repository, bot, file, tools) {
+	const text = repository.readText(file);
+	if (text === void 0 || !text.includes("exclude") || rejectsYamlAliases(bot) && yamlAliasLine(text) !== void 0) return [];
+	const yaml = yamlOptionsFor(file, [bot]);
+	const updates = yamlSetting(text, ["updates"], yaml);
+	if (updates === void 0 || !Array.isArray(updates.value)) return [];
+	const ecosystems = extraOf(bot, "ecosystems", isRecord);
+	const actions = bot.extra?.["githubActions"] === void 0 ? void 0 : extraOf(bot, "githubActions", isActionsEcosystem).ecosystem;
+	const botOnly = botOnlyEntries(bot);
+	return updates.value.flatMap((entry, index) => {
+		if (!isRecord(entry) || !isRecord(entry["cooldown"])) return [];
+		const name = String(entry["package-ecosystem"]);
+		const managers = ecosystems[name];
+		if (name === actions || botOnly.has(name) || !Array.isArray(managers)) return [];
+		const tool = tools.find((item) => managers.includes(item.id));
+		const ecosystem = tool === void 0 ? "npm" : ecosystemOfTool(tool);
+		const list = entry["cooldown"]["exclude"];
+		if (ecosystem === "rubygems" || !Array.isArray(list) || list.length === 0) return [];
+		const path = [
+			"updates",
+			String(index),
+			"cooldown",
+			"exclude"
+		];
+		const found = yamlSetting(text, path, yaml);
+		return [{
+			tool: bot.id,
+			scope: `updates[${index}]`,
+			label: `${name} updates`,
+			setting: "cooldown.exclude",
+			location: {
+				file,
+				line: found?.line ?? updates.line
+			},
+			entries: list.filter((item) => typeof item === "string").map((written) => ({
+				written,
+				policy: policyPattern(written, ecosystem)
+			})),
+			managed: managedValue(text, file, path, found?.line ?? updates.line)
+		}];
+	});
+}
+/** The exception lists the repository sets for the detected tools (only those in `only`, when given). */
+function configuredExclusions(repository, detection, tools, only) {
+	const found = [];
+	const read = (action, none) => {
+		try {
+			return action();
+		} catch {
+			return none;
+		}
+	};
+	for (const manager of detection.packageManagers) {
+		const tool = tools.find((entry) => entry.id === manager.id);
+		if (!manager.supported || tool === void 0 || only !== void 0 && !only.has(tool.id)) continue;
+		const exclusion = read(() => managerExclusion(repository, tool, manager.configFiles), void 0);
+		if (exclusion !== void 0) found.push(exclusion);
+	}
+	for (const detected of detection.bots) {
+		const bot = tools.find((entry) => entry.id === detected.id);
+		const file = detected.configFiles[0];
+		if (bot?.id !== "dependabot" || file === void 0 || only !== void 0 && !only.has(bot.id)) continue;
+		found.push(...read(() => dependabotExclusions(repository, bot, file, tools), []));
+	}
+	return found;
+}
+/**
+* exclusion-dropped (decision D-167): an exception set outside depcurfew's markers that the planned change removes,
+* because cooldown.exclude does not name it. The fix names the patterns that keep it.
+*/
+function droppedExclusions(root, changes, detection, tools, targets) {
+	if (changes.length === 0) return [];
+	const before = configuredExclusions(new Repository(root), detection, tools, targets).filter((exclusion) => !exclusion.managed);
+	if (before.length === 0) return [];
+	const after = configuredExclusions(new PlannedRepository(root, changes), detection, tools, targets);
+	return before.flatMap((old) => {
+		const now = after.find((exclusion) => exclusion.tool === old.tool && exclusion.scope === old.scope);
+		const kept = new Set(now?.entries.map((entry) => entry.written) ?? []);
+		const dropped = old.entries.filter((entry) => !kept.has(entry.written));
+		if (dropped.length === 0) return [];
+		const name = tools.find((tool) => tool.id === old.tool)?.name ?? old.tool;
+		const one = dropped.length === 1;
+		const json = /\.jsonc?$/u.test(old.location.file);
+		const action = json ? `removes ${one ? "it" : "them"}` : `comments ${one ? "it" : "them"} out`;
+		const patterns = dropped.map((entry) => entry.policy).filter((pattern) => pattern !== void 0);
+		const unnamed = dropped.filter((entry) => entry.policy === void 0).map((entry) => entry.written);
+		const keep = patterns.length > 0 ? `To keep the ${patterns.length === 1 ? "exception" : "exceptions"}, add ${listing$1(patterns.map((pattern) => JSON.stringify(pattern)))} to cooldown.exclude in ${POLICY_FILE} and run depcurfew apply again` : `${POLICY_FILE} cannot name ${listing$1(unnamed)}, so depcurfew apply cannot keep ${unnamed.length === 1 ? "it" : "them"}; remove "${old.tool}" from targets in ${POLICY_FILE} if ${name} must keep the list as it is`;
+		return [{
+			code: "exclusion-dropped",
+			tool: old.tool,
+			location: { ...old.location },
+			message: `${name}: ${old.setting} in ${old.location.file} (line ${old.location.line})${old.label === void 0 ? "" : ` for ${old.label}`} exempts ${listing$1(dropped.map((entry) => entry.written))} from the release-age delay, but cooldown.exclude in ${POLICY_FILE} does not; depcurfew apply ${action}, so ${name} delays ${one ? "it" : "them"} like every other package`,
+			fix: `${keep}${json ? `; if an earlier depcurfew apply wrote ${one ? "it" : "them"} to ${old.location.file} and you removed ${one ? "it" : "them"} from cooldown.exclude on purpose, nothing to do` : ""}`
 		}];
 	});
 }
@@ -30346,14 +31037,16 @@ const bun = (context) => {
 				const names = policy.installScripts.allow.length > 0 ? allowedNames(context, setting) : [];
 				context.writes("installScripts", setting, listFile);
 				const current = context.json(listFile).get([setting]);
-				if (current === void 0 && context.exists(listFile)) context.warn({
-					code: "built-in-list-replaced",
-					message: `${context.name}: ${setting} replaces Bun's built-in list of trusted packages, so packages on that list no longer run install scripts unless listed`,
-					fix: "Add the ones that need their scripts to installScripts.allow"
-				});
-				const list = Array.isArray(current) ? [...current] : [];
-				const merged = [...list, ...names.filter((name) => !list.includes(name))];
-				if (current === void 0 || !sameList(current, merged)) context.json(listFile).set([setting], merged);
+				if (!wrongListType(context, listFile, [setting], current, "list", names, JSON.stringify(names.length > 0 ? names : ["esbuild"]))) {
+					if (current === void 0 && context.exists(listFile)) context.warn({
+						code: "built-in-list-replaced",
+						message: `${context.name}: ${setting} replaces Bun's built-in list of trusted packages, so packages on that list no longer run install scripts unless listed`,
+						fix: "Add the ones that need their scripts to installScripts.allow"
+					});
+					const list = Array.isArray(current) ? [...current] : [];
+					const merged = [...list, ...names.filter((name) => !list.includes(name))];
+					if (current === void 0 || !sameList(current, merged)) context.json(listFile).set([setting], merged);
+				}
 			}
 		}
 	}
@@ -30582,10 +31275,11 @@ function writeCooldown(context, json, manifest) {
 		return;
 	}
 	const current = json.get(path);
+	const kept = unreadableDelay(context, manifest.file, setting, current, locationOf(manifest, path).line, cooldown);
 	const written = current === void 0 ? void 0 : delayMinutes(tool, current, void 0);
-	if (written === void 0 || !written.ok || written.minutes !== cooldown.minutes) json.set(path, cooldown.value);
+	if (!kept && (written === void 0 || !written.ok || written.minutes !== cooldown.minutes)) json.set(path, cooldown.value);
 	writeExclusions(context, json, manifest);
-	return cooldown.minutes;
+	return kept ? void 0 : cooldown.minutes;
 }
 /**
 * The composer: names of cooldown.exclude in config.policy.cooldown.ignore: a new list, added to a list, or added to an
@@ -30773,7 +31467,7 @@ const composer = (context) => {
 * The setting a line sets, read as npm reads it, with the reader doctor uses (extra.npmrcFormat): quotes removed,
 * a key without = included, a trailing comment cut off; `key[]` as `key`.
 */
-function keyOf$2(line) {
+function keyOf$1(line) {
 	const parsed = iniLine(line);
 	return parsed === void 0 || "section" in parsed ? void 0 : parsed.key.replace(/\[\]$/u, "");
 }
@@ -30798,8 +31492,8 @@ function writeIniBlock(body, entries, managedKeys, marker = BLOCK_START) {
 	const lines = removed.lines.map((line) => parts(line).map((part) => {
 		if (isSection(part)) inSection = true;
 		const original = commentedOut(part);
-		if (original !== void 0) return !inSection && managed.has(keyOf$2(original) ?? "") ? part : original;
-		const key = inSection ? void 0 : keyOf$2(part);
+		if (original !== void 0) return !inSection && managed.has(keyOf$1(original) ?? "") ? part : original;
+		const key = inSection ? void 0 : keyOf$1(part);
 		return key !== void 0 && managed.has(key) ? `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${part.trim()}` : part;
 	}).join("\r"));
 	if (entries.length === 0) return joinLines(lines);
@@ -30833,239 +31527,6 @@ function writeRequirementsBlock(body, entries, managedOptions, longOptions = [])
 	});
 	if (entries.length === 0) return joinLines(lines);
 	return joinLines(insertBlock(lines, removed.at ?? at, entries, removed.at === void 0 ? void 0 : removed.separated));
-}
-
-// src/apply/toml.ts
-const HEADER = /^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(?:#.*)?$/u;
-function keyOf$1(line) {
-	const trimmed = line.trim();
-	if (trimmed === "" || trimmed.startsWith("#") || trimmed.startsWith("[")) return void 0;
-	const equals = trimmed.indexOf("=");
-	if (equals === -1) return void 0;
-	return trimmed.slice(0, equals).trim().replace(/^["']|["']$/gu, "");
-}
-/** Follows a value through one line: strings (with escapes), multi-line strings, arrays, inline tables, comments. */
-function scanLine(line, state) {
-	let { depth, string } = state;
-	for (let index = 0; index < line.length; index++) {
-		const char = line[index];
-		if (string === "\"\"\"" || string === "'''") {
-			if (string === "\"\"\"" && char === "\\") index += 1;
-			else if (line.startsWith(string, index)) {
-				string = "";
-				index += 2;
-			}
-			continue;
-		}
-		if (string === "\"") {
-			if (char === "\\") index += 1;
-			else if (char === "\"") string = "";
-			continue;
-		}
-		if (string === "'") {
-			if (char === "'") string = "";
-			continue;
-		}
-		if (char === "#") break;
-		if (line.startsWith("\"\"\"", index) || line.startsWith("'''", index)) {
-			string = line.startsWith("\"\"\"", index) ? "\"\"\"" : "'''";
-			index += 2;
-		} else if (char === "\"" || char === "'") string = char;
-		else if (char === "[" || char === "{") depth += 1;
-		else if (char === "]" || char === "}") depth -= 1;
-	}
-	return {
-		depth,
-		string: string === "\"" || string === "'" ? "" : string
-	};
-}
-/** The index of the last line of the value that starts after the `=` on line `index`. */
-function valueEnd(lines, index) {
-	const line = lines[index] ?? "";
-	let state = scanLine(line.slice(line.indexOf("=") + 1), {
-		depth: 0,
-		string: ""
-	});
-	let end = index;
-	while ((state.depth > 0 || state.string !== "") && end + 1 < lines.length) {
-		end += 1;
-		state = scanLine(lines[end] ?? "", state);
-	}
-	return end;
-}
-/** The table each line is in (undefined before the first table), following values over several lines. */
-function tablesOf(lines) {
-	const tables = [];
-	let current;
-	for (let index = 0; index < lines.length; index++) {
-		const line = lines[index] ?? "";
-		const header = HEADER.exec(line);
-		if (header !== null) current = header[1];
-		tables[index] = current;
-		if (header === null && keyOf$1(line) !== void 0) {
-			const end = valueEnd(lines, index);
-			for (let next = index + 1; next <= end; next++) tables[next] = current;
-			index = end;
-		}
-	}
-	return tables;
-}
-/**
-* Removes the block with this marker. A labeled block that is not there yet may have been written by an earlier
-* version without the label: an unlabeled block inside the same table is then taken for it.
-*/
-function removeOwnBlock(lines, table, label) {
-	const removed = removeBlock(lines, blockStart(label));
-	if (removed.at !== void 0 || label === void 0) return removed;
-	const tables = tablesOf(lines);
-	const legacy = lines.findIndex((line, index) => blockLabel(line) === "" && (tables[index] ?? "") === table);
-	return legacy === -1 ? removed : removeBlockAt(lines, legacy);
-}
-/**
-* Lines apply commented out in this table (and the dotted keys and subtables of it) come back as they were, every
-* line of the value, when the policy no longer manages their key. Lines commented out in other tables stay.
-*/
-function restoreLines(lines, table, isManaged) {
-	const topLevel = table === "";
-	const prefix = topLevel ? "" : `${table}.`;
-	let current;
-	let section = "table";
-	for (let index = 0; index < lines.length; index++) {
-		const line = lines[index] ?? "";
-		const header = HEADER.exec(line);
-		if (header !== null) {
-			current = header[1];
-			section = "table";
-			continue;
-		}
-		const original = commentedOut(line);
-		if (original === void 0) {
-			if (keyOf$1(line) !== void 0) index = valueEnd(lines, index);
-			continue;
-		}
-		const noted = HEADER.exec(original);
-		if (noted !== null) {
-			const name = noted[1] ?? "";
-			section = name.startsWith(prefix) && !isManaged(name.slice(prefix.length)) ? "restored" : "kept";
-			if (section === "restored") lines[index] = original;
-			continue;
-		}
-		const key = keyOf$1(original);
-		if (key === void 0 || section === "kept") continue;
-		const dotted = !topLevel && current === void 0 && key.startsWith(prefix);
-		if (section === "table" && !((topLevel ? current === void 0 : current === table) && !isManaged(key) || dotted && !isManaged(key.slice(prefix.length)))) continue;
-		lines[index] = original;
-		let state = scanLine(original.slice(original.indexOf("=") + 1), {
-			depth: 0,
-			string: ""
-		});
-		while ((state.depth > 0 || state.string !== "") && lines[index + 1]?.startsWith("# ") === true) {
-			index += 1;
-			lines[index] = (lines[index] ?? "").slice(2);
-			state = scanLine(lines[index] ?? "", state);
-		}
-	}
-}
-function writeTomlBlock(body, table, entries, managedKeys, label, scope = "project") {
-	const managed = new Set(managedKeys);
-	const marker = blockStart(label, scope);
-	const removed = removeOwnBlock(splitLines(body), table, label);
-	const lines = [...removed.lines];
-	const topLevel = table === "";
-	if (topLevel && entries.length === 0 && removed.at === 0 && lines[0]?.trim() === "") lines.shift();
-	const headers = /* @__PURE__ */ new Map();
-	const boundaries = [];
-	let current;
-	let definedAtTop = false;
-	const isManaged = (key) => managed.has(key) || [...managed].some((name) => key.startsWith(`${name}.`));
-	restoreLines(lines, table, isManaged);
-	const prefix = topLevel ? "" : `${table}.`;
-	const note = entries.length === 0 ? TURNED_OFF : SUPERSEDED;
-	let inManagedTable = false;
-	for (let index = 0; index < lines.length; index++) {
-		const line = lines[index] ?? "";
-		const header = HEADER.exec(line);
-		if (header !== null) {
-			const name = header[1] ?? "";
-			inManagedTable = name.startsWith(prefix) && isManaged(name.slice(prefix.length));
-			if (inManagedTable) {
-				lines[index] = `${note}${line.trim()}`;
-				continue;
-			}
-			current = name;
-			boundaries.push(index);
-			if (!line.trim().startsWith("[[")) headers.set(index, current);
-			continue;
-		}
-		const key = keyOf$1(line);
-		if (key === void 0) continue;
-		const end = valueEnd(lines, index);
-		const inTable = (topLevel ? current === void 0 : current === table) && isManaged(key);
-		const dotted = !topLevel && current === void 0 && key.startsWith(`${table}.`) && isManaged(key.slice(table.length + 1));
-		if (inManagedTable || inTable || dotted) {
-			lines[index] = `${note}${line.trim()}`;
-			for (let next = index + 1; next <= end; next++) lines[next] = `# ${lines[next] ?? ""}`;
-		} else if (!topLevel && current === void 0 && (key === table || key.startsWith(`${table}.`) || table.startsWith(`${key}.`))) definedAtTop = true;
-		index = end;
-	}
-	if (entries.length === 0) return joinLines(withoutCreatedTable(lines, table, removed));
-	if (topLevel) {
-		const firstTable = boundaries[0] ?? lines.length;
-		if (removed.at !== void 0 && removed.at <= firstTable) return joinLines(topBlock(lines, removed.at, entries, removed.separated, marker));
-		let end = firstTable;
-		while (end > 0 && lines[end - 1]?.trim() === "") end -= 1;
-		return joinLines(topBlock(lines, end, entries, void 0, marker));
-	}
-	const headerIndex = [...headers].find(([, name]) => name === table)?.[0] ?? -1;
-	const nextHeaderAfter = (from) => boundaries.find((index) => index > from) ?? -1;
-	if (headerIndex === -1) {
-		if (definedAtTop) throw new Error(`${table} is defined with dotted keys or an inline table, so a [${table}] table cannot be added; move its settings under a [${table}] header`);
-		const prefix = lines.length > 0 && lines.at(-1)?.trim() !== "" ? [...lines, ""] : lines;
-		return joinLines([
-			...prefix,
-			`[${table}]`,
-			...insertBlock([], 0, entries, void 0, marker)
-		]);
-	}
-	if (removed.at !== void 0 && removed.at > headerIndex) {
-		const nextHeader = nextHeaderAfter(headerIndex);
-		if (nextHeader === -1 || removed.at <= nextHeader) return joinLines(insertBlock(lines, removed.at, entries, removed.separated, marker));
-	}
-	let end = nextHeaderAfter(headerIndex);
-	if (end === -1) end = lines.length;
-	while (end > headerIndex + 1 && lines[end - 1]?.trim() === "") end -= 1;
-	return joinLines(insertBlock(lines, end, entries, void 0, marker));
-}
-/**
-* The table apply created for its block goes away with the block when nothing else is in it (decision D-116). apply
-* writes such a table as its header with the block right below it, and the blank line before the header; a block it
-* added to a table that was there follows a blank line after the header, which removeBlockAt reports as `separated`.
-* So a table with anything else in it, with a comment on its header line, or with the block apart from the header, is
-* the user's and stays, also when it is empty.
-*/
-function withoutCreatedTable(lines, table, removed) {
-	const at = removed.at;
-	if (table === "" || at === void 0 || removed.separated || at === 0) return lines;
-	const header = at - 1;
-	if (lines[header]?.trim() !== `[${table}]`) return lines;
-	let end = at;
-	while (end < lines.length && !HEADER.test(lines[end] ?? "")) {
-		if ((lines[end] ?? "").trim() !== "") return lines;
-		end += 1;
-	}
-	const rest = [...lines.slice(0, header), ...lines.slice(at)];
-	if (header > 0 && rest[header - 1]?.trim() === "" && (header === rest.length || rest[header]?.trim() === "")) rest.splice(header - 1, 1);
-	return rest;
-}
-/**
-* A top-level block, with a blank line before a table header that follows it right away. A key that follows it stays
-* where it is, so that a second run changes nothing.
-*/
-function topBlock(lines, at, entries, separate, marker) {
-	const result = insertBlock(lines, at, entries, separate, marker);
-	const after = at + (result.length - lines.length);
-	if (HEADER.test(result[after] ?? "")) result.splice(after, 0, "");
-	return result;
 }
 
 // src/apply/generators/context.ts
@@ -31260,12 +31721,18 @@ const deno = (context) => {
 	if (policy.cooldown !== void 0) {
 		const setting = settingOf(tool.cooldown.setting) ?? "minimumDependencyAge";
 		const cooldown = cooldownValue(context);
-		if (cooldown !== void 0) {
+		const current = json.get([setting]);
+		const ageKey = extraOf(tool, "ageObjectKey", isString$2);
+		const agePath = isRecord(current) ? [setting, ageKey] : [setting];
+		const file = configFile(context);
+		const age = isRecord(current) ? current[ageKey] : current;
+		const line = age === void 0 || !context.exists(file) ? void 0 : jsonSetting(context.read(file), agePath)?.line;
+		if (cooldown !== void 0 && !unreadableDelay(context, file, agePath.join("."), age, line, cooldown)) {
 			minutes = cooldown.minutes;
 			const patterns = exclusions(context) ?? [];
 			const excludeKey = (settingOf(tool.cooldown.exclude.setting) ?? "minimumDependencyAge.exclude").split(".").at(-1) ?? "exclude";
 			const value = patterns.length > 0 ? {
-				[extraOf(tool, "ageObjectKey", isString$2)]: cooldown.value,
+				[ageKey]: cooldown.value,
 				[excludeKey]: patterns.map((pattern) => `${prefix}${pattern}`)
 			} : cooldown.value;
 			json.set([setting], value);
@@ -31510,14 +31977,24 @@ const npm = (context) => {
 				if (policy.installScripts.allow.length > 0 && someSupports(context, sinceOf(tool.installScripts.allowList.availableSince), setting)) {
 					const json = context.json(listFile);
 					const names = allowedNames(context, setting);
-					if (names.length > 0) context.writes("installScripts", setting, listFile);
-					for (const name of names) if (json.get([setting, name]) !== true) json.set([setting, name], true);
+					if (names.length > 0 && !wrongListType(context, listFile, [setting], json.get([setting]), "object", names, `{${JSON.stringify(names[0])}: true}`)) {
+						context.writes("installScripts", setting, listFile);
+						for (const name of names) if (json.get([setting, name]) !== true) json.set([setting, name], true);
+					}
 				}
 			}
 			writeDenyList(context);
 		}
 	}
-	eachSource(context, (_kind, setting, access) => {
+	eachSource(context, (kind, setting, access) => {
+		const last = iniEntries(context.read(file)).filter((entry) => entry.key === setting).at(-1);
+		if (access === "allow" && last !== void 0 && !last.managed && (last.value === "none" || last.value === "root")) {
+			const label = sourceLabel(context, kind);
+			sourceLoosened(context, [kind], {
+				file,
+				line: last.line
+			}, `${setting}=${last.value}`, last.value === "none" ? `blocks ${label} dependencies` : `allows ${label} dependencies only where the root package.json names them`, `comments it out and writes ${setting}=all, so ${context.name} installs them ${last.value === "none" ? "again" : "for every package"}`, last.value === "root" ? `${POLICY_FILE} has no value for root: to keep such dependencies out, set sources.${kind} to "deny" (${setting}=none) in ${POLICY_FILE} and run depcurfew apply again; keep "allow" if the project needs them` : void 0);
+		}
 		entries.push(`${setting}=${access === "deny" ? "none" : "all"}`);
 		managed.push(setting);
 		context.writes("sources", setting, file);
@@ -31525,6 +32002,441 @@ const npm = (context) => {
 	if (entries.length > 0 || hasManagedLines(context.read(file)) || managed.length > 0 && context.exists(file)) context.ini(file, entries, managed);
 	return minutes;
 };
+
+// src/printable.ts
+/** C0 controls but tab, DEL and C1 controls; with `lines`, line feeds stay too. */
+const CONTROLS = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f]/gu;
+const CONTROLS_BUT_LINE_FEEDS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/gu;
+/**
+* Characters that change how text is shown or read without being seen: the format characters (\p{Cf}: the
+* bidirectional controls ALM, LRM, RLM, LRE to RLO and LRI to PDI, zero-width space, joiners, word joiner, invisible
+* operators, the byte order mark, the soft hyphen, the tag characters U+E0001 and U+E0020 to U+E007F), the rest of the
+* tag block (U+E0000 to U+E007F), whose characters spell hidden ASCII that a model may read, the variation selectors
+* (U+FE00 to U+FE0F, U+E0100 to U+E01EF), and letters that show as blank space: the Hangul fillers U+115F, U+1160,
+* U+3164 and U+FFA0 and the blank braille pattern U+2800, which can hide a word or pass for a space.
+*/
+const INVISIBLE = /[\p{Cf}\u{e0000}-\u{e007f}\ufe00-\ufe0f\u{e0100}-\u{e01ef}\u115f\u1160\u3164\uffa0\u2800]/gu;
+/** The line and paragraph separators, which some viewers and parsers take as a line break. */
+const LINE_SEPARATORS = /[\u2028\u2029]/gu;
+/** A character of INVISIBLE as \uHHHH, or \u{HHHHH} beyond the BMP. */
+function visible(character) {
+	const code = character.codePointAt(0) ?? 0;
+	return code > 65535 ? `\\u{${code.toString(16)}}` : `\\u${code.toString(16).padStart(4, "0")}`;
+}
+/** A letter, digit, +, - or . (RFC 3986: what a scheme is made of after its first letter). */
+function schemeCharacter(code) {
+	return code >= 97 && code <= 122 || code >= 65 && code <= 90 || code >= 48 && code <= 57 || code === 43 || code === 45 || code === 46;
+}
+function letter(code) {
+	return code >= 97 && code <= 122 || code >= 65 && code <= 90;
+}
+/** What ends the authority of a URL (WHATWG URL: /, ?, #, and \ for http and https), and whitespace, which ends a URL in text. */
+function endsAuthority(code) {
+	return code === 47 || code === 63 || code === 35 || code === 92 || code === 32 || code >= 9 && code <= 13 || code === 133 || code === 160 || code === 8232 || code === 8233 || code === 12288 || code === 65279 || code >= 8192 && code <= 8202;
+}
+/**
+* The user parts of the URLs in a text (decision D-168): after scheme://, everything up to the last @ before the
+* authority ends, as WHATWG URL (npm) and pip read a URL, so that a password with an unencoded @ is a user part to its
+* end, and a token alone (https://TOKEN@host) is one too; a URL written after another (a://b://TOKEN@host) counts
+* as one of its own. Linear in the length of the text: a scan forward stops at the / of the next ://, and a scan back
+* for its scheme at the start of the URL before it.
+*/
+function userParts(text) {
+	const parts = [];
+	for (let from = 0;;) {
+		const separator = text.indexOf("://", from);
+		if (separator === -1) return parts;
+		let begin = separator;
+		while (begin > from && schemeCharacter(text.charCodeAt(begin - 1))) begin--;
+		while (begin < separator && !letter(text.charCodeAt(begin))) begin++;
+		const start = separator + 3;
+		let at = -1;
+		for (let end = start; end < text.length && !endsAuthority(text.charCodeAt(end)); end++) if (text.charCodeAt(end) === 64) at = end;
+		if (begin < separator && at !== -1) parts.push({
+			start,
+			at,
+			scheme: text.slice(begin, separator).toLowerCase()
+		});
+		from = start;
+	}
+}
+/** The text with each user part replaced by what `replace` makes of it (with the @ when it returns one). */
+function replaceUserParts(text, replace) {
+	const parts = userParts(text);
+	if (parts.length === 0) return text;
+	let result = "";
+	let last = 0;
+	for (const part of parts) {
+		result += text.slice(last, part.start) + replace(part, text.slice(part.start, part.at));
+		last = part.at + 1;
+	}
+	return result + text.slice(last);
+}
+/** The text that stands for credentials in messages and diffs. */
+const REDACTED = "<redacted>";
+/**
+* The text with the user name and password of every URL in it shown as <redacted> (https://user:token@host/ becomes
+* https://<redacted>@host/), as the diff of apply shows them: for messages, where people should see that a URL
+* carries credentials without seeing them. A token alone counts as credentials too; only the login name of an ssh URL
+* without a password (git+ssh://git@github.com) stays, since it is no secret and says which account the key is for.
+* Use withoutCredentials for a URL that depcurfew sends anywhere. printable and safeJson apply it to every text
+* depcurfew writes (decision D-168).
+*/
+function redactCredentials(text) {
+	return replaceUserParts(text, (part, userinfo) => {
+		if (userinfo === "" || userinfo === REDACTED) return `${userinfo}@`;
+		if (part.scheme.split("+").includes("ssh") && !userinfo.includes(":")) return `${userinfo}@`;
+		return `${REDACTED}@`;
+	});
+}
+/**
+* The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`, and every invisible
+* character (INVISIBLE) and the line and paragraph separators as `\uHHHH` or `\u{HHHHH}`. Line breaks are control
+* characters too, so a value from a file cannot start a line of its own; `lines: true` keeps line feeds, for text
+* depcurfew lays out in lines itself, such as a snippet to add by hand. The user name and password of a URL show as
+* <redacted> (redactCredentials, decision D-168). Apply it before adding colors.
+*/
+function printable(text, options = {}) {
+	return redactCredentials(text).replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`).replace(INVISIBLE, visible).replace(LINE_SEPARATORS, visible);
+}
+
+// src/apply/diff.ts
+/** Marks a last line without a line break, so it differs from the same line with one, as in `diff -u`. */
+const NO_EOL = "\0";
+function lines(text) {
+	if (text === "") return [];
+	const result = text.split("\n");
+	if (result.at(-1) === "") result.pop();
+	else result[result.length - 1] += NO_EOL;
+	return result;
+}
+/**
+* Above this many changed lines, or when the search would take too long, the diff is made by a quicker method that
+* keeps changes local but may not be the shortest (approximateEdit): the search keeps memory for every step, which
+* for thousands of changes in a large file would take gigabytes.
+*/
+const MAX_EDITS = 2e3;
+const MAX_STEPS = 5e7;
+/** An edit script from `a` to `b`: the shortest one (Myers), or a close one for very different texts. */
+function myers(a, b) {
+	let prefix = 0;
+	while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix += 1;
+	let suffix = 0;
+	while (suffix < a.length - prefix && suffix < b.length - prefix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix += 1;
+	const left = a.slice(prefix, a.length - suffix);
+	const right = b.slice(prefix, b.length - suffix);
+	const middle = shortestEdit(left, right, Math.min(MAX_EDITS, Math.max(100, Math.floor(MAX_STEPS / (left.length + right.length + 1))))) ?? approximateEdit(left, right);
+	const same = (line) => ({
+		kind: "same",
+		line
+	});
+	return [
+		...a.slice(0, prefix).map(same),
+		...middle,
+		...a.slice(a.length - suffix).map(same)
+	];
+}
+/** Myers' algorithm; undefined when the texts differ in more than `maxEdits` lines. */
+function shortestEdit(a, b, maxEdits) {
+	const max = Math.min(a.length + b.length, maxEdits);
+	const offset = max + 1;
+	const frontier = new Int32Array(2 * max + 3);
+	const trace = [];
+	let done = false;
+	outer: for (let d = 0; d <= max; d++) {
+		trace.push(frontier.slice(offset - d - 1, offset + d + 2));
+		for (let k = -d; k <= d; k += 2) {
+			let x = k === -d || k !== d && (frontier[offset + k - 1] ?? 0) < (frontier[offset + k + 1] ?? 0) ? frontier[offset + k + 1] ?? 0 : (frontier[offset + k - 1] ?? 0) + 1;
+			let y = x - k;
+			while (x < a.length && y < b.length && a[x] === b[y]) {
+				x += 1;
+				y += 1;
+			}
+			frontier[offset + k] = x;
+			if (x >= a.length && y >= b.length) {
+				done = true;
+				break outer;
+			}
+		}
+	}
+	if (!done) return void 0;
+	const operations = [];
+	let x = a.length;
+	let y = b.length;
+	for (let d = trace.length - 1; d >= 0; d--) {
+		const v = trace[d];
+		const at = (k) => v[k + d + 1] ?? 0;
+		const k = x - y;
+		const previousK = k === -d || k !== d && at(k - 1) < at(k + 1) ? k + 1 : k - 1;
+		const previousX = at(previousK);
+		const previousY = previousX - previousK;
+		while (x > previousX && y > previousY) {
+			operations.push({
+				kind: "same",
+				line: a[x - 1]
+			});
+			x -= 1;
+			y -= 1;
+		}
+		if (d > 0) {
+			if (x === previousX) operations.push({
+				kind: "insert",
+				line: b[y - 1]
+			});
+			else operations.push({
+				kind: "delete",
+				line: a[x - 1]
+			});
+		}
+		x = previousX;
+		y = previousY;
+	}
+	return operations.reverse();
+}
+/**
+* A close edit script in linear time: equal lines are kept, and after a difference the nearest place where the texts
+* agree again, within a few lines, is where they continue. Changes stay where they are, as apply makes them.
+*/
+function approximateEdit(a, b, window = 32) {
+	const operations = [];
+	let i = 0;
+	let j = 0;
+	while (i < a.length || j < b.length) {
+		if (i < a.length && j < b.length && a[i] === b[j]) {
+			operations.push({
+				kind: "same",
+				line: a[i]
+			});
+			i += 1;
+			j += 1;
+			continue;
+		}
+		let skip;
+		search: for (let distance = 1; distance <= window; distance++) for (let fromA = 0; fromA <= distance; fromA++) {
+			const fromB = distance - fromA;
+			if (i + fromA < a.length && j + fromB < b.length && a[i + fromA] === b[j + fromB]) {
+				skip = [fromA, fromB];
+				break search;
+			}
+		}
+		const [deletes, inserts] = skip ?? [i < a.length ? 1 : 0, j < b.length ? 1 : 0];
+		for (let count = 0; count < deletes; count++) operations.push({
+			kind: "delete",
+			line: a[i++]
+		});
+		for (let count = 0; count < inserts; count++) operations.push({
+			kind: "insert",
+			line: b[j++]
+		});
+	}
+	return operations;
+}
+
+// src/apply/pip-includes.ts
+const isFacts = (value) => isRecord(value) && [
+	"noBinary",
+	"onlyBinary",
+	"all",
+	"none",
+	"separator"
+].every((key) => typeof value[key] === "string");
+/** pip's FormatControl facts; undefined for a tool without them. */
+function formatControlFacts(tool) {
+	return tool.extra?.["formatControl"] === void 0 ? void 0 : extraOf(tool, "formatControl", isFacts);
+}
+/** Words as Python's shlex.split reads them (POSIX mode, no comments): quotes and backslashes group characters. */
+function shellWords(text) {
+	const words = [];
+	let word;
+	let quote = "";
+	for (let index = 0; index < text.length; index++) {
+		const char = text[index] ?? "";
+		if (quote === "'") {
+			if (char === "'") quote = "";
+			else word += char;
+			continue;
+		}
+		if (quote === "\"") {
+			if (char === "\"") quote = "";
+			else if (char === "\\" && (text[index + 1] === "\"" || text[index + 1] === "\\")) word += text[++index] ?? "";
+			else word += char;
+			continue;
+		}
+		if (/\s/u.test(char)) {
+			if (word !== void 0) words.push(word);
+			word = void 0;
+			continue;
+		}
+		word ??= "";
+		if (char === "'" || char === "\"") quote = char;
+		else if (char === "\\") word += text[++index] ?? "";
+		else word += char;
+	}
+	if (word !== void 0) words.push(word);
+	return words;
+}
+/**
+* The --no-binary and --only-binary options of a logical line as pip parses it: break_args_options leaves the words up
+* to the first that starts with - to the requirement and gives the rest to optparse, which takes an unambiguous prefix
+* of a long option (`longOptions`) and its value after = or as the next word.
+*/
+function binaryOptions(line, facts, longOptions) {
+	const tokens = line.split(" ");
+	const first = tokens.findIndex((token) => token.startsWith("-"));
+	const requirement = (first === -1 ? tokens : tokens.slice(0, first)).join(" ").trim() !== "";
+	const words = first === -1 ? [] : shellWords(tokens.slice(first).join(" "));
+	const options = [];
+	let others = false;
+	for (let index = 0; index < words.length; index++) {
+		const word = words[index] ?? "";
+		if (!word.startsWith("-")) continue;
+		const equals = word.indexOf("=");
+		const name = word.startsWith("--") ? expandRequirementsOption(equals === -1 ? word : word.slice(0, equals), longOptions) : word;
+		if (name !== facts.noBinary && name !== facts.onlyBinary) {
+			others = true;
+			continue;
+		}
+		const value = equals === -1 ? words[++index] ?? "" : word.slice(equals + 1);
+		options.push({
+			option: name,
+			value
+		});
+	}
+	return {
+		options,
+		requirement,
+		others
+	};
+}
+/**
+* Whether an option, read after --only-binary=:all: and the --no-binary of the packages `allowed` (normalized names),
+* lets pip build another package from source (handle_mutual_excludes): --no-binary with :all: or with a name not
+* allowed, --only-binary with :none: after its last :all:.
+*/
+function weakens$1(option, allowed, facts) {
+	const parts = option.value.split(facts.separator);
+	if (option.option === facts.noBinary) return parts.includes(facts.all) || parts.some((part) => part !== facts.none && part !== "" && !allowed.has(normalizePythonName(part)));
+	return parts.slice(parts.lastIndexOf(facts.all) + 1).includes(facts.none);
+}
+/** The options as messages show them: `--no-binary psycopg2` and `--only-binary :none:`. */
+function optionsText(options) {
+	const texts = options.map((option) => `${option.option} ${option.value}`);
+	return texts.length <= 1 ? texts[0] ?? "" : `${texts.slice(0, -1).join(", ")} and ${texts.at(-1) ?? ""}`;
+}
+/** What the options make pip do, for messages: build every package from source, or some named ones. */
+function weakeningEffect(options, facts) {
+	const parts = (option) => option.value.split(facts.separator);
+	if (options.some((option) => option.option === facts.noBinary && parts(option).includes(facts.all))) return "makes pip build every package from source";
+	if (options.some((option) => option.option === facts.onlyBinary)) return "lets pip build any package from source again";
+	const names = [...new Set(options.flatMap((option) => parts(option).filter((part) => part !== facts.none && part !== "")))];
+	return `makes pip build ${names.length <= 1 ? names[0] ?? "" : `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`} from source`;
+}
+/** The lines of a requirements file whose options undo the block (decision D-167); `allowed` holds normalized names. */
+function weakeningLines(text, reading, allowed) {
+	return requirementsLines(text, reading.format).flatMap(({ text: body, line, end }) => {
+		const parsed = binaryOptions(body, reading.facts, reading.longOptions);
+		const options = parsed.options.filter((option) => weakens$1(option, allowed, reading.facts));
+		return options.length === 0 ? [] : [{
+			line,
+			end,
+			parsed,
+			options
+		}];
+	});
+}
+/** Why apply leaves a weakening line as it is, or undefined when it comments the line out. */
+function keptReason(parsed, line, end) {
+	if (parsed.requirement) return "requirement";
+	if (parsed.others) return "options";
+	return end > line ? "continued" : void 0;
+}
+/** The lines of a requirements file (requirements.txt itself) whose options undo the block and stay. */
+function keptLines(text, reading, allowed) {
+	return weakeningLines(text, reading, allowed).map(({ line, end, parsed, options }) => ({
+		line,
+		options,
+		reason: keptReason(parsed, line, end) ?? "options"
+	}));
+}
+/**
+* An included file after apply: the option lines that undo the block commented out with the marker of requirements.txt
+* (`allowed` given: the block is written), and lines commented out so before brought back when they no longer undo it
+* (`allowed` undefined: no block). Lines it cannot comment out are returned.
+*/
+function editIncluded(body, reading, allowed) {
+	const lines = splitLines(body);
+	for (const [index, line] of lines.entries()) {
+		const trimmed = line.trimStart();
+		if (!trimmed.startsWith("# depcurfew: superseded by the managed block: ")) continue;
+		const original = trimmed.slice(SUPERSEDED.length);
+		if (allowed === void 0 || weakeningLines(original, reading, allowed).length === 0) lines[index] = original;
+	}
+	if (allowed === void 0) return {
+		text: joinLines(lines),
+		kept: []
+	};
+	const kept = [];
+	for (const { line, end, parsed, options } of weakeningLines(joinLines(lines), reading, allowed)) {
+		const reason = keptReason(parsed, line, end);
+		if (reason === void 0) lines[line - 1] = `${SUPERSEDED}${(lines[line - 1] ?? "").trim()}`;
+		else kept.push({
+			line,
+			options,
+			reason
+		});
+	}
+	return {
+		text: joinLines(lines),
+		kept
+	};
+}
+/** The final FormatControl of an install from `root` (decision D-167): whether --only-binary=:all: holds, and from which file. */
+function formatControlAfter(read, root, reading) {
+	const { facts } = reading;
+	const only = /* @__PURE__ */ new Set();
+	const no = /* @__PURE__ */ new Set();
+	let from;
+	const apply = (target, other, value, file) => {
+		let parts = value.split(facts.separator);
+		while (parts.includes(facts.all)) {
+			other.clear();
+			target.clear();
+			target.add(facts.all);
+			if (target === only) from = file;
+			parts = parts.slice(parts.indexOf(facts.all) + 1);
+			if (!parts.includes(facts.none)) return;
+		}
+		for (const part of parts) {
+			if (part === facts.none) {
+				target.clear();
+				continue;
+			}
+			const name = normalizePythonName(part);
+			other.delete(name);
+			target.add(name);
+		}
+	};
+	const visit = (file, stack) => {
+		const text = read(file);
+		if (text === void 0) return;
+		const includes = new Map(requirementsIncludes(text, reading.format).map((include) => [include.line, include.path]));
+		for (const { text: body, line } of requirementsLines(text, reading.format)) {
+			const path = includes.get(line);
+			if (path !== void 0) {
+				const included = includedFile(file, path);
+				if (!included.url && !included.outside && !stack.has(included.target)) visit(included.target, /* @__PURE__ */ new Set([...stack, included.target]));
+				continue;
+			}
+			for (const option of binaryOptions(body, facts, reading.longOptions).options) if (option.option === facts.noBinary) apply(no, only, option.value, file);
+			else apply(only, no, option.value, file);
+		}
+	};
+	visit(root, /* @__PURE__ */ new Set([root]));
+	return {
+		onlyAll: only.has(facts.all),
+		from: only.has(facts.all) ? from : void 0
+	};
+}
 
 // src/apply/generators/python.ts
 /** The policy's Python allow-list as normalized names; patterns with * are dropped with a warning. */
@@ -31552,6 +32464,22 @@ function buildSwitchScopeWarning(context, setting, covers) {
 		message: `${context.name}: ${setting} forbids building only packages from an index; ${context.name} still builds git, local directory and source archive dependencies`,
 		fix: `Run depcurfew doctor to find them in ${dependencyFiles(context)}`
 	});
+}
+/** A key of a TOML table ('' for the top level) of a file as it is now, with its line; undefined when unset or unreadable. */
+function tomlCurrent(context, file, table, key) {
+	if (!context.exists(file)) return void 0;
+	let document;
+	try {
+		document = parseToml(context.read(file));
+	} catch {
+		return;
+	}
+	const path = [...table === "" ? [] : table.split("."), key];
+	const value = tomlValueAt(document, path);
+	return value === void 0 ? void 0 : {
+		value,
+		line: document.lineOf(path)
+	};
 }
 /** A TOML string or array value. */
 function tomlValue(value) {
@@ -31613,6 +32541,96 @@ function relockWarning(context, file, table, edit) {
 }
 
 // src/apply/generators/pip.ts
+/** The line of `before` that a line of `after` (1-based) was, for a line the edit kept. */
+function lineInOriginal(before, after) {
+	const map = /* @__PURE__ */ new Map();
+	let old = 0;
+	let now = 0;
+	for (const operation of myers(lines(before), lines(after))) {
+		if (operation.kind !== "insert") old += 1;
+		if (operation.kind !== "delete") now += 1;
+		if (operation.kind === "same") map.set(now, old);
+	}
+	return (line) => map.get(line) ?? line;
+}
+const WHY = {
+	requirement: "pip applies the options after a requirement to the whole install, and depcurfew apply does not comment the line out, which would remove the requirement",
+	options: "the line sets other options too, so depcurfew apply does not comment it out",
+	continued: "the line continues on the next one, so depcurfew apply does not comment it out"
+};
+/**
+* The files `root` includes (-r, -c), in the order pip reads them, as far as they are in the directory configured:
+* option lines that undo the block (`block` and the normalized names of its --no-binary entries, when it is written)
+* are commented out, lines commented out so come back once nothing is blocked, and what apply cannot comment out or
+* read is a warning (decision D-167).
+*/
+function checkIncludes(context, root, block, original) {
+	const facts = formatControlFacts(context.tool);
+	if (facts === void 0) return;
+	const format = requirementsFormatOf(context.tool);
+	const reading = {
+		facts,
+		format,
+		longOptions: requirementsLongOptions(format)
+	};
+	const { workspace } = context;
+	const where = context.project ?? "the repository";
+	const undoing = `${facts.noBinary} or ${facts.onlyBinary}=${facts.none}`;
+	const visited = /* @__PURE__ */ new Set([root]);
+	const queue = [root];
+	for (let file = queue.shift(); file !== void 0; file = queue.shift()) {
+		const includer = file;
+		const text = workspace.read(includer);
+		const lineOf = includer === root ? lineInOriginal(original, text) : (line) => line;
+		for (const kept of block === void 0 ? [] : keptLines(text, reading, block.allowed)) {
+			const options = optionsText(kept.options);
+			const line = lineOf(kept.line);
+			context.warn({
+				code: "build-switch-undone",
+				location: {
+					file: includer,
+					line
+				},
+				message: `${context.name}: ${options} in ${includer} (line ${line}) ${weakeningEffect(kept.options, facts)}, after the ${block?.text ?? ""} of the managed block in ${root}; ${WHY[kept.reason]}`,
+				fix: `Remove ${options} from ${includer}, or add the packages that must be built from source to installScripts.allow in ${POLICY_FILE} as pypi:<name>, then run depcurfew apply again`
+			});
+		}
+		for (const include of requirementsIncludes(text, format)) {
+			const { path } = include;
+			const line = lineOf(include.line);
+			const included = includedFile(includer, path);
+			const unread = (reason, fix) => {
+				if (block === void 0) return;
+				context.warn({
+					code: "requirements-include-unread",
+					location: {
+						file: includer,
+						line
+					},
+					message: `${context.name}: ${includer} includes ${path} (line ${line}), ${reason}, so depcurfew apply cannot check that it has no ${undoing} line, which would undo the ${block.text} of the managed block in ${root}`,
+					fix
+				});
+			};
+			const keep = `Keep the included file in ${where} as a regular file and include it by a relative path, then run depcurfew apply again; until then check by hand that it has no ${undoing} line`;
+			if (included.url) unread("which pip downloads", keep);
+			else if (included.outside) unread(`which is outside ${where}`, keep);
+			else if (!visited.has(included.target)) {
+				visited.add(included.target);
+				if (!workspace.isFile(included.target)) {
+					unread("which does not exist", `Create ${included.target} or remove the line that includes it (pip stops when it cannot open an included file), then run depcurfew apply again`);
+					continue;
+				}
+				try {
+					workspace.edit(included.target, (body) => editIncluded(body, reading, block?.allowed).text);
+				} catch (error) {
+					unread(`which depcurfew cannot read (${error instanceof Error ? error.message : String(error)})`, keep);
+					continue;
+				}
+				queue.push(included.target);
+			}
+		}
+	}
+}
 const pip = (context) => {
 	const { tool, policy } = context;
 	const file = (tool.project === void 0 ? void 0 : firstFile(tool.project.manifests)) ?? "requirements.txt";
@@ -31632,6 +32650,7 @@ const pip = (context) => {
 	const entries = [];
 	const managed = [];
 	const settings = [];
+	let block;
 	if (policy.installScripts?.default === "deny") {
 		const build = extraOf(tool, "buildSwitch", isSwitch);
 		const setting = settingOf(tool.installScripts.allowList.setting);
@@ -31646,7 +32665,14 @@ const pip = (context) => {
 				for (const name of names) entries.push(`${setting}=${name}`);
 				if (names.length > 0) settings.push(setting);
 				forcedBuildWarning(context, setting, names);
-			}
+				block = {
+					text: `${build.setting}=${String(build.value)}`,
+					allowed: new Set(names)
+				};
+			} else block = {
+				text: `${build.setting}=${String(build.value)}`,
+				allowed: /* @__PURE__ */ new Set()
+			};
 		}
 	}
 	eachSource(context, () => void 0);
@@ -31659,7 +32685,9 @@ const pip = (context) => {
 		return;
 	}
 	for (const setting of settings) context.writes("installScripts", setting, file);
-	if (entries.length > 0 || hasManagedLines(context.read(file))) context.requirements(file, entries, managed);
+	const original = context.read(file);
+	if (entries.length > 0 || hasManagedLines(original)) context.requirements(file, entries, managed);
+	checkIncludes(context, file, block, original);
 };
 
 // src/apply/renovate-exclusions.ts
@@ -31758,8 +32786,9 @@ function mergeList(context, workspaceFileSince, setting, names) {
 	const file = inWorkspaceFile ? firstFile(context.tool.cooldown.configFiles) ?? "pnpm-workspace.yaml" : "package.json";
 	const target = inWorkspaceFile ? context.yaml(file) : context.json(file);
 	const path = inWorkspaceFile ? [setting] : ["pnpm", setting];
-	context.writes("installScripts", path.join("."), file);
 	const current = target.get(path);
+	if (wrongListType(context, file, path, current, "list", names, JSON.stringify(names.length > 0 ? names : ["esbuild"]))) return;
+	context.writes("installScripts", path.join("."), file);
 	const list = Array.isArray(current) ? [...current] : [];
 	const merged = [...list, ...names.filter((name) => !list.includes(name))];
 	if (!sameList(current, merged)) target.set(path, merged);
@@ -31847,9 +32876,11 @@ const pnpm = (context) => {
 			const wanted = [...patterns, ...kept.map((entry) => entry.value).filter((value) => !patterns.includes(value))];
 			const current = yaml.get([excludeSetting]);
 			if (kept.length === 0 ? !sameList(current, wanted) : !sameMembers(current, wanted)) {
+				const dropped = droppedYamlList(context, file, [excludeSetting], wanted);
 				if (kept.length > 0) context.workspace.edit(file, (body) => withoutComments(body, excludeSetting, kept));
 				yaml.set([excludeSetting], wanted);
 				if (kept.length > 0) context.workspace.edit(file, (body) => restoreEntries(body, excludeSetting, kept));
+				if (dropped !== void 0) commentReplacedList(context, file, [excludeSetting], dropped);
 			}
 		}
 	}
@@ -31901,9 +32932,11 @@ const pnpm = (context) => {
 				const names = wanted ? allowedNames(context, setting) : [];
 				const listFile = names.length > 0 ? fileFor(setting) : void 0;
 				if (listFile !== void 0) {
-					context.writes("installScripts", setting, listFile);
 					const yaml = context.yaml(listFile);
-					for (const name of names) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
+					if (!wrongListType(context, listFile, [setting], yaml.get([setting]), "object", names, `{${JSON.stringify(names[0])}: true}`)) {
+						context.writes("installScripts", setting, listFile);
+						for (const name of names) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
+					}
 				}
 				writeDenyList(context, fileFor);
 			} else {
@@ -31953,6 +32986,11 @@ const pnpm = (context) => {
 		}
 		const file = fileFor(exoticSetting, denied.length > 0);
 		if (file !== void 0) {
+			const found = denied.length === 0 && context.exists(file) ? yamlSetting(context.read(file), [exoticSetting], { merge: mergesYamlKeys(tool) }) : void 0;
+			if (found?.value === true && context.read(file).split("\n")[found.line - 2]?.trim() !== "# managed by depcurfew") sourceLoosened(context, [...exotic.keys()], {
+				file,
+				line: found.line
+			}, `${exoticSetting}: true`, "blocks git and tarball sources of indirect dependencies", `sets it to false, so ${context.name} installs them again`);
 			context.yaml(file).set([exoticSetting], denied.length > 0);
 			context.writes("sources", exoticSetting, file);
 		}
@@ -31973,9 +33011,16 @@ const pdm = (context) => {
 		const setting = settingOf(tool.cooldown.setting) ?? "exclude-newer";
 		const cooldown = cooldownValue(context);
 		if (cooldown !== void 0) {
-			minutes = cooldown.minutes;
-			entries.push(`${setting} = ${tomlValue(compactDuration(String(cooldown.value)))}`);
-			managed.push(setting);
+			const current = tomlCurrent(context, file, table, setting);
+			const written = {
+				...cooldown,
+				value: compactDuration(String(cooldown.value))
+			};
+			if (!unreadableDelay(context, file, setting, current?.value, current?.line, written)) {
+				minutes = cooldown.minutes;
+				entries.push(`${setting} = ${tomlValue(written.value)}`);
+				managed.push(setting);
+			}
 			const excludeSetting = settingOf(tool.cooldown.exclude.setting);
 			const patterns = exclusions(context);
 			if (excludeSetting !== null && patterns !== void 0) {
@@ -32602,6 +33647,20 @@ const renovate = (context, duration, repository) => {
 			else json.set([rule.list], [managed.rule]);
 		} else if (index >= 0) json.remove([rule.list], index);
 	}
+	const current = json.get(securityPath);
+	const delay = current === void 0 || security !== null ? void 0 : delayMinutes(tool, current, void 0);
+	if (delay?.ok === true && delay.minutes > 0) {
+		const line = jsonSetting(context.read(file), securityPath)?.line;
+		context.warn({
+			code: "security-delay-removed",
+			location: line === void 0 ? { file } : {
+				file,
+				line
+			},
+			message: `${context.name}: ${securityPath.join(".")} ${JSON.stringify(current)} in ${file}${line === void 0 ? "" : ` (line ${line})`} delays security updates by ${formatMinutes(delay.minutes)}; because cooldown.securityUpdates is "bypass" in ${POLICY_FILE}, depcurfew apply sets it to null, so ${context.name} proposes security updates at once`,
+			fix: `To keep a delay, set cooldown.securityUpdates to "delay" in ${POLICY_FILE} (security updates then wait as long as cooldown.minimum) and run depcurfew apply again; if an earlier depcurfew apply wrote this value and you changed cooldown.securityUpdates on purpose, nothing to do`
+		});
+	}
 	json.set(securityPath, security);
 };
 const ECOSYSTEM_LABELS = {
@@ -32714,9 +33773,12 @@ const uv = (context) => {
 		const setting = settingOf(tool.cooldown.setting) ?? "exclude-newer";
 		const cooldown = cooldownValue(context);
 		if (cooldown !== void 0) {
-			minutes = cooldown.minutes;
-			entries.push(`${setting} = ${tomlValue(cooldown.value)}`);
-			managed.push(setting);
+			const current = tomlCurrent(context, file, table, setting);
+			if (!unreadableDelay(context, file, setting, current?.value, current?.line, cooldown)) {
+				minutes = cooldown.minutes;
+				entries.push(`${setting} = ${tomlValue(cooldown.value)}`);
+				managed.push(setting);
+			}
 			const excludeSetting = settingOf(tool.cooldown.exclude.setting);
 			const patterns = exclusions(context);
 			if (excludeSetting !== null && patterns !== void 0) {
@@ -32771,22 +33833,28 @@ const yarn = (context) => {
 		const excludeSetting = settingOf(tool.cooldown.exclude.setting);
 		const patterns = cooldown === void 0 ? void 0 : exclusions(context);
 		if (excludeSetting !== null && patterns !== void 0 && (patterns.length > 0 || yaml.get([excludeSetting]) !== void 0)) {
-			if (!sameList(yaml.get([excludeSetting]), patterns)) yaml.set([excludeSetting], patterns);
+			if (!sameList(yaml.get([excludeSetting]), patterns)) {
+				const dropped = droppedYamlList(context, file, [excludeSetting], patterns);
+				yaml.set([excludeSetting], patterns);
+				if (dropped !== void 0) commentReplacedList(context, file, [excludeSetting], dropped);
+			}
 		}
 	}
 	if (policy.installScripts !== void 0) {
 		const scripts = extraOf(tool, "scriptsSwitch", isScriptsSwitch);
 		const deny = policy.installScripts.default === "deny";
 		const current = yaml.get([scripts.setting]);
-		if (deny && current === scripts.allow) {
+		const off = scripts.off ?? [scripts.deny];
+		if (deny && current !== void 0 && !off.includes(current)) {
 			const found = context.exists(file) ? yamlSetting(context.read(file), [scripts.setting]) : void 0;
+			const reading = current === scripts.allow ? "" : ` (${context.name} reads every value but ${listing$1(off.map((value) => JSON.stringify(value)))} as true, or stops on it)`;
 			context.warn({
 				code: "allow-all-replaced",
 				...found === void 0 ? {} : { location: {
 					file,
 					line: found.line
 				} },
-				message: `${context.name}: ${scripts.setting}: ${JSON.stringify(current)} in ${file}${found === void 0 ? "" : ` (line ${found.line})`} allowed every install script; set to ${JSON.stringify(scripts.deny)} because the policy denies install scripts`,
+				message: `${context.name}: ${scripts.setting}: ${JSON.stringify(current)} in ${file}${found === void 0 ? "" : ` (line ${found.line})`} allowed every install script${reading}; set to ${JSON.stringify(scripts.deny)} because the policy denies install scripts`,
 				fix: `Add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`
 			});
 		}
@@ -32797,19 +33865,29 @@ const yarn = (context) => {
 			if (context.supports(sinceOf(tool.installScripts.allowList.availableSince), template)) {
 				const listFile = settingOf(tool.installScripts.allowList.file) ?? "package.json";
 				const json = context.json(listFile);
-				const names = allowedNames(context, template.split(".")[0] ?? template);
-				if (names.length > 0) context.writes("installScripts", template, listFile);
-				for (const name of names) {
-					const path = template.split(".").map((segment) => segment === "<package>" ? name : segment);
-					if (json.get(path) !== true) json.set(path, true);
+				const list = template.split(".")[0] ?? template;
+				const names = allowedNames(context, list);
+				if (names.length > 0 && !wrongListType(context, listFile, [list], json.get([list]), "object", names, `{${JSON.stringify(names[0])}: {"built": true}}`)) {
+					context.writes("installScripts", template, listFile);
+					for (const name of names) {
+						const path = template.split(".").map((segment) => segment === "<package>" ? name : segment);
+						if (wrongListType(context, listFile, path.slice(0, -1), json.get(path.slice(0, -1)), "object", [name], `{${JSON.stringify(path.at(-1))}: true}`)) continue;
+						if (json.get(path) !== true) json.set(path, true);
+					}
 				}
 			}
 		}
 		if (deny) writeDenyList(context);
 	}
-	eachSource(context, (_kind, setting, access) => {
+	eachSource(context, (kind, setting, access) => {
 		context.writes("sources", setting, file);
 		const value = access === "deny" ? [] : ["**"];
+		const current = yaml.get([setting]);
+		const found = access === "allow" && Array.isArray(current) && !current.includes("**") && context.exists(file) ? yamlSetting(context.read(file), [setting]) : void 0;
+		if (found !== void 0 && context.read(file).split("\n")[found.line - 2]?.trim() !== "# managed by depcurfew") sourceLoosened(context, [kind], {
+			file,
+			line: found.line
+		}, `${setting}: ${JSON.stringify(current)}`, current.length === 0 ? "approves no git repository" : "approves only the git repositories it lists", `sets it to ${JSON.stringify(value)}, so ${context.name} installs from any git repository`);
 		if (!sameList(yaml.get([setting]), value)) yaml.set([setting], value);
 	});
 	return minutes;
@@ -32952,235 +34030,6 @@ function readLimited$1(path, limit, options = {}) {
 	} finally {
 		closeSync(descriptor);
 	}
-}
-
-// src/printable.ts
-/** C0 controls but tab, DEL and C1 controls; with `lines`, line feeds stay too. */
-const CONTROLS = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f]/gu;
-const CONTROLS_BUT_LINE_FEEDS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/gu;
-/**
-* Characters that change how text is shown or read without being seen: the format characters (\p{Cf}: the
-* bidirectional controls ALM, LRM, RLM, LRE to RLO and LRI to PDI, zero-width space, joiners, word joiner, invisible
-* operators, the byte order mark, the soft hyphen, the tag characters U+E0001 and U+E0020 to U+E007F), the rest of the
-* tag block (U+E0000 to U+E007F), whose characters spell hidden ASCII that a model may read, the variation selectors
-* (U+FE00 to U+FE0F, U+E0100 to U+E01EF), and letters that show as blank space: the Hangul fillers U+115F, U+1160,
-* U+3164 and U+FFA0 and the blank braille pattern U+2800, which can hide a word or pass for a space.
-*/
-const INVISIBLE = /[\p{Cf}\u{e0000}-\u{e007f}\ufe00-\ufe0f\u{e0100}-\u{e01ef}\u115f\u1160\u3164\uffa0\u2800]/gu;
-/** The line and paragraph separators, which some viewers and parsers take as a line break. */
-const LINE_SEPARATORS = /[\u2028\u2029]/gu;
-/** A character of INVISIBLE as \uHHHH, or \u{HHHHH} beyond the BMP. */
-function visible(character) {
-	const code = character.codePointAt(0) ?? 0;
-	return code > 65535 ? `\\u{${code.toString(16)}}` : `\\u${code.toString(16).padStart(4, "0")}`;
-}
-/** A letter, digit, +, - or . (RFC 3986: what a scheme is made of after its first letter). */
-function schemeCharacter(code) {
-	return code >= 97 && code <= 122 || code >= 65 && code <= 90 || code >= 48 && code <= 57 || code === 43 || code === 45 || code === 46;
-}
-function letter(code) {
-	return code >= 97 && code <= 122 || code >= 65 && code <= 90;
-}
-/** What ends the authority of a URL (WHATWG URL: /, ?, #, and \ for http and https), and whitespace, which ends a URL in text. */
-function endsAuthority(code) {
-	return code === 47 || code === 63 || code === 35 || code === 92 || code === 32 || code >= 9 && code <= 13 || code === 133 || code === 160 || code === 8232 || code === 8233 || code === 12288 || code === 65279 || code >= 8192 && code <= 8202;
-}
-/**
-* The user parts of the URLs in a text (decision D-168): after scheme://, everything up to the last @ before the
-* authority ends, as WHATWG URL (npm) and pip read a URL, so that a password with an unencoded @ is a user part to its
-* end, and a token alone (https://TOKEN@host) is one too; a URL written after another (a://b://TOKEN@host) counts
-* as one of its own. Linear in the length of the text: a scan forward stops at the / of the next ://, and a scan back
-* for its scheme at the start of the URL before it.
-*/
-function userParts(text) {
-	const parts = [];
-	for (let from = 0;;) {
-		const separator = text.indexOf("://", from);
-		if (separator === -1) return parts;
-		let begin = separator;
-		while (begin > from && schemeCharacter(text.charCodeAt(begin - 1))) begin--;
-		while (begin < separator && !letter(text.charCodeAt(begin))) begin++;
-		const start = separator + 3;
-		let at = -1;
-		for (let end = start; end < text.length && !endsAuthority(text.charCodeAt(end)); end++) if (text.charCodeAt(end) === 64) at = end;
-		if (begin < separator && at !== -1) parts.push({
-			start,
-			at,
-			scheme: text.slice(begin, separator).toLowerCase()
-		});
-		from = start;
-	}
-}
-/** The text with each user part replaced by what `replace` makes of it (with the @ when it returns one). */
-function replaceUserParts(text, replace) {
-	const parts = userParts(text);
-	if (parts.length === 0) return text;
-	let result = "";
-	let last = 0;
-	for (const part of parts) {
-		result += text.slice(last, part.start) + replace(part, text.slice(part.start, part.at));
-		last = part.at + 1;
-	}
-	return result + text.slice(last);
-}
-/** The text that stands for credentials in messages and diffs. */
-const REDACTED = "<redacted>";
-/**
-* The text with the user name and password of every URL in it shown as <redacted> (https://user:token@host/ becomes
-* https://<redacted>@host/), as the diff of apply shows them: for messages, where people should see that a URL
-* carries credentials without seeing them. A token alone counts as credentials too; only the login name of an ssh URL
-* without a password (git+ssh://git@github.com) stays, since it is no secret and says which account the key is for.
-* Use withoutCredentials for a URL that depcurfew sends anywhere. printable and safeJson apply it to every text
-* depcurfew writes (decision D-168).
-*/
-function redactCredentials(text) {
-	return replaceUserParts(text, (part, userinfo) => {
-		if (userinfo === "" || userinfo === REDACTED) return `${userinfo}@`;
-		if (part.scheme.split("+").includes("ssh") && !userinfo.includes(":")) return `${userinfo}@`;
-		return `${REDACTED}@`;
-	});
-}
-/**
-* The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`, and every invisible
-* character (INVISIBLE) and the line and paragraph separators as `\uHHHH` or `\u{HHHHH}`. Line breaks are control
-* characters too, so a value from a file cannot start a line of its own; `lines: true` keeps line feeds, for text
-* depcurfew lays out in lines itself, such as a snippet to add by hand. The user name and password of a URL show as
-* <redacted> (redactCredentials, decision D-168). Apply it before adding colors.
-*/
-function printable(text, options = {}) {
-	return redactCredentials(text).replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`).replace(INVISIBLE, visible).replace(LINE_SEPARATORS, visible);
-}
-
-// src/apply/diff.ts
-/** Marks a last line without a line break, so it differs from the same line with one, as in `diff -u`. */
-const NO_EOL = "\0";
-function lines(text) {
-	if (text === "") return [];
-	const result = text.split("\n");
-	if (result.at(-1) === "") result.pop();
-	else result[result.length - 1] += NO_EOL;
-	return result;
-}
-/**
-* Above this many changed lines, or when the search would take too long, the diff is made by a quicker method that
-* keeps changes local but may not be the shortest (approximateEdit): the search keeps memory for every step, which
-* for thousands of changes in a large file would take gigabytes.
-*/
-const MAX_EDITS = 2e3;
-const MAX_STEPS = 5e7;
-/** An edit script from `a` to `b`: the shortest one (Myers), or a close one for very different texts. */
-function myers(a, b) {
-	let prefix = 0;
-	while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix += 1;
-	let suffix = 0;
-	while (suffix < a.length - prefix && suffix < b.length - prefix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix += 1;
-	const left = a.slice(prefix, a.length - suffix);
-	const right = b.slice(prefix, b.length - suffix);
-	const middle = shortestEdit(left, right, Math.min(MAX_EDITS, Math.max(100, Math.floor(MAX_STEPS / (left.length + right.length + 1))))) ?? approximateEdit(left, right);
-	const same = (line) => ({
-		kind: "same",
-		line
-	});
-	return [
-		...a.slice(0, prefix).map(same),
-		...middle,
-		...a.slice(a.length - suffix).map(same)
-	];
-}
-/** Myers' algorithm; undefined when the texts differ in more than `maxEdits` lines. */
-function shortestEdit(a, b, maxEdits) {
-	const max = Math.min(a.length + b.length, maxEdits);
-	const offset = max + 1;
-	const frontier = new Int32Array(2 * max + 3);
-	const trace = [];
-	let done = false;
-	outer: for (let d = 0; d <= max; d++) {
-		trace.push(frontier.slice(offset - d - 1, offset + d + 2));
-		for (let k = -d; k <= d; k += 2) {
-			let x = k === -d || k !== d && (frontier[offset + k - 1] ?? 0) < (frontier[offset + k + 1] ?? 0) ? frontier[offset + k + 1] ?? 0 : (frontier[offset + k - 1] ?? 0) + 1;
-			let y = x - k;
-			while (x < a.length && y < b.length && a[x] === b[y]) {
-				x += 1;
-				y += 1;
-			}
-			frontier[offset + k] = x;
-			if (x >= a.length && y >= b.length) {
-				done = true;
-				break outer;
-			}
-		}
-	}
-	if (!done) return void 0;
-	const operations = [];
-	let x = a.length;
-	let y = b.length;
-	for (let d = trace.length - 1; d >= 0; d--) {
-		const v = trace[d];
-		const at = (k) => v[k + d + 1] ?? 0;
-		const k = x - y;
-		const previousK = k === -d || k !== d && at(k - 1) < at(k + 1) ? k + 1 : k - 1;
-		const previousX = at(previousK);
-		const previousY = previousX - previousK;
-		while (x > previousX && y > previousY) {
-			operations.push({
-				kind: "same",
-				line: a[x - 1]
-			});
-			x -= 1;
-			y -= 1;
-		}
-		if (d > 0) {
-			if (x === previousX) operations.push({
-				kind: "insert",
-				line: b[y - 1]
-			});
-			else operations.push({
-				kind: "delete",
-				line: a[x - 1]
-			});
-		}
-		x = previousX;
-		y = previousY;
-	}
-	return operations.reverse();
-}
-/**
-* A close edit script in linear time: equal lines are kept, and after a difference the nearest place where the texts
-* agree again, within a few lines, is where they continue. Changes stay where they are, as apply makes them.
-*/
-function approximateEdit(a, b, window = 32) {
-	const operations = [];
-	let i = 0;
-	let j = 0;
-	while (i < a.length || j < b.length) {
-		if (i < a.length && j < b.length && a[i] === b[j]) {
-			operations.push({
-				kind: "same",
-				line: a[i]
-			});
-			i += 1;
-			j += 1;
-			continue;
-		}
-		let skip;
-		search: for (let distance = 1; distance <= window; distance++) for (let fromA = 0; fromA <= distance; fromA++) {
-			const fromB = distance - fromA;
-			if (i + fromA < a.length && j + fromB < b.length && a[i + fromA] === b[j + fromB]) {
-				skip = [fromA, fromB];
-				break search;
-			}
-		}
-		const [deletes, inserts] = skip ?? [i < a.length ? 1 : 0, j < b.length ? 1 : 0];
-		for (let count = 0; count < deletes; count++) operations.push({
-			kind: "delete",
-			line: a[i++]
-		});
-		for (let count = 0; count < inserts; count++) operations.push({
-			kind: "insert",
-			line: b[j++]
-		});
-	}
-	return operations;
 }
 
 // src/apply/text.ts
@@ -34412,6 +35261,7 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 	warnings.push(...optionalDependencyWarnings(root, policy, detection, targets, tools));
 	const changes = workspace.changes();
 	if (policy.cooldown !== void 0) warnings.push(...shortenedDelays(root, changes, detection, tools, targets, policy.cooldown.minimum.text));
+	if (policy.cooldown !== void 0) warnings.push(...droppedExclusions(root, changes, detection, tools, targets));
 	if (options.project === void 0) warnings.push(...ignoredFileWarnings(root, changes));
 	const errors = failures.map((failure) => `${tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool}: cannot edit ${failure.file}: ${failure.message}`);
 	const report = {
@@ -37896,7 +38746,12 @@ function keyOf(line) {
 	return /^\s*(?:-\s+)?["']?([^=:"'\s]+)["']?\s*[=:]/u.exec(line)?.[1];
 }
 /** What is wrong, in words: a value to change, a line to add or remove, or a hand-written line to comment out. */
-function describe(file, difference, before, after) {
+function describe(file, original, before, after) {
+	const kept = /\.ya?ml$/u.test(file) ? original.added.filter((text) => !isCommentedOut(text)) : original.added;
+	const difference = kept.length > 0 ? {
+		...original,
+		added: kept
+	} : original;
 	const commented = difference.added.filter(isCommentedOut);
 	if (commented.length > 0) {
 		const all = [...commented, ...difference.commentedLater.filter((text) => !commented.includes(text))];
@@ -38043,6 +38898,22 @@ function checkBundlerCooldown(context, plan) {
 		});
 	}
 }
+/**
+* pip: a --no-binary or --only-binary=:none: in requirements.txt or a file it includes that apply cannot comment out
+* (after a requirement, next to other options, on a continued line) undoes --only-binary=:all: after apply too; each
+* build-switch-undone of the plan is reported where it points, with apply's text (decision D-167). Lines apply comments
+* out are differences of the plan, reported above.
+*/
+function checkPipOptions(context, plan) {
+	for (const warning of plan.warningDetails) {
+		if (warning.code !== "build-switch-undone" || warning.location === void 0) continue;
+		context.report({
+			location: warning.location,
+			message: warning.message,
+			...warning.fix === void 0 ? {} : { fix: warning.fix }
+		});
+	}
+}
 /** The most settings a note against the default policy names; the rest are counted (decision D-149). */
 const MAX_SETTINGS = 6;
 /** Settings for a message: `a`, `b` and `c`, at most MAX_SETTINGS, then how many more. */
@@ -38102,7 +38973,7 @@ const configDrift = {
 	id: "config-drift",
 	checks: "Configuration files match what depcurfew apply writes for depcurfew.json",
 	summary: "A configuration file does not match what depcurfew apply writes for depcurfew.json.",
-	description: "A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool's own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning. So is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, which apply keeps unless it wrote the entry itself. A Gemfile apply cannot write the cooldown of Bundler into (a source with a block or a modifier or inside other code, a cooldown: given twice, a URL from ENV, no rubygems.org source, a Gemfile depcurfew cannot read as Ruby does) is an error where apply says so, or a warning when that call already waits as long as the policy.",
+	description: "A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool's own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning. So is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, which apply keeps unless it wrote the entry itself. What apply cannot write is an error where it says: the cooldown of Bundler in a Gemfile (a source with a block, a modifier or in other code, cooldown: twice, a URL from ENV, no rubygems.org source, a Gemfile depcurfew cannot read as Ruby does; a warning if that call waits as long as the policy), and a --no-binary or --only-binary=:none: of pip it cannot comment out.",
 	help: "Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.",
 	level: "error",
 	requiresPolicy: true,
@@ -38112,6 +38983,7 @@ const configDrift = {
 		if (context.defaultPolicy === true) {
 			reportAgainstDefault(context, plan);
 			checkBundlerCooldown(context, plan);
+			checkPipOptions(context, plan);
 			checkAllowLists(context, plan);
 			checkComposerExclusions(context, plan);
 			return;
@@ -38141,6 +39013,7 @@ const configDrift = {
 			}
 		}
 		checkBundlerCooldown(context, plan);
+		checkPipOptions(context, plan);
 		checkAllowLists(context, plan);
 		checkComposerExclusions(context, plan);
 	}
@@ -39450,8 +40323,17 @@ function buildsForbiddenBy(context, tool, lockfile) {
 	if (build === void 0) return void 0;
 	if (tool.id === "pip") {
 		const format = requirementsFormatOf(tool);
-		const found = (lockfile.optionFiles ?? []).find((file) => requirementsOptions(context.repository, file, format).some((line) => line.option === build.setting && line.value === build.value));
-		return found === void 0 ? void 0 : `${build.setting}=${String(build.value)} in ${found} forbids building`;
+		const facts = formatControlFacts(tool);
+		const roots = (lockfile.optionFiles ?? []).filter((file) => context.detection.packageManagers.some((manager) => manager.id === "pip" && manager.configFiles.includes(file)));
+		if (facts === void 0 || roots.length === 0) return void 0;
+		const reading = {
+			facts,
+			format,
+			longOptions: requirementsLongOptions(format)
+		};
+		const results = roots.map((root) => formatControlAfter((file) => context.repository.readText(file), root, reading));
+		const found = results[0]?.from;
+		return found === void 0 || !results.every((result) => result.onlyAll) ? void 0 : `${build.setting}=${String(build.value)} in ${found} forbids building`;
 	}
 	const found = readPythonSetting(context.repository, tool, build.setting);
 	return found !== void 0 && switchIsOn(found.value, build.value) ? `${build.setting} in ${found.file} forbids building` : void 0;

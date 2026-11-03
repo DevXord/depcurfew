@@ -7,6 +7,7 @@ const rechecked = verifiedOn('2026-10-31');
 const user = verifiedOn('2026-10-31');
 const leftovers = verifiedOn('2026-11-01');
 const current = verifiedOn('2026-11-02');
+const d167 = verifiedOn('2026-11-03');
 
 // pdm-project.org is built from docs/ in the repository.
 const PDM = 'https://github.com/pdm-project/pdm/blob/2.29.5';
@@ -180,6 +181,11 @@ export const pdm: ToolKnowledge = {
     ),
     durationStrings: verified({ since: '2.26.8', syntax: 'compact' }, CHANGELOG, '"pdm lock --exclude-newer now accepts relative durations in the format N{d|h|w}" (#3760).'),
     durationUnits: verified(['hours', 'days', 'weeks'], `${LOCKFILE}#exclude-packages-newer-than-specific-date`, 'Written as Nh, Nd and Nw.'),
+    cutoffDates: d167.verified(
+      { timestamps: true, offsetRequired: false, dates: 'start-utc' },
+      `${PDM}/src/pdm/utils.py`,
+      'convert_to_datetime: N{d|h|w} is a duration from the current UTC time; a value with T is read with datetime.fromisoformat ("A timestamp without an offset is read as UTC, like a bare date"); anything else as %Y-%m-%d at midnight UTC. docs/usage/lockfile.md lists "A RFC 3339 timestamp", "A UTC date" and "A relative duration in the format N{d|h|w}". A timestamp or a date is a fixed cutoff, which holds back more every day.',
+    ),
     excludeWildcards: verified({ since: null, trailingOnly: false }, `${LOCKFILE}#exclude-packages-newer-than-specific-date`, 'Override keys are package names.'),
     excludeValue: verified(false, `${LOCKFILE}#exclude-packages-newer-than-specific-date`, 'package = false disables the cutoff for that package.'),
     missingUploadTime: verified(

@@ -1,7 +1,8 @@
 // Deno: minimumDependencyAge (a number, or { age, exclude } with npm: specifiers) and allowScripts in deno.json.
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { extraOf, isRecord, isSwitch, settingOf, sinceOf } from '../facts.ts';
-import { allowedInFiles, allowedNames, cooldownValue, deniedNames, denyList, eachSource, exclusions } from './common.ts';
+import { jsonSetting } from '../../doctor/settings.ts';
+import { allowedInFiles, allowedNames, cooldownValue, deniedNames, denyList, eachSource, exclusions, unreadableDelay } from './common.ts';
 import type { Context, ManagerGenerator } from './context.ts';
 
 const isString = (value: unknown): value is string => typeof value === 'string';
@@ -21,13 +22,20 @@ export const deno: ManagerGenerator = (context) => {
   if (policy.cooldown !== undefined) {
     const setting = settingOf(tool.cooldown.setting) ?? 'minimumDependencyAge';
     const cooldown = cooldownValue(context);
-    if (cooldown !== undefined) {
+    // A value depcurfew cannot read stays as it is (decision D-167), in either form of the setting.
+    const current = json.get([setting]);
+    const ageKey = extraOf(tool, 'ageObjectKey', isString);
+    const agePath = isRecord(current) ? [setting, ageKey] : [setting];
+    const file = configFile(context);
+    const age = isRecord(current) ? current[ageKey] : current;
+    const line = age === undefined || !context.exists(file) ? undefined : jsonSetting(context.read(file), agePath)?.line;
+    if (cooldown !== undefined && !unreadableDelay(context, file, agePath.join('.'), age, line, cooldown)) {
       minutes = cooldown.minutes;
       const patterns = exclusions(context) ?? [];
       const excludeKey = (settingOf(tool.cooldown.exclude.setting) ?? 'minimumDependencyAge.exclude').split('.').at(-1) ?? 'exclude';
       const value =
         patterns.length > 0
-          ? { [extraOf(tool, 'ageObjectKey', isString)]: cooldown.value, [excludeKey]: patterns.map((pattern) => `${prefix}${pattern}`) }
+          ? { [ageKey]: cooldown.value, [excludeKey]: patterns.map((pattern) => `${prefix}${pattern}`) }
           : cooldown.value;
       json.set([setting], value);
     }

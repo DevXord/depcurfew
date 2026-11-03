@@ -6,8 +6,25 @@ import { pnpmNpmrcAllowsAllBuilds } from '../../doctor/effective.ts';
 import { yamlSetting } from '../../doctor/settings.ts';
 import { extraOf, firstFile, isRecord, isSwitch, mergesYamlKeys, settingOf, sinceOf, switchIsOff } from '../facts.ts';
 import { isSecurityExclusionFormat, restoreEntries, securityEntries, withoutComments, type KeptEntry } from '../renovate-exclusions.ts';
-import { allowedInFiles, allowedNames, cooldownValue, deniedNames, eachSource, exclusions, sameList, scriptsDefault, workspaceText, writeDenyList, type SourceKind } from './common.ts';
+import {
+  allowedInFiles,
+  allowedNames,
+  commentReplacedList,
+  cooldownValue,
+  deniedNames,
+  droppedYamlList,
+  eachSource,
+  exclusions,
+  sameList,
+  scriptsDefault,
+  sourceLoosened,
+  workspaceText,
+  writeDenyList,
+  wrongListType,
+  type SourceKind,
+} from './common.ts';
 import { ownerText, pnpmOwner, readPnpmIncludes } from '../pnpm-includes.ts';
+import { YAML_MARKER } from '../yaml-edit.ts';
 import type { Context, ManagerGenerator } from './context.ts';
 import { formatVersion } from '../version.ts';
 
@@ -32,8 +49,10 @@ function mergeList(context: Context, workspaceFileSince: string, setting: string
   const file = inWorkspaceFile ? (firstFile(context.tool.cooldown.configFiles) ?? 'pnpm-workspace.yaml') : 'package.json';
   const target = inWorkspaceFile ? context.yaml(file) : context.json(file);
   const path = inWorkspaceFile ? [setting] : ['pnpm', setting];
-  context.writes('installScripts', path.join('.'), file);
   const current = target.get(path);
+  // A value of another type is left as it is, since replacing it would drop what it names (decision D-167).
+  if (wrongListType(context, file, path, current, 'list', names, JSON.stringify(names.length > 0 ? names : ['esbuild']))) return;
+  context.writes('installScripts', path.join('.'), file);
   const list = Array.isArray(current) ? [...(current as unknown[])] : [];
   const merged = [...list, ...names.filter((name) => !list.includes(name))];
   if (!sameList(current, merged)) target.set(path, merged);
@@ -125,9 +144,12 @@ export const pnpm: ManagerGenerator = (context) => {
       const wanted = [...patterns, ...kept.map((entry) => entry.value).filter((value) => !patterns.includes(value))];
       const current = yaml.get([excludeSetting]);
       if (kept.length === 0 ? !sameList(current, wanted) : !sameMembers(current, wanted)) {
+        // Entries written by hand that the policy does not name stay as a comment (decision D-167).
+        const dropped = droppedYamlList(context, file, [excludeSetting], wanted);
         if (kept.length > 0) context.workspace.edit(file, (body) => withoutComments(body, excludeSetting, kept));
         yaml.set([excludeSetting], wanted);
         if (kept.length > 0) context.workspace.edit(file, (body) => restoreEntries(body, excludeSetting, kept));
+        if (dropped !== undefined) commentReplacedList(context, file, [excludeSetting], dropped);
       }
     }
   }
@@ -181,9 +203,12 @@ export const pnpm: ManagerGenerator = (context) => {
         const names = wanted ? allowedNames(context, setting) : [];
         const listFile = names.length > 0 ? fileFor(setting) : undefined;
         if (listFile !== undefined) {
-          context.writes('installScripts', setting, listFile);
           const yaml = context.yaml(listFile);
-          for (const name of names) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
+          // allowBuilds is a map of package names; one of another type is left as it is (decision D-167).
+          if (!wrongListType(context, listFile, [setting], yaml.get([setting]), 'object', names, `{${JSON.stringify(names[0])}: true}`)) {
+            context.writes('installScripts', setting, listFile);
+            for (const name of names) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
+          }
         }
         writeDenyList(context, fileFor);
       } else {
@@ -241,6 +266,18 @@ export const pnpm: ManagerGenerator = (context) => {
     }
     const file = fileFor(exoticSetting, denied.length > 0);
     if (file !== undefined) {
+      // true written by hand blocks git and tarball sources of indirect dependencies, which "allow" turns off (decision D-167).
+      const found = denied.length === 0 && context.exists(file) ? yamlSetting(context.read(file), [exoticSetting], { merge: mergesYamlKeys(tool) }) : undefined;
+      if (found?.value === true && context.read(file).split('\n')[found.line - 2]?.trim() !== YAML_MARKER) {
+        sourceLoosened(
+          context,
+          [...exotic.keys()],
+          { file, line: found.line },
+          `${exoticSetting}: true`,
+          'blocks git and tarball sources of indirect dependencies',
+          `sets it to false, so ${context.name} installs them again`,
+        );
+      }
       context.yaml(file).set([exoticSetting], denied.length > 0);
       context.writes('sources', exoticSetting, file);
     }

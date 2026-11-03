@@ -2,6 +2,7 @@
 // in the syntax the knowledge base records for that tool (extra.durationStrings).
 import { isRecord, values } from '../apply/facts.ts';
 import { compareVersions, parseVersion, type Version } from '../apply/version.ts';
+import { TomlDateTime } from '../detect/toml.ts';
 import type { ToolKnowledge, UserCooldownUnit } from '../knowledge/types.ts';
 
 const MINUTES: Record<string, number> = {
@@ -92,6 +93,33 @@ export function delayMinutes(tool: ToolKnowledge, value: unknown, version: Versi
   }
   const minutes = SYNTAX[format['syntax']]?.(text);
   return minutes === undefined ? { ok: false, reason: `"${text}" is not a duration ${tool.name} understands` } : { ok: true, minutes };
+}
+
+const CUTOFF = /^(\d{4})-(\d{2})-(\d{2})(?:[Tt ](\d{2}):(\d{2})(?::(\d{2})(\.\d+)?)?([Zz]|[+-]\d{2}:?\d{2})?)?$/u;
+
+/**
+ * A fixed date or time that the tool reads in place of a delay (extra.cutoffDates: uv's and PDM's exclude-newer, Deno's
+ * minimumDependencyAge): it holds back every version uploaded after it, so it counts as the time since it, in whole
+ * days rounded up (decision D-167). A date without a time counts from its start in UTC, the earliest moment any time
+ * zone gives it; a time without an offset only where the tool reads it as UTC. undefined for any other value.
+ */
+export function cutoffAge(tool: ToolKnowledge, value: unknown, now: number): { minutes: number; text: string } | undefined {
+  const fact = tool.extra?.['cutoffDates'];
+  const format = fact === undefined ? undefined : values(fact)[0];
+  if (!isRecord(format)) return undefined;
+  const text = typeof value === 'string' ? value.trim() : value instanceof TomlDateTime ? value.text : undefined;
+  const match = text === undefined ? null : CUTOFF.exec(text);
+  if (text === undefined || match === null) return undefined;
+  const [, year, month, day, hour, minute, second, fraction, offset] = match;
+  if (hour !== undefined && offset === undefined && format['offsetRequired'] !== false) return undefined;
+  const date = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour ?? 0), Number(minute ?? 0), Number(second ?? 0), Math.round(Number(fraction ?? 0) * 1000));
+  const check = new Date(date);
+  if (check.getUTCMonth() !== Number(month) - 1 || check.getUTCDate() !== Number(day)) return undefined;
+  const sign = offset === undefined || /^[Zz]$/u.test(offset) ? 0 : offset.startsWith('-') ? -1 : 1;
+  const digits = offset?.replace(/[^0-9]/gu, '') ?? '';
+  const shift = sign * (Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2) || 0));
+  const age = (now - (date - shift * 60000)) / 60000;
+  return { minutes: age <= 0 ? 0 : Math.ceil(age / 1440) * 1440, text };
 }
 
 /** The unit of the release-age setting in the tool's user file, when it is not the unit of its own setting (user.cooldownUnit). */

@@ -1,6 +1,7 @@
 packages:
   - "packages/*"
   # - "apps/*"
+# depcurfew: superseded by the managed block: minimumReleaseAgeExclude: ["react"]
 # managed by depcurfew
 minimumReleaseAgeExclude:
   - "@acme/*"

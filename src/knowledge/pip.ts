@@ -24,6 +24,8 @@ const release14 = verifiedOn('2026-11-02');
 // pip 26.3 (2026-11-02): platformdirs 4.12.4 and the parser that normalizes key names (decision D-170).
 const d170 = verifiedOn('2026-11-03');
 const secrets = verifiedOn('2026-11-03');
+const d167 = verifiedOn('2026-11-03');
+const CONFIGPARSER = 'https://github.com/python/cpython/blob/v3.14.0/Lib/configparser.py';
 
 const noSetting = (kind: string): SourceKnowledge => ({
   setting: uncertain(
@@ -291,6 +293,11 @@ export const pip: ToolKnowledge = {
       `${PIP}/src/pip/_internal/commands/configuration.py`,
       'pip config: "Manage local and global configuration"; "set: Set the command.option=value", "unset: Unset the value associated with command.option", "edit: Edit the configuration file in an editor". Without --user, --global or --site it changes the configuration file of the active virtual environment when that file exists, otherwise the user file. So a CI step or RUN with pip config set can give the later pip installs a release-age delay that no environment variable shows (decision D-115).',
     ),
+    configSectionNames: d167.verified(
+      { exact: true },
+      CONFIGPARSER,
+      'pip reads pip.conf with configparser.RawConfigParser (_construct_parser in src/pip/_internal/configuration.py at 26.2.2). configparser takes the name of a section from the header as written between [ and ] (SECTCRE, group "header", not stripped or lowercased; the same in Lib/configparser.py at v3.9.0 and v3.13.0), and pip keeps the keys of a section under that name (_normalized_keys: section + "." + key) and uses only the sections named exactly "global", the command and ":env:" (section in override_order in src/pip/_internal/cli/parser.py). So [Global] and [ global ] are other sections, which pip ignores.',
+    ),
     configSections: user.verified(
       { global: 'global', commandsOverride: true },
       CONFIGURATION,
@@ -323,6 +330,11 @@ export const pip: ToolKnowledge = {
       { setting: '--only-binary', value: ':all:', since: '7.0.0', covers: ['registry'] },
       NEWS,
       'The option exists since 7.0.0; when requirements files started to accept it is not recorded. pip applies it only to packages found on indexes and find-links (format_control is used only by the package finder), so VCS, local directory and direct URL source requirements are still built.',
+    ),
+    formatControl: d167.verified(
+      { noBinary: '--no-binary', onlyBinary: '--only-binary', all: ':all:', none: ':none:', separator: ',', requirementLines: true },
+      FORMAT_CONTROL,
+      'One FormatControl holds no_binary and only_binary for the whole install. handle_mutual_excludes splits a value at commas: :all: clears both sets and puts :all: in its own, :none: clears its own set, and a name moves from the other set into its own; get_allowed_formats checks the name in only_binary, then in no_binary, then :all: in only_binary, then in no_binary. So after --only-binary=:all:, --no-binary <name> builds that package from source and --no-binary=:all: or --only-binary=:none: (or :none: after the last :all: of its value) builds every package again. req_file.py parses every line, requirement lines too, with the options of SUPPORTED_OPTIONS into the finder\'s FormatControl (get_line_parser: defaults.format_control = finder.format_control; break_args_options passes what follows the requirement to the option parser), in the order of the lines, with the lines of an included -r or -c file at the line that includes it (RequirementsFileParser._parse_and_recurse).',
     ),
     configFileNames: verified(
       ['pip.conf', 'pip.ini'],
