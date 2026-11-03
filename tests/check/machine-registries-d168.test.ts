@@ -193,6 +193,9 @@ describe('npm registries in the environment', () => {
   });
 });
 
+/** The platform whose paths this machine's temporary files have: Windows on Windows runners, else Linux. */
+const NAMED_PLATFORM: NodeJS.Platform = process.platform === 'win32' ? 'win32' : 'linux';
+
 describe('Python indexes of the machine', () => {
   it('does not look a package up on PyPI when PIP_INDEX_URL names another index', async () => {
     const fetch = recording();
@@ -206,9 +209,12 @@ describe('Python indexes of the machine', () => {
         fix: 'Before installing it, check the package in the index that PIP_INDEX_URL names; if you trust that index, pass --index https://pypi.corp.example/simple to depcurfew check in the hook command (.claude/settings.json), to depcurfew mcp, or on the command line',
       },
     ]);
-    // pip reads PIP_ in upper case followed by the rest in any case; pip_index_url sets nothing.
-    const lower = await check(['--dir', project(), 'pypi:requests'], { env: { pip_index_url: 'https://pypi.corp.example/simple' } });
+    // pip reads PIP_ in upper case followed by the rest in any case; pip_index_url sets nothing on Linux and macOS.
+    const lower = await check(['--dir', project(), 'pypi:requests'], { env: { pip_index_url: 'https://pypi.corp.example/simple' }, platform: 'linux' });
     expect(lower.findings[0]?.map((finding) => finding.code)).not.toContain('unverified');
+    // Windows finds a variable in any case, so pip reads it there.
+    const windows = await check(['--dir', project(), 'pypi:corp-internal-lib'], { env: { pip_index_url: 'https://pypi.corp.example/simple' }, platform: 'win32' }, recording());
+    expect(windows.findings[0]?.map((finding) => finding.code)).toContain('unverified');
   });
 
   it('looks a package up on PyPI when PIP_EXTRA_INDEX_URL only adds an index, and says so', async () => {
@@ -231,7 +237,9 @@ describe('Python indexes of the machine', () => {
     // With PIP_CONFIG_FILE naming an existing file, pip does not read the user file.
     write(join(home, '.config', 'pip', 'pip.conf'), '[global]\nindex-url = https://pypi.corp.example/simple\n');
     const named = write(join(directory('pip'), 'pip.conf'), '[global]\nextra-index-url =\n    https://extra.example/simple\n');
-    const replaced = await check(['--dir', project(), 'pypi:requests'], { home, platform: 'linux', env: { PIP_CONFIG_FILE: named } });
+    // The file is named by a path of this machine, so the platform of this machine reads it (a Windows path is not
+    // absolute on Linux).
+    const replaced = await check(['--dir', project(), 'pypi:requests'], { home, platform: NAMED_PLATFORM, env: { PIP_CONFIG_FILE: named } });
     expect(replaced.findings[0]?.at(-1)?.message).toBe(`the install may also take it from https://extra.example/simple that ${named} (line 2) adds; depcurfew checked only https://pypi.org/simple/`);
   });
 
@@ -252,7 +260,7 @@ describe('Python indexes of the machine', () => {
     expect(user.permissionDecisionReason).toContain('the install would use the index https://pypi.corp.example/simple from ~/.config/uv/uv.toml (line 1)');
     // UV_CONFIG_FILE names the configuration file uv reads in place of the user file.
     const named = write(join(directory('uv'), 'uv.toml'), 'index-url = "https://named.example/simple"\n');
-    const configured = await hook('uv add requests', root, { home, platform: 'linux', env: { UV_CONFIG_FILE: named } });
+    const configured = await hook('uv add requests', root, { home, platform: NAMED_PLATFORM, env: { UV_CONFIG_FILE: named } });
     expect(configured.permissionDecisionReason).toContain(`https://named.example/simple from ${named} (line 1)`);
     expect(configured.permissionDecisionReason).not.toContain('~/.config/uv/uv.toml');
   });
