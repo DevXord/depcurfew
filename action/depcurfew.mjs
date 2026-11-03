@@ -2024,6 +2024,7 @@ const release14$5 = verifiedOn("2026-11-02");
 const runners$2 = verifiedOn("2026-11-03");
 const secrets$3 = verifiedOn("2026-11-03");
 const d173$4 = verifiedOn("2026-11-03");
+const d172$1 = verifiedOn("2026-11-03");
 const CONFIG$2 = "https://docs.npmjs.com/cli/v12/using-npm/config";
 const NPMRC$1 = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
 const release$4 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
@@ -2871,6 +2872,7 @@ const npm$1 = {
 				manifest: true
 			}
 		], "https://github.com/npm/cli/blob/v12.2.1/lib/commands/config.js", "npm config set sets keys (in the user configuration unless location is given), delete (also rm and del) removes keys from every configuration file, edit opens a configuration file in an editor and fix repairs invalid items; get and list (ls) only read (the switch in exec, and docs/lib/content/commands/npm-config.md). npm set <key>=<value> runs npm config set with its arguments and fails without any (lib/commands/set.js); npm get only reads (lib/commands/get.js). npm pkg set, delete and fix write package.json back, get only reads (lib/commands/pkg.js). Other spellings of these commands come from commandNames."),
+		linkCommands: d172$1.verified([["npm", "link"]], `${NPM_GITHUB_V12}/lib/commands/link.js`, "npm link with package specs (linkInstall in lib/commands/link.js at v12.2.1, the same in 11.21.1): it loads the top-level packages of the global space, takes every spec that no package there matches (missingArgsFromTree), and installs those into the global space first (globalArb.reify with add: missing, after the strict-allow-scripts preflight of npm install and with its allow-scripts policy), so a registry name comes from the registry as with npm install -g; then it links each package into the project (localArb.reify with add: file:<global>/node_modules/<name>). A directory spec links that folder, and a spec that resolves to the project directory itself is dropped; without specs npm link links the current package into the global space (linkPkg). Its params include ignore-scripts, allow-directory, allow-file, allow-git and allow-remote; it refuses --global (ELINKGLOBAL). ln is its alias (commandNames), and unlink is an alias of uninstall."),
 		commandNames: runners$2.verified({
 			commands: [
 				"access",
@@ -3220,6 +3222,8 @@ const REQ_FILE = `${PIP}/src/pip/_internal/req/req_file.py`;
 const FORMAT_CONTROL = `${PIP}/src/pip/_internal/models/format_control.py`;
 const CMDOPTIONS = `${PIP}/src/pip/_internal/cli/cmdoptions.py`;
 const PIPX = "https://github.com/pypa/pipx/blob/1.18.10";
+const PIPX_CURRENT = "https://github.com/pypa/pipx/blob/1.18.12";
+const d172 = verifiedOn("2026-11-03");
 const PYLOCK = "https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst";
 const PARSER = `${PIP}/src/pip/_internal/cli/parser.py`;
 const user$6 = verifiedOn("2026-10-31");
@@ -3904,8 +3908,8 @@ const pip$1 = {
 				offListVariables: ["PIP_ONLY_BINARY"]
 			}
 		}, `${PIPX}/docs/reference/environment-variables.rst`, "pipx forwards the standard PIP_* variables to pip (except PIP_USER, PIP_DISABLE_PIP_VERSION_CHECK, PIP_TARGET and PIP_KEYRING_PROVIDER); the uv backend ignores them (docs/how-to/use-private-index.rst). pipx has no option of its own for pre-releases or source builds; --pip-args may carry them."),
-		pipxCommandLine: verified$10({
-			add: [["pipx", "install"]],
+		pipxCommandLine: d172.verified({
+			add: [["pipx", "install"], ["pipx", "inject"]],
 			run: [{
 				command: ["pipx", "run"],
 				packageOptions: ["--spec"],
@@ -3951,14 +3955,36 @@ const pip$1 = {
 				"--no-path-check",
 				"--path",
 				"--pypackages",
-				"--version"
+				"--version",
+				"--include-apps",
+				"--with-suffix"
 			],
 			parsing: {
 				abbreviations: true,
 				groupedShortOptions: true
 			},
-			addPackageOptions: ["--preinstall"]
-		}, `${PIPX}/src/pipx/main.py`, "pipx installs applications from PyPI with pip (or uv) in environments of their own. pipx install takes one or more package specs, a VCS URL, a local path or archive, or a script (--preinstall adds packages to the environment; -f is --force, not find-links). pipx run takes the app first (argparse REMAINDER, so its options come before it), --spec names the package to install and run, --with adds packages; a first argument ending in .py is a local script, or a script to download when it is a URL (docs/how-to/run-scripts.rst). argparse accepts abbreviated long options."),
+			addPackageOptions: ["--preinstall"],
+			commandOptions: [{
+				command: ["pipx", "inject"],
+				valueOptions: ["-r", "--requirement"],
+				packageFileOptions: ["-r", "--requirement"]
+			}],
+			addOperands: [{
+				command: ["pipx", "inject"],
+				operands: 1
+			}],
+			passOn: [{
+				command: ["pipx", "runpip"],
+				operands: 1,
+				runs: "pip",
+				splitsOneWord: true
+			}],
+			fileCommands: [["pipx", "install-all"], [
+				"pipx",
+				"manifest",
+				"sync"
+			]]
+		}, `${PIPX_CURRENT}/src/pipx/main.py`, "pipx installs applications from PyPI with pip (or uv) in environments of their own. pipx install takes one or more package specs, a VCS URL, a local path or archive, or a script (--preinstall adds packages to the environment; -f is --force, not find-links). pipx run takes the app first (argparse REMAINDER, so its options come before it), --spec names the package to install and run, --with adds packages; a first argument ending in .py is a local script, or a script to download when it is a URL (docs/how-to/run-scripts.rst). argparse accepts abbreviated long options. pipx inject ENVIRONMENT takes the packages to install into an existing environment as further operands (any spec pip installs, installed as pipx install installs them, commands/inject.py) and with -r/--requirement a file of them, one per line; --include-apps and --with-suffix are flags. pipx runpip ENVIRONMENT takes every later word (argparse REMAINDER) as the arguments of pip in that environment, python -m pip under the pip backend and uv pip under the uv backend (backends/pip.py and backends/uv.py, run_raw_pip), and splits a lone argument that holds whitespace with shlex.split (_split_runpip_args). pipx install-all installs the environments of a spec metadata file that pipx list writes (commands/install.py, install_all), and pipx manifest sync the tools of a tool manifest (commands/manifest.py, sync_manifest). The same main.py as in 1.18.10."),
 		pipxRegistryOverrides: verified$10({
 			registryOptions: ["-i", "--index-url"],
 			registryVariables: [],

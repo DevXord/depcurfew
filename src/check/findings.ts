@@ -117,6 +117,11 @@ export interface CheckRequest {
    * the root composer.json, for a file of a parent directory that Composer may not use (decision D-142).
    */
   rootStability?: false;
+  /**
+   * npm link (decision D-172): the package is installed from the registry only when the global space has no package
+   * of that name, so a name the registry does not have is a warning; npm link then links the global one or fails.
+   */
+  linked?: true;
 }
 
 export interface CheckOptions {

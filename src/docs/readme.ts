@@ -353,7 +353,10 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
             const aliases = Object.entries(names.aliases).filter(([alias, target]) => target === command && !entries.some((other) => other[0] === executable && other[1] === alias));
             return [entry, ...aliases.map(([alias]) => [executable, alias])];
           });
-        const add = commandList(withAliases(commandLine.add));
+        // npm link installs the names the global space lacks before it links them (decision D-172).
+        const linksFact = key === 'commandLine' ? tool.extra?.['linkCommands'] : undefined;
+        const links = linksFact === undefined ? [] : ((values(linksFact)[0] as readonly (readonly string[])[] | undefined) ?? []);
+        const add = commandList(withAliases([...commandLine.add, ...links]));
         const run = commandList(withAliases(commandLine.run.map((entry) => entry.command)));
         const create = commandList(withAliases(commandLine.create.map((entry) => entry.command)));
         const name = key === 'commandLine' ? tool.name : (commandLine.add[0]?.[0] ?? commandLine.run[0]?.command[0] ?? key);
@@ -373,7 +376,7 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
     '',
     ...bootstrap(environment),
     '',
-    'Commands the guard reads (an add subcommand of any npm package manager, such as `install` or `i`, is checked for all of them; npm commands also count abbreviated or in camelCase, as npm resolves them (`npm exe`, `npm installTest`); pnpm, Yarn and Bun take their command names only as written, with the aliases in the table; Python commands are matched word for word, and `python -m pip` counts as `pip`):',
+    'Commands the guard reads (an add subcommand of any npm package manager, such as `install` or `i`, is checked for all of them, while `npm link` counts for npm alone; npm commands also count abbreviated or in camelCase, as npm resolves them (`npm exe`, `npm installTest`); pnpm, Yarn and Bun take their command names only as written, with the aliases in the table; Python commands are matched word for word, and `python -m pip` counts as `pip`):',
     '',
     '| Package manager | Add packages | Download and run | Starter kits |',
     '| --- | --- | --- | --- |',

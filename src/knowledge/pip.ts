@@ -16,6 +16,9 @@ const REQ_FILE = `${PIP}/src/pip/_internal/req/req_file.py`;
 const FORMAT_CONTROL = `${PIP}/src/pip/_internal/models/format_control.py`;
 const CMDOPTIONS = `${PIP}/src/pip/_internal/cli/cmdoptions.py`;
 const PIPX = 'https://github.com/pypa/pipx/blob/1.18.10';
+// pipx 1.18.12 (2026-11-03), whose src/pipx/main.py is the same as in 1.18.10 (decision D-172).
+const PIPX_CURRENT = 'https://github.com/pypa/pipx/blob/1.18.12';
+const d172 = verifiedOn('2026-11-03');
 const PYLOCK = 'https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst';
 const PARSER = `${PIP}/src/pip/_internal/cli/parser.py`;
 const user = verifiedOn('2026-10-31');
@@ -460,9 +463,9 @@ export const pip: ToolKnowledge = {
       `${PIPX}/docs/reference/environment-variables.rst`,
       'pipx forwards the standard PIP_* variables to pip (except PIP_USER, PIP_DISABLE_PIP_VERSION_CHECK, PIP_TARGET and PIP_KEYRING_PROVIDER); the uv backend ignores them (docs/how-to/use-private-index.rst). pipx has no option of its own for pre-releases or source builds; --pip-args may carry them.',
     ),
-    pipxCommandLine: verified(
+    pipxCommandLine: d172.verified(
       {
-        add: [['pipx', 'install']],
+        add: [['pipx', 'install'], ['pipx', 'inject']],
         run: [{ command: ['pipx', 'run'], packageOptions: ['--spec'], extraPackageOptions: ['--with'], scriptSuffixes: ['.py'] }],
         create: [],
         valueOptions: [
@@ -472,13 +475,20 @@ export const pip: ToolKnowledge = {
         flagOptions: [
           '-q', '--quiet', '-v', '--verbose', '--skip-maintenance', '--global', '-f', '--force', '-U', '--upgrade',
           '--include-deps', '--system-site-packages', '--fetch-missing-python', '-e', '--editable', '--no-cache',
-          '--refresh', '--no-path-check', '--path', '--pypackages', '--version',
+          '--refresh', '--no-path-check', '--path', '--pypackages', '--version', '--include-apps', '--with-suffix',
         ],
         parsing: { abbreviations: true, groupedShortOptions: true },
         addPackageOptions: ['--preinstall'],
+        commandOptions: [{ command: ['pipx', 'inject'], valueOptions: ['-r', '--requirement'], packageFileOptions: ['-r', '--requirement'] }],
+        addOperands: [{ command: ['pipx', 'inject'], operands: 1 }],
+        passOn: [{ command: ['pipx', 'runpip'], operands: 1, runs: 'pip', splitsOneWord: true }],
+        fileCommands: [
+          ['pipx', 'install-all'],
+          ['pipx', 'manifest', 'sync'],
+        ],
       },
-      `${PIPX}/src/pipx/main.py`,
-      'pipx installs applications from PyPI with pip (or uv) in environments of their own. pipx install takes one or more package specs, a VCS URL, a local path or archive, or a script (--preinstall adds packages to the environment; -f is --force, not find-links). pipx run takes the app first (argparse REMAINDER, so its options come before it), --spec names the package to install and run, --with adds packages; a first argument ending in .py is a local script, or a script to download when it is a URL (docs/how-to/run-scripts.rst). argparse accepts abbreviated long options.',
+      `${PIPX_CURRENT}/src/pipx/main.py`,
+      'pipx installs applications from PyPI with pip (or uv) in environments of their own. pipx install takes one or more package specs, a VCS URL, a local path or archive, or a script (--preinstall adds packages to the environment; -f is --force, not find-links). pipx run takes the app first (argparse REMAINDER, so its options come before it), --spec names the package to install and run, --with adds packages; a first argument ending in .py is a local script, or a script to download when it is a URL (docs/how-to/run-scripts.rst). argparse accepts abbreviated long options. pipx inject ENVIRONMENT takes the packages to install into an existing environment as further operands (any spec pip installs, installed as pipx install installs them, commands/inject.py) and with -r/--requirement a file of them, one per line; --include-apps and --with-suffix are flags. pipx runpip ENVIRONMENT takes every later word (argparse REMAINDER) as the arguments of pip in that environment, python -m pip under the pip backend and uv pip under the uv backend (backends/pip.py and backends/uv.py, run_raw_pip), and splits a lone argument that holds whitespace with shlex.split (_split_runpip_args). pipx install-all installs the environments of a spec metadata file that pipx list writes (commands/install.py, install_all), and pipx manifest sync the tools of a tool manifest (commands/manifest.py, sync_manifest). The same main.py as in 1.18.10.',
     ),
     pipxRegistryOverrides: verified(
       { registryOptions: ['-i', '--index-url'], registryVariables: [], configOptions: ['--pip-args'], configVariables: [] },

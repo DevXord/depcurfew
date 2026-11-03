@@ -351,7 +351,7 @@ export function requestedSpecs(
     }
     return found;
   };
-  for (const { tool, spec, tag, prereleases, buildFromSource, directory, command: written, readsManifest, fromManifest, composerCommand } of scan.requests) {
+  for (const { tool, spec, tag, prereleases, buildFromSource, directory, command: written, readsManifest, fromManifest, composerCommand, linked } of scan.requests) {
     const request: CheckRequest = {
       spec,
       // The tool decides which of its own registry settings apply (decision D-113).
@@ -366,6 +366,8 @@ export function requestedSpecs(
       ...(readsManifest === false ? { readsManifest } : {}),
       ...(fromManifest === true ? { fromManifest } : {}),
       ...(composerCommand === undefined ? {} : { composerCommand }),
+      // npm link installs from the registry only what the global space lacks (decision D-172).
+      ...(linked === true ? { linked } : {}),
     };
     const key = `${JSON.stringify(request)}\n${keyOf(directory)}`;
     if (!unique.has(key)) unique.set(key, { request, ...(directory === undefined ? {} : { directory }), command: written });

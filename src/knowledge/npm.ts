@@ -14,6 +14,7 @@ const runners = verifiedOn('2026-11-03');
 const secrets = verifiedOn('2026-11-03');
 // The npm that npm install -g npm@<range> installs (decision D-173).
 const d173 = verifiedOn('2026-11-03');
+const d172 = verifiedOn('2026-11-03');
 
 const CONFIG = 'https://docs.npmjs.com/cli/v12/using-npm/config';
 const CONFIG_V11 = 'https://docs.npmjs.com/cli/v11/using-npm/config';
@@ -516,6 +517,11 @@ export const npm: ToolKnowledge = {
       ],
       'https://github.com/npm/cli/blob/v12.2.1/lib/commands/config.js',
       'npm config set sets keys (in the user configuration unless location is given), delete (also rm and del) removes keys from every configuration file, edit opens a configuration file in an editor and fix repairs invalid items; get and list (ls) only read (the switch in exec, and docs/lib/content/commands/npm-config.md). npm set <key>=<value> runs npm config set with its arguments and fails without any (lib/commands/set.js); npm get only reads (lib/commands/get.js). npm pkg set, delete and fix write package.json back, get only reads (lib/commands/pkg.js). Other spellings of these commands come from commandNames.',
+    ),
+    linkCommands: d172.verified<readonly (readonly string[])[]>(
+      [['npm', 'link']],
+      `${NPM_GITHUB_V12}/lib/commands/link.js`,
+      'npm link with package specs (linkInstall in lib/commands/link.js at v12.2.1, the same in 11.21.1): it loads the top-level packages of the global space, takes every spec that no package there matches (missingArgsFromTree), and installs those into the global space first (globalArb.reify with add: missing, after the strict-allow-scripts preflight of npm install and with its allow-scripts policy), so a registry name comes from the registry as with npm install -g; then it links each package into the project (localArb.reify with add: file:<global>/node_modules/<name>). A directory spec links that folder, and a spec that resolves to the project directory itself is dropped; without specs npm link links the current package into the global space (linkPkg). Its params include ignore-scripts, allow-directory, allow-file, allow-git and allow-remote; it refuses --global (ELINKGLOBAL). ln is its alias (commandNames), and unlink is an alias of uninstall.',
     ),
     commandNames: runners.verified(
       {

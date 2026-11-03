@@ -439,6 +439,22 @@ export interface CommandOptions {
   valueOptions: readonly string[];
   /** Options of this command whose value is a local path or VCS URL installed in editable mode. */
   editableOptions?: readonly string[];
+  /** Options of this command whose value is a file that names packages to install, which depcurfew does not read (pipx inject -r). */
+  packageFileOptions?: readonly string[];
+}
+
+/**
+ * A command that runs a command line of another tool (decision D-172): pipx runpip ENVIRONMENT ARGS runs pip ARGS in
+ * that environment. The tool's own options come before the operands; every word after them belongs to `runs`.
+ */
+export interface PassOnCommand {
+  command: readonly string[];
+  /** How many operands come before the words of the other tool. */
+  operands: number;
+  /** The executable whose command line the words are. */
+  runs: string;
+  /** One word with whitespace in it is split into words first, at spaces, tabs and line breaks (pipx's shlex.split). */
+  splitsOneWord?: boolean;
 }
 
 export interface CommandLineKnowledge {
@@ -477,6 +493,15 @@ export interface CommandLineKnowledge {
   interpreterNames?: readonly string[];
   /** Options that differ between the commands of the tool. */
   commandOptions?: readonly CommandOptions[];
+  /**
+   * Add commands whose first operands name something other than a package (pipx inject ENVIRONMENT PACKAGE …): the
+   * packages are the operands after them (decision D-172).
+   */
+  addOperands?: readonly { command: readonly string[]; operands: number }[];
+  /** Commands that run a command line of another tool (pipx runpip; decision D-172). */
+  passOn?: readonly PassOnCommand[];
+  /** Commands that install the packages a file names, which depcurfew does not read (pipx install-all; decision D-172). */
+  fileCommands?: readonly (readonly string[])[];
 }
 
 /** Forms of a package spec on the command line that do not name a registry package, by prefix. */

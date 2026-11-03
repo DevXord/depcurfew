@@ -124,6 +124,17 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
       });
       return;
     }
+    if (request.linked === true) {
+      // npm link takes a package of the global space first and installs from the registry only a name it lacks, which
+      // fails for a name the registry does not have (decision D-172).
+      add({
+        level: 'warning',
+        code: 'not-found',
+        message: `${name} is not in the registry, so npm link installs nothing from it: it links the package of that name that is linked globally (npm link in its folder) or fails`,
+        fix: `Nothing to do if ${name} is your own package linked with npm link in its folder; otherwise check the spelling of the name`,
+      });
+      return;
+    }
     add({
       level: 'error',
       code: 'not-found',
