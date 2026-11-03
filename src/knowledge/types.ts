@@ -599,11 +599,11 @@ export interface CommandNamesKnowledge {
   /** Alias to the name it stands for (a command or another alias). */
   aliases: Readonly<Record<string, string>>;
   /**
-   * How a word is resolved: npm (deref, the default) or symfony-console (Composer, decision D-133): an exact command
+   * How a word is resolved: npm (deref, the default), symfony-console (Composer, decision D-133): an exact command
    * or alias, else the commands and aliases that start with the word, compared with case and then without, which
-   * must all stand for one command.
+   * must all stand for one command, or exact (Bun, decision D-162): only a command or an alias as written.
    */
-  matching?: 'npm' | 'symfony-console';
+  matching?: 'npm' | 'symfony-console' | 'exact';
   /** symfony-console: commands find() leaves out when a word matches others too, and refuses when it matches only them. */
   hidden?: readonly string[];
 }

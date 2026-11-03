@@ -11,7 +11,7 @@ import type { Rule } from '../doctor/types.ts';
 import { USER_RULES } from '../user/doctor.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import { SOURCE_KINDS } from '../knowledge/schema.ts';
-import type { CommandLineKnowledge, EnvironmentKnowledge, Fact, ToolKnowledge, UserConfigKnowledge, UserDirectory, UserFile, UserPlatform } from '../knowledge/types.ts';
+import type { CommandLineKnowledge, CommandNamesKnowledge, EnvironmentKnowledge, Fact, ToolKnowledge, UserConfigKnowledge, UserDirectory, UserFile, UserPlatform } from '../knowledge/types.ts';
 import { DEFAULT_POLICY, renderPolicy } from '../policy/defaults.ts';
 import { policyJsonSchema } from '../policy/json-schema.ts';
 import { INSTALLED_CLI, TOOLS_DIRECTORY } from '../self-version.ts';
@@ -333,9 +333,19 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
         const fact = tool.extra?.[key];
         const commandLine = fact === undefined ? undefined : (values(fact)[0] as CommandLineKnowledge | undefined);
         if (commandLine === undefined) return [];
-        const add = commandList(commandLine.add);
-        const run = commandList(commandLine.run.map((entry) => entry.command));
-        const create = commandList(commandLine.create.map((entry) => entry.command));
+        // The aliases of the tool's command names that stand for a listed command (bun a, bun c; decision D-162).
+        const namesFact = key === 'commandLine' ? tool.extra?.['commandNames'] : undefined;
+        const names = namesFact === undefined ? undefined : (values(namesFact)[0] as CommandNamesKnowledge | undefined);
+        const withAliases = (entries: readonly (readonly string[])[]) =>
+          entries.flatMap((entry) => {
+            const [executable, command] = entry;
+            if (names === undefined || executable === undefined || command === undefined || entry.length !== 2) return [entry];
+            const aliases = Object.entries(names.aliases).filter(([alias, target]) => target === command && !entries.some((other) => other[0] === executable && other[1] === alias));
+            return [entry, ...aliases.map(([alias]) => [executable, alias])];
+          });
+        const add = commandList(withAliases(commandLine.add));
+        const run = commandList(withAliases(commandLine.run.map((entry) => entry.command)));
+        const create = commandList(withAliases(commandLine.create.map((entry) => entry.command)));
         const name = key === 'commandLine' ? tool.name : (commandLine.add[0]?.[0] ?? commandLine.run[0]?.command[0] ?? key);
         return [`| ${name} | ${add === '' ? 'none' : add} | ${run === '' ? 'none' : run} | ${create === '' ? 'none' : create} |`];
       }),
@@ -353,7 +363,7 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
     '',
     ...bootstrap(environment),
     '',
-    'Commands the guard reads (an add subcommand of any npm package manager, such as `install` or `i`, is checked for all of them; Python commands are matched word for word, and `python -m pip` counts as `pip`):',
+    'Commands the guard reads (an add subcommand of any npm package manager, such as `install` or `i`, is checked for all of them; npm commands also count abbreviated or in camelCase, as npm resolves them (`npm exe`, `npm installTest`); pnpm, Yarn and Bun take their command names only as written, with the aliases in the table; Python commands are matched word for word, and `python -m pip` counts as `pip`):',
     '',
     '| Package manager | Add packages | Download and run | Starter kits |',
     '| --- | --- | --- | --- |',

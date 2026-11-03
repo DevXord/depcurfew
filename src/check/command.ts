@@ -2008,7 +2008,7 @@ function scanSource(words: readonly Word[], command: SimpleCommand, depth: numbe
   if (root !== undefined) return { requests: [], unreadable: undefined, moves: [{ kind: 'activate', root, reason: sourced(words).reason }] };
   // . "$X" i x: a file the shell expands, found on PATH and given an install word, may be a package manager (D-119).
   const next = words.slice(2).find((word) => !isOption(word.text));
-  if (file.dynamic && next !== undefined && !next.dynamic && commands().installWords.has(next.text)) {
+  if (file.dynamic && next !== undefined && !next.dynamic && mayInstall(next)) {
     return { ...unreadable(`${shown(joined(words))}: ${expanded(file, 'the file ')} ${MAY_BE_MANAGER}`), moves: [sourced(words)] };
   }
   // A file depcurfew does not read may change directory, set a trap or define a function named like any command.
@@ -3035,7 +3035,7 @@ function scanScript(words: readonly Word[], index: number, command: SimpleComman
   if (manager !== undefined) return scanCommand({ ...command, words: [{ text: manager, dynamic: false }, ...rest] }, depth);
   const next = rest.find((word) => !isOption(word.text));
   // run is left out: node "$SCRIPT" run lint is common, and running a script of a project installs nothing.
-  if (next !== undefined && !next.dynamic && next.text !== 'run' && commands().installWords.has(next.text)) {
+  if (next !== undefined && !next.dynamic && mayInstall(next, 'run')) {
     if (script.dynamic && !isProcessSubstitution(script)) return unreadable(`${shown(joined(words))}: ${expanded(script, 'the script ')} ${MAY_BE_MANAGER}`);
     const folder = script.dynamic ? undefined : managerFolder(script.text);
     if (folder !== undefined) return unreadable(`${shown(joined(words))}: the script "${shown(script.text)}" is in a folder named ${folder} ${MAY_BE_MANAGER}`);
@@ -3315,7 +3315,6 @@ function aliasText(words: readonly Word[], put: string[]): { text: string; used:
 
 /** A command without the words before it: the executable and its arguments. */
 function scanSimple(command: SimpleCommand, words: readonly Word[], assigned: readonly Word[], builtin: boolean, depth: number): CommandScan {
-  const { installWords } = commands();
   const first = words[0] as Word;
   const line = joined(words);
   // cd, pushd, Set-Location: where the commands after it run (decision D-118).
@@ -3363,7 +3362,7 @@ function scanSimple(command: SimpleCommand, words: readonly Word[], assigned: re
     return batch === undefined ? scan : { ...scan, unreadable: scan.unreadable ?? `${shown(line)}: ${batch}` };
   }
   const subcommand = rest.find((word) => !isOption(word.text));
-  if (first.dynamic && subcommand !== undefined && installWords.has(subcommand.text)) return unreadable(`${shown(line)}: ${expanded(first, 'the command ')}`);
+  if (first.dynamic && subcommand !== undefined && mayInstall(subcommand)) return unreadable(`${shown(line)}: ${expanded(first, 'the command ')}`);
   // Inside a command line, a command and a subcommand both built at run time may be an install (sh -c '/bin/np? $(echo i) x').
   if (first.dynamic && depth > 0 && subcommand?.dynamic === true && command.shell !== 'powershell') return unreadable(`${shown(line)}: ${expanded(first, 'the command ')} ${MAY_BE_ANY}`);
   // echo npm install lodash prints the words; it runs nothing.
@@ -3371,14 +3370,16 @@ function scanSimple(command: SimpleCommand, words: readonly Word[], assigned: re
   return laterCommand(rest, depth);
 }
 
-/**
- * A command name as the tool resolves it (npm's deref, commandNames): camelCase as kebab-case, an exact command, an
- * alias, or a unique prefix of a command or an alias, whose alias is followed (npm conf is config, npm pk is pkg).
- */
-/** The command names resolved so far, by the names of a tool (decision D-123: a long command line resolves many). */
-const RESOLVED = new WeakMap<CommandNamesKnowledge, Map<string, string>>();
+/** The command names resolved so far, by the names of a tool (decision D-123: a long command line resolves many); null: no command. */
+const RESOLVED = new WeakMap<CommandNamesKnowledge, Map<string, string | null>>();
 
-function commandName(names: CommandNamesKnowledge, word: string): string {
+/**
+ * The command a word names as the tool resolves it (commandNames): npm's deref (camelCase as kebab-case, an exact
+ * command, an alias, or a unique prefix of a command or an alias, whose alias is followed: npm conf is config, npm pk
+ * is pkg, npm exe is exec), symfony/console's find for Composer, or Bun's names and aliases as written. Undefined
+ * when the tool finds no single command for the word (npm ex, npm install-): npm then runs nothing (decision D-162).
+ */
+function resolvedCommand(names: CommandNamesKnowledge, word: string): string | undefined {
   let resolved = RESOLVED.get(names);
   if (resolved === undefined) {
     resolved = new Map();
@@ -3386,35 +3387,68 @@ function commandName(names: CommandNamesKnowledge, word: string): string {
   }
   let name = resolved.get(word);
   if (name === undefined) {
-    name = resolveCommandName(names, word);
+    name = resolveCommandName(names, word) ?? null;
     // Words of a command line are as many as its length allows; keep the map from growing with them.
     if (resolved.size < 4096) resolved.set(word, name);
   }
-  return name;
+  return name ?? undefined;
+}
+
+/** A command name as the tool resolves it (resolvedCommand), or the word as written when it names no single command. */
+function commandName(names: CommandNamesKnowledge, word: string): string {
+  return resolvedCommand(names, word) ?? word;
 }
 
 /**
- * A command name as symfony/console resolves it for Composer (Application::find, decisions D-133 and D-136), without
- * the scripts of composer.json, which the check of the install adds (findComposerCommand); a word that is ambiguous
- * or names no command stays as written (Composer runs nothing for it).
+ * The names a subcommand word may run, to match against the commands of the knowledge base: the word as written for
+ * a tool that takes its command names only so, and for a tool with commandNames (npm, Bun, Composer) the word and the
+ * command the tool resolves it to, or none when it resolves to no command, since the tool then runs none (decision
+ * D-162: npm exe is npm exec, npm installTest is npm install-test, bun a is bun add).
  */
-function symfonyCommandName(names: CommandNamesKnowledge, word: string): string {
-  return findComposerCommand(names, word)?.name ?? word;
+function subcommandNames(tool: ToolCommands, word: string): readonly string[] {
+  const names = tool.commandNames;
+  if (names === undefined) return [word];
+  const resolved = resolvedCommand(names, word);
+  if (resolved === undefined) return [];
+  return resolved === word ? [word] : [word, resolved];
 }
 
-function resolveCommandName(names: CommandNamesKnowledge, word: string): string {
-  if (names.matching === 'symfony-console') return symfonyCommandName(names, word);
+/**
+ * Whether a word after a command that may be a package manager (one the shell expands, or a script) may make it
+ * install or run packages: the last word of an install, run or create command, also as a tool with commandNames
+ * resolves it (npm exe, npm installTest, bun a; decision D-162). `ignored` is a word that does not count.
+ */
+function mayInstall(word: Word, ignored?: string): boolean {
+  const { installWords, tools } = commands();
+  const counts = (name: string) => name !== ignored && installWords.has(name);
+  if (counts(word.text)) return true;
+  if (word.dynamic) return false;
+  return tools.some((tool) => tool.commandNames !== undefined && subcommandNames(tool, word.text).some(counts));
+}
+
+/**
+ * resolvedCommand without the cache. For Composer the name symfony/console resolves (Application::find, decisions
+ * D-133 and D-136), without the scripts of composer.json, which the check of the install adds (findComposerCommand);
+ * Composer runs nothing for a word that is ambiguous or names no command.
+ */
+function resolveCommandName(names: CommandNamesKnowledge, word: string): string | undefined {
+  if (names.matching === 'symfony-console') return findComposerCommand(names, word)?.name;
+  const alias = (key: string) => (Object.hasOwn(names.aliases, key) ? names.aliases[key] : undefined);
+  const follow = (start: string) => {
+    let resolved = start;
+    for (let step = 0; step < 8 && !names.commands.includes(resolved); step++) resolved = alias(resolved) ?? resolved;
+    return resolved;
+  };
+  if (names.matching === 'exact') return names.commands.includes(word) ? word : alias(word) === undefined ? undefined : follow(word);
   const name = /[A-Z]/u.test(word) ? word.replaceAll(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`) : word;
   if (names.commands.includes(name)) return name;
-  const alias = (key: string) => (Object.hasOwn(names.aliases, key) ? names.aliases[key] : undefined);
   let resolved = alias(name);
   if (resolved === undefined) {
     const candidates = [...names.commands, ...Object.keys(names.aliases)].filter((candidate) => candidate.startsWith(name));
-    if (candidates.length !== 1) return name;
+    if (candidates.length !== 1) return undefined;
     resolved = candidates[0] as string;
   }
-  for (let step = 0; step < 8 && !names.commands.includes(resolved); step++) resolved = alias(resolved) ?? resolved;
-  return resolved;
+  return follow(resolved);
 }
 
 /**
@@ -3581,7 +3615,9 @@ function toolDirectory(tool: ToolCommands, executable: string, words: readonly W
     }
   }
   const { texts, before } = positionals(tool, rest);
-  const startsWith = (command: readonly string[]) => command[0] === executable && command.slice(1).every((part, at) => texts[at] === part);
+  // The subcommand as the tool resolves it (decision D-162): npm exe is npm exec.
+  const heads = texts[0] === undefined ? [] : subcommandNames(tool, texts[0]);
+  const startsWith = (command: readonly string[]) => command[0] === executable && command.slice(1).every((part, at) => (at === 0 ? heads.includes(part) : texts[at] === part));
   const runs = tool.facts.run.filter((entry) => startsWith(entry.command));
   const limit = runs.length === 0 ? Infinity : Math.max(...runs.map((entry) => entry.command.length));
   const counts = (option: DirectoryOption) => option.ignoredBy?.some(startsWith) !== true;
@@ -3704,8 +3740,16 @@ function scanToolCommand(tool: ToolCommands, command: SimpleCommand, first: Word
   if (subcommand.dynamic) return unreadable(`${shown(line)}: ${expanded(subcommand, 'the subcommand ')}`);
   const after = rest.slice(index + 1);
   const context = contextOf(tool, undefined);
-  const find = (list: readonly DownloadCommand[]) => list.find((entry) => entry.command[0] === executable && entry.command[1] === subcommand.text);
-  const workspace = facts.workspaceCommands?.find((entry) => entry.command[0] === executable && entry.command[1] === subcommand.text);
+  // The subcommand as the tool resolves it (npm exe is npm exec; decision D-162), the word as written first.
+  const names = subcommandNames(tool, subcommand.text);
+  const find = <T extends { command: readonly string[] }>(list: readonly T[] | undefined): T | undefined => {
+    for (const name of names) {
+      const entry = list?.find((item) => item.command[0] === executable && item.command[1] === name);
+      if (entry !== undefined) return entry;
+    }
+    return undefined;
+  };
+  const workspace = find(facts.workspaceCommands);
   if (workspace !== undefined) return scanCommand({ ...command, words: [first, ...after.slice(workspace.operands)] }, depth);
   // The options before the subcommand of such a command are read with its own, as the tool reads them.
   const readsBefore = (entry: DownloadCommand) => early.some((item) => sameCommand(item.command, entry.command));
@@ -3718,7 +3762,7 @@ function scanToolCommand(tool: ToolCommands, command: SimpleCommand, first: Word
   const createEntry = find(facts.create);
   if (createEntry !== undefined && readsBefore(createEntry)) return finish(tool, line, readArguments([...rest.slice(0, index), ...after], 'create', tool, createEntry, context), depth, [], context);
   if (createEntry !== undefined) return finish(tool, line, readArguments(after, 'create', tool, createEntry, context), depth, before, context, overridesBefore);
-  if (add.has(subcommand.text)) return finish(tool, line, readArguments(after, 'add', tool, undefined, context), depth, before, context, overridesBefore);
+  if (names.some((name) => add.has(name))) return finish(tool, line, readArguments(after, 'add', tool, undefined, context), depth, before, context, overridesBefore);
   // A package manager's script run by its path (bun /usr/bin/npx …, bun ./npm-cli.js …) is that package manager.
   const manager = /[\\/]/u.test(subcommand.text) || SCRIPT_EXTENSIONS.test(subcommand.text) ? scriptManager(subcommand.text) : undefined;
   if (manager !== undefined) return scanCommand({ ...command, words: [{ text: manager, dynamic: false }, ...after] }, depth);
