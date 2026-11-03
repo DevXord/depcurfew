@@ -121,6 +121,8 @@ describe('the stack of pushd, traps, env -S and names the shell builds (decision
     ['pushd -n', filled('pushd -n a; ', 'popd; npm i x')],
     ['nested env -S', filled("env -S'-S\"-i\"' ", 'npm i x')],
     ['many -S strings', `env ${'-S -i '.repeat(150_000)}npm i x`],
+    // Every plain assignment before the command used to copy the words after it (about 30 s for 100,000).
+    ['many assignments before a command', `${'X=1 '.repeat(100_000)}npm i x`],
     ['an alias that ends in a blank, many times', `alias n='n '; ${'n '.repeat(400_000)}`],
     ['a long alias that ends in a blank', `alias n='${'x'.repeat(1000)} '; ${'n '.repeat(400_000)}`],
     ['traps that change directory', filled("trap 'cd a' DEBUG; npm i x; ")],

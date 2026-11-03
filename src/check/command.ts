@@ -3483,8 +3483,15 @@ function scanWords(command: SimpleCommand, depth: number, put: string[]): Comman
     if (head.dynamic && BUILT_SUBSCRIPT.test(head.text)) noteBuiltName(builtName(shown(joined(words))));
     // A command found further along other words starts with its executable (pipx run pip==25.0), not an assignment.
     if (ASSIGNMENT.test(head.text) && !(command.later === true && words === command.words)) {
-      assigned.push(head);
-      words = words.slice(1);
+      // A run of assignments is taken at once, which keeps a long run of them linear (X=1 X=1 … npm i x).
+      let end = 1;
+      while (end < words.length && ASSIGNMENT.test((words[end] as Word).text)) end += 1;
+      for (let index = 0; index < end; index += 1) {
+        const word = words[index] as Word;
+        if (index > 0 && word.dynamic && BUILT_SUBSCRIPT.test(word.text)) noteBuiltName(builtName(shown(joined(words.slice(index)))));
+        assigned.push(word);
+      }
+      words = words.slice(end);
     } else if (ELEMENT_ASSIGNMENT.test(head.text) && !(command.later === true && words === command.words)) {
       // bash refuses an assignment to an array element before a command and runs the command; a command of
       // assignments alone sets the elements, also of its tables of hashed commands and aliases (checked on GNU bash
