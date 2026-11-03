@@ -127,8 +127,15 @@ function runRules(
       ...(where.defaultPolicy === true ? { defaultPolicy: true as const } : {}),
       report: ({ level, ...finding }) => {
         const found: Finding = { rule: rule.id, level: level ?? rule.level, ...finding };
+        if (where.defaultPolicy !== true) {
+          findings.push(found);
+          return;
+        }
+        // A rule that ran without a policy too gives only its errors and warnings there: its notes are advice that
+        // depcurfew apply settles, which config-drift already lists (decision D-154).
+        if (rule.alsoWithDefaultPolicy === true && found.level === 'note') return;
         // Against the default policy every finding is a note that says so (decision D-149).
-        findings.push(where.defaultPolicy === true ? asDefaultFinding(found, rule) : found);
+        findings.push(asDefaultFinding(found, rule));
       },
       notice: (message, file, fix) => notice(rule.id, message, file, fix),
     });
@@ -195,8 +202,31 @@ export function runDoctor(
   const fallback = policy === undefined && !invalid && needing.length > 0 ? options.defaultPolicy : undefined;
   const report = examine(root, { policy, invalid, rules, tools, osv: options.osv, ...(fallback === undefined ? {} : { fallback }) });
   if (fallback === undefined) return report;
-  // The rules that need a policy, once more against the policy init would write; nothing else runs twice.
-  return withDefaultPolicy(report, examine(root, { policy: fallback, invalid: false, rules: needing, tools, defaultPolicy: true }));
+  // The rules that need a policy, once more against the policy init would write, with the rules that find more with
+  // one (decision D-154); nothing else runs twice.
+  const again = rules.filter((rule) => rule.requiresPolicy || rule.alsoWithDefaultPolicy === true);
+  return withDefaultPolicy(report, examine(root, { policy: fallback, invalid: false, rules: again, tools, defaultPolicy: true }), again);
+}
+
+/** Where and what a finding says, to tell the findings of a second run from those of the first. */
+function findingKey(finding: Finding): string {
+  const { file, line, column } = finding.location;
+  return [finding.rule, file, line ?? '', column ?? '', finding.message].join('\u0000');
+}
+
+/**
+ * The findings of the run against the default policy, without those of a rule that ran without a policy too and
+ * found the same already (decision D-154): a run without a policy reports them at their own level.
+ */
+function newFindings(report: DoctorReport, compared: DoctorReport, rules: readonly Rule[]): Finding[] {
+  const twice = new Map(rules.filter((rule) => !rule.requiresPolicy).map((rule) => [rule.id, rule]));
+  const seen = new Set(
+    report.findings.flatMap((finding) => {
+      const rule = twice.get(finding.rule);
+      return rule === undefined ? [] : [findingKey(asDefaultFinding(finding, rule))];
+    }),
+  );
+  return compared.findings.filter((finding) => !twice.has(finding.rule) || !seen.has(findingKey(finding)));
 }
 
 /**
@@ -205,8 +235,9 @@ export function runDoctor(
  * `policy: "default"` instead of skipped. Their notices are kept when they say what such a rule could not check;
  * the other notices, those of the files and of detection, are in the report already.
  */
-function withDefaultPolicy(report: DoctorReport, compared: DoctorReport): DoctorReport {
-  const findings = shortened(compared.findings);
+function withDefaultPolicy(report: DoctorReport, compared: DoctorReport, rules: readonly Rule[]): DoctorReport {
+  const findings = shortened(newFindings(report, compared, rules));
+  const twice = new Set(rules.filter((rule) => !rule.requiresPolicy).map((rule) => rule.id));
   // The results count the notes that are shown.
   const results = new Map(ruleResultsOf(compared.checked?.rules ?? [], findings).map((result) => [result.rule, result]));
   const shown = new Set(report.notices.map((notice) => notice.message));
@@ -228,7 +259,12 @@ function withDefaultPolicy(report: DoctorReport, compared: DoctorReport): Doctor
             files: [...new Set([...report.checked.files, ...(compared.checked?.files ?? [])])].sort(),
             rules: report.checked.rules.map((result) => {
               const own = results.get(result.rule);
-              return own === undefined ? result : { ...own, policy: 'default' as const };
+              if (own === undefined) return result;
+              if (!twice.has(result.rule)) return { ...own, policy: 'default' as const };
+              // A rule that ran without a policy too: its own result, with the notes only the default policy gave.
+              const added = findings.filter((finding) => finding.rule === result.rule).length;
+              if (added === 0) return result;
+              return result.result === 'problems' ? { ...result, notes: result.notes + added } : { ...result, result: 'problems' as const, notes: added, policy: 'default' as const };
             }),
           },
         }),

@@ -113,7 +113,7 @@ export async function doctor(
       const empty: DoctorReport = { schemaVersion: 1, policy: 'missing', findings: [], notices: [] };
       io.stdout(`${safeJson(toSarif(empty, RULES, getVersion(), undefined, [target.error]), 2)}\n`);
     } else if (format.json) {
-      io.stdout(json({ schemaVersion: 1, policy: null, findings: [], notices: [] }, [target.error], resolveFailOn(option, { failOn: undefined, file: POLICY_FILE })));
+      io.stdout(json({ schemaVersion: 1, policy: null, policySource: null, findings: [], notices: [] }, [target.error], resolveFailOn(option, { failOn: undefined, file: POLICY_FILE })));
     } else {
       reportInputError(target.error, io);
     }

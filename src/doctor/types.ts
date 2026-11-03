@@ -152,6 +152,13 @@ export interface Rule {
   /** Rules that compare the repository with depcurfew.json do not run without one. */
   requiresPolicy: boolean;
   /**
+   * A rule that runs without depcurfew.json but finds more with one: what a policy needs from the package manager
+   * version, or a file that only the rules that need a policy read. Without depcurfew.json it runs once more against
+   * the default policy with those rules, and the errors and warnings it finds only there are notes like theirs
+   * (decision D-154).
+   */
+  alsoWithDefaultPolicy?: true;
+  /**
    * Whether the rule concerns the project at all, from detection: the Python rules without a Python tool, the bot rules
    * without a bot. false shows the rule as "not applicable" in the list of what doctor checked (decision D-098). It
    * never changes findings: check still runs, and a rule that reports one has problems. Absent: it always applies.

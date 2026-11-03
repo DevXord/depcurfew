@@ -214,6 +214,10 @@ function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: T
         ? `${tool.name} ${formatBound(lowest)} in ${where} does not support ${list}`
         : `${where} allows ${tool.name} ${formatBound(lowest)} ("${declaration.version}"), which does not support ${list}`;
     const alternative = alternativeOf(missing, tool.name, advice);
+    const settled = alternative !== undefined && advice.now && advice.targeted && lowest.kind === 'exact' && compareVersions(lowest.version, alternative.version) >= 0;
+    // Against the default policy, a setting depcurfew apply writes for this repository settles it, and config-drift
+    // already lists that setting (decision D-154).
+    if (settled && context.defaultPolicy === true) continue;
     context.report({
       level: lowest.kind === 'exact' ? 'error' : 'warning',
       location: line === undefined ? { file: declaration.file } : { file: declaration.file, line },
@@ -271,6 +275,7 @@ export const managerVersionTooOld: Rule = {
   help: 'Raise the declared version to at least the version that introduced the setting, everywhere it is declared, or install a newer npm or pip before installing packages.',
   level: 'error',
   requiresPolicy: false,
+  alsoWithDefaultPolicy: true,
   // Any package manager: the rule also says that a policy does nothing for Yarn Classic, which is not supported.
   applies: (scope) => scope.detection.packageManagers.length > 0 || (scope.detection.ciForProjects?.length ?? 0) > 0,
   check(context) {

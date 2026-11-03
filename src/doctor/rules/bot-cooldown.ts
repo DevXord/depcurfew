@@ -447,7 +447,12 @@ function unprotectedEcosystems(context: RuleContext): void {
       ...(entry === undefined || configFile === undefined ? [] : [`Dependabot (an updates entry with package-ecosystem: ${entry.ecosystem} in ${configFile})`]),
       ...(manager === undefined ? [] : [`Renovate (its ${manager} manager)`]),
     ];
-    const then = context.policy?.cooldown === undefined ? 'then run depcurfew init and depcurfew apply, which give the bot a cooldown' : `then run depcurfew apply, which gives the bot the cooldown of ${POLICY_FILE}`;
+    const then =
+      context.policy === undefined
+        ? 'then run depcurfew init and depcurfew apply, which give the bot a cooldown'
+        : context.policy.cooldown === undefined
+          ? `then add a cooldown section with cooldown.minimum to ${POLICY_FILE} and run depcurfew apply, which gives the bot that cooldown`
+          : `then run depcurfew apply, which gives the bot the cooldown of ${POLICY_FILE}`;
     context.report({
       level: 'note',
       location: { file },

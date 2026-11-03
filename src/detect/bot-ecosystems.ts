@@ -49,7 +49,9 @@ export function detectBotEcosystems(repository: Repository, facts: readonly BotE
     for (const directory of directories) {
       for (const file of ecosystem.files) {
         const path = joinPath(directory, file);
-        if (repository.isFile(path)) found.add(path);
+        // A name in the directory itself is compared with its entries, so that NuGet.config and nuget.config name one
+        // file once on a file system that ignores case (macOS, Windows), with the name it has there.
+        if (file.includes('/') ? repository.isFile(path) : filesIn(directory).includes(file)) found.add(path);
       }
       const extensions = ecosystem.extensions ?? [];
       if (extensions.length === 0) continue;

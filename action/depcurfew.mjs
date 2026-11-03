@@ -18894,7 +18894,7 @@ function detectBotEcosystems(repository, facts, directories) {
 		for (const directory of directories) {
 			for (const file of ecosystem.files) {
 				const path = joinPath(directory, file);
-				if (repository.isFile(path)) found.add(path);
+				if (file.includes("/") ? repository.isFile(path) : filesIn(directory).includes(file)) found.add(path);
 			}
 			const extensions = ecosystem.extensions ?? [];
 			if (extensions.length === 0) continue;
@@ -24028,6 +24028,7 @@ function checkManager(context, manager, tool, features) {
 		const line = declarationLine(context, declaration);
 		const subject = lowest.kind === "exact" ? `${tool.name} ${formatBound(lowest)} in ${where} does not support ${list}` : `${where} allows ${tool.name} ${formatBound(lowest)} ("${declaration.version}"), which does not support ${list}`;
 		const alternative = alternativeOf(missing, tool.name, advice);
+		if (alternative !== void 0 && advice.now && advice.targeted && lowest.kind === "exact" && compareVersions$1(lowest.version, alternative.version) >= 0 && context.defaultPolicy === true) continue;
 		context.report({
 			level: lowest.kind === "exact" ? "error" : "warning",
 			location: line === void 0 ? { file: declaration.file } : {
@@ -24087,6 +24088,7 @@ const managerVersionTooOld = {
 	help: "Raise the declared version to at least the version that introduced the setting, everywhere it is declared, or install a newer npm or pip before installing packages.",
 	level: "error",
 	requiresPolicy: false,
+	alsoWithDefaultPolicy: true,
 	applies: (scope) => scope.detection.packageManagers.length > 0 || (scope.detection.ciForProjects?.length ?? 0) > 0,
 	check(context) {
 		for (const manager of [...context.detection.packageManagers, ...context.detection.ciForProjects ?? []].filter((entry) => entry.supported)) {
@@ -30784,6 +30786,7 @@ const unreadableConfig = {
 	help: "Fix what the message describes: invalid syntax, missing read permission, a symlink, a file over the size limit or a style depcurfew apply cannot edit.",
 	level: "error",
 	requiresPolicy: false,
+	alsoWithDefaultPolicy: true,
 	check(context) {
 		const reported = /* @__PURE__ */ new Set();
 		const reportWarning = (warning) => {
@@ -31223,7 +31226,7 @@ function unprotectedEcosystems(context) {
 		const entry = [...entries.values()].find((item) => item.id === found.id);
 		const manager = renovate === void 0 ? void 0 : botEcosystemTargets(renovate, [found.id])[0]?.manager;
 		const bots = [...entry === void 0 || configFile === void 0 ? [] : [`Dependabot (an updates entry with package-ecosystem: ${entry.ecosystem} in ${configFile})`], ...manager === void 0 ? [] : [`Renovate (its ${manager} manager)`]];
-		const then = context.policy?.cooldown === void 0 ? "then run depcurfew init and depcurfew apply, which give the bot a cooldown" : `then run depcurfew apply, which gives the bot the cooldown of ${POLICY_FILE}`;
+		const then = context.policy === void 0 ? "then run depcurfew init and depcurfew apply, which give the bot a cooldown" : context.policy.cooldown === void 0 ? `then add a cooldown section with cooldown.minimum to ${POLICY_FILE} and run depcurfew apply, which gives the bot that cooldown` : `then run depcurfew apply, which gives the bot the cooldown of ${POLICY_FILE}`;
 		context.report({
 			level: "note",
 			location: { file },
@@ -35041,7 +35044,12 @@ function runRules(root, policy, rules, tools, where = {}) {
 					level: level ?? rule.level,
 					...finding
 				};
-				findings.push(where.defaultPolicy === true ? asDefaultFinding(found, rule) : found);
+				if (where.defaultPolicy !== true) {
+					findings.push(found);
+					return;
+				}
+				if (rule.alsoWithDefaultPolicy === true && found.level === "note") return;
+				findings.push(asDefaultFinding(found, rule));
 			},
 			notice: (message, file, fix) => notice(rule.id, message, file, fix)
 		});
@@ -35108,13 +35116,37 @@ function runDoctor(root, options = {}) {
 		...fallback === void 0 ? {} : { fallback }
 	});
 	if (fallback === void 0) return report;
+	const again = rules.filter((rule) => rule.requiresPolicy || rule.alsoWithDefaultPolicy === true);
 	return withDefaultPolicy(report, examine(root, {
 		policy: fallback,
 		invalid: false,
-		rules: needing,
+		rules: again,
 		tools,
 		defaultPolicy: true
+	}), again);
+}
+/** Where and what a finding says, to tell the findings of a second run from those of the first. */
+function findingKey(finding) {
+	const { file, line, column } = finding.location;
+	return [
+		finding.rule,
+		file,
+		line ?? "",
+		column ?? "",
+		finding.message
+	].join("\0");
+}
+/**
+* The findings of the run against the default policy, without those of a rule that ran without a policy too and
+* found the same already (decision D-154): a run without a policy reports them at their own level.
+*/
+function newFindings(report, compared, rules) {
+	const twice = new Map(rules.filter((rule) => !rule.requiresPolicy).map((rule) => [rule.id, rule]));
+	const seen = new Set(report.findings.flatMap((finding) => {
+		const rule = twice.get(finding.rule);
+		return rule === void 0 ? [] : [findingKey(asDefaultFinding(finding, rule))];
 	}));
+	return compared.findings.filter((finding) => !twice.has(finding.rule) || !seen.has(findingKey(finding)));
 }
 /**
 * The report of a repository without depcurfew.json and the findings of the rules that need a policy against the
@@ -35122,8 +35154,9 @@ function runDoctor(root, options = {}) {
 * `policy: "default"` instead of skipped. Their notices are kept when they say what such a rule could not check;
 * the other notices, those of the files and of detection, are in the report already.
 */
-function withDefaultPolicy(report, compared) {
-	const findings = shortened(compared.findings);
+function withDefaultPolicy(report, compared, rules) {
+	const findings = shortened(newFindings(report, compared, rules));
+	const twice = new Set(rules.filter((rule) => !rule.requiresPolicy).map((rule) => rule.id));
 	const results = new Map(ruleResultsOf(compared.checked?.rules ?? [], findings).map((result) => [result.rule, result]));
 	const shown = new Set(report.notices.map((notice) => notice.message));
 	const notices = compared.notices.filter((notice) => results.has(notice.code) && !shown.has(notice.message));
@@ -35140,8 +35173,20 @@ function withDefaultPolicy(report, compared) {
 			files: [.../* @__PURE__ */ new Set([...report.checked.files, ...compared.checked?.files ?? []])].sort(),
 			rules: report.checked.rules.map((result) => {
 				const own = results.get(result.rule);
-				return own === void 0 ? result : {
+				if (own === void 0) return result;
+				if (!twice.has(result.rule)) return {
 					...own,
+					policy: "default"
+				};
+				const added = findings.filter((finding) => finding.rule === result.rule).length;
+				if (added === 0) return result;
+				return result.result === "problems" ? {
+					...result,
+					notes: result.notes + added
+				} : {
+					...result,
+					result: "problems",
+					notes: added,
 					policy: "default"
 				};
 			})

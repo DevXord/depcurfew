@@ -39,6 +39,22 @@ async function exec(...argv: string[]): Promise<{ code: number; stdout: string; 
   return { code, stdout, stderr };
 }
 
+/** A repository with these files in a new temporary directory, removed after the tests. */
+function scratch(files: Record<string, string>): string {
+  const directory = mkdtempSync(join(tmpdir(), 'depcurfew-default-policy-'));
+  temporary.push(directory);
+  for (const [name, text] of Object.entries(files)) writeFileSync(join(directory, name), text);
+  return directory;
+}
+
+const LOCKFILE = `${JSON.stringify({
+  name: 'app',
+  version: '1.0.0',
+  lockfileVersion: 3,
+  requires: true,
+  packages: { '': { name: 'app', version: '1.0.0', dependencies: { 'left-pad': '1.3.0' } }, 'node_modules/left-pad': { version: '1.3.0', resolved: 'https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz' } },
+})}\n`;
+
 type Json = DoctorReport & { summary: Record<string, number>; failOn: string; failOnFrom: string };
 
 async function json(directory: string, ...options: string[]): Promise<{ code: number; report: Json }> {
@@ -229,6 +245,44 @@ describe('doctor without depcurfew.json', () => {
     expect(report.notices.map((notice) => notice.code)).toContain('policy-invalid');
     expect(report.checked?.rules.find((entry) => entry.rule === 'config-drift')).toMatchObject({ result: 'skipped' });
     expect(report.checked?.rules.every((entry) => entry.policy === undefined)).toBe(true);
+  });
+
+  it('a pinned npm too old for the default policy is a note, which manager-version-too-old adds to its own result', async () => {
+    const directory = scratch({ 'package.json': '{"name":"app","version":"1.0.0","packageManager":"npm@10.9.2"}\n', 'package-lock.json': LOCKFILE });
+    const { code, report } = await json(directory);
+    expect(code).toBe(EXIT_OK);
+    const notes = report.findings.filter((finding) => finding.rule === 'manager-version-too-old');
+    expect(notes.length).toBeGreaterThan(0);
+    expect(notes.every((finding) => finding.level === 'note' && finding.policy === 'default')).toBe(true);
+    expect(notes[0]?.message).toContain('npm 10.9.2');
+    expect(notes[0]?.message).toContain('the default policy of depcurfew init');
+    expect(notes[0]?.fix).toMatch(/^Run depcurfew init to write depcurfew.json with the default policy; then /u);
+    expect(report.checked?.rules.find((entry) => entry.rule === 'manager-version-too-old')).toMatchObject({ result: 'problems', errors: 0, notes: notes.length, policy: 'default' });
+  });
+
+  it('a finding the rule makes without a policy too is not repeated as a note', async () => {
+    // npm 10.9.2 reads no min-release-age from .npmrc: an error of its own, which the default policy needs as well.
+    const directory = scratch({ 'package.json': '{"name":"app","version":"1.0.0","packageManager":"npm@10.9.2"}\n', 'package-lock.json': LOCKFILE, '.npmrc': 'min-release-age=3\n' });
+    const { code, report } = await json(directory);
+    expect(code).toBe(EXIT_FAILURE);
+    const findings = report.findings.filter((finding) => finding.rule === 'manager-version-too-old');
+    const errors = findings.filter((finding) => finding.level === 'error');
+    expect(errors.length).toBeGreaterThan(0);
+    for (const error of errors) {
+      expect(findings.filter((finding) => finding.location.line === error.location.line && finding.location.file === error.location.file && finding.message.startsWith(error.message))).toHaveLength(1);
+    }
+    const result = report.checked?.rules.find((entry) => entry.rule === 'manager-version-too-old');
+    expect(result).toMatchObject({ result: 'problems', errors: errors.length, notes: findings.length - errors.length });
+    expect(result?.policy).toBeUndefined();
+  });
+
+  it('a lockfile that only the rules that need a policy read is reported when it cannot be parsed', async () => {
+    const directory = scratch({ 'package.json': '{"name":"app","version":"1.0.0","packageManager":"npm@11.17.0"}\n', 'package-lock.json': '{ broken' });
+    const { code, report } = await json(directory);
+    expect(code).toBe(EXIT_OK);
+    const note = report.findings.find((finding) => finding.rule === 'unreadable-config' && finding.location.file === 'package-lock.json');
+    expect(note).toMatchObject({ level: 'note', policy: 'default' });
+    expect(report.checked?.rules.find((entry) => entry.rule === 'unreadable-config')).toMatchObject({ result: 'problems', policy: 'default' });
   });
 
   it('a valid depcurfew.json is the policy, as before', async () => {

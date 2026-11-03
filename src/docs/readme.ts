@@ -161,13 +161,16 @@ function policyTable(): string {
   return ['| Field | Values | Default | Meaning |', '| --- | --- | --- | --- |', ...rows].join('\n');
 }
 
-/** `fallback`: what a rule that needs the policy does without one; doctor compares with the default policy (decision D-149). */
-function rulesList(rules: readonly Rule[] = RULES, fallback = ' (without one: a note against the default policy)'): string {
+/**
+ * `fallback`: what a rule that needs the policy does without one; doctor compares with the default policy (decision
+ * D-149). `also`: what a rule that runs without one but finds more with one adds then (decision D-154).
+ */
+function rulesList(rules: readonly Rule[] = RULES, fallback = ' (without one: a note against the default policy)', also = ' · without depcurfew.json also a note against the default policy'): string {
   return rules.map((rule) =>
     [
       `### \`${rule.id}\``,
       '',
-      `**${rule.level}**${rule.requiresPolicy ? ` · needs depcurfew.json${fallback}` : ''} · ${rule.summary}`,
+      `**${rule.level}**${rule.requiresPolicy ? ` · needs depcurfew.json${fallback}` : rule.alsoWithDefaultPolicy === true ? also : ''} · ${rule.summary}`,
       '',
       rule.description,
       '',
@@ -466,7 +469,7 @@ export function readmeSections(inputs: ReadmeInputs): Record<string, string> {
   return {
     'user-config': userTable(inputs.tools),
     // doctor --user has no default policy to compare with.
-    'user-rules': rulesList(USER_RULES, ''),
+    'user-rules': rulesList(USER_RULES, '', ''),
     'default-policy': ['```json', renderPolicy(DEFAULT_POLICY).trimEnd(), '```'].join('\n'),
     'policy-fields': policyTable(),
     tools: toolsTable(inputs.tools, inputs.environment),
