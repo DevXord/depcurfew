@@ -2,6 +2,17 @@
 
 All notable changes for users of depcurfew. The project follows [semantic versioning](https://semver.org/): the policy file (`version: 1`), the command-line options, the exit codes and the JSON and SARIF output (`schemaVersion: 1`) only change in a backward-incompatible way in a new major version.
 
+## 1.5.1
+
+### Fixes
+
+- The declaration file `dist/index.d.ts` is the same in every build: `Policy` and `ResolvedPolicy` are written out as interfaces instead of inferred from the schema, whose properties TypeScript printed in an order that depended on the build. The types are the same. In 1.5.0 the file lists their properties in another order than a build of its tag, so the checksum of the 1.5.0 package differs from that build; a build of the 1.5.1 tag gives the checksum on npm again.
+
+### Releases
+
+- The Release workflow has two jobs. One installs, tests and packs the package and cannot ask for the token that publishes; the other runs no code of the repository or of its dependencies, checks that the packed file is the one the first job made (SHA-512) and stages exactly that file with provenance. The package is made from the tag as before.
+- CodeQL analyzes the code and the GitHub Actions workflows of the repository on every pull request, every push to `main` and every week.
+
 ## 1.5.0
 
 ### doctor before init

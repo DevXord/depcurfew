@@ -60,7 +60,7 @@ describe('npm in CI', () => {
   it.each([
     ['ci.yml', 'test'],
     ['ci.yml', 'runtime'],
-    ['release.yml', 'stage'],
+    ['release.yml', 'build'],
   ])('%s installs the npm of packageManager before npm ci', (name, id) => {
     const steps = (read(name).jobs[id] as Job).steps.map((step) => step.run ?? '');
     const upgrade = steps.indexOf(`npm install -g npm@${pinned}`);

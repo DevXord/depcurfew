@@ -91,7 +91,7 @@ node dist/cli.js doctor /path/to/your/repository
 
 ### Verifying a release
 
-Every release is built and published from its git tag by the [Release workflow](https://github.com/DevXord/depcurfew/blob/main/.github/workflows/release.yml) with npm trusted publishing, so the npm page of each version shows its provenance: the repository, the workflow and the commit it was built from. After installing, `npm audit signatures` checks the registry signature and the provenance attestation of every installed package, depcurfew included.
+Every release is built and published from its git tag by the [Release workflow](https://github.com/DevXord/depcurfew/blob/main/.github/workflows/release.yml) with npm trusted publishing, so the npm page of each version shows its provenance: the repository, the workflow and the commit it was built from. One job of the workflow installs, tests and packs the package without the right to publish it; a second job, which runs no code of the repository or of its dependencies, stages exactly the file the first one packed, after comparing its SHA-512 checksum. After installing, `npm audit signatures` checks the registry signature and the provenance attestation of every installed package, depcurfew included.
 
 The package contains nothing but the build of that commit, and anyone can check it: check out the tag, build it and compare the checksum with the one the registry serves, here for 1.4.1:
 

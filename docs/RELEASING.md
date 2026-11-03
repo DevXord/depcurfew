@@ -8,10 +8,10 @@ Fakty o npm, na których opiera się ta procedura (wymagane wersje, zachowanie e
 
 `.github/workflows/release.yml` uruchamia się po wypchnięciu tagu `vX.Y.Z`:
 
-1. Ma tylko uprawnienia `contents: read` i `id-token: write`, a akcje są przypięte do pełnych SHA.
-2. Na Node 24 sprawdza, że npm ma co najmniej 11.15.0 (etapowanie z trusted publishing), że tag zgadza się z wersją w `package.json` i że oznaczony commit jest w `main` (tag postawiony na innej gałęzi zatrzymuje workflow). Job ma limit 30 minut.
-3. Uruchamia `npm ci` (bez skryptów zależności), `npm test`, `typecheck`, `check:pkg` i zgodność bundla akcji, a potem `depcurfew doctor` na samym repozytorium.
-4. Wykonuje `npm stage publish --provenance`. npm uwierzytelnia się przez OIDC, a proweniencja powstaje, bo repozytorium i paczka są publiczne.
+1. Ma dwa joby (decyzja D-175), a akcje są przypięte do pełnych SHA. Tylko drugi może poprosić o token OIDC.
+2. **`build`** (tylko `contents: read`, limit 30 minut) na Node 24 z npm 11.19.1 sprawdza, że tag zgadza się z wersją w `package.json` i że oznaczony commit jest w `main` (tag postawiony na innej gałęzi zatrzymuje workflow). Uruchamia `npm ci` (bez skryptów zależności), `npm test`, `typecheck`, `check:pkg`, zgodność bundla akcji i `depcurfew doctor` na samym repozytorium. Na końcu `npm pack` zapisuje paczkę `depcurfew-X.Y.Z.tgz`, a `actions/upload-artifact` dołącza ją do przebiegu; nazwa pliku i jego `integrity` (SHA-512) są wyjściami joba.
+3. **`stage`** (tylko `id-token: write`, limit 10 minut, bez checkoutu) sprawdza, że npm ma co najmniej 11.15.0 (etapowanie z trusted publishing), pobiera plik przez `actions/download-artifact` i porównuje jego SHA-512 z `integrity` z joba `build`. Nie uruchamia kodu repozytorium ani zależności.
+4. `stage` wykonuje `npm stage publish ./depcurfew-X.Y.Z.tgz --provenance`. Dla gotowego pliku npm nie uruchamia żadnego skryptu. npm uwierzytelnia się przez OIDC, a proweniencja powstaje, bo repozytorium i paczka są publiczne.
 
 ## Jednorazowa konfiguracja (po stronie właściciela)
 
@@ -80,7 +80,7 @@ Kroki 2–4 trzeba wykonać jeden po drugim, a po kroku 3 w ciągu 2 dni wydać 
    git push origin vX.Y.Z
    ```
 
-3. **Workflow „Release”** w zakładce Actions sprawdza wszystko i etapuje paczkę. Jeśli któryś krok się nie uda, nic nie trafia do npm.
+3. **Workflow „Release”** w zakładce Actions sprawdza wszystko i etapuje paczkę. Jeśli któryś krok się nie uda, nic nie trafia do npm. Gdy nie uda się tylko job `stage` (na przykład chwilowy błąd rejestru), **Re-run failed jobs** etapuje ten sam plik z joba `build`.
 4. **Przegląd etapowanej wersji:**
 
    ```bash
@@ -100,7 +100,8 @@ Kroki 2–4 trzeba wykonać jeden po drugim, a po kroku 3 w ciągu 2 dni wydać 
 
 ## Gdy coś nie działa
 
-- **`ENEEDAUTH` przy etapowaniu:** nazwa pliku (`release.yml`), właściciel i repozytorium muszą zgadzać się dokładnie z konfiguracją trusted publishera, wielkość liter też. Workflow musi mieć `id-token: write` i działać na runnerze hostowanym przez GitHub.
+- **`ENEEDAUTH` przy etapowaniu:** nazwa pliku (`release.yml`), użytkownik i repozytorium muszą zgadzać się dokładnie z konfiguracją trusted publishera, wielkość liter też. Job `stage` musi mieć `id-token: write` i działać na runnerze hostowanym przez GitHub.
+- **Inna suma pliku w jobie `stage`:** plik pobrany z artefaktu nie jest tym, który spakował job `build`, i nic nie zostało etapowane. Zanim uruchomisz cokolwiek ponownie, porównaj w logach obu jobów nazwę pliku i sumę `sha512-…`.
 - **`E403` przy `npm access grant`:** paczka jeszcze nie istnieje w rejestrze (`npm view depcurfew` nic nie pokazuje). Najpierw wykonaj krok 2 jednorazowej konfiguracji; zespół dostaje dostęp tylko do istniejącej paczki. Tak było 2026-10-30: nazwa była jeszcze zablokowana po wycofaniu z 2026-10-29.
 - **Konfiguracja wygasła** (brak udanej publikacji w 2 dni): usuń ją, utwórz nową i od razu wydaj wersję.
 - **Brak proweniencji:** publikacja musi przejść przez OIDC z publicznego repozytorium, a paczka musi być publiczna.

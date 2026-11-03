@@ -2,6 +2,12 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-11-03 · 1.5.1: Release w dwóch jobach, CodeQL (D-175, D-176)
+
+- Wersja 1.5.1 w `package.json` i `package-lock.json`, sekcja 1.5.1 w `CHANGELOG.md` (plik deklaracji z D-174, workflow Release i CodeQL).
+- Workflow Release: job `build` bez `id-token` (testy, sprawdzenia, `npm pack`, `actions/upload-artifact` v7.0.2 z `archive: false`) i job `stage` tylko z `id-token: write`, bez checkoutu (`actions/download-artifact` v8.0.2, porównanie SHA-512 z wyjściem `build`, `npm stage publish ./depcurfew-X.Y.Z.tgz --provenance`); `docs/RELEASING.md` i „Verifying a release” w README opisują oba joby (D-175).
+- Nowy workflow `.github/workflows/codeql.yml`: CodeQL v4.39.1 dla `javascript-typescript` i `actions`, `build-mode: none`, bez `tests/fixtures` i `action/depcurfew.mjs` (D-176).
+
 ## 2026-11-03 · Wydanie 1.5.0 i przykład Action z SHA wydania; typy polityki jawnie (D-174)
 
 - `depcurfew@1.5.0` opublikowana 21:20 UTC z tagu `v1.5.0` (commit 2c45b13, scalenie PR #37) przez trusted publishing, z proweniencją SLSA. Pierwszy etap 1.5.0 (z commita bd654e2, przed poprawkami z pełnego sprawdzenia) został odrzucony, a tag i GitHub Release postawione ponownie.
