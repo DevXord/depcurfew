@@ -22,6 +22,7 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 ### Claude Code hook
 
 - The hook checks the packages named before the subcommand: `pnpm --package=x dlx y`, `npm --package=x exec y`, `yarn -p x dlx y` and `bun --package=x x y`, and the packages `npm exec` and `npm x` take from options after their arguments (`npm exec y --package=x`). Before, `pnpm --package=x dlx y` installed and ran `x` without a check.
+- The hook reads npm commands as npm resolves them: unique abbreviations and camelCase spellings such as `npm exe`, `npm installTest`, `npm ini` and `npm cre` are checked like `npm exec`, `npm install-test` and `npm init` (also with `--package` before them and inside `npm exe -c "…"`); before, they went through without a decision. A word npm cannot resolve to one command (`npm ex`, `npm install-`) runs nothing and gets no decision. `bun a` and `bun c`, Bun's aliases of `bun add` and `bun create`, are checked too.
 - The hook asks about `npm exec y "$X"` and other words the shell expands among the arguments of `npm exec` before `--`, since npm may read them as options; put `--` before the command. When a command has more than 10,000 package specs, every answer says that only the first 10,000 were looked up in the local data.
 
 ### Bundler (Ruby)
@@ -57,6 +58,7 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 - A hook deny for a known malicious version can have a second part, "depcurfew also cannot vouch for the rest of this command: …", and with more than 50 packages the hook's ">50" reason and the 10,000 note are two lines. `check --json` and `check_packages` can return non-empty `packages` together with `errors`, and `check_packages` with more than 50 specs and a listed version returns them with the new notice `too-many-packages`.
 - `osv update --json` has the fields `tooLarge` and `warnings`. A local data file larger than 128 MiB is not read.
 - A workspace package reached through several paths (symlinks inside the repository) is listed once, under the first path in sort order, and a symlink to the repository root is no longer a workspace package.
+- `bun ins x`, `bun it x` and other npm-only install words after `bun` are no longer read as Bun installs, because Bun runs a script or file there.
 - `targets` and the schema accept `"bundler"`. `Gemfile.lock` does not count as a lockfile depcurfew checks, so `lockfile-*` and `known-malicious` show "not applicable" for Bundler-only repositories.
 - Library: `runDoctor` has the new optional `defaultPolicy` and `detections` options, `Rule` the optional fields `alsoWithDefaultPolicy` and `alsoInComparedProjects`, and `CommandScan` from `scanCommandLine` an optional `aside` field. The texts of the `known-malicious` rule changed.
 

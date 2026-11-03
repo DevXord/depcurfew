@@ -2,7 +2,7 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
-## 2026-11-03 · 1.5.0: doctor przed init, lokalne dane OSV.dev, Bundler, boty dla Cargo, Go, Mavena, Gradle'a i NuGet (D-149–D-161)
+## 2026-11-03 · 1.5.0: doctor przed init, lokalne dane OSV.dev, Bundler, boty dla Cargo, Go, Mavena, Gradle'a i NuGet (D-149–D-163)
 
 - Wersja 1.5.0 w `package.json` i `package-lock.json`, sekcja 1.5.0 w `CHANGELOG.md`.
 - `doctor` bez `depcurfew.json` porównuje repozytorium z polityką, którą zapisałby `init`, i pokazuje różnice jako notatki w osobnym bloku (D-149); `manager-version-too-old` i `unreadable-config` także wobec tej polityki (D-154); najwyżej 20 projektów i jedno wykrycie katalogu na uruchomienie (D-157); lockfile'i tych projektów w `known-malicious` (D-161).
@@ -10,7 +10,7 @@ Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/
 - Opóźnienie w Dependabocie i Renovate dla Cargo, modułów Go, Mavena, Gradle'a i NuGet (D-151).
 - Bundler: `cooldown:` źródła rubygems.org w Gemfile, wersja z `BUNDLED WITH` i CI, reguła `bundler-config-weakens`, boty dla gemów, strona startowa Ruby (D-152); Gemfile czytany jak w Ruby, `.bundle/config` jak w Bundlerze, czas liniowy (D-159).
 - README i strona: lista tego, co depcurfew zatrzymuje, poradnik krok po kroku, praca obok innych narzędzi, sprawdzanie wydań i workflow „Verify release” (D-153).
-- Hook: opcje `--package` przed `dlx`/`exec`/`x` w pnpm, npm, Yarn i Bun (D-160); wykrywanie bez pętli symlinków w workspace'ach i granica repozytorium sprawdzana przed każdym odczytem (D-161); katalogi projektów różniące się wielkością liter w `init` (D-158).
+- Hook: opcje `--package` przed `dlx`/`exec`/`x` w pnpm, npm, Yarn i Bun (D-160); wykrywanie bez pętli symlinków w workspace'ach i granica repozytorium sprawdzana przed każdym odczytem (D-161); katalogi projektów różniące się wielkością liter w `init` (D-158); skróty i camelCase podpoleceń npm oraz aliasy `bun a` i `bun c` w hooku (D-162).
 
 ## 2026-11-02 · Dependabot pomija TypeScript 7 (D-148)
 
