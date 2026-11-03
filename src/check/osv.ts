@@ -386,13 +386,20 @@ function osvFinding(name: string, pkg: OsvPackage, verdict: OsvVerdict): CheckFi
     return { level: 'error', code: 'unverified', message: `it was not checked for known malicious versions in OSV.dev: ${verdict.reason}`, fix: OSV_RETRY_FIX };
   }
   if (verdict.malicious.length === 0) return undefined;
+  return maliciousFinding(name, pkg, verdict.malicious, verdict.source ?? 'osv-api');
+}
+
+/**
+ * known-malicious for a version with MAL- records (`ids`); `name` is the name of the report (with pypi: or composer:),
+ * and `source` says where the answer comes from: api.osv.dev or the local data of depcurfew osv update (decision D-150).
+ */
+export function maliciousFinding(name: string, pkg: OsvPackage, ids: readonly string[], source: OsvSource): CheckFinding {
   return {
     level: 'error',
     code: 'known-malicious',
     // A Composer version as composer require takes it (composer:vendor/name:1.2.3), as the other findings of check write it.
-    message: `${versionLabel(pkg.ecosystem, name, pkg.version)} is a known malicious version: OSV.dev lists it as ${linkedIds(verdict.malicious)}`,
+    message: `${versionLabel(pkg.ecosystem, name, pkg.version)} is a known malicious version: OSV.dev lists it as ${linkedIds(ids)}`,
     fix: 'Do not install it; pick another package or version. If it is installed anywhere already, remove it and read the record on OSV.dev for what it does',
-    // Where the answer comes from: api.osv.dev or the local data of depcurfew osv update (decision D-150).
-    source: verdict.source ?? 'osv-api',
+    source,
   };
 }

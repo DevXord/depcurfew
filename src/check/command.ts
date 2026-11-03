@@ -142,6 +142,12 @@ export interface CommandScan {
   requests: InstallRequest[];
   /** Why an install command could not be read; undefined when every one could. */
   unreadable: string | undefined;
+  /**
+   * scanCommandLine: the packages of the line read once more with the options that point a tool at another registry,
+   * index or configuration file read like any other option, when such an option left a command out (decision D-155).
+   * They are not checked against a registry; the hook looks up the versions they name exactly in the local OSV.dev data.
+   */
+  aside?: InstallRequest[];
   /** Options and variables that weaken what depcurfew apply configured, to be compared with the policy. */
   overrides?: Override[];
   /** A command on the line changes the package manager's configuration; it counts when the line installs packages. */
@@ -1303,8 +1309,25 @@ export function unreadableFix(reason: string): string {
   return 'Write the package names out in the command, so depcurfew can check them';
 }
 
+/**
+ * While set, the scan reads an option that points a tool at another registry, index or configuration file like any
+ * other option, so that the packages of its command are known (decision D-155): scanCommandLine sets it for a second
+ * reading of a line whose first reading left such a command out.
+ */
+let readingAside = false;
+/** The first reading left out a command for such an option. */
+let leftAside = false;
+
 /** Why an option may change where the tool fetches packages from; undefined when it does not. */
 function registryOption(tool: ToolCommands, name: string, value: string | undefined): string | undefined {
+  if (readingAside) return undefined;
+  const reason = registryReason(tool, name, value);
+  // Every caller leaves the command out for the reason, with the packages it names.
+  if (reason !== undefined) leftAside = true;
+  return reason;
+}
+
+function registryReason(tool: ToolCommands, name: string, value: string | undefined): string | undefined {
   if (tool.configOptions.some((pattern) => pattern.test(name))) return anotherRegistry(name);
   if (!tool.registryOptions.some((pattern) => pattern.test(name))) return undefined;
   return value !== undefined && sameRegistry(value, tool.publicRegistry) ? undefined : anotherRegistry(name);
@@ -4114,9 +4137,21 @@ export interface ScanOptions {
   windows?: boolean;
 }
 
-/** The packages a command line installs or downloads to run with npm, pnpm, Yarn, Bun, Deno, pip, uv, Poetry, PDM, Pipenv or pipx. */
+/**
+ * The packages a command line installs or downloads to run with npm, pnpm, Yarn, Bun, Deno, pip, uv, Poetry, PDM, Pipenv
+ * or pipx. When an option that points a tool at another registry, index or configuration file left a command out, the
+ * line is read once more with such options read like any other, and its packages are `aside` (decision D-155).
+ */
 export function scanCommandLine(line: string, options: ScanOptions = {}): CommandScan {
-  const previous = { aliases, expanding, work, variables, translated, unreadSets, noted, builtSetting, innerSetting, withInstalls, onWindows };
+  const first = scanOnce(line, options, false);
+  if (!first.leftAside) return first.scan;
+  return { ...first.scan, aside: scanOnce(line, options, true).scan.requests };
+}
+
+function scanOnce(line: string, options: ScanOptions, aside: boolean): { scan: CommandScan; leftAside: boolean } {
+  const previous = { aliases, expanding, work, variables, translated, unreadSets, noted, builtSetting, innerSetting, withInstalls, onWindows, readingAside, leftAside };
+  readingAside = aside;
+  leftAside = false;
   aliases = new Map();
   expanding = new Set();
   work = new Work();
@@ -4139,9 +4174,9 @@ export function scanCommandLine(line: string, options: ScanOptions = {}): Comman
     // Variables set apart from an install count only next to one (decision D-143).
     const counted = scan.overrides?.filter((override) => installs || !withInstalls.has(override)) ?? [];
     const overrides = counted.length === 0 ? undefined : counted.map(({ directory, ...override }) => ({ ...override, ...shownDirectory(directory) }));
-    return { requests: scan.requests.map(settle), unreadable, ...(overrides === undefined ? {} : { overrides }) };
+    return { scan: { requests: scan.requests.map(settle), unreadable, ...(overrides === undefined ? {} : { overrides }) }, leftAside };
   } finally {
-    ({ aliases, expanding, work, variables, translated, unreadSets, noted, builtSetting, innerSetting, withInstalls, onWindows } = previous);
+    ({ aliases, expanding, work, variables, translated, unreadSets, noted, builtSetting, innerSetting, withInstalls, onWindows, readingAside, leftAside } = previous);
   }
 }
 

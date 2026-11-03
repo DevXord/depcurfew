@@ -21,11 +21,12 @@ import { isComposerSpec } from '../check/composer.ts';
 import { findComposerCommand, type FoundCommand, type ScriptCommands } from '../check/composer-commands.ts';
 import { packagistUrl } from '../check/packagist.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
-import { blockingExitCode, decide, formatDecision, hookEventExample, readHookEvent, reasonText, requestedSpecs, UNREAD_REGISTRY_FIX_START, type PlacedRequest } from '../check/hook.ts';
+import { blockingExitCode, decide, formatDecision, hookEventExample, readHookEvent, reasonText, requestedSpecs, UNREAD_REGISTRY_FIX_START, type HookDecision, type PlacedRequest } from '../check/hook.ts';
 import { missingDirectory, notVirtualEnvironment, overrideDoubt, TOO_MANY, unknownDirectory, type CommandDirectory, type Override } from '../check/command.ts';
 import { defaultRegistry, type FetchLike, isLinkLocal, type LookupCache } from '../check/registry.ts';
 import { defaultIndex } from '../check/pypi.ts';
 import { addLocalOsvFindings, addOsvFindings, checkedEcosystems, type OsvLocalLookup } from '../check/osv.ts';
+import { addListedVersions, listedReports } from '../check/listed.ts';
 import { LocalOsvData } from '../osv/data.ts';
 import { localDataNotices } from '../osv/notices.ts';
 import { osvDataDirectory } from '../user/cache-path.ts';
@@ -928,9 +929,22 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
     return blockingExitCode();
   }
   if (event === undefined) return EXIT_OK;
+  // Known malicious versions come first (decision D-155): every spec of the command that names an exact version is
+  // looked up in the local OSV.dev data before anything can answer early, without the network, also with --osv.
+  let listed: PackageReport[] = [];
+  let local: LocalOsvData | undefined;
+  const dataNotes = (checked: readonly PackageReport[]) =>
+    flags.osv === true || local === undefined ? [] : localDataNotices(local, checkedEcosystems(checked), dependencies.now(), 'agent').map((notice) => `${notice.message}. ${notice.fix}`);
+  /** When depcurfew cannot check the command: deny for a listed version, with why the rest was not checked, else ask. */
+  const cannotCheckAll = (text: string): HookDecision =>
+    listed.length === 0
+      ? { decision: 'ask', reason: `depcurfew cannot check this command: ${reasonText(text)}` }
+      : decide(listed, undefined, [`depcurfew cannot check the rest of this command: ${text}`], dataNotes(listed));
   try {
-    const { specs, unreadable, overrides } = requestedSpecs(event.command, event.shell, (dependencies.platform?.() ?? process.platform) === 'win32');
+    const { specs, unreadable, overrides, listable } = requestedSpecs(event.command, event.shell, (dependencies.platform?.() ?? process.platform) === 'win32');
     if (specs.length === 0 && unreadable === undefined && overrides.length === 0) return EXIT_OK;
+    local = localOsvData(dependencies);
+    listed = listedReports(listable, local);
     const cwd = resolve(flags.dir ?? event.cwd ?? process.cwd());
     const projectDir = flags.dir === undefined ? (dependencies.projectDir ?? (() => process.env[projectDirVariable()]))() : undefined;
     const root = hookPolicyStart(cwd, projectDir);
@@ -952,7 +966,7 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
       // A nearer policy is named, so that the user is not pointed at the project's policy, which is fine (decision D-110).
       const { cause } = result;
       const text = result.nearer ? (cause.issues.length > 0 ? `${result.file} is invalid: ${cause.issues.join('; ')}` : `${result.file}: ${messageOf(cause)}`) : messageOf(cause);
-      io.stdout(formatDecision({ decision: 'ask', reason: `depcurfew cannot check this command: ${reasonText(text)}` }) ?? '');
+      io.stdout(formatDecision(cannotCheckAll(text)) ?? '');
       return EXIT_OK;
     };
     // The policies of the working directory apply to every install of the command, wherever it runs, so a change of
@@ -1001,14 +1015,15 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
       doubt ??= overrideDoubt(group.overrides, policies, sources.map((source) => source.file));
     }
     // Known malicious versions, once for the whole command: from api.osv.dev with --osv, else from the local OSV.dev
-    // data (decision D-150), whose age the agent hears about in the context.
-    const local = localOsvData(dependencies);
+    // data (decision D-150), whose age the agent hears about in the context. Then the listed versions that were not
+    // checked or got no version from the registry (decision D-155).
     if (flags.osv === true) await addOsvFindings(reports, { fetch: dependencies.fetch, lookups, local });
     else addLocalOsvFindings(reports, local);
-    const dataNotes = flags.osv === true ? [] : localDataNotices(local, checkedEcosystems(reports), dependencies.now(), 'agent').map((notice) => `${notice.message}. ${notice.fix}`);
-    io.stdout(formatDecision(decide(reports, unreadable ?? doubt, [...new Set(notes)], [...skipped.map(skippedNotice), ...dataNotes])) ?? '');
+    addListedVersions(reports, listed);
+    const warned = [...skipped.map(skippedNotice), ...dataNotes([...reports, ...listed])];
+    io.stdout(formatDecision(decide(reports, unreadable ?? doubt, [...new Set(notes)], warned)) ?? '');
   } catch (error) {
-    io.stdout(formatDecision({ decision: 'ask', reason: `depcurfew cannot check this command: ${reasonText(messageOf(error))}` }) ?? '');
+    io.stdout(formatDecision(cannotCheckAll(messageOf(error))) ?? '');
   }
   return EXIT_OK;
 }
@@ -1034,9 +1049,10 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     io.stdout(`${safeJson(document, 2)}\n`);
     return code;
   }
-  // Nothing is checked without a directory or with a policy that cannot be used.
+  // Nothing is checked without a directory or with a policy that cannot be used, except the versions the local OSV.dev
+  // data lists (decision D-155).
   for (const error of document.errors) reportInputError(error, io);
-  if (outcome.status !== 'checked') return code;
+  if (outcome.status !== 'checked' && document.packages.length === 0) return code;
   // Each notice starts with its level and ends with its code, as in doctor; what to do follows on its own line.
   const colors = paint(io.colors?.stderr);
   for (const notice of document.notices) {
@@ -1185,12 +1201,31 @@ export function policyNotices(applied: AppliedPolicy, npm: boolean, options: { a
   ];
 }
 
+/**
+ * The notices about the local OSV.dev data the reports were looked up in (decision D-150): when it is old or cannot be
+ * read; none with --osv.
+ */
+export function localNotices(local: LocalOsvData | undefined, reports: readonly PackageReport[], now: Date, options: { osv?: boolean | undefined; audience?: 'person' | 'agent' | undefined } = {}): CheckNotice[] {
+  if (local === undefined || options.osv === true) return [];
+  return localDataNotices(local, checkedEcosystems(reports), now, options.audience).map((entry): CheckNotice => ({
+    level: entry.level,
+    code: entry.code,
+    location: { file: entry.file },
+    message: entry.message,
+    fix: entry.fix,
+  }));
+}
+
 /** Checks the packages as depcurfew check does and returns the document of check --json. */
 export async function checkDocument(specs: readonly string[], settings: CheckSettings): Promise<CheckOutcome> {
-  // The same error shape as apply --json; nothing is checked without a directory or with a policy that cannot be used.
+  // Known malicious versions come first (decision D-155): the exact versions of the specs, looked up in the local
+  // OSV.dev data without the network, are reported also when nothing else is checked.
+  const listed = settings.local === undefined ? [] : listedReports(specs, settings.local);
+  const data = (reports: readonly PackageReport[]) => localNotices(settings.local, reports, settings.now, { osv: settings.osv, audience: settings.audience });
+  // The same error shape as apply --json; nothing else is checked without a directory or with a policy that cannot be used.
   const failed = (status: 'directory-error' | 'policy-error', policy: string | null, error: InputError): CheckOutcome => ({
     status,
-    document: { schemaVersion: 1, policy, packages: [], notices: [], errors: [error] },
+    document: { schemaVersion: 1, policy, packages: listed, notices: data(listed), errors: [error] },
   });
   const target = checkDirectory(settings.dir, settings.cwd);
   if (!target.ok) return failed('directory-error', null, target.error);
@@ -1211,18 +1246,9 @@ export async function checkDocument(specs: readonly string[], settings: CheckSet
     ...(settings.osv === true ? { osv: true } : {}),
     ...(settings.local === undefined ? {} : { local: settings.local }),
   });
+  addListedVersions(reports, listed);
   const npm = specs.some((spec) => !isPythonSpec(spec) && !isComposerSpec(spec));
   // Without --osv the versions were looked up in the local OSV.dev data: say when it is old or cannot be read.
-  const data =
-    settings.local === undefined || settings.osv === true
-      ? []
-      : localDataNotices(settings.local, checkedEcosystems(reports), settings.now, settings.audience).map((entry): CheckNotice => ({
-          level: entry.level,
-          code: entry.code,
-          location: { file: entry.file },
-          message: entry.message,
-          fix: entry.fix,
-        }));
-  const notices = [...policyNotices(applied, npm, { ...(settings.audience === undefined ? {} : { audience: settings.audience }), skipped }), ...data];
+  const notices = [...policyNotices(applied, npm, { ...(settings.audience === undefined ? {} : { audience: settings.audience }), skipped }), ...data([...reports, ...listed])];
   return { status: 'checked', document: { schemaVersion: 1, policy: applied.file, packages: reports, notices, errors: [] } };
 }
