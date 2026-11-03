@@ -7,6 +7,8 @@ const user = verifiedOn('2026-10-31');
 const runtimes = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
 const runners = verifiedOn('2026-11-03');
+// The user file of Bun before and after 1.4.4 (decision D-170).
+const d170 = verifiedOn('2026-11-03');
 const BUN_V1_4_4 = 'https://github.com/oven-sh/bun/blob/bun-v1.4.4';
 const BUNFIG_PARSER = `${BUN_V1_4_4}/src/bunfig/bunfig.rs`;
 
@@ -25,7 +27,7 @@ const noSetting = (anchor: string, kind: string): SourceKnowledge => ({
   ),
 });
 
-const WORKSPACES = 'https://github.com/oven-sh/bun/blob/main/docs/pm/workspaces.mdx';
+const WORKSPACES = `${BUN_V1_4_4}/docs/pm/workspaces.mdx`;
 
 export const bun: ToolKnowledge = {
   id: 'bun',
@@ -102,23 +104,39 @@ export const bun: ToolKnowledge = {
     directory: noSetting('local-paths', 'Local directory'),
   },
   project: {
-    lockfiles: uncertain(
+    lockfiles: d170.uncertain(
       [
         { since: '0.0.0', value: ['bun.lockb'] },
         { since: '1.2.0', value: ['bun.lock', 'bun.lockb'] },
       ],
-      'https://github.com/oven-sh/bun/blob/main/docs/pm/lockfile.mdx',
+      `${BUN_V1_4_4}/docs/pm/lockfile.mdx`,
       'Bun 1.2 made the text bun.lock the default (verified). That bun.lockb is still read afterwards is inferred from the documented migration command and from saveTextLockfile = false, which writes bun.lockb.',
     ),
-    manifests: verified(['package.json'], WORKSPACES),
-    workspaces: verified({ files: ['package.json'], key: 'workspaces' }, WORKSPACES, 'Full glob syntax, including ! patterns.'),
-    workspacesObjectKey: verified('packages', 'https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx', 'The object form also holds catalog and catalogs.'),
+    manifests: d170.verified(['package.json'], WORKSPACES),
+    workspaces: d170.verified({ files: ['package.json'], key: 'workspaces' }, WORKSPACES, 'Full glob syntax, including ! patterns.'),
+    workspacesObjectKey: d170.verified('packages', `${BUN_V1_4_4}/docs/pm/catalogs.mdx`, 'The object form also holds catalog and catalogs.'),
   },
   user: {
-    files: user.verified(
+    files: d170.verified(
       [
         {
           since: '0.0.0',
+          value: {
+            format: 'toml',
+            locations: [
+              {
+                platforms: ['linux', 'darwin', 'win32'],
+                directories: [
+                  { from: { env: 'XDG_CONFIG_HOME', emptyCounts: true }, path: '' },
+                  { from: 'home', path: '' },
+                ],
+                file: '.bunfig.toml',
+              },
+            ],
+          },
+        },
+        {
+          since: '1.4.4',
           value: {
             format: 'toml',
             locations: [
@@ -134,8 +152,8 @@ export const bun: ToolKnowledge = {
           },
         },
       ],
-      `${BUN_V1_4_4}/docs/runtime/bunfig.mdx`,
-      '"When XDG_CONFIG_HOME is set to an absolute path, Bun reads the file there and not the one in $HOME"; HOME is USERPROFILE on Windows (src/bun_core/env_var.rs). Only one file is read, with no fallback when the XDG one is missing (get_home_config_path in src/bunfig/arguments.rs). Only package manager commands read it (bun install, add, remove, update, pm, bunx and so on), before the project bunfig.toml, whose keys win. 1.2.0 already reads it, and the first version was not tracked; 1.2.0 and 1.3.0 used XDG_CONFIG_HOME whenever it was set, and the version that started requiring an absolute path was not pinned.',
+      `${BUN_V1_4_4}/src/bunfig/arguments.rs`,
+      'Since 1.4.4 get_home_config_path takes the first of XDG_CONFIG_HOME and HOME that is a fully qualified path ("The XDG specification says to ignore $XDG_CONFIG_HOME when it is empty or a relative path"; docs/runtime/bunfig.mdx at 1.4.4: "When XDG_CONFIG_HOME is set to an absolute path, Bun reads the file there and not the one in $HOME"); HOME is USERPROFILE on Windows (src/bun_core/env_var.rs). Before 1.4.4 Bun uses XDG_CONFIG_HOME whenever it is set, also to an empty or relative value (XDG_CONFIG_HOME.get().or_else(HOME) in src/bunfig/arguments.rs at bun-v1.4.3; the same in 1.4.0 and, in Zig, getHomeConfigPath in src/cli/Arguments.zig at bun-v1.3.0 and bun-v1.3.14), and joins it with join_abs_string_buf, which puts a / in place of the first character of a value without a leading separator (_joinAbsStringBuf in src/resolver/resolve_path.zig at bun-v1.3.0, src/paths/resolve_path.rs at bun-v1.4.0): XDG_CONFIG_HOME=cfg gives /fg/.bunfig.toml, an empty value /bunfig.toml, so Bun then reads neither the file below the current directory nor ~/.bunfig.toml. Only one file is read, with no fallback when the XDG one is missing. Only package manager commands read it (bun install, add, remove, update, pm, bunx and so on), before the project bunfig.toml, whose keys win. 1.2.0 already reads it; the first version was not tracked.',
     ),
     settings: user.verified(
       [
@@ -276,7 +294,7 @@ export const bun: ToolKnowledge = {
       `${BUN_V1_4_4}/docs/snippets/cli/add.mdx`,
       'bun add: <ParamField path="--cwd" type="string"> "Set a specific current working directory" (Global Configuration & Context); bun install has the same option, "Set a specific cwd" (docs/snippets/cli/install.mdx at the same tag, General Configuration).',
     ),
-    installOverrides: runtimes.verified(
+    installOverrides: d170.verified(
       {
         options: [
           { name: '--minimum-release-age', weakens: 'delay', values: 'delay' },
@@ -284,7 +302,7 @@ export const bun: ToolKnowledge = {
         ],
         variables: [],
       },
-      'https://github.com/oven-sh/bun/blob/main/docs/pm/cli/install.mdx',
+      `${BUN_V1_4_4}/docs/pm/cli/install.mdx`,
       'bun add @types/bun --minimum-release-age 259200 # seconds: "A number is in seconds", or a number with a unit such as 90m, 12 hours, 3d or 2 weeks (durationStrings). The page lists no environment variable for it. bun add --trust "adds the package to trustedDependencies in the project\'s package.json and installs it", so its lifecycle scripts run (docs/snippets/cli/add.mdx and docs/pm/lifecycle.mdx at bun-v1.4.4); lifecycle.mdx names no variable that turns scripts on, and ignore-scripts read from the environment "only turns scripts off".',
     ),
   },

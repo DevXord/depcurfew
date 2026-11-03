@@ -3,6 +3,8 @@ import { PLATFORMDIRS_CHANGELOG, PLATFORMDIRS_NOTE, platformdirsMacos } from './
 import type { DirectoryOptionsKnowledge, EnvironmentNameRule, RegistrySettingKnowledge, SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-30');
+// Facts whose sources D-170 pinned to a release tag or commit, checked again on 2026-11-03.
+const d170 = verifiedOn('2026-11-03');
 const user = verifiedOn('2026-10-31');
 const leftovers = verifiedOn('2026-11-01');
 const finalReview = verifiedOn('2026-11-01');
@@ -122,12 +124,12 @@ export const poetry: ToolKnowledge = {
   project: {
     lockfiles: verified([{ since: '0.0.0', value: ['poetry.lock'] }], `${POETRY}/src/poetry/factory.py`, 'Next to pyproject.toml.'),
     manifests: verified(['pyproject.toml'], `${POETRY}/docs/pyproject.md`),
-    workspaces: uncertain(
+    workspaces: d170.uncertain(
       null,
-      'https://github.com/python-poetry/poetry/issues/2270',
-      'Poetry has no workspaces: the 2.5.1 docs do not mention them and the request for subprojects is open.',
+      `${POETRY}/docs/pyproject.md`,
+      'Poetry has no workspaces: the pyproject.toml reference at 2.5.1 has no workspace or subproject setting, and the request for subprojects (python-poetry/poetry#2270) is open.',
     ),
-    workspacesObjectKey: uncertain(null, 'https://github.com/python-poetry/poetry/issues/2270', 'No workspaces.'),
+    workspacesObjectKey: d170.uncertain(null, `${POETRY}/docs/pyproject.md`, 'No workspaces.'),
   },
   user: {
     files: user.verified(
@@ -228,9 +230,9 @@ export const poetry: ToolKnowledge = {
       'installer.only-binary was added in 2.0.0; [":all:"] forbids source distributions of index packages when installing. Git and directory dependencies, and source archives from a URL or path, are built regardless (src/poetry/installation/executor.py at 2.5.1).',
     ),
     excludeFormat: disputed(
-      'The 2.5.1 docs give the type string, a comma-separated list; the docs on main (pull request #11087, not released) give array and say to use a TOML array in poetry.toml. The 2.5.1 code iterates the value as it is, so a string would be read letter by letter. Tested on 2026-10-30: a TOML array exempted the package in Poetry 2.4.0 and 2.5.1.',
+      'The 2.5.1 docs give the type string, a comma-separated list; the docs on main (from pull request #11087, not released; read at commit 6ecadf5b) give array and say to use a TOML array in poetry.toml. The 2.5.1 code iterates the value as it is, so a string would be read letter by letter. Tested on 2026-10-30: a TOML array exempted the package in Poetry 2.4.0 and 2.5.1.',
       evidence('comma-separated string', `${CONFIGURATION}#solvermin-release-age-exclude`),
-      evidence('TOML array', 'https://github.com/python-poetry/poetry/pull/11087'),
+      d170.evidence('TOML array', 'https://github.com/python-poetry/poetry/blob/6ecadf5b71309b1da4f00949cc349a79884cff8f/docs/configuration.md#solvermin-release-age-exclude'),
     ),
     excludeWildcards: verified({ since: null, trailingOnly: false }, `${CONFIGURATION}#solvermin-release-age-exclude`, 'Package names only.'),
     missingUploadTime: verified(
@@ -332,7 +334,7 @@ export const poetry: ToolKnowledge = {
       `${POETRY}/docs/cli.md`,
       'poetry config [options] [setting-key] [setting-value1] ... [setting-valueN] sets a key to a value (--local in poetry.toml of the project); --unset removes the key, --migrate migrates outdated settings and --list only shows them. "The source namespace groups subcommands to manage repository sources for a Poetry project": source add adds a source to pyproject.toml (also the priority of PyPI, with --priority), source remove removes one from it, and source show only shows them (docs/cli.md; src/poetry/console/commands/source/add.py and remove.py write pyproject.poetry_config["source"], and src/poetry/console/application.py lists source add, source remove and source show). The sources of pyproject.toml are where poetry add and poetry install take packages from (registrySettings).',
     ),
-    installOverrides: leftovers.verified(
+    installOverrides: d170.verified(
       {
         options: [],
         variables: [
@@ -341,7 +343,7 @@ export const poetry: ToolKnowledge = {
           { name: 'POETRY_SOLVER_MIN_RELEASE_AGE_EXCLUDE_SOURCE', weakens: 'delay', values: 'any' },
         ],
       },
-      'https://github.com/python-poetry/poetry/blob/main/docs/configuration.md',
+      CONFIGURATION,
       'Settings can be set with environment variables prefixed by POETRY_, the upper-case setting name with dots and dashes replaced by underscores; solver.min-release-age (int, days) is POETRY_SOLVER_MIN_RELEASE_AGE. poetry add has no option for it.',
     ),
   },

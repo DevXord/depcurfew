@@ -14,6 +14,7 @@ import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
 import type { ResolvedPolicy } from '../../policy/schema.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { COMPOSER_MANIFEST, lockedPluginApi } from '../composer.ts';
+import { yarnClassicFix } from '../unreadable-warnings.ts';
 import { readPythonSetting } from '../python.ts';
 import { lineOf, readSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
@@ -352,12 +353,11 @@ export const managerVersionTooOld: Rule = {
       const declaration = manager.versions.find((entry) => entry.source === 'yarnPath' || entry.source === 'packageManager');
       const file = declaration?.file ?? manager.evidence[0]?.file ?? 'package.json';
       const line = declaration === undefined ? undefined : declarationLine(context, declaration);
-      const since = sinceOf(berry.cooldown.availableSince);
       context.report({
         level: 'error',
         location: line === undefined ? { file } : { file, line },
         message: `Yarn Classic (1.x) has none of the settings ${POLICY_FILE} needs (release-age delay, install-script allow-list, dependency sources), so the policy does not apply to it`,
-        fix: `Move to ${berry.name}${since === undefined ? '' : ` ${since} or later`}, or to another package manager depcurfew configures`,
+        fix: yarnClassicFix(berry),
       });
     }
   },

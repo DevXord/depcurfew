@@ -65,9 +65,18 @@ export type ScriptPolicy =
   | 'deny-except-allowlist'
   | 'not-applicable';
 
+/** A config file that takes the release-age delay under another key or in another unit than the tool's setting. */
+export interface CooldownFileSetting {
+  file: string;
+  setting: string;
+  unit: DelayUnit;
+}
+
 export interface CooldownKnowledge {
   setting: Fact<string | null>;
   configFiles: Fact<readonly string[]>;
+  /** The config files whose key or unit for the delay differ from setting and unit (Deno's .npmrc). */
+  fileSettings?: Fact<readonly CooldownFileSetting[]>;
   cliFlag: Fact<string | null>;
   unit: Fact<DelayUnit | null>;
   availableSince: Fact<string | null>;
@@ -146,8 +155,11 @@ export interface UserDirectory {
   path: string;
   /** Use this directory only when it already exists (pip on macOS). */
   ifExists?: boolean;
-  /** Skip this directory while this environment variable is set and not empty (pip 26.2+ on macOS and XDG_DATA_HOME). */
-  unlessEnv?: string;
+  /**
+   * Skip this directory while this environment variable is set and not empty (pip 26.2 on macOS and XDG_DATA_HOME), or,
+   * with `absolute`, only while it is an absolute path (pip 26.3+, whose platformdirs ignores a relative value).
+   */
+  unlessEnv?: string | { env: string; absolute: true };
 }
 
 /** Where the user file is on some platforms: the first directory that applies is used. */
@@ -165,8 +177,16 @@ export interface UserFile {
   sections?: readonly string[];
   /** Other user-level files this version reads the same settings from, whose keys win over this file's. */
   overriddenBy?: readonly UserFile[];
-  /** INI only: the tool reads a key with underscores as the same key with dashes (pip: only_binary is only-binary). */
+  /**
+   * INI only: the tool reads a key without regard to case, with underscores as dashes and without a leading -- (pip:
+   * only_binary and --only-binary are only-binary).
+   */
   underscoresAsDashes?: boolean;
+  /**
+   * INI only: the tool stops on a file that has a section twice or a key twice in one section (Python's configparser in
+   * strict mode), comparing keys without regard to case, or as it reads them (`as-read`: underscoresAsDashes too).
+   */
+  duplicateKeys?: 'case-insensitive' | 'as-read';
   /** YAML only: the tool's loader applies merge keys (<<: *defaults), so merged keys count as keys of the map. */
   mergeKeys?: boolean;
 }

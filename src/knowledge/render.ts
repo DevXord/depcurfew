@@ -11,6 +11,8 @@ interface Column {
   style?: Style;
   /** How to show `null`. */
   empty?: string;
+  /** How to show an empty list, when not as [] (decision D-170). */
+  emptyList?: string;
 }
 
 interface Row {
@@ -43,7 +45,7 @@ export const TABLE_SECTIONS: readonly TableSection[] = [
     rows: singleRow,
     columns: [
       { title: 'Setting', path: 'cooldown.setting', style: 'code', empty: 'none' },
-      { title: 'Config files', path: 'cooldown.configFiles', style: 'code' },
+      { title: 'Config files', path: 'cooldown.configFiles', style: 'code', emptyList: 'none (no project file)' },
       { title: 'CLI flag', path: 'cooldown.cliFlag', style: 'code', empty: 'none' },
       { title: 'Unit', path: 'cooldown.unit', empty: 'none' },
       { title: 'Since', path: 'cooldown.availableSince', empty: 'n/a' },
@@ -146,15 +148,16 @@ function escapePlain(text: string): string {
   });
 }
 
-function formatValue(value: unknown, style: Style, empty: string): string {
+function formatValue(value: unknown, style: Style, empty: string, emptyList?: string): string {
   if (value === null || value === undefined) return empty;
   if (isVersioned(value)) {
     return value
-      .map((entry) => `${sinceLabel(entry.since, value.length)}: ${formatValue(entry.value, style, empty)}`)
+      .map((entry) => `${sinceLabel(entry.since, value.length)}: ${formatValue(entry.value, style, empty, emptyList)}`)
       .join('<br>');
   }
   if (Array.isArray(value)) {
-    return value.length === 0 ? `${style === 'code' ? '`[]`' : '[]'}` : value.map((item) => formatValue(item, style, empty)).join(', ');
+    if (value.length === 0) return emptyList ?? (style === 'code' ? '`[]`' : '[]');
+    return value.map((item) => formatValue(item, style, empty)).join(', ');
   }
   if (typeof value === 'object') return codeSpan(JSON.stringify(value));
   const text = String(value);
@@ -169,13 +172,13 @@ function link(evidence: Evidence<unknown>): string {
   return `[↗](${evidence.source})`;
 }
 
-function renderCell(fact: Fact<unknown> | undefined, style: Style, empty: string): string {
+function renderCell(fact: Fact<unknown> | undefined, style: Style, empty: string, emptyList?: string): string {
   if (fact === undefined) return '-';
   if (fact.status === 'disputed') {
-    return `⚠️ ${fact.variants.map((variant) => `${formatValue(variant.value, style, empty)} ${link(variant)}`).join(' / ')}`;
+    return `⚠️ ${fact.variants.map((variant) => `${formatValue(variant.value, style, empty, emptyList)} ${link(variant)}`).join(' / ')}`;
   }
   const marker = fact.status === 'uncertain' ? ' ❓' : '';
-  return `${formatValue(fact.value, style, empty)}${marker} ${link(fact)}`;
+  return `${formatValue(fact.value, style, empty, emptyList)}${marker} ${link(fact)}`;
 }
 
 function renderTable(section: TableSection, tools: readonly ToolKnowledge[]): string[] {
@@ -190,7 +193,7 @@ function renderTable(section: TableSection, tools: readonly ToolKnowledge[]): st
   for (const tool of tools.filter((entry) => section.kinds.includes(entry.kind))) {
     for (const row of section.rows(tool)) {
       const cells = section.columns.map((column) =>
-        escapeCell(renderCell(factAt(tool, row.prefix + column.path), column.style ?? 'text', column.empty ?? 'none')),
+        escapeCell(renderCell(factAt(tool, row.prefix + column.path), column.style ?? 'text', column.empty ?? 'none', column.emptyList)),
       );
       lines.push(`| ${escapeCell(row.label)} | ${cells.join(' | ')} |`);
     }

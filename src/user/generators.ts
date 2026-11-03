@@ -11,6 +11,7 @@ import { buildAllowList, buildSwitchScopeWarning, compactDuration, forcedBuildWa
 import { convertCooldown } from '../policy/convert.ts';
 import { allowedNames, cooldownValue, denyList, eachSource, exclusions, sameList, scriptsDefault, type SourceKind } from '../apply/generators/common.ts';
 import type { Context } from '../apply/generators/context.ts';
+import { dashedKey } from './ini-keys.ts';
 import { userFileFor } from './locate.ts';
 import { matchesPattern } from '../doctor/allow-lists.ts';
 import { delayMinutes, formatMinutes, userCooldownAmount, userDelayMinutes, type DelayValue } from '../doctor/durations.ts';
@@ -620,9 +621,13 @@ export function writeSectionBlock(
   managedKeys: readonly string[],
   options: { overriding?: boolean; marker?: string; underscoresAsDashes?: boolean } = {},
 ): string {
-  // pip reads only_binary as only-binary: a hand-written spelling with underscores is the same key (UserFile.underscoresAsDashes).
-  const keyOf = (line: string): string | undefined => (options.underscoresAsDashes === true ? keyOfLine(line)?.replaceAll('_', '-') : keyOfLine(line));
-  const managed = new Set(managedKeys.map((key) => (options.underscoresAsDashes === true ? key.replaceAll('_', '-') : key)));
+  // pip reads only_binary and --only-binary as only-binary: a hand-written spelling is the same key (UserFile.underscoresAsDashes).
+  const asRead = (key: string): string => (options.underscoresAsDashes === true ? dashedKey(key) : key);
+  const keyOf = (line: string): string | undefined => {
+    const key = keyOfLine(line);
+    return key === undefined ? undefined : asRead(key);
+  };
+  const managed = new Set(managedKeys.map(asRead));
   const marker = options.marker ?? blockStart();
   const removed = removeBlock(splitLines(body), marker);
   const name = section.toLowerCase();
@@ -652,8 +657,8 @@ export function writeSectionBlock(
 
 /** The hand-written value of a pip.conf key that pip install uses: [install] wins over [global]. */
 function pipFound(text: string, key: string, sections: PipSections): Found | undefined {
-  // pip reads only_binary as only-binary (UserFile.underscoresAsDashes in the pip knowledge).
-  const same = (candidate: string | undefined) => candidate?.replaceAll('_', '-') === key.replaceAll('_', '-');
+  // pip reads only_binary and --only-binary as only-binary (UserFile.underscoresAsDashes in the pip knowledge).
+  const same = (candidate: string | undefined) => candidate !== undefined && dashedKey(candidate) === dashedKey(key);
   let current: string | undefined;
   const found = new Map<string, Found>();
   outsideBlocks(text)

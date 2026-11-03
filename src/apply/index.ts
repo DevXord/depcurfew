@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { detectProject } from '../detect/index.ts';
 import { Repository } from '../detect/repository.ts';
 import { denyConflictText, outsideConflictText, remainingConflicts } from '../doctor/allow-lists.ts';
-import { UNREADABLE_WARNINGS } from '../doctor/unreadable-warnings.ts';
+import { UNREADABLE_WARNINGS, yarnClassicFix } from '../doctor/unreadable-warnings.ts';
 import type { Detection, PackageManagerInfo, VersionDeclaration, WorkflowJob } from '../detect/types.ts';
 import { jobsInProject, npmInUse, rootPlaces, type NpmInUse, type RootPlaces } from '../doctor/rules/bundled-versions.ts';
 import { SOURCE_LABEL } from '../doctor/rules/manager-version.ts';
@@ -20,7 +20,7 @@ import { readPolicyFile } from '../policy/file.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { formatIssue, parsePolicy } from '../policy/validate.ts';
 import { shortenedDelays } from './delays.ts';
-import { isRecord, sinceOf, values } from './facts.ts';
+import { isRecord, values } from './facts.ts';
 import { foldCase, ignoredByGit, ignoresCase, trackedFiles } from './gitignore.ts';
 import { bun } from './generators/bun.ts';
 import { bundler } from './generators/bundler.ts';
@@ -299,11 +299,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   for (const manager of detection.packageManagers) {
     if (!manager.supported && (policy.targets === 'auto' || targets.has(manager.id))) {
       const berry = tools.find((tool) => tool.id === manager.id);
-      const since = berry === undefined ? undefined : sinceOf(berry.cooldown.availableSince);
-      const advice =
-        manager.variant === 'classic' && berry !== undefined
-          ? `Move to ${berry.name}${since === undefined ? '' : ` ${since} or later`}, or to another package manager depcurfew configures`
-          : `Configure ${manager.id} by hand, or move to a package manager depcurfew configures`;
+      const advice = manager.variant === 'classic' && berry !== undefined ? yarnClassicFix(berry) : `Configure ${manager.id} by hand, or move to a package manager depcurfew configures`;
       warnings.push({
         code: 'tool-not-supported',
         tool: manager.id,

@@ -2,6 +2,8 @@ import { verifiedOn } from './define.ts';
 import type { DirectoryOptionsKnowledge, EnvironmentNameRule, OmitOptionalKnowledge, RootLifecycleScriptsKnowledge, RunnerOptionsKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
+// Facts whose sources D-170 pinned to a release tag or commit, checked again on 2026-11-03.
+const d170 = verifiedOn('2026-11-03');
 const checked = verifiedOn('2026-10-29');
 const reviewed = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
@@ -163,9 +165,9 @@ export const npm: ToolKnowledge = {
     ),
     manifests: verified(['package.json'], PACKAGE_JSON),
     workspaces: verified({ files: ['package.json'], key: 'workspaces' }, `${PACKAGE_JSON}#workspaces`, 'An array of folder paths or globs.'),
-    workspacesObjectKey: uncertain(
+    workspacesObjectKey: d170.uncertain(
       'packages',
-      'https://github.com/npm/map-workspaces/blob/main/lib/index.js',
+      'https://github.com/npm/map-workspaces/blob/v6.0.0/lib/index.js',
       'Not documented; npm\'s map-workspaces also accepts { "packages": [...] } and negated patterns.',
     ),
   },

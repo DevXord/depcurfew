@@ -2,6 +2,8 @@ import { verifiedOn } from './define.ts';
 import type { DirectoryOptionsKnowledge, EnvironmentNameRule, RootLifecycleScriptsKnowledge, RunnerOptionsKnowledge, SourceKnowledge, ToolKnowledge, UserLocation } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-28');
+// Facts whose sources D-170 pinned to a release tag or commit, checked again on 2026-11-03.
+const d170 = verifiedOn('2026-11-03');
 const checked = verifiedOn('2026-10-29');
 const reviewed = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
@@ -332,9 +334,9 @@ export const pnpm: ToolKnowledge = {
       `${PNPM_V12}/pnpm11/cli/parse-cli-args/src/index.ts`,
       'pnpm parses its command line with @pnpm/nopt 0.3.1 (github.com/pnpm/nopt, lib/nopt.js), a fork of nopt: every leading dash is stripped, an exact shorthand or a word of one-letter shorthands is expanded, and an unambiguous prefix of an option of the command is taken for that option, so pnpm add --reg=<url> sets registry; --no-<name> is a negated flag: lib/nopt.js strips every leading no- in any case, each one inverting it, before the prefix is resolved, so --no-ign is --no-ignore-scripts when no other option of the command starts with ign (parse-cli-args, shorthands.ts and pnpm/nopt read again 2026-11-01). Options pnpm does not know make it stop with an error (pnpm11/pnpm/src/main.ts, dropUnknownOptions). --config.<key>=<value> sets the setting <key> (separateConfigDotArgs, normalizeOptions), also in pnpm 10.34.9 (cli/parse-cli-args/src/index.ts). The shorthands are pnpm11/pnpm/src/shorthands.ts; pnpm 10.34.9 has the same without y.',
     ),
-    booleanWords: runtimes.verified(
+    booleanWords: d170.verified(
       true,
-      'https://github.com/pnpm/nopt/blob/main/lib/nopt.js',
+      'https://github.com/pnpm/nopt/blob/7f8522c60a84c04bed2ac792204d8c22172d295f/lib/nopt.js',
       'The nopt fork pnpm imports (@pnpm/nopt, imported by pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1) reads a Boolean option followed by the word true or false as that value and skips the word, inverted after --no- (parse in lib/nopt.js).',
     ),
     directoryOptions: runtimes.verified<DirectoryOptionsKnowledge>(

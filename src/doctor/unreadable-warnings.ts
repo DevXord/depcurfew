@@ -1,8 +1,20 @@
 // What to do about a file depcurfew could not read, by the code of the repository warning: the fix of unreadable-config
 // in doctor, and of the file-unreadable warning of apply.
+import { sinceOf } from '../apply/facts.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import { MAX_WORKSPACE_DIRECTORIES } from '../detect/workspaces.ts';
+import type { ToolKnowledge } from '../knowledge/types.ts';
+import { yarn } from '../knowledge/yarn.ts';
 import { MAX_LOCKFILE_SIZE, MAX_YAML_LOCKFILE_SIZE } from './lockfiles.ts';
+
+/**
+ * What to do about Yarn Classic, which depcurfew does not configure: move to the first Yarn with the release-age delay
+ * (cooldown.availableSince of Yarn). One text for explain, apply and doctor (decision D-170).
+ */
+export function yarnClassicFix(berry: ToolKnowledge = yarn): string {
+  const since = sinceOf(berry.cooldown.availableSince);
+  return `Move to ${berry.name}${since === undefined ? '' : ` ${since} or later`}, or to another package manager depcurfew configures`;
+}
 
 /** Repository warnings that mean a file was not checked. */
 export const UNREADABLE_WARNINGS: Readonly<Record<string, string>> = {
@@ -25,7 +37,7 @@ export const WARNING_FIXES: Readonly<Record<string, string>> = {
   'nothing-detected': `Run depcurfew explain in the directory of the project, or list the directories of the projects under projects in ${POLICY_FILE}`,
   'invalid-package-manager': 'Write packageManager in package.json as name@version, with a package manager depcurfew knows',
   'package-manager-assumed': 'Commit the lockfile, or name the package manager and its version in packageManager in package.json',
-  'yarn-classic-unsupported': 'Move to Yarn 2 or later, or to another package manager depcurfew configures',
+  'yarn-classic-unsupported': yarnClassicFix(),
   'renovate-config-in-package-json': 'Move the renovate key of package.json to renovate.json',
   'multiple-lockfiles': 'Remove the lockfiles of the package managers the project does not use',
   'package-manager-mismatch': 'Commit the lockfile of the package manager that packageManager in package.json names, or correct packageManager',

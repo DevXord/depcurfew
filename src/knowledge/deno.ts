@@ -8,6 +8,8 @@ const user = verifiedOn('2026-10-31');
 const leftovers = verifiedOn('2026-11-01');
 // The npm keys of deno.lock, whose versions doctor --osv reads (decision D-129).
 const osvFacts = verifiedOn('2026-11-02');
+// The key and unit of the delay in .npmrc, for the generated tables (decision D-170).
+const d170 = verifiedOn('2026-11-03');
 const DENO_V2_9_8 = 'https://github.com/denoland/deno/blob/v2.9.8';
 const NPMRC_PARSER = `${DENO_V2_9_8}/libs/npmrc/lib.rs`;
 const X_VALUE_OPTIONS = [
@@ -40,6 +42,11 @@ export const deno: ToolKnowledge = {
       ['deno.json', '.npmrc'],
       SUPPLY_CHAIN,
       'min-release-age in .npmrc since 2.8; also NPM_CONFIG_MIN_RELEASE_AGE. This page does not state precedence; denoland/deno#35458 gives CLI flag, deno.json, .npmrc, environment, built-in default.',
+    ),
+    fileSettings: d170.verified(
+      [{ file: '.npmrc', setting: 'min-release-age', unit: 'days' }],
+      NPMRC_PARSER,
+      'NpmRc::parse reads min-release-age "in days" (min_release_age_days: Option<u64>; "npm interprets the value as a number of days"), the same in the .npmrc next to package.json or deno.json and in the home one (discover_npmrc in libs/resolver/npmrc.rs at v2.9.8); deno.json and --minimum-dependency-age take minutes (unit).',
     ),
     cliFlag: verified(
       '--minimum-dependency-age',

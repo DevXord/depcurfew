@@ -2,6 +2,8 @@ import { verifiedOn } from './define.ts';
 import type { ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
+// Facts whose sources D-170 pinned to a release tag or commit, checked again on 2026-11-03.
+const d170 = verifiedOn('2026-11-03');
 const python = verifiedOn('2026-10-30');
 const review = verifiedOn('2026-10-31');
 const projects = verifiedOn('2026-11-01');
@@ -13,7 +15,7 @@ const d152 = verifiedOn('2026-11-03');
 const OPTIONS = 'https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference';
 const COOLDOWN_GA = 'https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/';
 const DEFAULT_COOLDOWN = 'https://github.blog/changelog/2026-07-14-dependabot-version-updates-introduce-default-package-cooldown/';
-const CORE = 'https://github.com/dependabot/dependabot-core/blob/main';
+const CORE = 'https://github.com/dependabot/dependabot-core/blob/v0.403.0';
 
 export const dependabot: ToolKnowledge = {
   id: 'dependabot',
@@ -60,7 +62,7 @@ export const dependabot: ToolKnowledge = {
     ),
   },
   installScripts: {
-    defaultPolicy: uncertain(
+    defaultPolicy: d170.uncertain(
       [{ since: '0.0.0', value: 'deny' }],
       `${CORE}/npm_and_yarn/lib/dependabot/npm_and_yarn/helpers.rb`,
       'From dependabot-core source, not the docs: npm, Yarn and Bun lockfile updates run with scripts disabled; for pnpm only --lockfile-only was found. bundler, mix and pip may execute external code.',
@@ -156,11 +158,11 @@ export const dependabot: ToolKnowledge = {
       'https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates',
       'The page says the number of cooldown days must be between 1 and 90; whether 0 is accepted is disputed (see dayRange).',
     ),
-    missingPublishDate: verified(
+    missingPublishDate: d170.verified(
       'Updates proceed when the registry gives no publication date (fail open); for Docker only Docker Hub tag_last_pushed is used',
       `${CORE}/docker/README.md`,
     ),
-    transitiveGating: uncertain(
+    transitiveGating: d170.uncertain(
       'Regular updates pass the cooldown to npm (11.10+), pnpm (10.16+) and Yarn Berry to hold back transitive dependencies; the Bun updater passes none',
       `${CORE}/npm_and_yarn/lib/dependabot/npm_and_yarn/file_updater/npm_lockfile_updater.rb`,
       'Read from dependabot-core source.',

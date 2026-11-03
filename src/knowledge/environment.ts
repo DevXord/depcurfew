@@ -7,6 +7,8 @@ import { osv } from './osv.ts';
 import { botOnlyEcosystems } from './bot-ecosystems.ts';
 
 const { verified } = verifiedOn('2026-10-28');
+// Facts whose sources D-170 pinned to a release tag or commit, checked again on 2026-11-03.
+const d170 = verifiedOn('2026-11-03');
 const checked = verifiedOn('2026-10-29');
 const python = verifiedOn('2026-10-30');
 const gitFacts = verifiedOn('2026-10-30');
@@ -21,8 +23,8 @@ const finalReview = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
 const ruby = verifiedOn('2026-11-03');
 
-const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
-const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
+const COREPACK_README = 'https://github.com/nodejs/corepack/blob/v0.36.0/README.md';
+const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/v0.36.0/CHANGELOG.md';
 const COREPACK_V0_36_0 = 'https://github.com/nodejs/corepack/blob/v0.36.0';
 /** The variables Corepack's code reads for its home folder, in order; a variable counts when it is set, even empty (??). */
 const COREPACK_VARIABLES: readonly UserDirectory[] = [
@@ -56,28 +58,28 @@ const FSEVENTS = 'https://github.com/fsevents/fsevents/blob/v2.3.3';
 export const environment: EnvironmentKnowledge = {
   botOnlyEcosystems,
   corepack: {
-    packageManagerField: verified(
+    packageManagerField: d170.verified(
       { key: 'packageManager', managers: ['npm', 'pnpm', 'yarn'] },
       COREPACK_README,
       'Format name@x.y.z, optionally followed by +<hash algorithm>.<hash>; a URL to a .js or .tgz file is also allowed. setup-bun also reads bun@x from this key.',
     ),
-    devEnginesSince: verified(
+    devEnginesSince: d170.verified(
       '0.32.0',
       COREPACK_CHANGELOG,
       'Limited support at first; since 0.36.0 Corepack uses the devEngines.packageManager range when packageManager is missing.',
     ),
-    envFileSince: verified(
+    envFileSince: d170.verified(
       '0.32.0',
       COREPACK_CHANGELOG,
       'Corepack reads COREPACK_* keys from .corepack.env; since 0.36.0 only the closest file. COREPACK_ENV_FILE=0 turns it off.',
     ),
-    bundledWithNode: verified(
+    bundledWithNode: d170.verified(
       [
         { since: '0.0.0', value: false },
         { since: '14.19.0', value: true },
         { since: '25.0.0', value: false },
       ],
-      'https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V25.md',
+      'https://github.com/nodejs/node/blob/v25.9.0/doc/changelogs/CHANGELOG_V25.md',
       'Node.js 25.0.0 stopped distributing Corepack; the Corepack README says it ships with Node.js from 14.19.0 up to (but not including) 25.0.0.',
     ),
     package: leftovers.verified(
@@ -123,7 +125,7 @@ export const environment: EnvironmentKnowledge = {
         '"COREPACK_HOME can be set in order to define where Corepack should install the package managers. By default it is set to %LOCALAPPDATA%\\node\\corepack on Windows, and to $HOME/.cache/node/corepack everywhere else."',
       ),
     ),
-    enableNpm: runtimes.verified(
+    enableNpm: d170.verified(
       { command: 'enable', npmOnlyWhenNamed: true },
       COREPACK_README,
       'corepack enable [... name] creates shims for the package managers it is given, or for all of them without parameters: "Note that the npm shims will not be installed unless explicitly requested, as npm is currently distributed with Node.js through other means". So corepack enable npm makes npm the version Corepack picks (packageManager), while a bare corepack enable leaves the bundled npm.',
@@ -329,17 +331,17 @@ export const environment: EnvironmentKnowledge = {
   ),
   devEnginesSince: verified('10.9.0', 'https://github.com/npm/cli/blob/v10.9.0/CHANGELOG.md', 'npm version that introduced devEngines.'),
   volta: {
-    manifest: verified(
+    manifest: d170.verified(
       { key: 'volta', tools: ['node', 'npm', 'pnpm', 'yarn'] },
-      'https://github.com/volta-cli/volta/blob/main/crates/volta-core/src/project/serial.rs',
+      'https://github.com/volta-cli/volta/blob/v2.0.2/crates/volta-core/src/project/serial.rs',
       'Also extends: a path to another JSON file with a volta key. pnpm support is experimental and needs VOLTA_FEATURE_PNPM=1.',
     ),
-    maintained: verified(false, 'https://github.com/volta-cli/volta/blob/main/README.md', 'The README says Volta is unmaintained and recommends migrating to mise.'),
+    maintained: d170.verified(false, 'https://github.com/volta-cli/volta/blob/5eedd5fb2f682baceb47a242289111fcd79435a5/README.md', 'The README says Volta is unmaintained and recommends migrating to mise.'),
   },
   asdf: {
-    toolVersionsFile: verified(
+    toolVersionsFile: d170.verified(
       '.tool-versions',
-      'https://github.com/asdf-vm/asdf/blob/master/docs/manage/configuration.md',
+      'https://github.com/asdf-vm/asdf/blob/v0.20.2/docs/manage/configuration.md',
       'One tool per line followed by one or more versions separated by spaces (fallbacks); # starts a comment.',
     ),
     plugins: verified(
@@ -358,7 +360,7 @@ export const environment: EnvironmentKnowledge = {
       'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id',
       'Read from the page source in github/docs (data/reusables/actions/jobs/section-using-jobs-in-a-workflow-id.md, main on 2026-11-02): "You must replace <job_id> with a string that is unique to the jobs object. The <job_id> must start with a letter or _ and contain only alphanumeric characters, -, or _." The runner checks names the same way with ASCII letters and digits (NameValidation.IsValid in src/Sdk/DTPipelines/Pipelines/Validation/NameValidation.cs of actions/runner, main on 2026-11-02: a-z, A-Z, _ anywhere, digits and, with hyphens allowed, - after the first character).',
     ),
-    setupNode: verified(
+    setupNode: d170.verified(
       {
         action: 'actions/setup-node',
         installs: ['node'],
@@ -367,7 +369,7 @@ export const environment: EnvironmentKnowledge = {
           { name: 'node-version-file', kind: 'version-file', tool: 'node' },
         ],
       },
-      'https://github.com/actions/setup-node/blob/main/action.yml',
+      'https://github.com/actions/setup-node/blob/v7.1.0/action.yml',
       'Current major v7. node-version-file reads package.json, .nvmrc, .node-version, .tool-versions or mise.toml; node-version wins when both are set.',
     ),
     setupNodeVersions: runtimes.verified(
@@ -395,12 +397,12 @@ export const environment: EnvironmentKnowledge = {
       'https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations#yaml-anchors-and-aliases',
       'Read from the page source in github/docs (content/actions/reference/workflows-and-actions/reusing-workflow-configurations.md, commit 23809bf of main on 2026-11-02), for GitHub.com and GitHub Enterprise Cloud: "You can use YAML anchors and aliases to reduce repetition in your workflows. An anchor (marked with &) identifies a piece of content that you want to reuse, while an alias (marked with *) repeats that content in another location." Its examples reuse the env map of a job (env: *env_vars) and a whole job (alt-test: *base_job), and say that this "is equivalent to writing the following YAML without anchors and aliases". The page does not mention merge keys (<<), so depcurfew does not apply them in workflows.',
     ),
-    pnpmActionSetup: verified(
+    pnpmActionSetup: d170.verified(
       { action: 'pnpm/action-setup', installs: ['pnpm'], inputs: [{ name: 'version', kind: 'version', tool: 'pnpm' }] },
-      'https://github.com/pnpm/action-setup/blob/master/action.yml',
+      'https://github.com/pnpm/action-setup/blob/v6.1.1/action.yml',
       'Current major v6. Without version the action reads devEngines.packageManager or packageManager from package.json (package_json_file).',
     ),
-    pnpmSetup: verified(
+    pnpmSetup: d170.verified(
       {
         action: 'pnpm/setup',
         installs: ['pnpm'],
@@ -410,10 +412,10 @@ export const environment: EnvironmentKnowledge = {
           { name: 'node-version-file', kind: 'version-file', tool: 'node' },
         ],
       },
-      'https://github.com/pnpm/setup/blob/main/action.yml',
+      'https://github.com/pnpm/setup/blob/v3.1.2/action.yml',
       'For pnpm 11 and later. Without version it reads devEngines.packageManager or packageManager; runtime takes <name>@<version> for node, bun or deno.',
     ),
-    setupBun: verified(
+    setupBun: d170.verified(
       {
         action: 'oven-sh/setup-bun',
         installs: ['bun'],
@@ -422,10 +424,10 @@ export const environment: EnvironmentKnowledge = {
           { name: 'bun-version-file', kind: 'version-file', tool: 'bun' },
         ],
       },
-      'https://github.com/oven-sh/setup-bun/blob/main/action.yml',
+      'https://github.com/oven-sh/setup-bun/blob/v2.2.0/action.yml',
       'Current major v2. Without bun-version it reads packageManager (bun@x), then engines.bun, then installs latest.',
     ),
-    setupDeno: verified(
+    setupDeno: d170.verified(
       {
         action: 'denoland/setup-deno',
         installs: ['deno'],
@@ -434,7 +436,7 @@ export const environment: EnvironmentKnowledge = {
           { name: 'deno-version-file', kind: 'version-file', tool: 'deno' },
         ],
       },
-      'https://github.com/denoland/setup-deno/blob/main/action.yml',
+      'https://github.com/denoland/setup-deno/blob/v2.0.5/action.yml',
       'Current major v2. deno-version defaults to 2.x; deno-version-file reads .dvmrc or .tool-versions.',
     ),
     setupPython: python.verified(
@@ -495,7 +497,7 @@ export const environment: EnvironmentKnowledge = {
       'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#stopping-and-starting-workflow-commands',
       'Lines between the two are logged without being processed as workflow commands. The token must be randomly generated and unique for each run. Read from the page source in github/docs.',
     ),
-    annotations: checked.verified(
+    annotations: d170.verified(
       {
         commands: { error: 'error', warning: 'warning', note: 'notice' },
         properties: { file: 'file', line: 'line', title: 'title' },
@@ -509,12 +511,12 @@ export const environment: EnvironmentKnowledge = {
           [',', '%2C'],
         ],
       },
-      'https://github.com/actions/toolkit/blob/main/packages/core/src/command.ts',
+      'https://github.com/actions/toolkit/blob/0c3a9c332b678ff1e776f93d728a4ad279803abe/packages/core/src/command.ts',
       'escapeData and escapeProperty in @actions/core: the message and property values replace %, CR and LF; property values also replace : and , because properties are separated by commas. The commands and their file, line and title parameters are on https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands (line counts from 1).',
     ),
-    annotationLimits: checked.verified(
+    annotationLimits: d170.verified(
       { perLevelPerStep: 10, perJob: 50 },
-      'https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations',
+      'https://github.com/actions/toolkit/blob/0c3a9c332b678ff1e776f93d728a4ad279803abe/docs/problem-matchers.md#limitations',
       '10 error, 10 warning and 10 notice annotations per step; 50 annotations per job, summed over all steps. Annotations over the limit are not shown.',
     ),
     checkRuns: actionChecks.verified(

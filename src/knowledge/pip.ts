@@ -21,6 +21,8 @@ const PARSER = `${PIP}/src/pip/_internal/cli/parser.py`;
 const user = verifiedOn('2026-10-31');
 const finalReview = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
+// pip 26.3 (2026-11-02): platformdirs 4.12.4 and the parser that normalizes key names (decision D-170).
+const d170 = verifiedOn('2026-11-03');
 
 const noSetting = (kind: string): SourceKnowledge => ({
   setting: uncertain(
@@ -118,7 +120,7 @@ export const pip: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, REQUIREMENTS_FORMAT, 'No workspaces.'),
   },
   user: {
-    files: user.verified(
+    files: d170.verified(
       [
         {
           since: '0.0.0',
@@ -143,6 +145,7 @@ export const pip: ToolKnowledge = {
             ],
             sections: ['global', 'install', 'download', 'wheel', 'lock', 'index', 'list'],
             underscoresAsDashes: true,
+            duplicateKeys: 'case-insensitive',
           },
         },
         {
@@ -174,11 +177,46 @@ export const pip: ToolKnowledge = {
             ],
             sections: ['global', 'install', 'download', 'wheel', 'lock', 'index', 'list'],
             underscoresAsDashes: true,
+            duplicateKeys: 'case-insensitive',
+          },
+        },
+        {
+          // platformdirs 4.12.4 (vendored from pip 26.3) takes an XDG variable only when it is an absolute path
+          // (_xdg_dir in _xdg.py: "return path if posixpath.isabs(path) else None"), and pip's own parser normalizes the
+          // key names (_RawConfigParser.optionxform in configuration.py), so only_binary next to only-binary in one
+          // section is a key given twice.
+          since: '26.3.0',
+          value: {
+            format: 'ini',
+            locations: [
+              {
+                platforms: ['linux'],
+                directories: [{ from: { env: 'XDG_CONFIG_HOME', absolute: true }, path: 'pip' }, { from: 'home', path: '.config/pip' }],
+                file: 'pip.conf',
+              },
+              {
+                platforms: ['darwin'],
+                directories: [
+                  { from: { env: 'XDG_DATA_HOME', absolute: true }, path: 'pip', ifExists: true },
+                  { from: 'home', path: 'Library/Application Support/pip', ifExists: true, unlessEnv: { env: 'XDG_DATA_HOME', absolute: true } },
+                  { from: 'home', path: '.config/pip' },
+                ],
+                file: 'pip.conf',
+              },
+              {
+                platforms: ['win32'],
+                directories: [{ from: { env: 'APPDATA' }, path: 'pip' }, { from: 'home', path: 'AppData/Roaming/pip' }],
+                file: 'pip.ini',
+              },
+            ],
+            sections: ['global', 'install', 'download', 'wheel', 'lock', 'index', 'list'],
+            underscoresAsDashes: true,
+            duplicateKeys: 'as-read',
           },
         },
       ],
       `${CONFIGURATION}#location`,
-      'The user file is pip.conf (pip.ini on Windows) in appdirs.user_config_dir("pip") (configuration.py), written in INI with [global] and per-command sections. Linux: $HOME/.config/pip/pip.conf, "which respects the XDG_CONFIG_HOME environment variable" (used when it is not empty after stripping spaces, vendored platformdirs _xdg.py). A relative XDG_CONFIG_HOME is used as it is, so pip reads <value>/pip/pip.conf relative to the directory each command runs in: XDGMixin.user_config_dir in src/pip/_vendor/platformdirs/_xdg.py at 26.2.2 returns the stripped value with no absolute-path check, _append_app_name_and_version (api.py) only joins the app name, and utils/appdirs.py and configuration.py (os.path.join, then os.path.exists and parser.read) make nothing absolute; 26.1.1 (platformdirs 4.5.1, Unix.user_config_dir in unix.py) does the same without stripping the value. macOS: ~/Library/Application Support/pip when that directory exists, else ~/.config/pip, where XDG_CONFIG_HOME is not used (utils/appdirs.py: _macos_user_config_dir takes platformdirs user_data_dir when os.path.isdir); since 26.2 that user_data_dir is $XDG_DATA_HOME/pip when XDG_DATA_HOME is not empty after stripping spaces, so with XDG_DATA_HOME set the Library directory is skipped and ~/.config/pip is used unless $XDG_DATA_HOME/pip exists (XDGMixin in src/pip/_vendor/platformdirs/_xdg.py at 26.2.2; src/pip/_vendor/vendor.txt names platformdirs 4.10.0 in 26.2 and 4.5.1 in 26.1.1, whose macos.py has no XDG handling). Windows: %APPDATA%\\pip\\pip.ini; platformdirs asks Windows for the Roaming AppData known folder, which APPDATA normally names. The legacy ~/.pip/pip.conf (%HOME%\\pip\\pip.ini) is loaded as well, below this file. Same path code in 25.0; earlier versions are not tracked. A command reads [global] and the section named after itself, which wins key by key (override_order ["global", self.name, ":env:"] in cli/parser.py); the options doctor --user checks (index_group and package_selection_group in cli/cmdoptions.py) belong to install, download, wheel, lock, index and list (src/pip/_internal/commands at 26.2.2). Keys are read without regard to case and with underscores as dashes, so only_binary in a file is the same setting as only-binary, and the later one wins (_normalize_name in src/pip/_internal/configuration.py at 26.2.2: name.lower().replace("_", "-"), applied to every key of every file).',
+      'The user file is pip.conf (pip.ini on Windows) in appdirs.user_config_dir("pip") (configuration.py), written in INI with [global] and per-command sections. Linux: $HOME/.config/pip/pip.conf, "which respects the XDG_CONFIG_HOME environment variable" (used when it is not empty after stripping spaces, vendored platformdirs _xdg.py). A relative XDG_CONFIG_HOME is used as it is, so pip reads <value>/pip/pip.conf relative to the directory each command runs in: XDGMixin.user_config_dir in src/pip/_vendor/platformdirs/_xdg.py at 26.2.2 returns the stripped value with no absolute-path check, _append_app_name_and_version (api.py) only joins the app name, and utils/appdirs.py and configuration.py (os.path.join, then os.path.exists and parser.read) make nothing absolute; 26.1.1 (platformdirs 4.5.1, Unix.user_config_dir in unix.py) does the same without stripping the value. From 26.3 ("Upgrade platformdirs to 4.12.4", NEWS.rst at 26.3) _xdg_dir in src/pip/_vendor/platformdirs/_xdg.py returns the stripped value only when posixpath.isabs, so a relative XDG_CONFIG_HOME is ignored and pip reads ~/.config/pip/pip.conf. macOS: ~/Library/Application Support/pip when that directory exists, else ~/.config/pip, where XDG_CONFIG_HOME is not used (utils/appdirs.py: _macos_user_config_dir takes platformdirs user_data_dir when os.path.isdir); since 26.2 that user_data_dir is $XDG_DATA_HOME/pip when XDG_DATA_HOME is not empty after stripping spaces, so with XDG_DATA_HOME set the Library directory is skipped and ~/.config/pip is used unless $XDG_DATA_HOME/pip exists (XDGMixin in src/pip/_vendor/platformdirs/_xdg.py at 26.2.2; src/pip/_vendor/vendor.txt names platformdirs 4.10.0 in 26.2 and 4.5.1 in 26.1.1, whose macos.py has no XDG handling); from 26.3 only an absolute XDG_DATA_HOME counts, so a relative one leaves the Library directory in use (XDGMixin.user_data_dir with _xdg_dir at 26.3). Windows: %APPDATA%\\pip\\pip.ini; platformdirs asks Windows for the Roaming AppData known folder, which APPDATA normally names. The legacy ~/.pip/pip.conf (%HOME%\\pip\\pip.ini) is loaded as well, below this file. Same path code in 25.0; earlier versions are not tracked. A command reads [global] and the section named after itself, which wins key by key (override_order ["global", self.name, ":env:"] in cli/parser.py); the options doctor --user checks (index_group and package_selection_group in cli/cmdoptions.py) belong to install, download, wheel, lock, index and list (src/pip/_internal/commands at 26.2.2). Keys are read without regard to case, with underscores as dashes and without a leading -- (_normalize_name in src/pip/_internal/configuration.py at 26.2.2 and 26.3: name.lower().replace("_", "-") and removeprefix("--"), the same in 25.0), so only_binary and --only-binary in a file are the setting only-binary. pip parses each file with configparser.RawConfigParser, whose strict mode (strict=True by default, Lib/configparser.py of CPython 3.9 to 3.14) raises DuplicateSectionError for a section given twice and DuplicateOptionError for a key given twice in one section; pip turns that into ConfigurationFileCouldNotBeLoaded and stops (_construct_parser). Before 26.3 the parser compares keys in lower case only (the default optionxform), so only_binary next to only-binary in one section is read as one setting and the later line wins (_normalized_keys); from 26.3 the parser normalizes the names itself (_RawConfigParser.optionxform calls _normalize_name), so such a file stops pip.',
     ),
     settings: user.verified(
       [
@@ -209,7 +247,7 @@ export const pip: ToolKnowledge = {
       FORMAT_CONTROL,
       'In any section of any pip.conf: [install] beats [global], and a later file (a virtual environment pip.conf, PIP_CONFIG_FILE) beats the user file per key, an empty value removing it (cli/parser.py). :all: in one of the lists clears the other and :none: clears its own (handle_mutual_excludes). P0D overrides a configured duration, and "Local package files are allowed regardless of the --uploaded-prior-to setting", find-links directories included (user_guide.rst). A requirements file can also pass --no-binary or --only-binary, but not --uploaded-prior-to.',
     ),
-    variables: user.verified(
+    variables: d170.verified(
       [
         { name: 'PIP_CONFIG_FILE', values: 'any', effect: 'pip loads this file last; when it exists the user pip.conf is not loaded, and os.devnull turns every configuration file off' },
         { name: 'PIP_UPLOADED_PRIOR_TO', values: 'any', effect: 'overrides uploaded-prior-to from every pip.conf' },
@@ -217,7 +255,7 @@ export const pip: ToolKnowledge = {
         { name: 'PIP_NO_BINARY', values: 'any', effect: 'is applied after every pip.conf and builds these packages from source; :all: clears only-binary' },
       ],
       CONFIGURATION,
-      '"Note that if a file exists at the location that this is set to, the user config file will not be loaded." PIP_<NAME> variables are applied after the [global] and command sections of all files, and the command line beats them (cli/parser.py, override_order). --isolated, a flag, ignores environment variables and user configuration. XDG_CONFIG_HOME (Linux) and XDG_DATA_HOME (macOS, 26.2) move the user directory (see files).',
+      '"Note that if a file exists at the location that this is set to, the user config file will not be loaded." PIP_<NAME> variables are applied after the [global] and command sections of all files, and the command line beats them (cli/parser.py, override_order). --isolated, a flag, ignores environment variables and user configuration. XDG_CONFIG_HOME (Linux) and XDG_DATA_HOME (macOS, 26.2) move the user directory, from 26.3 only when they are absolute paths (see files).',
     ),
   },
   extra: {
@@ -414,20 +452,20 @@ export const pip: ToolKnowledge = {
       '--index-url is the base URL of the index; --pip-args is split and handed to pip, so it may carry --extra-index-url, --find-links or --no-index. With the pip backend pipx passes the PIP_* variables on to pip; with the uv backend it ignores them and uv reads its own (docs/how-to/use-uv-backend.rst); both kinds are registry variables of pip and uv.',
     ),
     latestVersion: verified('26.2.2', NEWS, 'Released on 2026-10-20.'),
-    configCommands: guard.verified(
+    configCommands: d170.verified(
       [
         { command: ['pip', 'config'], writes: ['set', 'unset', 'edit'] },
         { command: ['pip3', 'config'], writes: ['set', 'unset', 'edit'] },
       ],
-      'https://github.com/pypa/pip/blob/main/src/pip/_internal/commands/configuration.py',
+      `${PIP}/src/pip/_internal/commands/configuration.py`,
       'pip config list, edit, get, set, unset and debug: set and unset change a value and save the file, edit opens it in an editor, list, get and debug only read. Without --user, --global or --site the site file is used if one exists, else the user file.',
     ),
-    installOverrides: guard.verified(
+    installOverrides: d170.verified(
       {
         options: [{ name: '--uploaded-prior-to', weakens: 'delay', values: 'delay' }],
         variables: [{ name: 'PIP_UPLOADED_PRIOR_TO', weakens: 'delay', values: 'delay' }],
       },
-      'https://github.com/pypa/pip/blob/main/src/pip/_internal/cli/cmdoptions.py',
+      CMDOPTIONS,
       '--uploaded-prior-to (metavar datetime_or_duration): "Only consider packages uploaded prior to the given value", an ISO 8601 datetime or a duration of whole days P<n>D. PIP_UPLOADED_PRIOR_TO is its environment variable (environmentVariable). A datetime is not compared with the policy, so it is asked about.',
     ),
   },

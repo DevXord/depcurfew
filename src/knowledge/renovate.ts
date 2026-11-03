@@ -2,6 +2,8 @@ import { verifiedOn } from './define.ts';
 import type { ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
+// Facts whose sources D-170 pinned to a release tag or commit, checked again on 2026-11-03.
+const d170 = verifiedOn('2026-11-03');
 const python = verifiedOn('2026-10-30');
 const reviewed = verifiedOn('2026-10-30');
 const rules = verifiedOn('2026-10-30');
@@ -12,6 +14,8 @@ const d151 = verifiedOn('2026-11-03');
 const d152 = verifiedOn('2026-11-03');
 
 const AT = 'https://github.com/renovatebot/renovate/blob/44.198.2';
+// The latest release on 2026-11-03, for the sources pinned by D-170.
+const LATEST = 'https://github.com/renovatebot/renovate/blob/44.209.0';
 
 const OPTIONS = 'https://docs.renovatebot.com/configuration-options/';
 const MINIMUM_RELEASE_AGE = 'https://docs.renovatebot.com/key-concepts/minimum-release-age/';
@@ -27,7 +31,7 @@ export const renovate: ToolKnowledge = {
       `${OPTIONS}#minimumreleaseage`,
       'Formerly stabilityDays; old configs are migrated to "N days". Can be scoped with packageRules, vulnerabilityAlerts and update types.',
     ),
-    configFiles: verified(
+    configFiles: d170.verified(
       [
         'renovate.json',
         'renovate.jsonc',
@@ -43,8 +47,8 @@ export const renovate: ToolKnowledge = {
         '.renovaterc.jsonc',
         '.renovaterc.json5',
       ],
-      OPTIONS,
-      'Searched in this order. The "renovate" key in package.json still works but is deprecated. Shared presets (extends) can also set it.',
+      `${LATEST}/lib/workers/repository/init/merge.ts`,
+      'Searched in this order, and the first file that exists is the configuration (configFileNames in lib/config/app-strings.ts). The list is the same on every platform: detectConfigFile calls getConfigFileNames() without a platform, so a .gitlab/renovate.json counts in a GitHub repository and a .github/renovate.json on GitLab; only the validation of onboardingConfigFileName filters the names by platform (getPossibleConfigFileNames in lib/config/validation.ts). The "renovate" key in package.json still works but is deprecated. Shared presets (extends) can also set it.',
     ),
     cliFlag: verified(
       '--minimum-release-age',
@@ -57,9 +61,9 @@ export const renovate: ToolKnowledge = {
       'For example "3 days" or "14 days". Since 42.19.5 "0 days" is treated like null.',
     ),
     availableSince: verified('35.46.0', release('35.46.0'), 'Earlier versions had the same feature as stabilityDays (first version not tracked).'),
-    default: verified(
+    default: d170.verified(
       [{ since: '0.0.0', value: null }],
-      'https://github.com/renovatebot/renovate/blob/main/lib/config/options/index.ts',
+      `${LATEST}/lib/config/options/index.ts`,
       'Off unless configured; the docs table shows no default. config:best-practices adds "3 days" for npm (see presets). Since 44.96.0 minimumReleaseAgeBuffer adds 30 minutes once a delay is set.',
     ),
     exclude: {
@@ -110,9 +114,9 @@ export const renovate: ToolKnowledge = {
       `${AT}/lib/workers/repository/init/merge.ts`,
       'detectConfigFile looks for each name in configFiles (lib/config/app-strings.ts) in the file list of the repository, whose paths start at the repository root, so a renovate.json in a subdirectory is never read. The configuration options page (docs/usage/configuration-options.md at 44.198.2): "Any config you define applies to the whole repository (e.g. if you have a monorepo)" and "Renovate always uses the config from the repository\'s default branch".',
     ),
-    durationStrings: verified(
+    durationStrings: d170.verified(
       { since: null, syntax: 'words' },
-      'https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md',
+      `${LATEST}/docs/usage/key-concepts/minimum-release-age.md`,
       'Values such as "3 days" or "1 hour", parsed by toMs (lib/util/pretty-time.ts).',
     ),
     minimumReleaseAgePresets: verified(
@@ -120,14 +124,14 @@ export const renovate: ToolKnowledge = {
       'https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm',
       'config:best-practices extends security:minimumReleaseAgeNpm, which sets minimumReleaseAge "3 days" for the npm datasource (see presets).',
     ),
-    excludeRule: verified(
+    excludeRule: d170.verified(
       { list: 'packageRules', match: 'matchPackageNames', value: null },
-      'https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md',
+      `${LATEST}/docs/usage/key-concepts/minimum-release-age.md`,
       'The documented opt-out: a packageRules entry with matchPackageNames and minimumReleaseAge: null.',
     ),
-    securityUpdatesSetting: verified(
+    securityUpdatesSetting: d170.verified(
       ['vulnerabilityAlerts', 'minimumReleaseAge'],
-      'https://github.com/renovatebot/renovate/blob/main/lib/config/options/index.ts',
+      `${LATEST}/lib/config/options/index.ts`,
       'The vulnerabilityAlerts default sets minimumReleaseAge to null, so security updates skip the delay unless a value is set there.',
     ),
     excludeWildcards: verified(
@@ -135,19 +139,19 @@ export const renovate: ToolKnowledge = {
       `${OPTIONS}#matchpackagenames`,
       'matchPackageNames accepts globs (and regex) since 38.0.0.',
     ),
-    ruleDescription: verified(
+    ruleDescription: d170.verified(
       'description',
-      'https://github.com/renovatebot/renovate/blob/main/docs/usage/configuration-options.md#description',
+      `${LATEST}/docs/usage/configuration-options.md#description`,
       'A human-readable description allowed inside any configuration object; depcurfew uses it to recognize the packageRules entry it manages.',
     ),
-    packageJsonConfig: verified(
+    packageJsonConfig: d170.verified(
       { file: 'package.json', key: 'renovate' },
-      'https://github.com/renovatebot/renovate/blob/main/lib/workers/repository/init/merge.ts',
+      `${LATEST}/lib/workers/repository/init/merge.ts`,
       'Deprecated: the configuration options page warns that support may be removed, and Renovate logs that using package.json is deprecated.',
     ),
-    durationUnits: verified(
+    durationUnits: d170.verified(
       ['hours', 'days'],
-      'https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md',
+      `${LATEST}/docs/usage/key-concepts/minimum-release-age.md`,
       'Units shown in the docs: minimumReleaseAge=1 hour on this page and "3 days" in the configuration options. The value is parsed by toMs (lib/util/pretty-time.ts), whose tests also accept 1 day, 1 week and combined values.',
     ),
     presets: verified(
