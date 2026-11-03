@@ -1,0 +1,19 @@
+{
+  "changed": [
+    ".github/dependabot.yml",
+    ".npmrc"
+  ],
+  "warnings": [
+    {
+      "code": "cooldown-shortened",
+      "tool": "dependabot",
+      "location": {
+        "file": ".github/dependabot.yml",
+        "line": 13
+      },
+      "message": "Dependabot: default-days: 14 in .github/dependabot.yml (line 13) waits 2 weeks for gomod updates, longer than cooldown.minimum \"3d\" in depcurfew.json; depcurfew apply replaces it with 3, so Dependabot waits only 3 days",
+      "fix": "To keep the longer delay, set cooldown.minimum to \"14d\" in depcurfew.json and run depcurfew apply again"
+    }
+  ],
+  "snippets": []
+}

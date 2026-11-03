@@ -14,7 +14,7 @@ import { parseDuration } from '../policy/duration.ts';
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import { BLOCK_END, isBlockStart } from './block.ts';
 import { extraOf, isRecord, settingOf, values, yamlOptionsFor } from './facts.ts';
-import { isActionsEcosystem } from './generators/dependabot.ts';
+import { botOnlyEntries, isActionsEcosystem } from './generators/dependabot.ts';
 import { compareVersions, parseVersion, pinnedVersion, type Version } from './version.ts';
 import type { ApplyWarning } from './warnings.ts';
 import type { FileChange } from './workspace.ts';
@@ -146,9 +146,11 @@ function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: stri
   if (updates === undefined || !Array.isArray(updates.value)) return [];
   const keys = extraOf(bot, 'cooldownKeys', isCooldownKeys);
   const ecosystems = Object.keys(extraOf(bot, 'ecosystems', isRecord));
-  // apply writes the github-actions entries too when there are workflows (decision D-130).
+  // apply writes the github-actions entries too when there are workflows (decision D-130), and the entries of the
+  // ecosystems updated by bots only (decision D-151).
   const actions = bot.extra?.['githubActions'] === undefined || workflows.length === 0 ? undefined : extraOf(bot, 'githubActions', isActionsEcosystem).ecosystem;
   if (actions !== undefined) ecosystems.push(actions);
+  ecosystems.push(...botOnlyEntries(bot).keys());
   const setting = settingOf(bot.cooldown.setting) ?? 'cooldown';
   const all = lines(text);
   return (updates.value as unknown[]).flatMap((entry, index): ConfiguredDelay[] => {

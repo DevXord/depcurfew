@@ -44,6 +44,15 @@ export function coversActions(policy: ResolvedPolicy | undefined, bot: ToolId, d
 }
 
 /**
+ * Whether the policy's release-age delay covers the ecosystems updated by bots only for a bot (decision D-151): the
+ * policy has a cooldown and configures the bot. apply writes it into every Dependabot entry of these ecosystems; doctor
+ * compares the bot's delay for them with cooldown.minimum.
+ */
+export function coversBotEcosystems(policy: ResolvedPolicy | undefined, bot: ToolId): boolean {
+  return policy?.cooldown !== undefined && (policy.targets === 'auto' || policy.targets.includes(bot));
+}
+
+/**
  * The tools apply configures in one directory. Without projects: the detected ones ("auto") or the listed ones. With
  * projects (decision D-100), listed package managers only where they are detected, as npm in a Python project would
  * get an .npmrc it never reads; Renovate and Dependabot read their configuration from the repository root only, so a

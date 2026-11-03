@@ -8,6 +8,7 @@ const rules = verifiedOn('2026-10-30');
 const projects = verifiedOn('2026-11-01');
 const bots = verifiedOn('2026-11-02');
 const composer = verifiedOn('2026-11-02');
+const d151 = verifiedOn('2026-11-03');
 
 const AT = 'https://github.com/renovatebot/renovate/blob/44.198.2';
 
@@ -237,6 +238,22 @@ export const renovate: ToolKnowledge = {
       },
       `${AT}/lib/config/index.ts`,
       'getManagerConfig gives each dependency the categories its manager exports (categories in lib/modules/manager/<id>/index.ts; the list of categories is lib/constants/category.ts), and matchCategories matches them.',
+    ),
+    botOnlyEcosystems: d151.verified(
+      {
+        cargo: { manager: 'cargo', datasource: 'crate', categories: ['rust'] },
+        gomod: { manager: 'gomod', datasource: 'go', categories: ['golang'] },
+        maven: { manager: 'maven', datasource: 'maven', categories: ['java'] },
+        gradle: { manager: 'gradle', datasource: 'maven', categories: ['java'] },
+        nuget: { manager: 'nuget', datasource: 'nuget', categories: ['dotnet'] },
+      },
+      `${AT}/lib/modules/manager/api.ts`,
+      'The Renovate manager of each ecosystem depcurfew delays only through the bots (decision D-151), by its id in api.ts, with the datasource it gives the packages and its categories (categories in lib/modules/manager/<id>/index.ts, all in lib/constants/category.ts): cargo updates Cargo.toml (managerFilePatterns, lockFileNames Cargo.lock) from the crate datasource (lib/modules/manager/cargo/schema.ts) in the rust category; gomod updates go.mod from the go datasource (line-parser.ts) in golang; maven updates pom.xml and gradle the .gradle(.kts) files, gradle.properties and the version catalogs in gradle/, both from the maven datasource, in java; nuget updates .csproj, .fsproj, .vbproj, .props and .targets files, dotnet-tools.json and global.json from the nuget datasource in dotnet. getManagerConfig (lib/config/index.ts) starts every manager from the whole configuration, so the top-level minimumReleaseAge applies to them as to the other managers. All four datasources have releaseTimestampSupport: crate takes pubtime of the crates.io index or created_at of the crates.io API, go the Time of the module proxy (or a later GitHub release or tag of a module on GitHub), maven the Last-Modified header, nuget the published date (index.ts of each datasource).',
+    ),
+    cratePresets: d151.verified(
+      { presets: ['security:minimumReleaseAgeCrate'], value: '3 days', since: '44.5.0', datasource: 'crate' },
+      `${AT}/lib/config/presets/internal/security.preset.ts`,
+      'security:minimumReleaseAgeCrate sets minimumReleaseAge "3 days" (with internalChecksFilter "strict") in a packageRules entry with matchDatasources ["crate"], and turns it off for lockFileMaintenance, replacement, pin, bump, lockfileUpdate and rollback updates of that datasource. Added in 44.5.0 ("presets: add security:minimumReleaseAgeCrate preset", https://github.com/renovatebot/renovate/releases/tag/44.5.0); config:best-practices does not include it.',
     ),
     managerMatching: bots.verified(
       { managerMatcher: 'matchManagers', categoryMatcher: 'matchCategories', customPrefix: 'custom.', stringIsList: true },

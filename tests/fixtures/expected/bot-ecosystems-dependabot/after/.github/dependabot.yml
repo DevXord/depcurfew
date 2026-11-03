@@ -1,0 +1,47 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # managed by depcurfew
+    cooldown:
+      default-days: 3
+      exclude:
+        - "@acme/*"
+        - left-pad
+  # The Go tools
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      # managed by depcurfew
+      default-days: 3
+  - package-ecosystem: "maven"
+    directory: "/java-service"
+    schedule:
+      interval: "weekly"
+    # managed by depcurfew
+    cooldown:
+      default-days: 3
+  - package-ecosystem: "gradle"
+    directory: "/android"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      # managed by depcurfew
+      semver-minor-days: 3 # minor updates first
+      # managed by depcurfew
+      default-days: 3
+  - package-ecosystem: "nuget"
+    directories:
+      - "/"
+      - "/tools"
+    schedule:
+      interval: "monthly"
+    cooldown:
+      # managed by depcurfew
+      default-days: 3
+      exclude:
+        - "Microsoft.*"

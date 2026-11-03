@@ -10,12 +10,12 @@ import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
 import { matchesEveryComposerName } from '../composer.ts';
 import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion } from '../effective.ts';
-import { actionsTarget, managerTargets, matchesEveryName, readRenovateConfig, ruleScope, type RenovateTarget, type RuleScope } from '../renovate.ts';
+import { actionsTarget, botEcosystemTargets, managerTargets, matchesEveryName, readRenovateConfig, ruleScope, type RenovateTarget, type RuleScope } from '../renovate.ts';
 import { lineOf, readSetting, rejectsYamlAliases, yamlAliasLine, yamlSetting } from '../settings.ts';
 import { managerSources } from '../projects.ts';
 import type { Rule, RuleContext } from '../types.ts';
 import { usesBot, usesManager } from '../applies.ts';
-import { coversActions } from '../../apply/targets.ts';
+import { coversActions, coversBotEcosystems } from '../../apply/targets.ts';
 
 /** Patterns that match every package (or every scoped package): *, **, @*\/*, npm:*, and regexes like /.*\/. */
 export const isBroad = matchesEveryName;
@@ -194,8 +194,9 @@ function covers(scope: RuleScope, targets: readonly RenovateTarget[], matching: 
 
 /**
  * packageRules entries that turn minimumReleaseAge off for every package of a package manager in use, by registry,
- * Renovate manager or category (extra.packageRuleMatching, extra.managerMatching, decision D-131), or for the actions
- * of the workflows when the policy's delay covers them (decision D-130).
+ * Renovate manager or category (extra.packageRuleMatching, extra.managerMatching, decision D-131), or, when the
+ * policy's delay covers them, for the actions of the workflows (decision D-130) or the dependencies of an ecosystem
+ * updated by bots only that the repository has (decision D-151).
  */
 function checkRenovate(context: RuleContext, file: string): void {
   const bot = tool(context, 'renovate');
@@ -215,7 +216,8 @@ function checkRenovate(context: RuleContext, file: string): void {
   // counts. The bots of the root serve every project listed in projects too (decision D-100).
   const detected = managerSources(context).flatMap((source) => source.managers.flatMap((entry) => tool(context, entry.id) ?? []));
   const actions = coversActions(context.policy, bot.id, context.detection) ? actionsTarget(bot, context.detection.workflows) : undefined;
-  const targets = [...managerTargets(bot, detected.length > 0 ? detected : context.tools).map((group) => group.target), ...(actions === undefined ? [] : [actions])];
+  const botOnly = coversBotEcosystems(context.policy, bot.id) ? botEcosystemTargets(bot, (context.detection.botEcosystems ?? []).map((entry) => entry.id)) : [];
+  const targets = [...managerTargets(bot, detected.length > 0 ? detected : context.tools).map((group) => group.target), ...botOnly, ...(actions === undefined ? [] : [actions])];
   const narrowing = [matching.datasourceMatcher, matching.updateTypeMatcher, matching.managerMatcher, matching.categoryMatcher, matching.fileMatcher, matching.depTypeMatcher];
   for (const { index, line, rule } of config.rules) {
     if (!('minimumReleaseAge' in rule)) continue;
@@ -246,7 +248,7 @@ export const broadExclusion: Rule = {
   checks: 'No exception list or per-scope setting turns the release-age delay off',
   summary: 'An exception list matches every package, or a per-scope setting shortens the delay, which turns the protection off.',
   description:
-    'A release-age exception such as "*" (or a policy allow-list entry such as "@*/*") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, Renovate manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name, and, when depcurfew.json sets a cooldown for Renovate and the repository has workflows, for the github-actions manager, every workflow file (matchFileNames) or the depType action (matchDepTypes). In Yarn 4.17 and later, npmScopes.<scope>.npmMinimalAgeGate replaces the delay for one scope, so a shorter value there exempts that scope.',
+    'A release-age exception such as "*" (or a policy allow-list entry such as "@*/*") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, Renovate manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name, and, when depcurfew.json sets a cooldown for Renovate and the repository has workflows, for the github-actions manager, every workflow file (matchFileNames) or the depType action (matchDepTypes), or, when it has the files of Cargo, Go modules, Maven, Gradle or NuGet, for their Renovate manager (cargo, gomod, maven, gradle, nuget), category or datasource. In Yarn 4.17 and later, npmScopes.<scope>.npmMinimalAgeGate replaces the delay for one scope, so a shorter value there exempts that scope.',
   help: 'Replace the pattern with the packages or scopes that really need the exception.',
   level: 'error',
   requiresPolicy: false,

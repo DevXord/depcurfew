@@ -27,6 +27,7 @@ import { parseYaml } from '../yaml-parse.ts';
 import { iniEntries } from '../doctor/settings.ts';
 import type { ProjectOptional } from './commands.ts';
 import { yamlOptionsFor } from '../apply/facts.ts';
+import { botEcosystemFacts, detectBotEcosystems } from './bot-ecosystems.ts';
 
 export type * from './types.ts';
 
@@ -532,7 +533,11 @@ export function detectProject(
       [facts.pythonProject],
     );
   }
-  if (manifest === undefined && packageManagers.length === 0 && !repository.isFile('package.json') && !repository.isFile(facts.pythonProject)) {
+  // Cargo, Go modules, Maven, Gradle and NuGet (decision D-151): in the root, its direct subdirectories that are not
+  // hidden, workspace packages and the directories listed in projects.
+  const searched = [...new Set(['.', ...repository.listDirectories('.').filter((name) => !name.startsWith('.')).sort(byPath), ...directories.slice(1), ...projects])];
+  const botEcosystems = detectBotEcosystems(repository, botEcosystemFacts(environment), searched);
+  if (manifest === undefined && packageManagers.length === 0 && botEcosystems.length === 0 && !repository.isFile('package.json') && !repository.isFile(facts.pythonProject)) {
     repository.warn('nothing-detected', 'no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found', []);
   }
 
@@ -541,6 +546,7 @@ export function detectProject(
     ...(ciForProjects.length === 0 ? {} : { ciForProjects }),
     node: { versions: [...(collector.versions.get('node') ?? [])].sort(compareVersions) },
     bots,
+    ...(botEcosystems.length === 0 ? {} : { botEcosystems }),
     workspaces,
     npmrcFiles: npmrcFiles(repository, directories),
     workflows: workflows.files,

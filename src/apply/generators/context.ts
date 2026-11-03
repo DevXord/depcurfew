@@ -2,6 +2,7 @@
 // version checks and the file edits. A failed edit is recorded as an error and stops only the tool that made it,
 // so every broken file is reported in one run.
 import { parseToml } from '../../detect/toml.ts';
+import type { BotEcosystemInfo } from '../../detect/types.ts';
 import type { Duration } from '../../policy/duration.ts';
 import type { ResolvedPolicy } from '../../policy/schema.ts';
 import type { ToolId, ToolKnowledge } from '../../knowledge/types.ts';
@@ -171,9 +172,13 @@ export interface YamlFile {
 
 /** A generator for a package manager returns the cooldown it wrote, in minutes, so bots can wait at least as long. */
 export type ManagerGenerator = (context: Context) => number | undefined;
-/** What a bot generator knows of the repository besides its files: the workflows whose actions it updates (decision D-130). */
+/**
+ * What a bot generator knows of the repository besides its files: the workflows whose actions it updates (decision
+ * D-130), and the ecosystems updated by bots only that detection found (decision D-151).
+ */
 export interface BotRepository {
   workflows: readonly string[];
+  botEcosystems?: readonly BotEcosystemInfo[];
 }
 
 export type BotGenerator = (context: Context, cooldown: Duration | undefined, repository: BotRepository) => void;

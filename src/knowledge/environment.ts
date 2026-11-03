@@ -1,8 +1,10 @@
 // Facts about the environment around the package managers: how repositories pin tool versions (Corepack,
-// npm devEngines, Volta, asdf) and how GitHub Actions workflows install them.
+// npm devEngines, Volta, asdf), how GitHub Actions workflows install them, and the ecosystems whose new versions only
+// the update bots delay (bot-ecosystems.ts).
 import { verifiedOn } from './define.ts';
 import type { EnvironmentKnowledge, UserDirectory } from './types.ts';
 import { osv } from './osv.ts';
+import { botOnlyEcosystems } from './bot-ecosystems.ts';
 
 const { verified } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -51,6 +53,7 @@ const LEFTHOOK = 'https://github.com/evilmartians/lefthook/blob/v2.2.2';
 const FSEVENTS = 'https://github.com/fsevents/fsevents/blob/v2.3.3';
 
 export const environment: EnvironmentKnowledge = {
+  botOnlyEcosystems,
   corepack: {
     packageManagerField: verified(
       { key: 'packageManager', managers: ['npm', 'pnpm', 'yarn'] },

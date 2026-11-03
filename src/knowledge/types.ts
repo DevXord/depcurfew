@@ -1486,7 +1486,46 @@ export interface RootLifecycleScriptsKnowledge {
   allowListApplies: boolean;
 }
 
+/**
+ * An ecosystem whose package manager has no release-age delay depcurfew configures, so that depcurfew delays new
+ * versions there only through the update bots (decision D-151): Cargo, Go modules, Maven, Gradle and NuGet.
+ */
+export type BotOnlyEcosystemId = 'cargo' | 'gomod' | 'maven' | 'gradle' | 'nuget';
+
+/** The files that show an ecosystem updated by bots only, in a project directory. */
+export interface BotOnlyProjectKnowledge {
+  /** The ecosystem as messages name it: Cargo, Go modules. */
+  name: string;
+  /** The package manager as messages name it: Cargo, Go. */
+  client: string;
+  /** Paths relative to a project directory (gradle/libs.versions.toml). */
+  files: readonly string[];
+  /** File name endings that show it (the project files of NuGet: .csproj). */
+  extensions?: readonly string[];
+}
+
+/** The release-age delay of the package manager itself. */
+export interface ClientDelayKnowledge {
+  /** The setting; null when the package manager has none. */
+  setting: string | null;
+  /** The first version with the setting; null without one. */
+  since: string | null;
+  /** What the version belongs to, for messages: Cargo, .NET SDK. */
+  product?: string;
+  /** The setting holds back only the versions an update picks, not what an install or restore takes. */
+  updatesOnly?: boolean;
+  /** The file the setting is written in. */
+  file?: string;
+}
+
+export interface BotOnlyEcosystemKnowledge {
+  project: Fact<BotOnlyProjectKnowledge>;
+  releaseAge: Fact<ClientDelayKnowledge>;
+}
+
 export interface EnvironmentKnowledge {
+  /** Ecosystems whose new versions only the update bots delay (decision D-151). */
+  botOnlyEcosystems: Readonly<Record<BotOnlyEcosystemId, BotOnlyEcosystemKnowledge>>;
   corepack: {
     packageManagerField: Fact<PackageManagerFieldKnowledge>;
     devEnginesSince: Fact<string>;

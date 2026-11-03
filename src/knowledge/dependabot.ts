@@ -7,6 +7,7 @@ const review = verifiedOn('2026-10-31');
 const projects = verifiedOn('2026-11-01');
 const bots = verifiedOn('2026-11-02');
 const composer = verifiedOn('2026-11-02');
+const d151 = verifiedOn('2026-11-03');
 
 const OPTIONS = 'https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference';
 const COOLDOWN_GA = 'https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/';
@@ -127,6 +128,17 @@ export const dependabot: ToolKnowledge = {
       { ecosystem: 'github-actions', semverDays: false },
       `${OPTIONS}#cooldown`,
       'package-ecosystem github-actions updates the actions the workflows run: with directory / Dependabot "will search the /.github/workflows directory, as well as the action.yml/action.yaml file from the root directory". The cooldown table lists GitHub Actions with default-days supported and the semver-major-days, semver-minor-days and semver-patch-days keys not supported, and the default cooldown of 3 days covers version updates without a cooldown block (github/docs, content/code-security/reference/supply-chain-security/dependabot-options-reference.md, main on 2026-11-02).',
+    ),
+    botOnlyEcosystems: d151.verified(
+      {
+        cargo: { ecosystem: 'cargo', semverDays: true },
+        gomod: { ecosystem: 'gomod', semverDays: true },
+        maven: { ecosystem: 'maven', semverDays: true },
+        gradle: { ecosystem: 'gradle', semverDays: true },
+        nuget: { ecosystem: 'nuget', semverDays: true },
+      },
+      `${OPTIONS}#cooldown`,
+      'The package-ecosystem values of the ecosystems depcurfew delays only through the bots (decision D-151): cargo (Cargo v1), gomod (Go modules v1), maven, gradle and nuget (NuGet <=6.12.0), from the package-ecosystem table of the same page. The cooldown table lists Cargo, Gomod (Go Modules), Gradle, Maven and NuGet with default-days and the SemVer-bump days (semver-major-days, semver-minor-days, semver-patch-days) supported, and the default cooldown of 3 days covers their version updates without a cooldown block (github/docs, content/code-security/reference/supply-chain-security/dependabot-options-reference.md, main on 2026-11-03).',
     ),
     actionsReleaseDate: bots.uncertain(
       'the publication date of the GitHub release of the tag, else the date of the tag, else the date of the commit; with no date the update does not wait',

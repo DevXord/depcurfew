@@ -1,0 +1,6 @@
+{
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    { "matchCategories": ["golang"], "minimumReleaseAge": null }
+  ]
+}

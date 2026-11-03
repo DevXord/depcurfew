@@ -1,0 +1,18 @@
+[
+  {
+    "level": "note",
+    "location": {
+      "file": "Cargo.lock"
+    },
+    "message": "No update bot delays new versions of Cargo dependencies: the repository configures neither Dependabot nor Renovate, and Cargo before 1.100.0 has no release-age delay of its own (Cargo 1.100.0 adds registry.global-min-publish-age in .cargo/config.toml, which depcurfew does not configure), so nothing holds back the versions the dependencies in Cargo.lock and Cargo.toml are updated to",
+    "fix": "Update these dependencies with Dependabot (an updates entry with package-ecosystem: cargo in .github/dependabot.yml) or Renovate (its cargo manager), then run depcurfew init and depcurfew apply, which give the bot a cooldown; depcurfew delays Cargo dependencies only through these bots"
+  },
+  {
+    "level": "note",
+    "location": {
+      "file": "tools/go.mod"
+    },
+    "message": "No update bot delays new versions of Go dependencies: the repository configures neither Dependabot nor Renovate, and Go has no release-age delay of its own, so nothing holds back the versions the dependencies in tools/go.mod are updated to",
+    "fix": "Update these dependencies with Dependabot (an updates entry with package-ecosystem: gomod in .github/dependabot.yml) or Renovate (its gomod manager), then run depcurfew init and depcurfew apply, which give the bot a cooldown; depcurfew delays Go dependencies only through these bots"
+  }
+]

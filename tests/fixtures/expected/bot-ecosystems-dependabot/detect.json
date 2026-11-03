@@ -1,0 +1,72 @@
+{
+  "packageManagers": [
+    {
+      "id": "npm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "package-lock.json"
+        },
+        {
+          "kind": "packageManager",
+          "file": "package.json"
+        }
+      ],
+      "versions": [
+        {
+          "version": "11.19.1",
+          "source": "packageManager",
+          "file": "package.json"
+        }
+      ],
+      "configFiles": []
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [
+    {
+      "id": "dependabot",
+      "configFiles": [
+        ".github/dependabot.yml"
+      ]
+    }
+  ],
+  "botEcosystems": [
+    {
+      "id": "gomod",
+      "files": [
+        "go.mod",
+        "go.sum"
+      ]
+    },
+    {
+      "id": "maven",
+      "files": [
+        "java-service/pom.xml"
+      ]
+    },
+    {
+      "id": "gradle",
+      "files": [
+        "android/gradle/libs.versions.toml",
+        "android/settings.gradle.kts"
+      ]
+    },
+    {
+      "id": "nuget",
+      "files": [
+        "Directory.Packages.props",
+        "tools/Tool.fsproj"
+      ]
+    }
+  ],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
+  "warnings": []
+}

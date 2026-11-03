@@ -27,6 +27,10 @@ const MANAGED_VALUES = new Set([
   'enableScripts',
   'approvedGitRepositories',
   'default-days',
+  // Raised to the policy's delay where an ecosystem reads them, never lowered (cargo-dependabot, decision D-151).
+  'semver-major-days',
+  'semver-minor-days',
+  'semver-patch-days',
   'exclude',
   'minimumDependencyAge',
   'allowScripts',

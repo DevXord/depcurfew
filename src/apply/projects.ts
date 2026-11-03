@@ -36,6 +36,7 @@ export function relocateDetection(project: string, detection: Detection): Detect
     })),
     node: { versions: detection.node.versions.map(version) },
     bots: detection.bots.map((bot) => ({ ...bot, configFiles: bot.configFiles.map(at) })),
+    ...(detection.botEcosystems === undefined ? {} : { botEcosystems: detection.botEcosystems.map((entry) => ({ ...entry, files: entry.files.map(at) })) }),
     workspaces:
       detection.workspaces === null
         ? null

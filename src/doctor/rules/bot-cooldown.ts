@@ -4,17 +4,20 @@
 // manager re-checks the lockfile. Renovate's delay comes from the top level, the presets it extends and the
 // packageRules that cover every package of a registry, Renovate manager or category (decision D-131); a preset or a
 // rule matcher depcurfew cannot read gives a note. When the policy's delay covers the actions the workflows run
-// (decision D-130), the bot's delay for them is compared with cooldown.minimum.
+// (decision D-130) or the dependencies of the ecosystems updated by bots only (Cargo, Go modules, Maven, Gradle and
+// NuGet, decision D-151), the bot's delay for them is compared with cooldown.minimum; such an ecosystem in a
+// repository without an update bot gets a note, because nothing delays its new versions there.
 import { extraOf, isRecord, values, yamlOptionsFor } from '../../apply/facts.ts';
-import { isActionsEcosystem } from '../../apply/generators/dependabot.ts';
+import { botOnlyEntries, isActionsEcosystem } from '../../apply/generators/dependabot.ts';
 import { listing } from '../../apply/requirements.ts';
-import { coversActions } from '../../apply/targets.ts';
+import { coversActions, coversBotEcosystems } from '../../apply/targets.ts';
 import { pinnedVersion } from '../../apply/version.ts';
-import type { PackageManagerId, PackageManagerInfo } from '../../detect/types.ts';
-import type { ToolKnowledge } from '../../knowledge/types.ts';
+import { botEcosystemFact, ownDelayText } from '../../detect/bot-ecosystems.ts';
+import type { BotEcosystemInfo, PackageManagerId, PackageManagerInfo } from '../../detect/types.ts';
+import type { BotOnlyEcosystemId, ToolKnowledge } from '../../knowledge/types.ts';
 import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion, managerDelay, versionedValue, type Delay } from '../effective.ts';
-import { actionsTarget, managerTargets, readRenovateConfig, renovateDelay, type RenovateTarget, type UnreadableRule, type UpdateType } from '../renovate.ts';
+import { actionsTarget, botEcosystemTargets, managerTargets, readRenovateConfig, renovateDelay, type RenovateTarget, type UnreadableRule, type UpdateType } from '../renovate.ts';
 import { jsonSetting, rejectsYamlAliases, yamlAliasLine, yamlSetting } from '../settings.ts';
 import { inProject } from '../../apply/projects.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
@@ -28,6 +31,8 @@ interface BotDelay extends Delay {
   managers: readonly PackageManagerId[];
   /** The delay of the actions the workflows run, which the policy's delay covers (decision D-130). */
   actions?: true;
+  /** The delay of the dependencies of an ecosystem updated by bots only, which the policy's delay covers (decision D-151). */
+  ecosystem?: BotOnlyEcosystemId;
   /** packageRules entries with a matcher depcurfew cannot read that may set a shorter delay (Renovate, decision D-131). */
   unreadableRules?: readonly UnreadableRule[];
   /** Security updates skip this delay. */
@@ -83,16 +88,19 @@ function dependabotDelays(context: RuleContext, bot: ToolKnowledge, file: string
   const include = extraOf(bot, 'cooldownInclude', (value): value is { key: string } => isRecord(value) && typeof value['key'] === 'string');
   // The github-actions entries, when the policy's delay covers the actions of the workflows (decision D-130).
   const actions = bot.extra?.['githubActions'] === undefined || !coversActions(context.policy, bot.id, context.detection) ? undefined : extraOf(bot, 'githubActions', isActionsEcosystem);
+  // The entries of the ecosystems updated by bots only, which apply gives the cooldown wherever they are (decision D-151).
+  const botOnly = coversBotEcosystems(context.policy, bot.id) ? botOnlyEntries(bot) : new Map<string, never>();
   return (updates.value as unknown[]).flatMap((entry, index): BotDelay[] => {
     if (!isRecord(entry) || typeof entry['package-ecosystem'] !== 'string') return [];
     const forActions = actions !== undefined && entry['package-ecosystem'] === actions.ecosystem;
+    const forEcosystem = botOnly.get(entry['package-ecosystem']);
     const managers = (ecosystems[entry['package-ecosystem']] ?? []) as PackageManagerId[];
-    if (managers.length === 0 && !forActions) return [];
+    if (managers.length === 0 && !forActions && forEcosystem === undefined) return [];
     const cooldown = isRecord(entry['cooldown']) ? entry['cooldown'] : undefined;
     const configuredDays = cooldown?.[keys.days];
     const base = typeof configuredDays === 'number' ? configuredDays : typeof fallback === 'number' ? fallback : 0;
     // github-actions reads default-days only (extra.githubActions).
-    const semver = (forActions && !actions.semverDays ? [] : keys.semverDays).filter((key) => typeof cooldown?.[key] === 'number');
+    const semver = ((forActions && !actions.semverDays) || forEcosystem?.semverDays === false ? [] : keys.semverDays).filter((key) => typeof cooldown?.[key] === 'number');
     const days = Math.min(base, ...semver.map((key) => cooldown?.[key] as number));
     const shortest = semver.find((key) => cooldown?.[key] === days);
     // The number as the file writes it, and how Dependabot reads it when that differs (010, which it reads as 8).
@@ -109,7 +117,7 @@ function dependabotDelays(context: RuleContext, bot: ToolKnowledge, file: string
             ? written(keys.days)
             : `Dependabot's default (${describe(days * 1440)})`;
     const line = yamlSetting(text, ['updates', String(index), cooldown === undefined ? 'package-ecosystem' : 'cooldown'], yaml)?.line ?? updates.line;
-    const target = forActions ? { actions: true as const } : {};
+    const target = forActions ? { actions: true as const } : forEcosystem !== undefined ? { ecosystem: forEcosystem.id } : {};
     const delays: BotDelay[] = [{ bot, managers, ...target, minutes: days * 1440, origin, location: { file, line }, securityBypass, scope: `${entry['package-ecosystem']} updates` }];
     // With an include list, only the dependencies it names get a cooldown (extra.cooldownInclude).
     const included = cooldown?.[include.key];
@@ -136,12 +144,16 @@ function renovateDelays(context: RuleContext, bot: ToolKnowledge, file: string):
   // One delay for each Renovate manager of the package managers (decision D-131), and one for the actions of the
   // workflows when the policy's delay covers them (decision D-130).
   const actions = coversActions(context.policy, bot.id, context.detection) ? actionsTarget(bot, context.detection.workflows) : undefined;
+  // And one for each ecosystem updated by bots only that the repository has, when the policy's delay covers them (D-151).
+  const botOnly = coversBotEcosystems(context.policy, bot.id) ? botEcosystemTargets(bot, botEcosystemsInUse(context).map((entry) => entry.id)) : [];
   const targets = [
     ...managerTargets(bot, context.tools).map(({ target, tools }) => ({ target, managers: tools.map((tool) => tool.id as PackageManagerId) })),
+    ...botOnly.map((target) => ({ target, managers: [] as PackageManagerId[] })),
     ...(actions === undefined ? [] : [{ target: actions, managers: [] as PackageManagerId[] }]),
   ];
-  const flags = (target: RenovateTarget) => (target.actions === true ? { actions: true as const } : {});
-  const scopeOf = (target: RenovateTarget, types: string) => (target.actions === true ? `${ACTIONS} ${types}` : types);
+  const flags = (target: RenovateTarget) => (target.actions === true ? { actions: true as const } : target.ecosystem !== undefined ? { ecosystem: target.ecosystem } : {});
+  const scopeOf = (target: RenovateTarget, types: string) =>
+    target.actions === true ? `${ACTIONS} ${types}` : target.ecosystem !== undefined ? `${botEcosystemFact(target.ecosystem)?.client ?? target.ecosystem} ${types}` : types;
   // A file in a format depcurfew does not read gives a note at the file for each manager that waits, as a preset it
   // cannot read does, so the check does not pass as if the delay were known (decision D-116).
   if (!/\.jsonc?$/u.test(file) && !/\.renovaterc$/u.test(file)) {
@@ -242,10 +254,17 @@ function unreadableBotFile(context: RuleContext, bot: ToolKnowledge, file: strin
     unreadableFile: file,
     unreadableReason: reason ?? 'alias',
   };
+  const botOnly = coversBotEcosystems(context.policy, bot.id) ? botEcosystemsInUse(context) : [];
   return [
     { bot, managers, ...unreadable, scope: 'updates' },
+    ...botOnly.map((entry): BotDelay => ({ bot, managers: [], ecosystem: entry.id, ...unreadable, scope: `${botEcosystemFact(entry.id)?.client ?? entry.id} updates` })),
     ...(coversActions(context.policy, bot.id, context.detection) ? [{ bot, managers: [], actions: true as const, ...unreadable, scope: `${ACTIONS} updates` }] : []),
   ];
+}
+
+/** The ecosystems updated by bots only that the repository has (decision D-151): what detection found at the root. */
+function botEcosystemsInUse(scope: Pick<RuleScope, 'detection'>): readonly BotEcosystemInfo[] {
+  return scope.detection.botEcosystems ?? [];
 }
 
 const isConfigLocation = (value: unknown): value is { from: string; branch: string } => isRecord(value) && typeof value['from'] === 'string';
@@ -392,6 +411,53 @@ function actionsReference(context: RuleContext): Reference | undefined {
 }
 
 /**
+ * cooldown.minimum for the dependencies of an ecosystem updated by bots only, whose package manager has no release-age
+ * delay depcurfew configures (decision D-151).
+ */
+function ecosystemReference(context: RuleContext, id: BotOnlyEcosystemId): Reference | undefined {
+  const minimum = context.policy?.cooldown?.minimum;
+  const ecosystem = botEcosystemFact(id);
+  if (minimum === undefined || ecosystem === undefined) return undefined;
+  const dependencies = `${ecosystem.client} dependencies`;
+  return {
+    minutes: minimum.minutes,
+    asLongAs: `cooldown.minimum in ${POLICY_FILE} (${describe(minimum.minutes)}) for ${dependencies}`,
+    waits: `cooldown.minimum in ${POLICY_FILE} is ${describe(minimum.minutes)}, which covers ${dependencies}, and ${ownDelayText(ecosystem, false)}; its pull requests bring in versions younger than that`,
+    things: 'packages',
+  };
+}
+
+/**
+ * An ecosystem updated by bots only in a repository without an update bot (decision D-151): nothing delays its new
+ * versions there, since depcurfew delays them only through Dependabot and Renovate. One note per ecosystem.
+ */
+function unprotectedEcosystems(context: RuleContext): void {
+  if (context.detection.bots.length > 0) return;
+  const dependabot = context.tools.find((tool) => tool.id === 'dependabot');
+  const renovate = context.tools.find((tool) => tool.id === 'renovate');
+  const entries = dependabot === undefined ? new Map<string, never>() : botOnlyEntries(dependabot);
+  const configFile = dependabot === undefined ? undefined : values(dependabot.cooldown.configFiles)[0]?.[0];
+  for (const found of botEcosystemsInUse(context)) {
+    const ecosystem = botEcosystemFact(found.id);
+    const file = found.files[0];
+    if (ecosystem === undefined || file === undefined) continue;
+    const entry = [...entries.values()].find((item) => item.id === found.id);
+    const manager = renovate === undefined ? undefined : botEcosystemTargets(renovate, [found.id])[0]?.manager;
+    const bots = [
+      ...(entry === undefined || configFile === undefined ? [] : [`Dependabot (an updates entry with package-ecosystem: ${entry.ecosystem} in ${configFile})`]),
+      ...(manager === undefined ? [] : [`Renovate (its ${manager} manager)`]),
+    ];
+    const then = context.policy?.cooldown === undefined ? 'then run depcurfew init and depcurfew apply, which give the bot a cooldown' : `then run depcurfew apply, which gives the bot the cooldown of ${POLICY_FILE}`;
+    context.report({
+      level: 'note',
+      location: { file },
+      message: `No update bot delays new versions of ${ecosystem.client} dependencies: the repository configures neither Dependabot nor Renovate, and ${ownDelayText(ecosystem, true)}, so nothing holds back the versions the dependencies in ${listing(found.files)} are updated to`,
+      fix: `Update these dependencies with ${bots.length === 0 ? 'an update bot' : bots.join(' or ')}, ${then}; depcurfew delays ${ecosystem.client} dependencies only through these bots`,
+    });
+  }
+}
+
+/**
  * The findings for one bot delay and what it is compared with; true when it reported a shorter delay or a note
  * instead (the security check of a package manager comes after).
  */
@@ -468,25 +534,35 @@ function compare(context: RuleContext, delay: BotDelay, reference: Reference): b
   return true;
 }
 
-/** Whether the scope has something a bot's delay is compared with: a package manager, or the actions of workflows. */
+/**
+ * Whether the scope has something a bot's delay is compared with: a package manager, the actions of workflows, or the
+ * dependencies of an ecosystem updated by bots only (decision D-151).
+ */
 function hasReference(scope: RuleScope): boolean {
   const actions = scope.project === undefined && scope.detection.bots.some((bot) => coversActions(scope.policy, bot.id, scope.detection));
-  return usesManager(scope) || actions;
+  const ecosystems = scope.project === undefined && botEcosystemsInUse(scope).length > 0 && scope.detection.bots.some((bot) => coversBotEcosystems(scope.policy, bot.id));
+  return usesManager(scope) || actions || ecosystems;
+}
+
+/** An ecosystem updated by bots only in a repository without a bot: the rule gives it a note (decision D-151). */
+function hasUnprotected(scope: RuleScope): boolean {
+  return scope.project === undefined && scope.detection.bots.length === 0 && botEcosystemsInUse(scope).length > 0;
 }
 
 export const botCooldownMismatch: Rule = {
   id: 'bot-cooldown-mismatch',
-  checks: 'Update bots wait at least as long as the package manager, and for the actions of workflows as long as the policy, before proposing a new version',
-  summary: 'An update bot waits less than the package manager, or for the actions of workflows less than the policy, before proposing a new version.',
+  checks: 'Update bots wait at least as long as the package manager, and for the actions of workflows and the dependencies of Cargo, Go modules, Maven, Gradle and NuGet as long as the policy, before proposing a new version',
+  summary: 'An update bot waits less than the package manager, or for the actions of workflows and the dependencies of the ecosystems updated by bots only less than the policy, before proposing a new version.',
   description:
-    'The bot then opens pull requests with versions the package manager would not pick yet: they fail where the manager re-checks the lockfile or bring in younger versions, and security updates that skip the bot delay fail too. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category, update type or the files and depType of actions, each such entry is reported, and one with a matcher depcurfew cannot read or does not evaluate gets a note. For the actions of workflows the bot must wait cooldown.minimum. An unreadable bot file, a JSON5 Renovate file or a Dependabot file with a YAML alias gets a note per package manager that waits. With projects, a bot file inside a project gets a note (bots read only the root\'s), and a project the root\'s Dependabot configuration leaves out while it updates others gets a warning. A Dependabot composer entry gets a note: it counts from the release time the author sets.',
-  help: 'Give the bot a delay at least as long as the package manager\'s, and for the actions of workflows as long as cooldown.minimum (depcurfew apply does this).',
+    'The bot then opens pull requests with versions the package manager would not pick yet: they fail where the manager re-checks the lockfile or bring in younger versions, and security updates that skip the bot delay fail too. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category, update type or the files and depType of actions, each is reported, and one with a matcher depcurfew cannot read gets a note. The actions of workflows and the dependencies of Cargo, Go, Maven, Gradle and NuGet must wait cooldown.minimum; without a bot, the latter get a note. An unreadable bot file (JSON5, a YAML alias) gets a note per package manager that waits. With projects, a bot file inside a project gets a note (bots read only the root\'s), and a project the root\'s Dependabot configuration leaves out gets a warning. A Dependabot composer entry gets a note: it counts from the release time the author sets.',
+  help: 'Give the bot a delay at least as long as the package manager\'s, and for the actions of workflows and the ecosystems updated by bots only as long as cooldown.minimum (depcurfew apply does this).',
   level: 'error',
   requiresPolicy: false,
-  applies: (scope) => usesBot(scope) && hasReference(scope),
+  applies: (scope) => (usesBot(scope) && hasReference(scope)) || hasUnprotected(scope),
   check(context) {
     // A project's own bot files are never read by the bot (decision D-107): the root run gives a note at each one.
     if (context.project !== undefined) return;
+    unprotectedEcosystems(context);
     if (context.projects !== undefined) {
       projectBotNotes(context, context.projects);
       missingDependabotEntries(context, context.projects);
@@ -506,6 +582,12 @@ export const botCooldownMismatch: Rule = {
       // The actions of the workflows wait as long as cooldown.minimum (the delays exist only when the policy covers them).
       if (delay.actions === true) {
         if (actions !== undefined) compare(context, delay, actions);
+        continue;
+      }
+      // So do the dependencies of the ecosystems updated by bots only (decision D-151).
+      if (delay.ecosystem !== undefined) {
+        const reference = ecosystemReference(context, delay.ecosystem);
+        if (reference !== undefined) compare(context, delay, reference);
         continue;
       }
       for (const { manager, source } of sources.flatMap((item) => item.managers.filter((entry) => delay.managers.includes(entry.id)).map((manager) => ({ manager, source: item })))) {

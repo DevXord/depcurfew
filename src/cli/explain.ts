@@ -1,5 +1,8 @@
 import { detectProject } from '../detect/index.ts';
-import type { Detection, DetectionWarning, DockerStage, PackageManagerInfo, ToolCommand, VersionDeclaration } from '../detect/types.ts';
+import type { BotEcosystemInfo, Detection, DetectionWarning, DockerStage, PackageManagerInfo, ToolCommand, VersionDeclaration } from '../detect/types.ts';
+import { botEcosystemFact, ownDelayText } from '../detect/bot-ecosystems.ts';
+import { botEcosystemTargets } from '../doctor/renovate.ts';
+import { botOnlyEntries } from '../apply/generators/dependabot.ts';
 import { jobLabel } from '../detect/workflows.ts';
 import { WARNING_FIXES } from '../doctor/unreadable-warnings.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
@@ -65,8 +68,17 @@ export interface ExplainWarning extends DetectionWarning {
   fix: string;
 }
 
-/** What detection found, with the warnings as explain reports them. */
-export type ExplainDetection = Omit<Detection, 'warnings'> & { warnings: ExplainWarning[] };
+/**
+ * An ecosystem updated by bots only as explain reports it (decision D-151): its name and what its package manager and
+ * the bots do, in the sentence the readable summary shows.
+ */
+export interface ExplainBotEcosystem extends BotEcosystemInfo {
+  name: string;
+  message: string;
+}
+
+/** What detection found, with the warnings and the ecosystems updated by bots only as explain reports them. */
+export type ExplainDetection = Omit<Detection, 'warnings' | 'botEcosystems'> & { botEcosystems?: ExplainBotEcosystem[]; warnings: ExplainWarning[] };
 
 /**
  * What a project takes from the repository root (decisions D-109 and D-111): the root's Node.js version files of the
@@ -119,7 +131,28 @@ function explainedWarning(warning: DetectionWarning): ExplainWarning {
  */
 function explained(detection: Detection, withProjects = false): ExplainDetection {
   const warnings = detection.warnings.filter((warning) => !(withProjects && warning.code === 'nothing-detected'));
-  return { ...detection, warnings: warnings.map(explainedWarning) };
+  const { botEcosystems, ...rest } = detection;
+  return { ...rest, ...(botEcosystems === undefined ? {} : { botEcosystems: botEcosystems.map(explainedEcosystem) }), warnings: warnings.map(explainedWarning) };
+}
+
+/**
+ * "Cargo has no release-age delay of its own …, so only the update bots wait before they propose new versions
+ * (Dependabot package-ecosystem: cargo, Renovate manager cargo)" (decision D-151).
+ */
+function explainedEcosystem(found: BotEcosystemInfo): ExplainBotEcosystem {
+  const ecosystem = botEcosystemFact(found.id);
+  const dependabot = knowledgeBase.find((tool) => tool.id === 'dependabot');
+  const renovate = knowledgeBase.find((tool) => tool.id === 'renovate');
+  const entry = dependabot === undefined ? undefined : [...botOnlyEntries(dependabot).values()].find((item) => item.id === found.id);
+  const manager = renovate === undefined ? undefined : botEcosystemTargets(renovate, [found.id])[0]?.manager;
+  const bots = [...(entry === undefined ? [] : [`Dependabot package-ecosystem: ${entry.ecosystem}`]), ...(manager === undefined ? [] : [`Renovate manager ${manager}`])];
+  const own = ecosystem === undefined ? `${found.id} has no release-age delay depcurfew configures` : ownDelayText(ecosystem, true);
+  return {
+    id: found.id,
+    name: ecosystem?.name ?? found.id,
+    files: found.files,
+    message: `${own}, so only the update bots wait before they propose new versions${bots.length === 0 ? '' : ` (${bots.join(', ')})`}`,
+  };
 }
 
 /**
@@ -299,6 +332,10 @@ function projectLines(project: ExplainDetection, fromRoot?: { directory: string;
   else lines.push('Node.js versions:', ...versions);
   if (project.bots.length === 0) lines.push('Bots: none');
   else lines.push('Bots:', ...project.bots.map((bot) => `  ${toolName(bot.id)}: ${bot.configFiles.join(', ')}`));
+  // Cargo, Go modules, Maven, Gradle and NuGet, which only the bots delay (decision D-151); the line only when found.
+  if (project.botEcosystems !== undefined && project.botEcosystems.length > 0) {
+    lines.push('Updated by bots only:', ...project.botEcosystems.flatMap((entry) => [`  ${entry.name}: ${entry.files.join(', ')}`, `    ${entry.message}`]));
+  }
   if (project.workspaces === null) {
     lines.push('Workspaces: none');
   } else {

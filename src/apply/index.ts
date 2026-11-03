@@ -399,7 +399,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   for (const tool of tools) {
     const generator = BOTS[tool.id];
     if (generator === undefined || !targets.has(tool.id)) continue;
-    run(tool, undefined, (context) => generator(context, duration, { workflows: detection.workflows }));
+    run(tool, undefined, (context) => generator(context, duration, { workflows: detection.workflows, botEcosystems: detection.botEcosystems ?? [] }));
   }
 
   warnings.push(...allowListWarnings(root, workspace, policy, detection, targets, tools));

@@ -55,7 +55,7 @@ export const APPLY_WARNINGS = {
   'bot-config-not-edited': 'A bot configuration file is in a place or format depcurfew does not edit; a snippet shows what to add.',
   'bot-entries-missing': 'The Dependabot configuration has no entries for the package managers in use.',
   'bot-config-unreadable': 'The Dependabot configuration uses a YAML alias, which Dependabot does not accept, so it reads no configuration from the file (the cooldown apply writes included), and depcurfew does not read the delays the file sets.',
-  'bot-rule-shortens-delay': "A Renovate packageRules entry apply does not manage gives every package of a registry, Renovate manager or category in use, or the actions of the workflows, or some update types of them, a shorter release-age delay than the one apply writes; Renovate uses it, and apply does not change it.",
+  'bot-rule-shortens-delay': "A Renovate packageRules entry apply does not manage gives every package of a registry, Renovate manager or category in use, the actions of the workflows or the dependencies of an ecosystem updated by bots only (Cargo, Go modules, Maven, Gradle, NuGet), or some update types of them, a shorter release-age delay than the one apply writes; Renovate uses it, and apply does not change it.",
   'security-delay-unsupported': 'Dependabot cannot delay security updates, so securityUpdates "delay" is not applied.',
 } as const satisfies Record<string, string>;
 

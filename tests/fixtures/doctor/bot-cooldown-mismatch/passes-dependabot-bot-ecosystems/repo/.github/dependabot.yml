@@ -1,0 +1,16 @@
+version: 2
+updates:
+  # Dependabot's default of 3 days is as long as cooldown.minimum
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 5
+      semver-patch-days: 3
+      include:
+        - "*"

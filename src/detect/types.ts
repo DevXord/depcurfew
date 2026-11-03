@@ -1,4 +1,6 @@
-import type { ToolId } from '../knowledge/types.ts';
+import type { BotOnlyEcosystemId, ToolId } from '../knowledge/types.ts';
+
+export type { BotOnlyEcosystemId } from '../knowledge/types.ts';
 
 export type PackageManagerId = Extract<ToolId, 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'uv' | 'pip' | 'poetry' | 'pdm' | 'pipenv' | 'composer'>;
 export type BotId = Extract<ToolId, 'renovate' | 'dependabot'>;
@@ -175,6 +177,16 @@ export interface BotInfo {
   configFiles: string[];
 }
 
+/**
+ * An ecosystem whose new versions depcurfew delays only through the update bots (decision D-151): its package manager
+ * has no release-age delay depcurfew configures.
+ */
+export interface BotEcosystemInfo {
+  id: BotOnlyEcosystemId;
+  /** The files that show it, from the root, the direct subdirectories, workspace packages and projects; sorted. */
+  files: string[];
+}
+
 export interface WorkspaceInfo {
   declarations: { file: string; patterns: string[] }[];
   /** Directories of workspace packages, without the root. */
@@ -200,6 +212,8 @@ export interface Detection {
   ciForProjects?: PackageManagerInfo[];
   node: { versions: VersionDeclaration[] };
   bots: BotInfo[];
+  /** Cargo, Go modules, Maven, Gradle and NuGet, whose new versions only the bots delay (decision D-151); absent when none. */
+  botEcosystems?: BotEcosystemInfo[];
   workspaces: WorkspaceInfo | null;
   /** `.npmrc` files in the root and in workspace packages; several tools read them. */
   npmrcFiles: string[];

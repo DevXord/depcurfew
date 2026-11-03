@@ -1,9 +1,10 @@
-// Dependabot: cooldown in every updates entry of a JavaScript, Python or Composer ecosystem in dependabot.yml, and in
-// the github-actions entries when the repository has workflows (decision D-130). semver-*-days keys that are already
+// Dependabot: cooldown in every updates entry of a JavaScript, Python or Composer ecosystem in dependabot.yml, in
+// the github-actions entries when the repository has workflows (decision D-130), and in the entries of the ecosystems
+// updated by bots only: cargo, gomod, maven, gradle and nuget (decision D-151). semver-*-days keys that are already
 // there are raised to the policy's delay (never lowered, never added) where the ecosystem reads them; other keys
 // (include) stay. Each package entry gets the exclusions of its registry: npm names for npm, bun and deno, pypi: names
-// for pip and uv, composer: names for composer. The policy's exclusions are package names, so a github-actions entry
-// gets none, and keeps its own.
+// for pip and uv, composer: names for composer. The policy's exclusions name none of the actions or of the dependencies
+// of the ecosystems updated by bots only, so their entries get none, and keep their own.
 import { convertCooldown } from '../../policy/convert.ts';
 import { ecosystemOfTool } from '../../policy/ecosystem.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
@@ -12,6 +13,8 @@ import { extraOf, isRecord, settingOf, values } from '../facts.ts';
 import { exclusions, sameList } from './common.ts';
 import type { BotGenerator } from './context.ts';
 import { rejectsYamlAliases, yamlAliasLine } from '../../doctor/settings.ts';
+import type { BotOnlyEcosystemId, ToolKnowledge } from '../../knowledge/types.ts';
+import { listing } from '../requirements.ts';
 
 interface CooldownKeys {
   days: string;
@@ -34,6 +37,18 @@ export interface ActionsEcosystem {
 
 export const isActionsEcosystem = (value: unknown): value is ActionsEcosystem =>
   isRecord(value) && typeof value['ecosystem'] === 'string' && typeof value['semverDays'] === 'boolean';
+
+/** An ecosystem updated by bots only (extra.botOnlyEcosystems, decision D-151): its package-ecosystem and semver-*-days. */
+export interface BotOnlyEntry extends ActionsEcosystem {
+  id: BotOnlyEcosystemId;
+}
+
+/** The ecosystems updated by bots only, by their package-ecosystem; empty without the fact. */
+export function botOnlyEntries(tool: ToolKnowledge): Map<string, BotOnlyEntry> {
+  if (tool.extra?.['botOnlyEcosystems'] === undefined) return new Map();
+  const fact = extraOf(tool, 'botOnlyEcosystems', (value): value is Record<string, unknown> => isRecord(value) && Object.values(value).every(isActionsEcosystem));
+  return new Map(Object.entries(fact).map(([id, entry]) => [(entry as ActionsEcosystem).ecosystem, { id: id as BotOnlyEcosystemId, ...(entry as ActionsEcosystem) }]));
+}
 
 export const dependabot: BotGenerator = (context, duration, repository) => {
   const { tool, policy } = context;
@@ -75,6 +90,8 @@ export const dependabot: BotGenerator = (context, duration, repository) => {
   const ecosystems = Object.keys(managers);
   // The actions of the workflows wait as long as the packages, when there are workflows (decision D-130).
   const actions = tool.extra?.['githubActions'] === undefined || repository.workflows.length === 0 ? undefined : extraOf(tool, 'githubActions', isActionsEcosystem);
+  // So do the dependencies of the ecosystems updated by bots only, wherever an entry names one (decision D-151).
+  const botOnly = botOnlyEntries(tool);
   const setting = settingOf(tool.cooldown.setting) ?? 'cooldown';
   const yaml = context.yaml(file);
   const updates = yaml.get(['updates']);
@@ -84,19 +101,21 @@ export const dependabot: BotGenerator = (context, duration, repository) => {
     return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], tool === undefined ? 'npm' : ecosystemOfTool(tool))) ?? [];
   };
   let configured = 0;
-  let configuredActions = 0;
+  // The other entries that get the cooldown: github-actions and the ecosystems updated by bots only.
+  const others = new Set<string>();
   // A dependabot.yml may have an entry for every directory of a monorepo: the edits are made together.
   const edits: [(string | number)[], unknown][] = [];
   (Array.isArray(updates) ? updates : []).forEach((entry: unknown, index) => {
     if (!isRecord(entry)) return;
     const ecosystem = String(entry['package-ecosystem']);
-    const forActions = actions !== undefined && ecosystem === actions.ecosystem;
-    if (!forActions && !ecosystems.includes(ecosystem)) return;
-    if (forActions) configuredActions += 1;
+    const other = actions !== undefined && ecosystem === actions.ecosystem ? actions : botOnly.get(ecosystem);
+    if (other === undefined && !ecosystems.includes(ecosystem)) return;
+    if (other !== undefined) others.add(other.ecosystem);
     else configured += 1;
-    // The exclusions of the policy name packages, never actions: a github-actions entry keeps its own.
-    const patterns = forActions ? undefined : patternsOf(ecosystem);
-    const semverDays = forActions && !actions.semverDays ? [] : keys.semverDays;
+    // The exclusions of the policy name npm, Python and Composer packages, never actions or the dependencies of the
+    // ecosystems updated by bots only: such an entry keeps its own.
+    const patterns = other !== undefined ? undefined : patternsOf(ecosystem);
+    const semverDays = other !== undefined && !other.semverDays ? [] : keys.semverDays;
     const current = entry[setting];
     if (!isRecord(current)) {
       edits.push([['updates', index, setting], { [keys.days]: result.value, ...(patterns !== undefined && patterns.length > 0 ? { [keys.exclude]: patterns } : {}) }]);
@@ -112,16 +131,17 @@ export const dependabot: BotGenerator = (context, duration, repository) => {
     }
   });
   if (edits.length > 0) yaml.setMany(edits);
-  // Without package managers to update, entries for the actions alone are what there is to configure.
+  // Without package managers to update, entries for the actions and the ecosystems updated by bots only are what there
+  // is to configure.
   const managersInUse = context.tools.some((entry) => entry.kind === 'package-manager' && context.targets.has(entry.id));
-  if (configured === 0 && (configuredActions === 0 || managersInUse)) {
+  if (configured === 0 && (others.size === 0 || managersInUse)) {
     context.warn({
       code: 'bot-entries-missing',
       location: { file },
       message:
-        configuredActions === 0
+        others.size === 0
           ? `${context.name}: no ${ecosystems.join(', ')} entries in ${file}; nothing to configure`
-          : `${context.name}: no ${ecosystems.join(', ')} entries in ${file}; only the ${actions?.ecosystem ?? ''} entries get the cooldown`,
+          : `${context.name}: no ${ecosystems.join(', ')} entries in ${file}; only the ${listing([...others])} entries get the cooldown`,
       fix: `Add an updates entry for each package manager Dependabot should update to ${file}, then run depcurfew apply again`,
     });
   }

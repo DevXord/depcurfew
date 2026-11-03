@@ -12,6 +12,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, posix } from 'node:path';
 import { KNOWLEDGE_DOCUMENT, readmeSections, renderReadme, type ReadmeInputs } from '../../src/docs/readme.ts';
 import { environment } from '../../src/knowledge/environment.ts';
+import { evidenceOf } from '../../src/knowledge/facts.ts';
 import { knowledgeBase } from '../../src/knowledge/index.ts';
 import { renderKnowledgeMarkdown } from '../../src/knowledge/render.ts';
 import type { Ecosystem, ToolId, ToolKnowledge } from '../../src/knowledge/types.ts';
@@ -120,7 +121,11 @@ const ECOSYSTEM_PAGES: Partial<Record<Ecosystem, EcosystemPage>> = {
   pypi: { file: 'python.html', nav: 'Python', guide: ['python-projects'], rules: ['python-config-ignored', 'lockfile-out-of-date'] },
   packagist: { file: 'php.html', nav: 'PHP', guide: ['composer-projects'], rules: ['composer-config-weakens'] },
 };
-const BOTS_PAGE: EcosystemPage = { file: 'bots.html', nav: 'Bots', guide: [], rules: ['bot-cooldown-mismatch'] };
+// The bots' section of the README says what they do for each ecosystem, also for those only they delay (D-151).
+const BOTS_PAGE: EcosystemPage = { file: 'bots.html', nav: 'Bots', guide: ['update-bots'], rules: ['bot-cooldown-mismatch'] };
+
+/** The ecosystems updated by bots only, for the summary of the bots' start page: "Cargo, Go modules … and NuGet". */
+const BOT_ECOSYSTEMS = Object.values(environment.botOnlyEcosystems).flatMap((entry) => evidenceOf(entry.project).slice(0, 1).map((evidence) => evidence.value.name));
 
 const names = (tools: readonly ToolKnowledge[]) => {
   const all = tools.map((tool) => tool.name);
@@ -139,10 +144,11 @@ function startPages(tools: readonly ToolKnowledge[]): StartPage[] {
   return keys.map((key) => {
     const members = groups.get(key) ?? [];
     const page = key === 'bots' ? BOTS_PAGE : (ECOSYSTEM_PAGES[key as Ecosystem] ?? { file: `${key}.html`, nav: names(members), guide: [], rules: [] });
+    const also = key === 'bots' && BOT_ECOSYSTEMS.length > 0 ? `, also for ${BOT_ECOSYSTEMS.slice(0, -1).join(', ')} and ${BOT_ECOSYSTEMS.at(-1) ?? ''}, which only the bots delay` : '';
     return {
       ...page,
       title: `Start with ${names(members)}`,
-      summary: `The five-minute start, the settings and the doctor rules for ${names(members)}.`,
+      summary: `The five-minute start, the settings and the doctor rules for ${names(members)}${also}.`,
       tools: members.map((tool) => tool.id),
     };
   });

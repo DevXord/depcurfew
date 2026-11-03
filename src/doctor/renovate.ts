@@ -1,14 +1,15 @@
 // Renovate configuration as doctor reads it: the delay Renovate applies to the packages of one package manager, which
-// one Renovate manager updates from one datasource, or to the actions the workflows run (decisions D-130 and D-131),
-// from the top-level minimumReleaseAge, the presets in extends and the packageRules that cover all of them
-// (extra.packageRuleMatching, extra.managerMatching, extra.packageRulesOrder). For the actions, a rule for every
+// one Renovate manager updates from one datasource, to the actions the workflows run (decisions D-130 and D-131) or to
+// the dependencies of an ecosystem updated by bots only (decision D-151), from the top-level minimumReleaseAge, the
+// presets in extends and the packageRules that cover all of them (extra.packageRuleMatching, extra.managerMatching,
+// extra.packageRulesOrder). For the actions, a rule for every
 // workflow file (matchFileNames) or for the depType of the actions (matchDepTypes, extra.actionsMatching) covers them
 // too (decision D-135). A rule that narrows the packages by anything else (names, files, dependency types...) is an
 // exception for some packages and does not count; neither does a rule with a matcher depcurfew cannot read, which is
 // listed so that doctor can say so.
 import { extraOf, isRecord } from '../apply/facts.ts';
 import { matchSegment, wildcardMatch } from '../detect/wildcard.ts';
-import type { Ecosystem, ToolKnowledge } from '../knowledge/types.ts';
+import type { BotOnlyEcosystemId, Ecosystem, ToolKnowledge } from '../knowledge/types.ts';
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import { jsonElementLines, jsonSetting } from './settings.ts';
 
@@ -70,6 +71,8 @@ export interface RenovateTarget {
   categories: readonly string[];
   /** The actions the workflows run, which the github-actions manager updates. */
   actions?: true;
+  /** The dependencies of an ecosystem updated by bots only, which one Renovate manager updates (decision D-151). */
+  ecosystem?: BotOnlyEcosystemId;
   /** actions: the workflow files of the repository, from its root (the packageFile matchFileNames sees, D-135). */
   files?: readonly string[];
   /** actions: the depType Renovate gives them (extra.actionsMatching). */
@@ -235,6 +238,22 @@ export function actionsTarget(bot: ToolKnowledge, files: readonly string[] = [])
   };
 }
 
+const isBotOnly = (value: unknown): value is Record<string, { manager: string; datasource: string; categories: string[] }> =>
+  isRecord(value) && Object.values(value).every((entry) => isRecord(entry) && typeof entry['manager'] === 'string' && typeof entry['datasource'] === 'string' && isStrings(entry['categories']));
+
+/**
+ * The dependencies of the ecosystems updated by bots only among `ids` (extra.botOnlyEcosystems, decision D-151), one
+ * target each, with the manager, datasource and categories Renovate gives them; none without the fact.
+ */
+export function botEcosystemTargets(bot: ToolKnowledge, ids: readonly BotOnlyEcosystemId[]): RenovateTarget[] {
+  if (bot.extra?.['botOnlyEcosystems'] === undefined) return [];
+  const fact = extraOf(bot, 'botOnlyEcosystems', isBotOnly);
+  return [...new Set(ids)].flatMap((id) => {
+    const entry = fact[id];
+    return entry === undefined ? [] : [{ datasource: entry.datasource, manager: entry.manager, categories: [...entry.categories], ecosystem: id }];
+  });
+}
+
 /** The targets of the package managers among `tools`, one for each datasource and manager, with the tools of each. */
 export function managerTargets(bot: ToolKnowledge, tools: readonly ToolKnowledge[]): { target: RenovateTarget; tools: ToolKnowledge[] }[] {
   const groups = new Map<string, { target: RenovateTarget; tools: ToolKnowledge[] }>();
@@ -382,7 +401,7 @@ export function renovateDelay(bot: ToolKnowledge, config: RenovateConfig, on: Re
   if (config.top !== undefined) set(updateTypes, { value: config.top.value, origin: `${path}: ${JSON.stringify(config.top.value)} in ${config.file}`, line: config.top.line });
 
   // The rules of presets come before the repository's rules (extra.packageRulesOrder).
-  for (const key of ['minimumReleaseAgePresets', 'pypiPresets']) {
+  for (const key of ['minimumReleaseAgePresets', 'pypiPresets', 'cratePresets']) {
     const fact = bot.extra?.[key] === undefined ? undefined : extraOf(bot, key, isPresetFact);
     const preset = fact === undefined ? undefined : config.extends.presets.find((item) => fact.presets.includes(presetName(item)));
     if (fact === undefined || preset === undefined || target.datasource !== fact.datasource) continue;

@@ -52,7 +52,7 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   ],
 };
 
-/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions, Claude Code, Python packaging, git, the Windows shells, Docker and the Node.js version managers. */
+/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions, Claude Code, Python packaging, git, the Windows shells, Docker, the Node.js version managers and the ecosystems updated by bots only. */
 export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'nodejs.org' },
   { host: 'github.com', pathPrefix: '/nodejs/' },
@@ -105,6 +105,16 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'github.com', pathPrefix: '/nvm-sh/' },
   { host: 'github.com', pathPrefix: '/nodenv/' },
   { host: 'github.com', pathPrefix: '/schniz/' },
+  // Ecosystems updated by bots only (decision D-151): Cargo, its book and the RFCs (rust-lang), the go command and
+  // go.dev (golang/go, golang/website), Maven and its site (apache/maven*), Gradle, NuGet with its designs and docs
+  // (NuGet/Home, NuGet/NuGet.Client, NuGet/docs.microsoft.com-nuget) and the .NET SDK (dotnet/dotnet, dotnet/core,
+  // dotnet/docs).
+  { host: 'github.com', pathPrefix: '/rust-lang/' },
+  { host: 'github.com', pathPrefix: '/golang/' },
+  { host: 'github.com', pathPrefix: '/apache/maven' },
+  { host: 'github.com', pathPrefix: '/gradle/' },
+  { host: 'github.com', pathPrefix: '/nuget/' },
+  { host: 'github.com', pathPrefix: '/dotnet/' },
   // npm packages whose install scripts are known (decision D-127): each package's own repository at a release tag.
   { host: 'github.com', pathPrefix: '/evanw/esbuild/' },
   { host: 'github.com', pathPrefix: '/evilmartians/lefthook/' },

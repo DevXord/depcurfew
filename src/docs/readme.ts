@@ -60,7 +60,7 @@ function setting(fact: Fact<string | null> | undefined): string | undefined {
   return fact === undefined || values(fact).every((value) => value === null) ? undefined : shown(fact, code);
 }
 
-function verifiedRange(tool: ToolKnowledge): string {
+function verifiedRange(tool: object): string {
   const dates: string[] = [];
   const visit = (node: unknown) => {
     if (!isRecord(node)) return;
@@ -75,7 +75,39 @@ function verifiedRange(tool: ToolKnowledge): string {
   return sorted.length <= 1 ? (sorted[0] ?? 'n/a') : `${sorted[0] ?? ''} – ${sorted.at(-1) ?? ''}`;
 }
 
-function toolsTable(tools: readonly ToolKnowledge[]): string {
+/**
+ * The ecosystems updated by bots only (decision D-151), one row each after the bots: the release-age delay of the
+ * package manager itself, which depcurfew does not configure, and the bot entries and managers that wait instead. Only
+ * in a table with an update bot, so that the start pages of the package managers leave them out.
+ */
+function botEcosystemRows(tools: readonly ToolKnowledge[], environment: EnvironmentKnowledge | undefined): string[] {
+  const bots = tools.filter((tool) => tool.kind === 'update-bot');
+  if (environment === undefined || bots.length === 0) return [];
+  const names = (tool: ToolKnowledge, key: 'ecosystem' | 'manager'): Record<string, string> => {
+    const fact = tool.extra?.['botOnlyEcosystems'];
+    const value = fact === undefined ? undefined : values(fact)[0];
+    return isRecord(value) ? Object.fromEntries(Object.entries(value).flatMap(([id, entry]) => (isRecord(entry) && typeof entry[key] === 'string' ? [[id, entry[key]]] : []))) : {};
+  };
+  const dependabot = bots.find((tool) => tool.id === 'dependabot');
+  const renovate = bots.find((tool) => tool.id === 'renovate');
+  return Object.entries(environment.botOnlyEcosystems).map(([id, entry]) => {
+    const project = values(entry.project)[0];
+    const delay = shown(entry.releaseAge, (value) => {
+      if (!isRecord(value) || typeof value['setting'] !== 'string' || typeof value['since'] !== 'string') return 'none';
+      const file = typeof value['file'] === 'string' ? ` in ${code(value['file'])}` : '';
+      const product = typeof value['product'] === 'string' ? `${value['product']} ` : '';
+      return `${code(value['setting'])}${file}, since ${product}${value['since']}${value['updatesOnly'] === true ? ', for updates only' : ''} (depcurfew does not write it)`;
+    });
+    const through = [
+      ...(dependabot === undefined || names(dependabot, 'ecosystem')[id] === undefined ? [] : [`Dependabot ${code(names(dependabot, 'ecosystem')[id])}`]),
+      ...(renovate === undefined || names(renovate, 'manager')[id] === undefined ? [] : [`Renovate ${code(names(renovate, 'manager')[id])}`]),
+    ];
+    const cellText = `${delay ?? 'none'}; the delay comes from the bots: ${through.join(', ')}`;
+    return `| ${[`${project?.name ?? id} (bots only)`, cellText, 'n/a', 'n/a', 'n/a', verifiedRange(entry)].map(cell).join(' | ')} |`;
+  });
+}
+
+function toolsTable(tools: readonly ToolKnowledge[], environment?: EnvironmentKnowledge): string {
   const rows = tools.map((tool) => {
     const cooldownSetting = setting(tool.cooldown.setting);
     const files = shown(tool.cooldown.configFiles, (value) => {
@@ -106,6 +138,7 @@ function toolsTable(tools: readonly ToolKnowledge[]): string {
     '| Tool | Release-age delay | Exceptions | Install-script allow-list (Python: packages built from source; Composer: plugins) | Dependency sources | Verified |',
     '| --- | --- | --- | --- | --- | --- |',
     ...rows,
+    ...botEcosystemRows(tools, environment),
     '',
     `⚠️ official sources disagree (depcurfew takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](${KNOWLEDGE_DOCUMENT}).`,
   ].join('\n');
@@ -421,7 +454,7 @@ export function readmeSections(inputs: ReadmeInputs): Record<string, string> {
     'user-rules': rulesList(USER_RULES, ''),
     'default-policy': ['```json', renderPolicy(DEFAULT_POLICY).trimEnd(), '```'].join('\n'),
     'policy-fields': policyTable(),
-    tools: toolsTable(inputs.tools),
+    tools: toolsTable(inputs.tools, inputs.environment),
     rules: rulesList(),
     'apply-codes': applyCodes(),
     'init-codes': initCodes(),

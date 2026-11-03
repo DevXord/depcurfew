@@ -1,0 +1,29 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/dependabot.yml",
+      "line": 3
+    },
+    "message": "Dependabot proposes cargo updates after 3 days (Dependabot's default (3 days)), but cooldown.minimum in depcurfew.json is 1 week, which covers Cargo dependencies, and Cargo before 1.100.0 has no release-age delay of its own; its pull requests bring in versions younger than that",
+    "fix": "Make the Dependabot delay at least 1 week, or run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/dependabot.yml",
+      "line": 11
+    },
+    "message": "Dependabot proposes gomod updates after 1 day (semver-major-days: 1 in .github/dependabot.yml), but cooldown.minimum in depcurfew.json is 1 week, which covers Go dependencies, and Go has no release-age delay of its own; its pull requests bring in versions younger than that",
+    "fix": "Make the Dependabot delay at least 1 week, or run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/dependabot.yml",
+      "line": 26
+    },
+    "message": "Dependabot proposes nuget updates of dependencies that cooldown.include does not name without waiting (cooldown.include in .github/dependabot.yml names only Contoso.*), but cooldown.minimum in depcurfew.json is 1 week, which covers NuGet dependencies, and NuGet has no release-age delay for what an install or restore takes; its pull requests bring in versions younger than that",
+    "fix": "Remove include from the cooldown of updates[3] in .github/dependabot.yml, so that the cooldown covers every dependency, and list exceptions under exclude instead"
+  }
+]
