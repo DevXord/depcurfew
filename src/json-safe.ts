@@ -5,7 +5,8 @@
 // it has), zero-width characters, tag characters, variation selectors and letters that show as blank space (Hangul
 // fillers, the blank braille pattern), which hide text from a person that a model still reads. Names and values from a repository or a registry can carry them, so they are written as \uHHHH escapes
 // too (a surrogate pair beyond the BMP), which every JSON parser reads back unchanged.
-import { INVISIBLE } from './printable.ts';
+// The user name and password of a URL in a string show as <redacted> (redactCredentials, decision D-168), as in text.
+import { INVISIBLE, redactCredentials } from './printable.ts';
 
 /** C1 controls, the line and paragraph separators, and the invisible characters of printable. */
 const UNSAFE = new RegExp(`[\\u0080-\\u009f\\u2028\\u2029]|${INVISIBLE.source}`, 'gu');
@@ -16,7 +17,12 @@ function escaped(character: string): string {
   return text;
 }
 
+/** Every string value with the credentials of its URLs as <redacted>; keys are depcurfew's own. */
+function redacted(_key: string, value: unknown): unknown {
+  return typeof value === 'string' ? redactCredentials(value) : value;
+}
+
 /** JSON.stringify(value, null, space) with the characters above escaped; they can only stand inside strings. */
 export function safeJson(value: unknown, space?: string | number): string {
-  return (JSON.stringify(value, null, space) ?? 'null').replace(UNSAFE, escaped);
+  return (JSON.stringify(value, redacted, space) ?? 'null').replace(UNSAFE, escaped);
 }

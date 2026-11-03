@@ -2015,6 +2015,7 @@ const runtimes$2 = verifiedOn("2026-11-01");
 const finalReview$3 = verifiedOn("2026-11-01");
 const release14$5 = verifiedOn("2026-11-02");
 const runners$2 = verifiedOn("2026-11-03");
+const secrets$3 = verifiedOn("2026-11-03");
 const CONFIG$2 = "https://docs.npmjs.com/cli/v12/using-npm/config";
 const NPMRC$1 = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
 const release$4 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
@@ -2751,6 +2752,30 @@ const npm$1 = {
 			key: "registry",
 			scopeKeySuffix: ":registry"
 		}, NPM_DEFINITIONS, "userconfig, the location of user-level settings, defaults to ~/.npmrc; registry is the base URL of the npm registry (default https://registry.npmjs.org/); a per-project .npmrc can set it like any config key (docs/lib/content/using-npm/config.md). npm config set @myco:registry=http://reg.example.com associates a scope with a registry, and any npm install of a package with that scope then requests it from there (https://docs.npmjs.com/cli/v12/using-npm/scope#associating-a-scope-with-a-registry)."),
+		globalConfig: secrets$3.verified({
+			userKey: "userconfig",
+			globalKey: "globalconfig",
+			prefixKey: "prefix",
+			file: "etc/npmrc",
+			prefixVariable: "PREFIX",
+			destDirVariable: "DESTDIR",
+			execPathLevels: {
+				win32: 1,
+				other: 2
+			},
+			order: [
+				"cli",
+				"env",
+				"project",
+				"user",
+				"global",
+				"builtin"
+			]
+		}, `${NPM_CONFIG_LIB}/index.js`, "load() reads the builtin config, the command line, the environment (loadEnv), the project .npmrc, the user file (#get(\"userconfig\")) and the global file (#get(\"globalconfig\")), and a key of an earlier source in the order above wins. loadGlobalPrefix: the default prefix is PREFIX of the environment, else on Windows the directory of the Node.js executable (\"c:\\node\\node.exe --> prefix=c:\\node\\\") and elsewhere the directory above it (\"/usr/local/bin/node --> prefix=/usr/local\"), with DESTDIR joined in front on POSIX only; the default of globalconfig is a getter, resolve(prefix, \"etc/npmrc\"), of the prefix the command line, the environment or the user file sets (loadDefaults). userconfig, globalconfig and prefix are of type path (definitions.js), which parseField (parse-field.js at the same tag) trims, expands ${VAR} in and resolves: ~/ against the home directory, anything else against the current directory."),
+		registryHostTarballs: secrets$3.verified({
+			dependencies: "registry specs",
+			match: "origin and path"
+		}, "https://github.com/npm/cli/blob/v12.2.1/workspaces/arborist/lib/arborist/reify.js", "#isRegistryResolvedTarball: a node whose every dependency edge has a registry spec (node.isRegistryDependency, workspaces/arborist/lib/node.js: npa(edge.spec).registry) and whose resolved URL, after replace-registry-host, has the origin of pickRegistry(npa(node.name)), the registry of its scope or else registry, and a path that starts with that registry's path, is extracted with allowRemote \"all\": \"pacote's npa re-parses our name@URL spec as type=remote, so allowRemote would mis-fire on registry tarballs\". The allow-remote definition says so for users: \"Tarballs that share a hostname with the configured registry (the typical case for the npm registry, GitHub Packages, and most private registries) are still installed normally\" (workspaces/config/lib/definitions/definitions.js)."),
 		registryOverrides: checked$5.verified({
 			registryOptions: ["--registry", "--@<scope>:registry"],
 			registryVariables: ["npm_config_registry"],
@@ -3138,6 +3163,7 @@ const user$6 = verifiedOn("2026-10-31");
 const finalReview$2 = verifiedOn("2026-11-01");
 const release14$4 = verifiedOn("2026-11-02");
 const d170$5 = verifiedOn("2026-11-03");
+const secrets$2 = verifiedOn("2026-11-03");
 const noSetting$5 = (kind) => ({ setting: uncertain$8(null, `${PIP}/src/pip/_internal/cli/cmdoptions.py`, `No option allows or forbids ${kind} requirements (concluded from the list of options). Hash-checking mode (--require-hashes, or any --hash) rejects VCS and local directory requirements, unless --no-require-hashes (26.2) turns the automatic mode off.`) });
 const pip$1 = {
 	id: "pip",
@@ -3445,6 +3471,56 @@ const pip$1 = {
 		], CONFIGURATION$4, "\"Note that if a file exists at the location that this is set to, the user config file will not be loaded.\" PIP_<NAME> variables are applied after the [global] and command sections of all files, and the command line beats them (cli/parser.py, override_order). --isolated, a flag, ignores environment variables and user configuration. XDG_CONFIG_HOME (Linux) and XDG_DATA_HOME (macOS, 26.2) move the user directory, from 26.3 only when they are absolute paths (see files).")
 	},
 	extra: {
+		machineSettings: secrets$2.verified({
+			variables: [
+				{
+					name: "PIP_INDEX_URL",
+					effect: "replaces"
+				},
+				{
+					name: "PIP_PYPI_URL",
+					effect: "replaces"
+				},
+				{
+					name: "PIP_EXTRA_INDEX_URL",
+					effect: "adds",
+					list: "spaces"
+				},
+				{
+					name: "PIP_FIND_LINKS",
+					effect: "adds",
+					list: "spaces"
+				}
+			],
+			configFile: {
+				variable: "PIP_CONFIG_FILE",
+				format: "ini",
+				whenMissing: "user-file"
+			},
+			sections: ["global", "install"],
+			keys: [
+				{
+					key: "index-url",
+					effect: "replaces"
+				},
+				{
+					key: "pypi-url",
+					effect: "replaces"
+				},
+				{
+					key: "extra-index-url",
+					effect: "adds"
+				},
+				{
+					key: "find-links",
+					effect: "adds"
+				}
+			],
+			legacyUserFiles: {
+				posix: ".pip/pip.conf",
+				win32: "pip/pip.ini"
+			}
+		}, `${PIP}/src/pip/_internal/configuration.py`, "iter_config_files: the global files, then the user files unless PIP_CONFIG_FILE names a file that exists (\"per-user config is not loaded when env_config_file exists\"), the legacy ~/.pip/pip.conf (~/pip/pip.ini on Windows, get_configuration_files) before the user file of user.files, the site file of the environment, and the file PIP_CONFIG_FILE names; each is read with configparser.RawConfigParser (= or : between key and value, full-line comments with # or ;, indented lines continue a value, keys in lower case) and _normalize_name writes _ as -. ConfigOptionParser (src/pip/_internal/cli/parser.py) takes the sections global, the name of the command (install for pip install) and :env: (the PIP_ variables, which win), matches a key to the long option of that name, so pypi-url sets --index-url too (-i, --index-url and --pypi-url are one option in cli/cmdoptions.py), and splits the value of an append option (--extra-index-url, --find-links) at whitespace. --index-url replaces the index, --extra-index-url adds indexes and --find-links adds pages or directories of archives (cmdoptions.py)."),
 		environmentNames: release14$4.verified([{
 			prefix: "PIP_",
 			match: "prefix-then-any-case"
@@ -6029,6 +6105,7 @@ const renovate$1 = {
 // src/knowledge/uv.ts
 const { verified: verified$4, uncertain: uncertain$2 } = verifiedOn("2026-10-30");
 const guard = verifiedOn("2026-11-01");
+const secrets$1 = verifiedOn("2026-11-03");
 const UV = "https://github.com/astral-sh/uv/blob/0.13.6";
 const RESOLUTION = `${UV}/docs/concepts/resolution.md`;
 const CONFIGURATION$1 = `${UV}/docs/concepts/configuration-files.md`;
@@ -6279,6 +6356,38 @@ const uv$1 = {
 		], `${UV}/crates/uv-static/src/env_vars.rs`, "\"Settings provided via environment variables take precedence over persistent configuration, and settings provided via the command line take precedence over both\" (docs/concepts/configuration-files.md). UV_NO_BUILD_PACKAGE since 0.6.5, UV_NO_BINARY and UV_NO_BINARY_PACKAGE since 0.5.30 (lists separated by spaces), UV_NO_CONFIG since 0.2.30, UV_CONFIG_FILE since 0.1.34. UV_NO_BUILD, UV_NO_BINARY and UV_NO_CONFIG are flags parsed with the BoolishValueParser of clap (crates/uv-cli/src/lib.rs), whose true values are y, yes, t, true, on and 1 and false values n, no, f, false, off and 0, in any case (https://github.com/clap-rs/clap/blob/v4.6.7/clap_builder/src/util/str_to_bool.rs, the clap_builder version in the Cargo.lock of uv); a false value leaves the flag unset (flag() in crates/uv-cli/src/options.rs gives None), so the files decide (with UV_NO_BUILD=0 uv 0.11.32 still refused to build in a review test on 2026-10-31). XDG_CONFIG_HOME and APPDATA move the user directory (see files).")
 	},
 	extra: {
+		machineSettings: secrets$1.verified({
+			variables: [
+				{
+					name: "UV_DEFAULT_INDEX",
+					effect: "replaces"
+				},
+				{
+					name: "UV_INDEX_URL",
+					effect: "replaces"
+				},
+				{
+					name: "UV_INDEX",
+					effect: "adds",
+					list: "spaces"
+				},
+				{
+					name: "UV_EXTRA_INDEX_URL",
+					effect: "adds",
+					list: "spaces"
+				},
+				{
+					name: "UV_FIND_LINKS",
+					effect: "adds",
+					list: "commas"
+				}
+			],
+			configFile: {
+				variable: "UV_CONFIG_FILE",
+				format: "toml",
+				whenMissing: "nothing"
+			}
+		}, `${UV}/crates/uv-static/src/env_vars.rs`, "UV_DEFAULT_INDEX (\"uv will use this index as the default index\") and UV_INDEX_URL (the same, deprecated) replace PyPI; UV_INDEX (\"this space-separated list of additional indexes\", entries may be name=url), UV_EXTRA_INDEX_URL (space-separated, deprecated) and UV_FIND_LINKS (\"this comma-separated list of additional locations\") add places to install from; UV_CONFIG_FILE \"Expects a path to a local uv.toml file to use as the configuration file\", which \"will be used in place of any discovered configuration files (e.g., user-level configuration will be ignored)\" (docs/concepts/configuration-files.md at the same tag, which also says that variables win over configuration files and that the user uv.toml is merged under the project's, arrays concatenated). uv reads none of pip's variables or files (docs/pip/compatibility.md)."),
 		environmentNames: release14$2.verified([{
 			prefix: "",
 			match: "exact"
@@ -7411,6 +7520,7 @@ const finalReview = verifiedOn("2026-11-01");
 const release14 = verifiedOn("2026-11-02");
 const ruby = verifiedOn("2026-11-03");
 const ciOverrides = verifiedOn("2026-11-03");
+const secrets = verifiedOn("2026-11-03");
 const COREPACK_README = "https://github.com/nodejs/corepack/blob/v0.36.0/README.md";
 const COREPACK_CHANGELOG = "https://github.com/nodejs/corepack/blob/v0.36.0/CHANGELOG.md";
 const COREPACK_V0_36_0 = "https://github.com/nodejs/corepack/blob/v0.36.0";
@@ -8258,7 +8368,18 @@ const environment = {
 			".nvmrc",
 			".node-version",
 			".tool-versions"
-		], "https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/README.md", "nvm: \"nvm use et. al. will traverse directory structure upwards from the current directory looking for the .nvmrc file\". nodenv: find_local_version_file in libexec/nodenv-version-file checks the directory for .node-version and then each parent up to the root (https://github.com/nodenv/nodenv/blob/5083e9819756c1a127a626a874703349f4ddb2e4/libexec/nodenv-version-file). asdf: the tool versions a .tool-versions file declares \"will be used in that directory and any subdirectories\" (https://github.com/asdf-vm/asdf/blob/master/docs/manage/configuration.md). Volta is not one of them: for_dir in crates/volta-core/src/project/mod.rs \"will search ancestors to find a package.json and use that as the root of the project\" and reads a parent package.json only through extends (https://github.com/volta-cli/volta/blob/main/crates/volta-core/src/project/mod.rs), so the volta key of the root package.json does not reach a project with a package.json of its own.")
+		], "https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/README.md", "nvm: \"nvm use et. al. will traverse directory structure upwards from the current directory looking for the .nvmrc file\". nodenv: find_local_version_file in libexec/nodenv-version-file checks the directory for .node-version and then each parent up to the root (https://github.com/nodenv/nodenv/blob/5083e9819756c1a127a626a874703349f4ddb2e4/libexec/nodenv-version-file). asdf: the tool versions a .tool-versions file declares \"will be used in that directory and any subdirectories\" (https://github.com/asdf-vm/asdf/blob/master/docs/manage/configuration.md). Volta is not one of them: for_dir in crates/volta-core/src/project/mod.rs \"will search ancestors to find a package.json and use that as the root of the project\" and reads a parent package.json only through extends (https://github.com/volta-cli/volta/blob/main/crates/volta-core/src/project/mod.rs), so the volta key of the root package.json does not reach a project with a package.json of its own."),
+		environmentProxy: secrets.verified({
+			variable: "NODE_USE_ENV_PROXY",
+			value: "1",
+			option: "--use-env-proxy",
+			since: ["22.21.0", "24.0.0"],
+			proxyVariables: [
+				"HTTPS_PROXY",
+				"HTTP_PROXY",
+				"NO_PROXY"
+			]
+		}, "https://github.com/nodejs/node/blob/v26.13.0/doc/api/cli.md", "NODE_USE_ENV_PROXY=1 (added in v24.0.0 and v22.21.0, \"Stability: 1.1 - Active Development\"): \"When enabled, Node.js parses the HTTP_PROXY, HTTPS_PROXY and NO_PROXY environment variables during startup, and routes requests through the specified proxy\"; --use-env-proxy does the same and wins over it. doc/api/http.md at the same tag (Built-in Proxy Support, http.setGlobalProxyFromEnv) names fetch() among the requests it covers, and the lower-case spellings win over the upper-case ones. Without it, fetch connects directly, whatever the proxy variables say; Node.js before 22.21.0 has no such switch.")
 	},
 	docker: {
 		imageReference: runtimes.verified({
@@ -8657,7 +8778,13 @@ const environment = {
 			path: "/-/v1/search",
 			maxSize: 250,
 			weeklyDownloadsField: "downloads.weekly"
-		}, "https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md", "The description documents text, size (at most 250) and from. Results carried downloads.weekly on 2026-10-29, which the description does not list, and from was ignored, so one query returns at most 250 packages.")
+		}, "https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md", "The description documents text, size (at most 250) and from. Results carried downloads.weekly on 2026-10-29, which the description does not list, and from was ignored, so one query returns at most 250 packages."),
+		githubPackagesTarballs: secrets.verified({
+			host: "npm.pkg.github.com",
+			path: "/download/{scope}/{name}/{version}/{digest}"
+		}, "https://github.com/pnpm/pnpm/blob/v11.28.9/pnpm11/core/types/src/misc.ts", "RegistryServerType: \"A registry that serves tarballs from a content-derived path (GitHub Packages /download/<scope>/<name>/<version>/<sha256>) has no value: the digest is a fact about the bytes rather than about the package's identity, so its URLs are kept in the lockfile instead\"; the test \"keeps GitHub Packages /download/ tarball URLs\" of pnpm11/lockfile/utils/test/toLockfileResolution.ts at the same tag uses https://npm.pkg.github.com/download/@example/private/1.2.3/<40 hex digits>. npm.pkg.github.com is the npm registry of GitHub Packages on github.com; GitHub Enterprise uses npm.SUBDOMAIN.ghe.com or npm.HOSTNAME (content/packages/working-with-a-github-packages-registry/working-with-the-npm-registry.md in github/docs), which depcurfew recognizes only through the .npmrc of the project (npm extra.registryHostTarballs)."),
+		gitlabTarballs: secrets.verified({ path: "{scope}/{name}/-/{scope}/{name}-{version}.tgz" }, "https://gitlab.com/gitlab-org/gitlab/-/blob/v18.5.0-ee/doc/api/packages/npm.md", "GET projects/:id/packages/npm/:package_name/-/:file_name downloads a package file; the metadata names the tarball https://gitlab.example.com/api/v4/projects/1/packages/npm/@myscope/my-pkg/-/@myscope/my-pkg-1.3.7.tgz, so the file name keeps the scope, and the registry is mounted below /api/v4/projects/<id>/packages/npm (or the group and instance endpoints)."),
+		artifactoryTarballs: secrets.verified({ path: "{scope}/{name}/-/{scope}/{name}-{version}.tgz" }, "https://github.com/pnpm/pnpm/blob/v11.28.9/pnpm11/resolving/tarball-url/src/index.ts", "getNpmTarballUrl: \"Artifactory keeps the scope in the filename of a scoped package's tarball (@acme/widget/-/@acme/widget-1.0.0.tgz); the npm layout strips it\". npm's versionFromTgz reads no name and version from such a URL (the part after /-/ is not the file name alone), so npm 12 cannot match it in allowScripts by version.")
 	},
 	pypiIndex: {
 		api: python.verified({
@@ -19216,6 +19343,8 @@ const REPLACEMENT = rule?.value.replacement ?? "-";
 function normalizePythonName(name) {
 	return name.replace(SEPARATORS, REPLACEMENT).toLowerCase();
 }
+const SEPARATOR = new RegExp(`^(?:${SEPARATORS.source})$`, "u");
+const REPLACEMENT_LENGTH = REPLACEMENT.toLowerCase().length;
 
 // src/apply/expected.ts
 function isObject$4(value) {
@@ -22949,7 +23078,7 @@ function withDescription(schema, description) {
 		...schema
 	};
 }
-function literal(value, options = {}) {
+function literal$1(value, options = {}) {
 	const label = JSON.stringify(value);
 	return {
 		label,
@@ -24632,6 +24761,84 @@ function urlPath(url) {
 		return "";
 	}
 }
+/** Text as it stands in a regular expression. */
+function literal(text) {
+	return text.replace(/[.*+?^${}()|[\]\\/]/gu, "\\$&");
+}
+/**
+* The tarball layouts of registries whose URLs are not in npm's layout (decision D-168): GitHub Packages
+* (/download/@scope/name/<version>/<digest> on its host), and GitLab and Artifactory, which keep the scope in the file
+* name (.../@scope/name/-/@scope/name-<version>.tgz, below any path). A placeholder used twice stands for the same text.
+*/
+function registryLayouts() {
+	const facts = [
+		environment.npmRegistry.githubPackagesTarballs,
+		environment.npmRegistry.gitlabTarballs,
+		environment.npmRegistry.artifactoryTarballs
+	];
+	const known = /* @__PURE__ */ new Map();
+	for (const fact of facts) for (const layout of values$1(fact)) known.set(`${layout.host ?? ""} ${layout.path}`, layout);
+	return [...known.values()].map((layout) => {
+		const groups = {};
+		let count = 0;
+		const body = layout.path.replace(/\{(scope|name|version|digest)\}|[^{]+/gu, (part, placeholder) => {
+			if (placeholder === void 0) return literal(part);
+			const seen = groups[placeholder];
+			if (seen !== void 0) return `\\${seen}`;
+			count += 1;
+			groups[placeholder] = count;
+			return placeholder === "scope" ? "(@[^/@]+)" : placeholder === "name" ? "([^/@][^/]*)" : placeholder === "digest" ? "([0-9a-f]+)" : "([^/]+)";
+		});
+		const host = layout.host === void 0 ? "[^/]+" : literal(layout.host);
+		const path = layout.path.startsWith("/") ? body : `(?:/[^?#]*)?/${body}`;
+		return {
+			pattern: new RegExp(`^https?://${host}${path}$`, "iu"),
+			scope: groups["scope"] ?? 0,
+			name: groups["name"] ?? 0,
+			version: groups["version"] ?? 0
+		};
+	});
+}
+let layouts;
+/** The package and version of a tarball URL in a layout of registryLayouts; undefined for another URL. */
+function layoutIdentity(url) {
+	let decoded;
+	try {
+		const parsed = new URL(url);
+		if (parsed.search !== "" || parsed.hash !== "") return void 0;
+		decoded = `${parsed.protocol}//${parsed.host}${decodeURIComponent(parsed.pathname)}`;
+	} catch {
+		return;
+	}
+	layouts ??= registryLayouts();
+	for (const layout of layouts) {
+		const match = layout.pattern.exec(decoded);
+		const version = match === null ? void 0 : parseSemver$1(match[layout.version] ?? "");
+		if (match !== null && version !== void 0) return {
+			name: `${match[layout.scope] ?? ""}/${match[layout.name] ?? ""}`,
+			version: version.core
+		};
+	}
+}
+/**
+* Whether npm 12 installs a tarball URL of package-lock.json as a registry package (npm extra.registryHostTarballs,
+* decision D-168): it has the origin of the registry npm uses for the package (its scope's, else registry, from the
+* .npmrc next to the lockfile) and a path below that registry's path.
+*/
+function belowRegistry(url, name, registries) {
+	if (registries === void 0) return false;
+	const scope = name.startsWith("@") ? name.slice(0, name.indexOf("/")) : void 0;
+	const registry = (scope === void 0 ? void 0 : registries.scopes.get(scope)) ?? registries.registry;
+	if (registry === void 0) return false;
+	try {
+		const resolved = new URL(url);
+		const base = new URL(registry);
+		const path = base.pathname.replace(/\/?$/u, "/");
+		return resolved.origin === base.origin && (path === "/" || resolved.pathname.startsWith(path));
+	} catch {
+		return false;
+	}
+}
 /** Packages that overrides (npm, root package.json only) replace with a tarball URL, at any depth of nesting. */
 function urlOverrides(overrides, parent, selfKey, found = []) {
 	if (!isRecord(overrides)) return found;
@@ -24647,7 +24854,7 @@ function urlOverrides(overrides, parent, selfKey, found = []) {
 	}
 	return found;
 }
-function npmEntries(text, format, workspaces, manifest, overridesFormat, identityFormat) {
+function npmEntries(text, format, workspaces, manifest, overridesFormat, identityFormat, registries) {
 	const document = JSON.parse(text);
 	if (!isRecord(document) || !isRecord(document["packages"])) throw new UnsupportedLockfile("it has no \"packages\" section (lockfileVersion 1 is not read)");
 	const packages = document["packages"];
@@ -24668,6 +24875,7 @@ function npmEntries(text, format, workspaces, manifest, overridesFormat, identit
 	}
 	const overrides = overridesFormat !== void 0 && isRecord(manifest) ? urlOverrides(manifest[String(overridesFormat["field"])], void 0, String(overridesFormat["selfKey"])) : [];
 	const entries = [];
+	const notByUrl = [];
 	for (const [key, value] of Object.entries(packages)) {
 		if (!key.includes("node_modules/") || !isRecord(value)) continue;
 		const name = typeof value["name"] === "string" ? value["name"] : key.slice(key.lastIndexOf("node_modules/") + 13);
@@ -24675,12 +24883,15 @@ function npmEntries(text, format, workspaces, manifest, overridesFormat, identit
 		const version = typeof value["version"] === "string" ? value["version"] : "";
 		const spec = resolved !== "" || format["specWithoutResolved"] !== "version" ? resolved : version;
 		let source = "unknown";
+		let undeclared = false;
 		if (value[String(format["linkFlag"])] === true) source = workspaces.includes(resolved) ? "workspace" : "directory";
 		else if (strings(format["gitPrefixes"]).some((prefix) => spec.startsWith(prefix))) source = "git";
 		else if (spec.startsWith(String(format["filePrefix"]))) source = /\.(?:tgz|tar\.gz)$/u.test(spec) ? "file" : "directory";
 		else if (HTTP.test(spec)) {
 			const overridden = overrides.some((override) => override.name === name && urlPath(spec).endsWith(override.path));
-			source = registry.test(spec) && !fromUrl.has(key) && !overridden ? "registry" : "remoteTarball";
+			const declared = fromUrl.has(key) || overridden;
+			source = (registry.test(spec) || layoutIdentity(spec) !== void 0 || resolved !== "" && belowRegistry(spec, name, registries)) && !declared ? "registry" : "remoteTarball";
+			undeclared = source === "remoteTarball" && !declared;
 		} else if (resolved === "" && (spec === "" || EXACT_VERSION.test(spec))) source = "registry";
 		const entry = {
 			name,
@@ -24690,8 +24901,13 @@ function npmEntries(text, format, workspaces, manifest, overridesFormat, identit
 			anchor: `${JSON.stringify(key)}: {`,
 			...exactVersion(source, version)
 		};
+		if (undeclared) notByUrl.push({
+			key,
+			name,
+			entry
+		});
 		const fetched = source === "registry" && resolved !== "" && identityFormat !== void 0;
-		const identity = fetched ? tarballIdentity(resolved, identityFormat) : void 0;
+		const identity = fetched ? tarballIdentity(resolved, identityFormat) ?? layoutIdentity(resolved) : void 0;
 		if (fetched && identity === void 0) delete entry.version;
 		if (identity !== void 0) {
 			entry.version = identity.version;
@@ -24704,8 +24920,30 @@ function npmEntries(text, format, workspaces, manifest, overridesFormat, identit
 		}
 		entries.push(entry);
 	}
+	if (notByUrl.length > 0) {
+		const names = new Set(notByUrl.map((candidate) => candidate.name));
+		const declared = /* @__PURE__ */ new Set();
+		for (const [key, value] of Object.entries(packages)) {
+			if (!isRecord(value)) continue;
+			for (const field of fields) {
+				const dependencies = value[field];
+				if (!isRecord(dependencies)) continue;
+				for (const [name, spec] of Object.entries(dependencies)) {
+					if (!names.has(name) || typeof spec !== "string" || !REGISTRY_SPEC.test(spec)) continue;
+					const location = installedAt(packages, key, name);
+					if (location !== void 0) declared.add(location);
+				}
+			}
+		}
+		for (const candidate of notByUrl) if (declared.has(candidate.key)) candidate.entry.registrySpec = true;
+	}
 	return entries;
 }
+/**
+* A dependency spec that names a registry version: a version, a range or a dist-tag (nothing with : or / but an npm:
+* alias), as npm-package-arg reads one with registry set; a URL, a git or GitHub spec and a path are not.
+*/
+const REGISTRY_SPEC = /^(?:npm:|[^:/\\]*$)/u;
 /** The project lockfile of a pnpm-lock.yaml and where it starts: the last document when a boot document comes first. */
 function pnpmGraph(text, documents) {
 	const marker = documents?.["bootMarker"];
@@ -25005,6 +25243,22 @@ function entryLines(text, start, entries) {
 		return lines.has(entry) ? lines.get(entry) : lineFinder(text, start)(entry.anchor);
 	};
 }
+/**
+* The registries of the .npmrc next to a package-lock.json, npm's project configuration there (decision D-168): its
+* top-level registry= and @scope:registry= as npm's ini reads them, the last of a key winning.
+*/
+function npmrcRegistries(repository, lockfile) {
+	const directory = posix.dirname(lockfile);
+	const text = repository.readText(directory === "." ? ".npmrc" : `${directory}/.npmrc`);
+	const scopes = /* @__PURE__ */ new Map();
+	let registry;
+	for (const { key, value } of text === void 0 ? [] : iniEntries(text)) if (key === "registry") registry = value;
+	else if (key.startsWith("@") && key.endsWith(":registry")) scopes.set(key.slice(0, -9), value);
+	return {
+		...registry === void 0 ? {} : { registry },
+		scopes
+	};
+}
 /** Lockfiles already read in a doctor run (one Repository): both lockfile rules read the same ones. */
 const READ$1 = /* @__PURE__ */ new WeakMap();
 /** The lockfiles a package manager uses, each read and parsed once per Repository. */
@@ -25083,8 +25337,10 @@ function parseLockfiles(repository, manager, tool, workspaces, tools) {
 			let entries;
 			let recordsScripts = format["installScripts"] !== null;
 			let start = 0;
-			if (tool.id === "npm") entries = npmEntries(text, format, workspaces, readManifest(repository, file), overridesFormatOf(tool), extraFormat(tool, "tarballIdentity"));
-			else if (tool.id === "pnpm") {
+			if (tool.id === "npm") {
+				const registries = tool.extra?.["registryHostTarballs"] === void 0 ? void 0 : npmrcRegistries(repository, file);
+				entries = npmEntries(text, format, workspaces, readManifest(repository, file), overridesFormatOf(tool), extraFormat(tool, "tarballIdentity"), registries);
+			} else if (tool.id === "pnpm") {
 				const npmTool = tools.find((entry) => entry.id === "npm");
 				const identity = tool.extra?.["tarballResolution"] === void 0 || npmTool === void 0 ? void 0 : extraFormat(npmTool, "tarballIdentity");
 				({entries, start} = pnpmEntries(text, format, documentsOf(tool), identity));
@@ -28494,7 +28750,7 @@ const sourcesShape = object({
 	file: optional(access("Dependencies installed from local tarball files.")),
 	directory: optional(access("Dependencies installed from local directories."))
 }, { description: "Where dependencies may come from besides the registry. An absent field is not managed." });
-const targetsShape = anyOf([literal("auto", { description: "Configure the tools detected in the repository." }), list$1(oneOfStrings(TOOL_IDS, { description: "A tool depcurfew can configure." }), {
+const targetsShape = anyOf([literal$1("auto", { description: "Configure the tools detected in the repository." }), list$1(oneOfStrings(TOOL_IDS, { description: "A tool depcurfew can configure." }), {
 	label: "a list of tools",
 	unique: true,
 	nonEmpty: "use \"auto\" to detect tools",
@@ -28525,7 +28781,7 @@ const FAIL_ON_LEVELS = ["error", "warning"];
 const doctorShape = object({ failOn: optional(oneOfStrings(FAIL_ON_LEVELS, { description: "Which findings make depcurfew doctor exit with 1 and fail the GitHub Action: \"error\" (only errors, also when left out) or \"warning\" (warnings too). Notes never fail. doctor --fail-on and the input fail-on of the Action override it." })) }, { description: "How depcurfew doctor and the GitHub Action treat findings. Without this section only errors fail, as before; depcurfew init writes \"failOn\": \"warning\"." });
 const policyShape = object({
 	$schema: optional(anyString({ description: "JSON Schema of this file, for editor support." })),
-	version: required(literal(1, { description: "Version of the policy format." })),
+	version: required(literal$1(1, { description: "Version of the policy format." })),
 	cooldown: optional(cooldownShape),
 	installScripts: optional(installScriptsShape),
 	sources: optional(sourcesShape),
@@ -32718,14 +32974,81 @@ function visible(character) {
 	const code = character.codePointAt(0) ?? 0;
 	return code > 65535 ? `\\u{${code.toString(16)}}` : `\\u${code.toString(16).padStart(4, "0")}`;
 }
+/** A letter, digit, +, - or . (RFC 3986: what a scheme is made of after its first letter). */
+function schemeCharacter(code) {
+	return code >= 97 && code <= 122 || code >= 65 && code <= 90 || code >= 48 && code <= 57 || code === 43 || code === 45 || code === 46;
+}
+function letter(code) {
+	return code >= 97 && code <= 122 || code >= 65 && code <= 90;
+}
+/** What ends the authority of a URL (WHATWG URL: /, ?, #, and \ for http and https), and whitespace, which ends a URL in text. */
+function endsAuthority(code) {
+	return code === 47 || code === 63 || code === 35 || code === 92 || code === 32 || code >= 9 && code <= 13 || code === 133 || code === 160 || code === 8232 || code === 8233 || code === 12288 || code === 65279 || code >= 8192 && code <= 8202;
+}
+/**
+* The user parts of the URLs in a text (decision D-168): after scheme://, everything up to the last @ before the
+* authority ends, as WHATWG URL (npm) and pip read a URL, so that a password with an unencoded @ is a user part to its
+* end, and a token alone (https://TOKEN@host) is one too; a URL written after another (a://b://TOKEN@host) counts
+* as one of its own. Linear in the length of the text: a scan forward stops at the / of the next ://, and a scan back
+* for its scheme at the start of the URL before it.
+*/
+function userParts(text) {
+	const parts = [];
+	for (let from = 0;;) {
+		const separator = text.indexOf("://", from);
+		if (separator === -1) return parts;
+		let begin = separator;
+		while (begin > from && schemeCharacter(text.charCodeAt(begin - 1))) begin--;
+		while (begin < separator && !letter(text.charCodeAt(begin))) begin++;
+		const start = separator + 3;
+		let at = -1;
+		for (let end = start; end < text.length && !endsAuthority(text.charCodeAt(end)); end++) if (text.charCodeAt(end) === 64) at = end;
+		if (begin < separator && at !== -1) parts.push({
+			start,
+			at,
+			scheme: text.slice(begin, separator).toLowerCase()
+		});
+		from = start;
+	}
+}
+/** The text with each user part replaced by what `replace` makes of it (with the @ when it returns one). */
+function replaceUserParts(text, replace) {
+	const parts = userParts(text);
+	if (parts.length === 0) return text;
+	let result = "";
+	let last = 0;
+	for (const part of parts) {
+		result += text.slice(last, part.start) + replace(part, text.slice(part.start, part.at));
+		last = part.at + 1;
+	}
+	return result + text.slice(last);
+}
+/** The text that stands for credentials in messages and diffs. */
+const REDACTED = "<redacted>";
+/**
+* The text with the user name and password of every URL in it shown as <redacted> (https://user:token@host/ becomes
+* https://<redacted>@host/), as the diff of apply shows them: for messages, where people should see that a URL
+* carries credentials without seeing them. A token alone counts as credentials too; only the login name of an ssh URL
+* without a password (git+ssh://git@github.com) stays, since it is no secret and says which account the key is for.
+* Use withoutCredentials for a URL that depcurfew sends anywhere. printable and safeJson apply it to every text
+* depcurfew writes (decision D-168).
+*/
+function redactCredentials(text) {
+	return replaceUserParts(text, (part, userinfo) => {
+		if (userinfo === "" || userinfo === REDACTED) return `${userinfo}@`;
+		if (part.scheme.split("+").includes("ssh") && !userinfo.includes(":")) return `${userinfo}@`;
+		return `${REDACTED}@`;
+	});
+}
 /**
 * The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`, and every invisible
 * character (INVISIBLE) and the line and paragraph separators as `\uHHHH` or `\u{HHHHH}`. Line breaks are control
 * characters too, so a value from a file cannot start a line of its own; `lines: true` keeps line feeds, for text
-* depcurfew lays out in lines itself, such as a snippet to add by hand. Apply it before adding colors.
+* depcurfew lays out in lines itself, such as a snippet to add by hand. The user name and password of a URL show as
+* <redacted> (redactCredentials, decision D-168). Apply it before adding colors.
 */
 function printable(text, options = {}) {
-	return text.replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`).replace(INVISIBLE, visible).replace(LINE_SEPARATORS, visible);
+	return redactCredentials(text).replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`).replace(INVISIBLE, visible).replace(LINE_SEPARATORS, visible);
 }
 
 // src/apply/diff.ts
@@ -33302,11 +33625,15 @@ function unchanged(realRoot, entry) {
 * creates to the owner `ownerOfNew` names for its real path, so that a directory a symlink led elsewhere (out of the
 * home directory) is not given away. Each is checked with lstat after mkdir: a directory that root just made, not a
 * symlink that the owner of the parent put there meanwhile; lchown does not follow a symlink either, so a swap between
-* the check and lchown gives away the link at most, never what it points to. Without an owner it is mkdir -p.
+* the check and lchown gives away the link at most, never what it points to. Without an owner it is mkdir -p. `mode`
+* is the mode of each directory it creates, which the umask narrows (osv update, decision D-168).
 */
-function makeDirectories(directory, ownerOfNew) {
+function makeDirectories(directory, ownerOfNew, mode) {
 	if (ownerOfNew === void 0) {
-		mkdirSync(directory, { recursive: true });
+		mkdirSync(directory, {
+			recursive: true,
+			...mode === void 0 ? {} : { mode }
+		});
 		return;
 	}
 	const missing = [];
@@ -33317,7 +33644,7 @@ function makeDirectories(directory, ownerOfNew) {
 	const changed = (level) => Object.assign(/* @__PURE__ */ new Error(`${level} changed while it was created`), { code: "EEXIST" });
 	for (const level of missing) {
 		try {
-			mkdirSync(level);
+			mkdirSync(level, mode === void 0 ? void 0 : { mode });
 		} catch (error) {
 			if (codeOf(error) === "EEXIST" && lstatSync(level).isDirectory()) continue;
 			throw error;
@@ -38232,6 +38559,9 @@ const invalidProject = {
 	}
 };
 
+// src/check/json-stream.ts
+const decoder = new TextDecoder();
+
 // src/check/registry.ts
 const TIMEOUT_MS = 15e3;
 /**
@@ -38885,7 +39215,7 @@ const lockfileForbiddenSource = {
 				context.report({
 					location: location(lockfile, entry),
 					message: `${lockfile.file} installs ${entry.unnamed === true ? "a package" : entry.name} from ${LABELS[ecosystemOfTool(tool)][entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies${entry.why === void 0 ? "" : `: ${entry.why}`}`,
-					fix: `Use a registry version ${entry.unnamed === true ? "instead" : `of ${entry.name}`}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`
+					fix: entry.registrySpec === true ? registrySpecFix(lockfile, entry) : `Use a registry version ${entry.unnamed === true ? "instead" : `of ${entry.name}`}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`
 				});
 			}
 			for (const [host, entries] of unknownHosts) reportUnknownArchives(context, tool, lockfile, host, entries);
@@ -38894,6 +39224,18 @@ const lockfileForbiddenSource = {
 		});
 	}
 };
+/**
+* What to do about a tarball URL of package-lock.json that package.json asks for by version (decision D-168): npm 12
+* installs it as a registry package only from the registry it is set to use for the package (npm
+* extra.registryHostTarballs), so the fix says how to set that registry, and never to allow tarball URLs, which would
+* let any URL in.
+*/
+function registrySpecFix(lockfile, entry) {
+	const scope = entry.name.startsWith("@") ? entry.name.slice(0, entry.name.indexOf("/")) : void 0;
+	const directory = posix.dirname(lockfile.file);
+	const npmrc = directory === "." ? ".npmrc" : `${directory}/.npmrc`;
+	return `package.json asks for ${entry.name} by version, not by URL: if it comes from a private registry, set ${scope === void 0 ? "registry" : `${scope}:registry`}= to the URL of that registry in the ${npmrc} next to ${posix.basename(lockfile.file)}, as npm installs the tarballs of the registry it is set to use as registry packages; otherwise lock ${entry.name} again from the registry with npm install`;
+}
 /** The host of the archive of a composer.lock entry from its spec ("zip https://host/…"), or "" when it names none. */
 function archiveHost(spec) {
 	const url = spec.split(/\s+/u).find((word) => /^[a-z][a-z0-9+.-]*:\/\//iu.test(word));
@@ -40934,7 +41276,7 @@ function examine(root, options) {
 		findings.push(...relocated.findings);
 		for (const item of relocated.notices) addNotice(item);
 	}
-	const sorted = condensed(problems.length === 0 ? findings : findings.map((finding) => applyWaits(finding, problems.length))).sort(byLocation);
+	const sorted = condensed(problems.length === 0 ? findings : findings.map((finding) => applyWaits(finding, problems.length))).map(redactedFinding).sort(byLocation);
 	const rootChecked = checkedOf(detection, rootRun.repository, tools, policy !== void 0 && options.defaultPolicy !== true || invalid);
 	const projectChecked = projectRuns.map(({ view, run }) => {
 		const checked = checkedOf(run.detection, run.repository, tools, false);
@@ -40971,13 +41313,28 @@ function examine(root, options) {
 		policy: invalid ? "invalid" : policy === void 0 || options.defaultPolicy === true ? "missing" : "valid",
 		policySource: policy === void 0 ? null : options.defaultPolicy === true ? "default" : "file",
 		findings: sorted,
-		notices,
+		notices: notices.map(redactedNotice),
 		checked: {
 			tools: [...rootChecked.tools, ...projectChecked.flatMap((checked) => checked.tools)],
 			files: [.../* @__PURE__ */ new Set([...rootChecked.files, ...projectChecked.flatMap((checked) => checked.files)])].sort(),
 			rules: ruleResults(rules, sorted, (rule) => policy === void 0 && (rule.requiresPolicy || !invalid && rule.id === "invalid-policy"), (rule) => rule.applies === void 0 || scopes.some((scope) => rule.applies?.(scope) === true)),
 			policyFile: POLICY_FILE
 		}
+	};
+}
+/** A finding with the credentials of the URLs in its message and fix as <redacted> (redactCredentials). */
+function redactedFinding(finding) {
+	return {
+		...finding,
+		message: redactCredentials(finding.message),
+		...finding.fix === void 0 ? {} : { fix: redactCredentials(finding.fix) }
+	};
+}
+function redactedNotice(notice) {
+	return {
+		...notice,
+		message: redactCredentials(notice.message),
+		...notice.fix === void 0 ? {} : { fix: redactCredentials(notice.fix) }
 	};
 }
 /** Whether a bot reads its configuration only from the repository root, so that a project's file of it is not read. */

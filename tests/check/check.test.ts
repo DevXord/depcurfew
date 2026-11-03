@@ -115,8 +115,8 @@ describe('depcurfew check on registry packages', () => {
   });
 
   it('refuses a document over the size limit', async () => {
-    const huge = async () => new Response('x', { status: 200, headers: { 'content-length': String(65 * 1024 * 1024) } });
-    expect((await checkSpec('lodash', options({ fetch: huge }))).findings[0]?.message).toBe('it cannot be checked: the document is larger than 64 MiB');
+    const huge = async () => new Response('x', { status: 200, headers: { 'content-length': String(257 * 1024 * 1024) } });
+    expect((await checkSpec('lodash', options({ fetch: huge }))).findings[0]?.message).toBe('it cannot be checked: the registry document of lodash is larger than 256 MiB, more than depcurfew reads of one package');
   });
 });
 

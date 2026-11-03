@@ -11,7 +11,7 @@ import { printable, withoutCredentials } from '../printable.ts';
 import type { ClaudeCodeHookContextKnowledge, ClaudeCodeHooksKnowledge, ClaudeCodeShellTool } from '../knowledge/types.ts';
 import { NOT_LOOKED_UP, scanCommandLine, TOO_MANY, unreadableFix, type CommandDirectory, type Override, type ScanOptions } from './command.ts';
 import { MAX_LISTED_SPECS } from './listed.ts';
-import type { CheckFinding, CheckRequest, FindingCode, PackageReport } from './findings.ts';
+import { UNREAD_REGISTRY_FIX_START, type CheckFinding, type CheckRequest, type FindingCode, type PackageReport } from './findings.ts';
 import { mayTurnWorkspacesOff } from './registry-settings.ts';
 import { REGISTRY_RETRY_FIX } from './index.ts';
 import { INDEX_RETRY_FIX } from './python.ts';
@@ -206,8 +206,7 @@ export function agentFix(fix: string, code?: string): string | undefined {
   return fix;
 }
 
-/** How the fix for a registry setting depcurfew does not read starts (unreadFindings in src/cli/check.ts). */
-export const UNREAD_REGISTRY_FIX_START = 'Before installing it, check';
+export { UNREAD_REGISTRY_FIX_START } from './findings.ts';
 
 /** What an agent is told about a registry setting that depcurfew does not read: which registry to use is the user's. */
 export const UNREAD_REGISTRY_IS_THE_USERS =

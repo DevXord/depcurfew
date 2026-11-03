@@ -6,10 +6,12 @@ import { isRecord, values } from '../apply/facts.ts';
 import { parseJsonc } from '../detect/jsonc.ts';
 import { MAX_LOCKFILE_SIZE, type Repository } from '../detect/repository.ts';
 import type { PackageManagerInfo } from '../detect/types.ts';
-import type { ToolKnowledge } from '../knowledge/types.ts';
+import { environment } from '../knowledge/environment.ts';
+import type { RegistryTarballLayoutKnowledge, ToolKnowledge } from '../knowledge/types.ts';
 import { listing } from '../apply/requirements.ts';
 import { isAbsoluteAnywhere } from '../paths.ts';
 import { parseYaml, parseYamlDocuments } from '../yaml-parse.ts';
+import { iniEntries } from './settings.ts';
 import { composerEntries, composerManifest, declaredRepositories } from './composer.ts';
 import { classicYarnEntries, UnsupportedClassicLockfile, type ClassicTarballs } from './yarn-classic-lockfile.ts';
 import { pdmEntries, pipfileLockEntries, poetryEntries, pylockEntries, requirementsEntries, requirementsFormatOf, requirementsIncludes, uvEntries } from './python-lockfiles.ts';
@@ -63,6 +65,11 @@ export interface LockEntry {
     | { tool: 'yarn-classic'; key: string; label: string };
   /** Composer: why it installs a package that has an archive from its VCS source instead (decision D-136), for messages. */
   why?: string;
+  /**
+   * npm: a tarball URL that no dependency declares as a URL, which npm 12 installs as a registry package only from the
+   * registry it uses for the package (decision D-168): the fix says how to set that registry, not to allow tarballs.
+   */
+  registrySpec?: true;
   /**
    * Composer: the entry of config.preferred-install in composer.json that makes Composer check the package out (decision
    * D-138): the key of a pattern object, none for a string; `value` as written, `why` the cause for messages, `cause`
@@ -274,6 +281,84 @@ interface UrlOverride {
   path: string;
 }
 
+/** The registries the .npmrc next to package-lock.json sets: registry= and @scope:registry= (decision D-168). */
+export interface NpmrcRegistries {
+  registry?: string;
+  scopes: ReadonlyMap<string, string>;
+}
+
+/** Text as it stands in a regular expression. */
+function literal(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\/]/gu, '\\$&');
+}
+
+/**
+ * The tarball layouts of registries whose URLs are not in npm's layout (decision D-168): GitHub Packages
+ * (/download/@scope/name/<version>/<digest> on its host), and GitLab and Artifactory, which keep the scope in the file
+ * name (.../@scope/name/-/@scope/name-<version>.tgz, below any path). A placeholder used twice stands for the same text.
+ */
+function registryLayouts(): { pattern: RegExp; scope: number; name: number; version: number }[] {
+  const facts = [environment.npmRegistry.githubPackagesTarballs, environment.npmRegistry.gitlabTarballs, environment.npmRegistry.artifactoryTarballs];
+  const known = new Map<string, RegistryTarballLayoutKnowledge>();
+  for (const fact of facts) for (const layout of values(fact)) known.set(`${layout.host ?? ''} ${layout.path}`, layout);
+  return [...known.values()].map((layout) => {
+    const groups: Record<string, number> = {};
+    let count = 0;
+    const body = layout.path.replace(/\{(scope|name|version|digest)\}|[^{]+/gu, (part: string, placeholder: string | undefined) => {
+      if (placeholder === undefined) return literal(part);
+      const seen = groups[placeholder];
+      if (seen !== undefined) return `\\${seen}`;
+      count += 1;
+      groups[placeholder] = count;
+      return placeholder === 'scope' ? '(@[^/@]+)' : placeholder === 'name' ? '([^/@][^/]*)' : placeholder === 'digest' ? '([0-9a-f]+)' : '([^/]+)';
+    });
+    const host = layout.host === undefined ? '[^/]+' : literal(layout.host);
+    const path = layout.path.startsWith('/') ? body : `(?:/[^?#]*)?/${body}`;
+    return { pattern: new RegExp(`^https?://${host}${path}$`, 'iu'), scope: groups['scope'] ?? 0, name: groups['name'] ?? 0, version: groups['version'] ?? 0 };
+  });
+}
+
+let layouts: ReturnType<typeof registryLayouts> | undefined;
+
+/** The package and version of a tarball URL in a layout of registryLayouts; undefined for another URL. */
+function layoutIdentity(url: string): { name: string; version: string } | undefined {
+  let decoded: string;
+  try {
+    const parsed = new URL(url);
+    if (parsed.search !== '' || parsed.hash !== '') return undefined;
+    decoded = `${parsed.protocol}//${parsed.host}${decodeURIComponent(parsed.pathname)}`;
+  } catch {
+    return undefined;
+  }
+  layouts ??= registryLayouts();
+  for (const layout of layouts) {
+    const match = layout.pattern.exec(decoded);
+    const version = match === null ? undefined : parseSemver(match[layout.version] ?? '');
+    if (match !== null && version !== undefined) return { name: `${match[layout.scope] ?? ''}/${match[layout.name] ?? ''}`, version: version.core };
+  }
+  return undefined;
+}
+
+/**
+ * Whether npm 12 installs a tarball URL of package-lock.json as a registry package (npm extra.registryHostTarballs,
+ * decision D-168): it has the origin of the registry npm uses for the package (its scope's, else registry, from the
+ * .npmrc next to the lockfile) and a path below that registry's path.
+ */
+function belowRegistry(url: string, name: string, registries: NpmrcRegistries | undefined): boolean {
+  if (registries === undefined) return false;
+  const scope = name.startsWith('@') ? name.slice(0, name.indexOf('/')) : undefined;
+  const registry = (scope === undefined ? undefined : registries.scopes.get(scope)) ?? registries.registry;
+  if (registry === undefined) return false;
+  try {
+    const resolved = new URL(url);
+    const base = new URL(registry);
+    const path = base.pathname.replace(/\/?$/u, '/');
+    return resolved.origin === base.origin && (path === '/' || resolved.pathname.startsWith(path));
+  } catch {
+    return false;
+  }
+}
+
 /** Packages that overrides (npm, root package.json only) replace with a tarball URL, at any depth of nesting. */
 function urlOverrides(overrides: unknown, parent: string | undefined, selfKey: string, found: UrlOverride[] = []): UrlOverride[] {
   if (!isRecord(overrides)) return found;
@@ -289,7 +374,15 @@ function urlOverrides(overrides: unknown, parent: string | undefined, selfKey: s
   return found;
 }
 
-function npmEntries(text: string, format: Format, workspaces: readonly string[], manifest: unknown, overridesFormat: Format | undefined, identityFormat: Format | undefined): LockEntry[] {
+function npmEntries(
+  text: string,
+  format: Format,
+  workspaces: readonly string[],
+  manifest: unknown,
+  overridesFormat: Format | undefined,
+  identityFormat: Format | undefined,
+  registries?: NpmrcRegistries,
+): LockEntry[] {
   const document = JSON.parse(text) as unknown;
   if (!isRecord(document) || !isRecord(document['packages'])) throw new UnsupportedLockfile('it has no "packages" section (lockfileVersion 1 is not read)');
   const packages = document['packages'];
@@ -316,6 +409,7 @@ function npmEntries(text: string, format: Format, workspaces: readonly string[],
       ? urlOverrides(manifest[String(overridesFormat['field'])], undefined, String(overridesFormat['selfKey']))
       : [];
   const entries: LockEntry[] = [];
+  const notByUrl: { key: string; name: string; entry: LockEntry }[] = [];
   for (const [key, value] of Object.entries(packages)) {
     if (!key.includes('node_modules/') || !isRecord(value)) continue;
     const name = typeof value['name'] === 'string' ? value['name'] : key.slice(key.lastIndexOf('node_modules/') + 'node_modules/'.length);
@@ -324,20 +418,35 @@ function npmEntries(text: string, format: Format, workspaces: readonly string[],
     const version = typeof value['version'] === 'string' ? value['version'] : '';
     const spec = resolved !== '' || format['specWithoutResolved'] !== 'version' ? resolved : version;
     let source: Source = 'unknown';
+    let undeclared = false;
     if (value[String(format['linkFlag'])] === true) source = workspaces.includes(resolved) ? 'workspace' : 'directory';
     else if (strings(format['gitPrefixes']).some((prefix) => spec.startsWith(prefix))) source = 'git';
     else if (spec.startsWith(String(format['filePrefix']))) source = /\.(?:tgz|tar\.gz)$/u.test(spec) ? 'file' : 'directory';
     else if (HTTP.test(spec)) {
       const overridden = overrides.some((override) => override.name === name && urlPath(spec).endsWith(override.path));
-      source = registry.test(spec) && !fromUrl.has(key) && !overridden ? 'registry' : 'remoteTarball';
+      const declared = fromUrl.has(key) || overridden;
+      // A tarball in a registry's layout (npm's, GitHub Packages', GitLab's and Artifactory's) or below the registry the
+      // .npmrc sets for the package is a registry package, unless a dependency asks for it by URL (decision D-168).
+      const registryTarball = registry.test(spec) || layoutIdentity(spec) !== undefined || (resolved !== '' && belowRegistry(spec, name, registries));
+      source = registryTarball && !declared ? 'registry' : 'remoteTarball';
+      undeclared = source === 'remoteTarball' && !declared;
     }
     else if (resolved === '' && (spec === '' || EXACT_VERSION.test(spec))) source = 'registry';
-    const entry: LockEntry = { name, spec, source, installScript: value[scriptsKey] === true, anchor: `${JSON.stringify(key)}: {`, ...exactVersion(source, version) };
+    const entry: LockEntry = {
+      name,
+      spec,
+      source,
+      installScript: value[scriptsKey] === true,
+      anchor: `${JSON.stringify(key)}: {`,
+      ...exactVersion(source, version),
+    };
+    if (undeclared) notByUrl.push({ key, name, entry });
     // npm installs the tarball of resolved, whatever the name and version fields say (extra.tarballIdentity, D-135),
     // also when a query or a fragment follows its file name; a registry tarball URL from which depcurfew reads no name
-    // and version is an entry without an exact version, never the version field (D-136).
+    // and version is an entry without an exact version, never the version field (D-136). The layouts of GitHub
+    // Packages, GitLab and Artifactory name the package and the version too (decision D-168).
     const fetched = source === 'registry' && resolved !== '' && identityFormat !== undefined;
-    const identity = fetched ? tarballIdentity(resolved, identityFormat) : undefined;
+    const identity = fetched ? (tarballIdentity(resolved, identityFormat) ?? layoutIdentity(resolved)) : undefined;
     if (fetched && identity === undefined) delete entry.version;
     if (identity !== undefined) {
       entry.version = identity.version;
@@ -346,8 +455,34 @@ function npmEntries(text: string, format: Format, workspaces: readonly string[],
     }
     entries.push(entry);
   }
+  // A tarball URL that a dependency asks for with a registry spec, and none by URL (as npm's isRegistryDependency):
+  // npm 12 installs it as a registry package from the registry it uses for the package, so its fix says how to set
+  // that registry (decision D-168). Worked out only for such entries, which are few.
+  if (notByUrl.length > 0) {
+    const names = new Set(notByUrl.map((candidate) => candidate.name));
+    const declared = new Set<string>();
+    for (const [key, value] of Object.entries(packages)) {
+      if (!isRecord(value)) continue;
+      for (const field of fields) {
+        const dependencies = value[field];
+        if (!isRecord(dependencies)) continue;
+        for (const [name, spec] of Object.entries(dependencies)) {
+          if (!names.has(name) || typeof spec !== 'string' || !REGISTRY_SPEC.test(spec)) continue;
+          const location = installedAt(packages, key, name);
+          if (location !== undefined) declared.add(location);
+        }
+      }
+    }
+    for (const candidate of notByUrl) if (declared.has(candidate.key)) candidate.entry.registrySpec = true;
+  }
   return entries;
 }
+
+/**
+ * A dependency spec that names a registry version: a version, a range or a dist-tag (nothing with : or / but an npm:
+ * alias), as npm-package-arg reads one with registry set; a URL, a git or GitHub spec and a path are not.
+ */
+const REGISTRY_SPEC = /^(?:npm:|[^:/\\]*$)/u;
 
 /** The project lockfile of a pnpm-lock.yaml and where it starts: the last document when a boot document comes first. */
 function pnpmGraph(text: string, documents: Format | undefined): { document: unknown; start: number } {
@@ -632,6 +767,22 @@ function entryLines(text: string, start: number, entries: readonly LockEntry[]):
   };
 }
 
+/**
+ * The registries of the .npmrc next to a package-lock.json, npm's project configuration there (decision D-168): its
+ * top-level registry= and @scope:registry= as npm's ini reads them, the last of a key winning.
+ */
+function npmrcRegistries(repository: Repository, lockfile: string): NpmrcRegistries {
+  const directory = posix.dirname(lockfile);
+  const text = repository.readText(directory === '.' ? '.npmrc' : `${directory}/.npmrc`);
+  const scopes = new Map<string, string>();
+  let registry: string | undefined;
+  for (const { key, value } of text === undefined ? [] : iniEntries(text)) {
+    if (key === 'registry') registry = value;
+    else if (key.startsWith('@') && key.endsWith(':registry')) scopes.set(key.slice(0, -':registry'.length), value);
+  }
+  return { ...(registry === undefined ? {} : { registry }), scopes };
+}
+
 /** Lockfiles already read in a doctor run (one Repository): both lockfile rules read the same ones. */
 const READ = new WeakMap<Repository, Map<PackageManagerInfo, LockfileResult[]>>();
 
@@ -714,7 +865,10 @@ function parseLockfiles(
       let entries: LockEntry[];
       let recordsScripts = format['installScripts'] !== null;
       let start = 0;
-      if (tool.id === 'npm') entries = npmEntries(text, format, workspaces, readManifest(repository, file), overridesFormatOf(tool), extraFormat(tool, 'tarballIdentity'));
+      if (tool.id === 'npm') {
+        const registries = tool.extra?.['registryHostTarballs'] === undefined ? undefined : npmrcRegistries(repository, file);
+        entries = npmEntries(text, format, workspaces, readManifest(repository, file), overridesFormatOf(tool), extraFormat(tool, 'tarballIdentity'), registries);
+      }
       else if (tool.id === 'pnpm') {
         // The layout of registry tarball URLs, as npm reads it (npm extra.tarballIdentity).
         const npmTool = tools.find((entry) => entry.id === 'npm');

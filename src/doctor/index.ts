@@ -10,6 +10,7 @@ import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
+import { redactCredentials } from '../printable.ts';
 import { values } from '../apply/facts.ts';
 import { plannedFor } from './plan.ts';
 import { asDefaultFinding, defaultPolicyNotice, shortened } from './default-policy.ts';
@@ -390,7 +391,12 @@ function examine(
     findings.push(...relocated.findings);
     for (const item of relocated.notices) addNotice(item);
   }
-  const sorted = condensed(problems.length === 0 ? findings : findings.map((finding) => applyWaits(finding, problems.length))).sort(byLocation);
+  // Messages carry values from the repository, such as the URL a dependency comes from: never the credentials in a
+  // URL, which show as <redacted>@, as in doctor --user, so that the text, JSON and SARIF output and what the Action
+  // sends to GitHub hold none (decision D-168).
+  const sorted = condensed(problems.length === 0 ? findings : findings.map((finding) => applyWaits(finding, problems.length)))
+    .map(redactedFinding)
+    .sort(byLocation);
   const rootChecked = checkedOf(detection, rootRun.repository, tools, (policy !== undefined && options.defaultPolicy !== true) || invalid);
   const projectChecked = projectRuns.map(({ view, run }) => {
     const checked = checkedOf(run.detection, run.repository, tools, false);
@@ -416,7 +422,7 @@ function examine(
     policy: invalid ? 'invalid' : policy === undefined || options.defaultPolicy === true ? 'missing' : 'valid',
     policySource: policy === undefined ? null : options.defaultPolicy === true ? 'default' : 'file',
     findings: sorted,
-    notices,
+    notices: notices.map(redactedNotice),
     checked: {
       tools: [...rootChecked.tools, ...projectChecked.flatMap((checked) => checked.tools)],
       files: [...new Set([...rootChecked.files, ...projectChecked.flatMap((checked) => checked.files)])].sort(),
@@ -431,6 +437,15 @@ function examine(
       policyFile: POLICY_FILE,
     },
   };
+}
+
+/** A finding with the credentials of the URLs in its message and fix as <redacted> (redactCredentials). */
+function redactedFinding(finding: Finding): Finding {
+  return { ...finding, message: redactCredentials(finding.message), ...(finding.fix === undefined ? {} : { fix: redactCredentials(finding.fix) }) };
+}
+
+function redactedNotice(notice: Notice): Notice {
+  return { ...notice, message: redactCredentials(notice.message), ...(notice.fix === undefined ? {} : { fix: redactCredentials(notice.fix) }) };
 }
 
 /** Whether a bot reads its configuration only from the repository root, so that a project's file of it is not read. */

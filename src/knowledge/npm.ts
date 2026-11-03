@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, EnvironmentNameRule, OmitOptionalKnowledge, RootLifecycleScriptsKnowledge, RunnerOptionsKnowledge, ToolKnowledge } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, NpmGlobalConfigKnowledge, NpmRegistryHostKnowledge, OmitOptionalKnowledge, RootLifecycleScriptsKnowledge, RunnerOptionsKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 // Facts whose sources D-170 pinned to a release tag or commit, checked again on 2026-11-03.
@@ -11,6 +11,7 @@ const runtimes = verifiedOn('2026-11-01');
 const finalReview = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
 const runners = verifiedOn('2026-11-03');
+const secrets = verifiedOn('2026-11-03');
 
 const CONFIG = 'https://docs.npmjs.com/cli/v12/using-npm/config';
 const CONFIG_V11 = 'https://docs.npmjs.com/cli/v11/using-npm/config';
@@ -459,6 +460,25 @@ export const npm: ToolKnowledge = {
       { file: '.npmrc', userFile: '~/.npmrc', key: 'registry', scopeKeySuffix: ':registry' },
       NPM_DEFINITIONS,
       'userconfig, the location of user-level settings, defaults to ~/.npmrc; registry is the base URL of the npm registry (default https://registry.npmjs.org/); a per-project .npmrc can set it like any config key (docs/lib/content/using-npm/config.md). npm config set @myco:registry=http://reg.example.com associates a scope with a registry, and any npm install of a package with that scope then requests it from there (https://docs.npmjs.com/cli/v12/using-npm/scope#associating-a-scope-with-a-registry).',
+    ),
+    globalConfig: secrets.verified<NpmGlobalConfigKnowledge>(
+      {
+        userKey: 'userconfig',
+        globalKey: 'globalconfig',
+        prefixKey: 'prefix',
+        file: 'etc/npmrc',
+        prefixVariable: 'PREFIX',
+        destDirVariable: 'DESTDIR',
+        execPathLevels: { win32: 1, other: 2 },
+        order: ['cli', 'env', 'project', 'user', 'global', 'builtin'],
+      },
+      `${NPM_CONFIG_LIB}/index.js`,
+      'load() reads the builtin config, the command line, the environment (loadEnv), the project .npmrc, the user file (#get("userconfig")) and the global file (#get("globalconfig")), and a key of an earlier source in the order above wins. loadGlobalPrefix: the default prefix is PREFIX of the environment, else on Windows the directory of the Node.js executable ("c:\\node\\node.exe --> prefix=c:\\node\\") and elsewhere the directory above it ("/usr/local/bin/node --> prefix=/usr/local"), with DESTDIR joined in front on POSIX only; the default of globalconfig is a getter, resolve(prefix, "etc/npmrc"), of the prefix the command line, the environment or the user file sets (loadDefaults). userconfig, globalconfig and prefix are of type path (definitions.js), which parseField (parse-field.js at the same tag) trims, expands ${VAR} in and resolves: ~/ against the home directory, anything else against the current directory.',
+    ),
+    registryHostTarballs: secrets.verified<NpmRegistryHostKnowledge>(
+      { dependencies: 'registry specs', match: 'origin and path' },
+      'https://github.com/npm/cli/blob/v12.2.1/workspaces/arborist/lib/arborist/reify.js',
+      '#isRegistryResolvedTarball: a node whose every dependency edge has a registry spec (node.isRegistryDependency, workspaces/arborist/lib/node.js: npa(edge.spec).registry) and whose resolved URL, after replace-registry-host, has the origin of pickRegistry(npa(node.name)), the registry of its scope or else registry, and a path that starts with that registry\'s path, is extracted with allowRemote "all": "pacote\'s npa re-parses our name@URL spec as type=remote, so allowRemote would mis-fire on registry tarballs". The allow-remote definition says so for users: "Tarballs that share a hostname with the configured registry (the typical case for the npm registry, GitHub Packages, and most private registries) are still installed normally" (workspaces/config/lib/definitions/definitions.js).',
     ),
     registryOverrides: checked.verified(
       {

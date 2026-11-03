@@ -12,6 +12,7 @@ import { updateOsvData, type OsvUpdateCode, type OsvUpdateResult } from '../osv/
 import { printable } from '../printable.ts';
 import { cacheWriteProblem, osvDataDirectories } from '../user/cache-path.ts';
 import { currentEnvironment } from '../user/environment.ts';
+import { ownerOfNewUnderHome } from '../user/home.ts';
 import type { CheckDependencies } from './check.ts';
 import { EXIT_FAILURE, EXIT_OK, type CliIo } from './io.ts';
 
@@ -99,13 +100,25 @@ export async function osvUpdate(flags: OsvUpdateFlags, io: CliIo, dependencies: 
       fix: `Set ${variable} or ${environment.platform === 'win32' ? 'USERPROFILE' : 'HOME'} to an absolute path, then run depcurfew osv update again`,
     });
   } else {
-    const results = await updateOsvData({ directory, ecosystems: flags.ecosystems, fetch: dependencies.fetch, now: dependencies.now, ...(flags.acceptFewer === true ? { acceptFewer: true } : {}) });
+    // Run as root in the home directory of another user (sudo with HOME kept), what it creates there is that user's,
+    // as with init and apply --user (decisions D-093 and D-168); the data is that user's, so the check of who can
+    // write it is made for that user too.
+    const ownerOfNew = ownerOfNewUnderHome(environment);
+    const owner = ownerOfNew?.(directory);
+    const results = await updateOsvData({
+      directory,
+      ecosystems: flags.ecosystems,
+      fetch: dependencies.fetch,
+      now: dependencies.now,
+      ...(flags.acceptFewer === true ? { acceptFewer: true } : {}),
+      ...(ownerOfNew === undefined ? {} : { ownerOfNew }),
+    });
     for (const result of results) {
       if (result.status === 'updated') updated.push(result);
       else errors.push({ code: result.code, level: 'error', location: { file: result.file }, ecosystem: result.ecosystem, message: result.message, fix: result.fix });
     }
     // After the update, which creates the directories that were missing.
-    const problem = cacheWriteProblem(guarded);
+    const problem = cacheWriteProblem(guarded, ...(owner === undefined ? [] : [owner]));
     if (problem !== undefined) warnings.push({ code: 'osv-cache-shared', level: 'warning', location: { file: problem.directory }, message: writeProblemMessage(problem), fix: writeProblemFix(problem) });
   }
   const code = errors.length > 0 ? EXIT_FAILURE : EXIT_OK;

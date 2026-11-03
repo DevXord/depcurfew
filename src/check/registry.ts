@@ -2,9 +2,10 @@
 // packages of private registries cannot be looked up. Redirects are followed only within the same origin: a registry
 // that sends depcurfew to another origin (another host, port or scheme) could answer for any name, so the package is
 // reported as not checked. Link-local addresses (where cloud metadata services answer) are never asked; no registry
-// lives there.
-import { isRecord, values } from '../apply/facts.ts';
+// lives there. A package document is read as it streams in, keeping only what the check uses (decision D-168).
+import { values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
+import { JsonKeptTooMuch, JsonSelector, JsonSyntaxError, type JsonSelection, type Treatment } from './json-stream.ts';
 
 /** fetch as depcurfew calls it: a GET of a registry or index, or the POST of a batch query to OSV.dev (--osv, decision D-129). */
 export type FetchLike = (url: string, init: { headers: Record<string, string>; signal: AbortSignal; redirect?: 'manual'; method?: 'POST'; body?: string }) => Promise<Response>;
@@ -27,12 +28,24 @@ export interface Packument {
 export type Lookup = { status: 'found'; packument: Packument } | { status: 'not-found' } | { status: 'error'; reason: string; fix?: string };
 
 export const TIMEOUT_MS = 15_000;
-export const MAX_DOCUMENT_SIZE = 64 * 1024 * 1024;
+/**
+ * The largest package document of the npm registry depcurfew reads (decision D-168): renovate's was 74,150,801 bytes
+ * on 2026-11-03, vite's 39 MB and next's 31.5 MB, and they grow with every release, so the limit leaves more than
+ * three times the largest. The document is read as it streams in, keeping only what the check uses (readPackument),
+ * so the memory it takes follows the versions, not the readmes and manifests that make a document large.
+ */
+export const MAX_DOCUMENT_SIZE = 256 * 1024 * 1024;
+/** The largest project page of a Python package index depcurfew reads, parsed whole: real pages take a few MiB. */
+export const MAX_INDEX_PAGE_SIZE = 64 * 1024 * 1024;
+/**
+ * The most bytes of a package document depcurfew keeps: the dist-tags, the publish times, and of each version its
+ * install scripts and deprecation (decision D-168). Real documents keep well under 1 MiB of them.
+ */
+export const MAX_KEPT_SIZE = 64 * 1024 * 1024;
 /**
  * The most versions (and publish times) of one package document depcurfew reads (decision D-113). A real package
- * document under MAX_DOCUMENT_SIZE has far fewer: each version object of the full document carries its package.json
- * and dist fields, so 64 MiB hold some tens of thousands. A document with more is made to cost time, and the package
- * is reported as not checked.
+ * document has far fewer (renovate, the largest, some thousands); a document with more is made to cost time, and the
+ * package is reported as not checked.
  */
 export const MAX_VERSIONS = 100_000;
 /** Redirects followed within the same origin before giving up. */
@@ -151,10 +164,6 @@ export async function readLimited(response: Response, limit: number): Promise<st
   return new TextDecoder().decode(Buffer.concat(chunks));
 }
 
-function strings(value: unknown): Record<string, string> {
-  return isRecord(value) ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string')) : {};
-}
-
 /**
  * The first of `limits` (top-level field of a JSON object, most members of the object or array it holds) that the
  * document text goes over, found in one pass over the text before it is parsed (decision D-113): parsing a document
@@ -235,21 +244,167 @@ export function tooManyVersions(name: string, what: 'registry' | 'index' | 'repo
   };
 }
 
-function toPackument(document: unknown, name: string): Packument | undefined {
-  if (!isRecord(document)) return undefined;
-  const fields = api();
-  const versions: Record<string, VersionDocument> = {};
-  const entries = document[fields.versionsField];
-  for (const [version, entry] of Object.entries(isRecord(entries) ? entries : {})) {
-    if (!isRecord(entry)) continue;
-    const scripts = entry[fields.scriptsField];
-    versions[version] = {
-      version,
-      ...(isRecord(scripts) ? { scripts } : {}),
-      ...(fields.deprecatedField in entry ? { deprecated: entry[fields.deprecatedField] } : {}),
-    };
+/** A document lists more versions or publish times than MAX_VERSIONS. */
+class TooManyVersions extends Error {}
+
+const QUOTE = 0x22;
+const BRACE = 0x7b;
+
+/**
+ * What readPackument keeps of a package document (decision D-168), as JSON.parse and the reading of 1.5.0 took it:
+ * name when it is a string; the dist-tags and publish times that are strings; of each version that is an object, its
+ * install scripts that are strings (scripts when it is an object) and deprecated, whatever its value. A key given
+ * twice counts with its last value, as in JSON.parse, and keeps its first place among the versions.
+ */
+class PackumentSelection implements JsonSelection {
+  name: string | undefined;
+  /** The document is a JSON object. */
+  isDocument = false;
+  readonly distTags = new Map<string, string>();
+  readonly time = new Map<string, string>();
+  readonly versions = new Map<string, { scripts?: Map<string, string>; deprecated?: unknown; hasDeprecated: boolean }>();
+  private readonly fields = api();
+  private readonly installScripts: ReadonlySet<string> = new Set(this.fields.installScripts);
+  private timeMembers = 0;
+  private versionMembers = 0;
+
+  treat(path: readonly string[], first: number): Treatment {
+    const [top, member, field, script] = path;
+    const { fields } = this;
+    if (top === undefined) {
+      this.isDocument = first === BRACE;
+      return 'enter';
+    }
+    if (path.length === 1) {
+      if (top === 'name') {
+        this.name = undefined;
+        return first === QUOTE ? 'keep' : 'skip';
+      }
+      if (top === fields.distTagsField) this.distTags.clear();
+      else if (top === fields.timeField) {
+        this.time.clear();
+        this.timeMembers = 0;
+      } else if (top === fields.versionsField) {
+        this.versions.clear();
+        this.versionMembers = 0;
+      } else return 'skip';
+      return 'enter';
+    }
+    if (member === undefined) return 'skip';
+    if (top === fields.distTagsField || top === fields.timeField) {
+      // time also has created and modified.
+      if (top === fields.timeField && ++this.timeMembers > MAX_VERSIONS + 2) throw new TooManyVersions();
+      const map = top === fields.distTagsField ? this.distTags : this.time;
+      if (path.length === 2) map.delete(member);
+      return path.length === 2 && first === QUOTE ? 'keep' : 'skip';
+    }
+    if (top !== fields.versionsField) return 'skip';
+    if (path.length === 2) {
+      if (++this.versionMembers > MAX_VERSIONS) throw new TooManyVersions();
+      if (first !== BRACE) {
+        this.versions.delete(member);
+        return 'skip';
+      }
+      this.versions.set(member, { hasDeprecated: false });
+      return 'enter';
+    }
+    const entry = this.versions.get(member);
+    if (entry === undefined) return 'skip';
+    if (path.length === 3) {
+      if (field === fields.scriptsField) {
+        if (first !== BRACE) {
+          delete entry.scripts;
+          return 'skip';
+        }
+        entry.scripts = new Map();
+        return 'enter';
+      }
+      if (field === fields.deprecatedField) {
+        delete entry.deprecated;
+        entry.hasDeprecated = false;
+        return 'keep';
+      }
+      return 'skip';
+    }
+    if (path.length === 4 && field === fields.scriptsField && script !== undefined && this.installScripts.has(script)) {
+      entry.scripts?.delete(script);
+      return first === QUOTE ? 'keep' : 'skip';
+    }
+    return 'skip';
   }
-  return { name: typeof document['name'] === 'string' ? document['name'] : name, distTags: strings(document[fields.distTagsField]), time: strings(document[fields.timeField]), versions };
+
+  kept(path: readonly string[], value: unknown): void {
+    const [top, member, field, script] = path;
+    const { fields } = this;
+    if (path.length === 1 && top === 'name' && typeof value === 'string') this.name = value;
+    else if (path.length === 2 && member !== undefined && typeof value === 'string') (top === fields.distTagsField ? this.distTags : this.time).set(member, value);
+    else if (path.length === 3 && member !== undefined && field === fields.deprecatedField) {
+      const entry = this.versions.get(member);
+      if (entry !== undefined) Object.assign(entry, { deprecated: value, hasDeprecated: true });
+    } else if (path.length === 4 && member !== undefined && script !== undefined && typeof value === 'string') this.versions.get(member)?.scripts?.set(script, value);
+  }
+
+  packument(name: string): Packument {
+    const versions = Object.fromEntries(
+      [...this.versions].map(([version, entry]): [string, VersionDocument] => [
+        version,
+        { version, ...(entry.scripts === undefined ? {} : { scripts: Object.fromEntries(entry.scripts) }), ...(entry.hasDeprecated ? { deprecated: entry.deprecated } : {}) },
+      ]),
+    );
+    return { name: this.name ?? name, distTags: Object.fromEntries(this.distTags), time: Object.fromEntries(this.time), versions };
+  }
+}
+
+/** A package document over a limit of depcurfew: not checked, with what to do. */
+function tooLarge(name: string, what: string): { status: 'error'; reason: string; fix: string } {
+  return {
+    status: 'error',
+    reason: `the registry document of ${name} ${what}, more than depcurfew reads of one package`,
+    fix: `Check ${name} by hand before installing it: its versions, when they were published and their install scripts`,
+  };
+}
+
+/**
+ * The package document of an answer, read as it streams in (decision D-168): at most `limit` bytes, checked as JSON
+ * as JSON.parse checks it, with only what PackumentSelection keeps.
+ */
+async function readPackument(response: Response, name: string, limit: number): Promise<Lookup> {
+  const mib = `${limit / (1024 * 1024)} MiB`;
+  const declared = Number(response.headers.get('content-length') ?? Number.NaN);
+  if (declared > limit) {
+    await response.body?.cancel();
+    return tooLarge(name, `is larger than ${mib}`);
+  }
+  const selection = new PackumentSelection();
+  const selector = new JsonSelector(selection, MAX_KEPT_SIZE);
+  try {
+    if (response.body !== null) {
+      const reader = response.body.getReader();
+      let size = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > limit) {
+          await reader.cancel();
+          return tooLarge(name, `is larger than ${mib}`);
+        }
+        try {
+          selector.write(value);
+        } catch (error) {
+          await reader.cancel();
+          throw error;
+        }
+      }
+    }
+    selector.end();
+  } catch (error) {
+    if (error instanceof TooManyVersions) return tooManyVersions(name, 'registry');
+    if (error instanceof JsonKeptTooMuch) return tooLarge(name, `holds more than ${MAX_KEPT_SIZE / (1024 * 1024)} MiB of publish times, install scripts and deprecation messages`);
+    if (error instanceof JsonSyntaxError) return { status: 'error', reason: NOT_A_PACKUMENT };
+    return { status: 'error', reason: readError(error, NOT_A_PACKUMENT) };
+  }
+  return selection.isDocument ? { status: 'found', packument: selection.packument(name) } : { status: 'error', reason: NOT_A_PACKUMENT };
 }
 
 /**
@@ -284,16 +439,13 @@ export async function fetchPackument(name: string, options: { registry: string; 
     const reason = error instanceof Error && error.name === 'TimeoutError' ? 'the registry did not answer in time' : `the registry cannot be reached (${error instanceof Error ? error.message : String(error)})`;
     return { status: 'error', reason };
   }
-  if (response.status === notFound) return { status: 'not-found' };
-  if (!response.ok) return { status: 'error', reason: `the registry answered HTTP ${response.status}` };
-  try {
-    const text = await readLimited(response, options.maxBytes ?? MAX_DOCUMENT_SIZE);
-    const fields = api();
-    // Counted before the document is parsed (decision D-113); time also has created and modified.
-    if (tooManyMembers(text, { [fields.versionsField]: MAX_VERSIONS, [fields.timeField]: MAX_VERSIONS + 2 }) !== undefined) return tooManyVersions(name, 'registry');
-    const packument = toPackument(JSON.parse(text) as unknown, name);
-    return packument === undefined ? { status: 'error', reason: NOT_A_PACKUMENT } : { status: 'found', packument };
-  } catch (error) {
-    return { status: 'error', reason: readError(error, NOT_A_PACKUMENT) };
+  if (response.status === notFound) {
+    await response.body?.cancel();
+    return { status: 'not-found' };
   }
+  if (!response.ok) {
+    await response.body?.cancel();
+    return { status: 'error', reason: `the registry answered HTTP ${response.status}` };
+  }
+  return readPackument(response, name, options.maxBytes ?? MAX_DOCUMENT_SIZE);
 }

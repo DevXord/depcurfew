@@ -1,0 +1,10 @@
+{
+  "name": "unknown-registry-layout",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@corp/tool": "^1.0.0",
+    "plain": "^2.0.0",
+    "url-dep": "https://cdn.example.com/url-dep/1.0.0"
+  }
+}

@@ -484,11 +484,12 @@ function unchanged(realRoot: string, entry: Staged): boolean {
  * creates to the owner `ownerOfNew` names for its real path, so that a directory a symlink led elsewhere (out of the
  * home directory) is not given away. Each is checked with lstat after mkdir: a directory that root just made, not a
  * symlink that the owner of the parent put there meanwhile; lchown does not follow a symlink either, so a swap between
- * the check and lchown gives away the link at most, never what it points to. Without an owner it is mkdir -p.
+ * the check and lchown gives away the link at most, never what it points to. Without an owner it is mkdir -p. `mode`
+ * is the mode of each directory it creates, which the umask narrows (osv update, decision D-168).
  */
-function makeDirectories(directory: string, ownerOfNew: WriteOptions['ownerOfNew']): void {
+export function makeDirectories(directory: string, ownerOfNew: WriteOptions['ownerOfNew'], mode?: number): void {
   if (ownerOfNew === undefined) {
-    mkdirSync(directory, { recursive: true });
+    mkdirSync(directory, { recursive: true, ...(mode === undefined ? {} : { mode }) });
     return;
   }
   const missing: string[] = [];
@@ -499,7 +500,7 @@ function makeDirectories(directory: string, ownerOfNew: WriteOptions['ownerOfNew
   const changed = (level: string) => Object.assign(new Error(`${level} changed while it was created`), { code: 'EEXIST' });
   for (const level of missing) {
     try {
-      mkdirSync(level);
+      mkdirSync(level, mode === undefined ? undefined : { mode });
     } catch (error) {
       // Made by another program meanwhile: used as mkdir -p would, but not given away, as it is not ours.
       if (codeOf(error) === 'EEXIST' && lstatSync(level).isDirectory()) continue;

@@ -1,8 +1,9 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, EnvironmentNameRule, IndexEntriesKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, IndexEntriesKnowledge, MachineSettingsKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
 const guard = verifiedOn('2026-11-01');
+const secrets = verifiedOn('2026-11-03');
 
 // docs.astral.sh is built from docs/ in the repository; the settings and CLI references are generated from the code.
 const UV = 'https://github.com/astral-sh/uv/blob/0.13.6';
@@ -218,6 +219,20 @@ export const uv: ToolKnowledge = {
     ),
   },
   extra: {
+    machineSettings: secrets.verified<MachineSettingsKnowledge>(
+      {
+        variables: [
+          { name: 'UV_DEFAULT_INDEX', effect: 'replaces' },
+          { name: 'UV_INDEX_URL', effect: 'replaces' },
+          { name: 'UV_INDEX', effect: 'adds', list: 'spaces' },
+          { name: 'UV_EXTRA_INDEX_URL', effect: 'adds', list: 'spaces' },
+          { name: 'UV_FIND_LINKS', effect: 'adds', list: 'commas' },
+        ],
+        configFile: { variable: 'UV_CONFIG_FILE', format: 'toml', whenMissing: 'nothing' },
+      },
+      `${UV}/crates/uv-static/src/env_vars.rs`,
+      'UV_DEFAULT_INDEX ("uv will use this index as the default index") and UV_INDEX_URL (the same, deprecated) replace PyPI; UV_INDEX ("this space-separated list of additional indexes", entries may be name=url), UV_EXTRA_INDEX_URL (space-separated, deprecated) and UV_FIND_LINKS ("this comma-separated list of additional locations") add places to install from; UV_CONFIG_FILE "Expects a path to a local uv.toml file to use as the configuration file", which "will be used in place of any discovered configuration files (e.g., user-level configuration will be ignored)" (docs/concepts/configuration-files.md at the same tag, which also says that variables win over configuration files and that the user uv.toml is merged under the project\'s, arrays concatenated). uv reads none of pip\'s variables or files (docs/pip/compatibility.md).',
+    ),
     environmentNames: release14.verified<EnvironmentNameRule[]>(
       [{ prefix: '', match: 'exact' }],
       CLI,

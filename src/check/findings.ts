@@ -1,5 +1,7 @@
 // The findings of depcurfew check and what the npm and Python checks share: the report of one package, the options, the
 // way an age is written and the findings for sources other than the registry.
+import { values } from '../apply/facts.ts';
+import { environment } from '../knowledge/environment.ts';
 import type { ToolId } from '../knowledge/types.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import type { FetchLike, LookupCache } from './registry.ts';
@@ -38,6 +40,18 @@ export interface CheckFinding {
 }
 
 export const CHECK_BY_HAND = 'Make sure you trust this source before installing it';
+
+/**
+ * How the fix for a registry setting depcurfew does not take starts (unreadFinding in src/cli/check.ts, and the scope
+ * registry of check, decision D-168): the hook and depcurfew mcp give an agent UNREAD_REGISTRY_IS_THE_USERS instead.
+ */
+export const UNREAD_REGISTRY_FIX_START = 'Before installing it, check';
+
+/** Where --registry and --index go, for a fix that names them: the hook command, depcurfew mcp or the command line. */
+export function lookupOptionPlaces(): string {
+  const settingsFile = values(environment.claudeCode.hooks)[0]?.settingsFile ?? '.claude/settings.json';
+  return `to depcurfew check in the hook command (${settingsFile}), to depcurfew mcp, or on the command line`;
+}
 
 /**
  * Text a package's publisher wrote (a deprecation message, an install script, the reason of a project status) as it
@@ -111,8 +125,13 @@ export interface CheckOptions {
   now: Date;
   registry: string;
   popular: PopularNames;
-  /** Registries the project assigns to scopes (@scope:registry in .npmrc); those packages are not looked up. */
+  /**
+   * Registries the project assigns to scopes (@scope:registry in .npmrc); those packages are not looked up, unless the
+   * registry depcurfew asks is the scope's (decision D-168).
+   */
   scopeRegistries?: ReadonlyMap<string, string>;
+  /** Where each of them is set, for messages: @acme:registry= in .npmrc, line 2. */
+  scopeWhere?: ReadonlyMap<string, string>;
   /** The Python package index pypi: packages are looked up in; PyPI when not given. */
   index?: string;
   /** Popular Python projects, by normalized name, for look-alike names. */

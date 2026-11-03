@@ -31,9 +31,11 @@ import { LocalOsvData } from '../osv/data.ts';
 import { localDataNotices } from '../osv/notices.ts';
 import { osvDataDirectories } from '../user/cache-path.ts';
 import { currentEnvironment } from '../user/environment.ts';
+import { currentMachine, type MachineEnvironment } from '../check/machine-settings.ts';
 import {
   composerProject,
   hasRegistrySettings,
+  machineToolSettings,
   MAX_CONFIG_SIZE,
   npmrcSettings,
   sameRegistry,
@@ -44,7 +46,7 @@ import {
   type UnreadSetting,
   type WrittenSetting,
 } from '../check/registry-settings.ts';
-import { quoted } from '../check/findings.ts';
+import { lookupOptionPlaces, quoted } from '../check/findings.ts';
 import { PopularNames } from '../check/similar.ts';
 import { values } from '../apply/facts.ts';
 import type { CommandNamesKnowledge, ToolId } from '../knowledge/types.ts';
@@ -117,6 +119,15 @@ function defaultPolicy(): ResolvedPolicy {
   const result = parsePolicy(renderPolicy(DEFAULT_POLICY));
   if (!result.ok) throw new Error('the default policy is invalid');
   return result.policy;
+}
+
+/**
+ * The machine the check runs on, whose registry and index settings count (decision D-168): the environment of the user
+ * environment the dependencies give (tests), else this process's.
+ */
+export function machineOf(dependencies: Pick<CheckDependencies, 'userEnvironment' | 'platform'>): MachineEnvironment {
+  const user = dependencies.userEnvironment?.();
+  return { env: user?.env ?? process.env, platform: user?.platform ?? dependencies.platform?.() ?? process.platform, execPath: process.execPath };
 }
 
 /** The npm registry packages are looked up in, where it comes from (undefined for the public registry), and the file and line that set it. */
@@ -263,6 +274,8 @@ export interface AppliedPolicy {
   index: string;
   /** Registries .npmrc assigns to scopes, whose packages are not looked up. */
   scopes: ReadonlyMap<string, string>;
+  /** Where each of them is set: @acme:registry= in .npmrc, line 2 (decision D-168). */
+  scopeWhere: ReadonlyMap<string, string>;
   /** The dist-tag .npmrc makes npm prefer. */
   tag: WrittenSetting | undefined;
   /** Registry settings npm reads there that depcurfew does not take: the packages they apply to are not vouched for. */
@@ -272,10 +285,12 @@ export interface AppliedPolicy {
   /** Where packages are installed, and the highest directory whose configuration files count for them. */
   start: string;
   top: string;
+  /** The machine the install runs on and the home directory, whose registry and index settings count (decision D-168). */
+  machine: { environment: MachineEnvironment; home: string };
 }
 
 /** Where packages are looked up, which does not depend on the policy: the registry, the index, scopes and the dist-tag. */
-export type Lookups = Pick<AppliedPolicy, 'registry' | 'index' | 'scopes' | 'tag' | 'unread' | 'skipped'>;
+export type Lookups = Pick<AppliedPolicy, 'registry' | 'index' | 'scopes' | 'scopeWhere' | 'tag' | 'unread' | 'skipped'>;
 
 /** The policy that applies, or why it cannot be used; `lookups` either way, as .npmrc and the options set them. */
 export type AppliedPolicyResult = { ok: true; applied: AppliedPolicy } | { ok: false; file: string; error: InputError; cause: PolicyError; nearer: boolean; lookups: Lookups };
@@ -295,6 +310,8 @@ export interface PolicySettings {
   root?: { start: string; also?: string; project?: string } | undefined;
   /** npm --prefix: npm's local prefix as given, whose .npmrc npm reads (decision D-118). */
   npmPrefix?: string | undefined;
+  /** The environment, platform and Node.js executable of the install (decision D-168); this process's when left out. */
+  machine?: MachineEnvironment | undefined;
 }
 
 /**
@@ -319,11 +336,13 @@ export function appliedPolicy(start: string, settings: PolicySettings): AppliedP
   const anchor = root.project ?? resolve(start);
   const trusted = directory === undefined ? [anchor] : [directory, ...(policy?.projects ?? []).map((project) => join(directory, project))];
   const top = root.project ?? directory ?? resolve(start);
-  const npmrc = npmrcSettings(start, { trusted, home: settings.home, base, prefix: settings.npmPrefix });
+  const machine = settings.machine ?? currentMachine();
+  const npmrc = npmrcSettings(start, { trusted, home: settings.home, base, prefix: settings.npmPrefix, machine });
   const lookups: Lookups = {
     registry: registryOf(settings.registry, npmrc),
     index: settings.index === undefined ? defaultIndex() : withoutCredentials(settings.index),
     scopes: npmrc.scopes,
+    scopeWhere: new Map([...npmrc.scopeSettings].map(([scope, setting]) => [scope, setting.where])),
     tag: npmrc.tag,
     unread: npmrc.unread,
     skipped: npmrc.skipped,
@@ -340,7 +359,10 @@ export function appliedPolicy(start: string, settings: PolicySettings): AppliedP
     }
   }
   if (failure !== undefined) return { ok: false, file: failure.file, error: policyInputError(failure.cause, failure.file), cause: failure.cause, nearer: failure.nearer, lookups };
-  return { ok: true, applied: { policy: policy ?? defaultPolicy(), file: file ?? null, ...(nearer === undefined ? {} : { nearer }), ...lookups, start: resolve(start), top } };
+  return {
+    ok: true,
+    applied: { policy: policy ?? defaultPolicy(), file: file ?? null, ...(nearer === undefined ? {} : { nearer }), ...lookups, start: resolve(start), top, machine: { environment: machine, home: settings.home } },
+  };
 }
 
 /** How serious a finding is, for comparing the findings of two policies. */
@@ -406,8 +428,9 @@ function appliesTo(setting: UnreadSetting, report: PackageReport, request: Check
   // The root composer.json counts for every Composer package, with or without a command that names Composer, unless
   // the command does not read it (create-project, global; decision D-133).
   if (setting.tool === 'composer') return composer && request.readsManifest !== false;
-  // .npmrc counts for every tool of the npm ecosystem (pnpm and Bun read it too); a tool's own file for that tool only.
-  if (setting.tool === 'npm' ? python || composer : setting.tool !== request.tool) return false;
+  // .npmrc counts for every tool of the npm ecosystem (pnpm and Bun read it too); a tool's own file for that tool only,
+  // and pip's settings for a Python package that no command names a tool for (decision D-168).
+  if (setting.tool === 'npm' ? python || composer : setting.tool !== (request.tool ?? (python ? 'pip' : undefined))) return false;
   if (setting.applies === 'scope') return scopeOf(report.name) === setting.scope;
   // An index pinned to one Python package (decision D-120).
   if (setting.applies === 'package') return python && setting.package === normalizePythonName(report.name.slice(PYPI_PREFIX.length));
@@ -442,23 +465,20 @@ function changesTheCheck(setting: UnreadSetting, used: string): boolean {
   return setting.applies === 'tag' ? setting.value !== used : !sameRegistry(setting.value, used);
 }
 
-/** Where the hook command lives, for a fix that changes its options. */
-function hookSettingsFile(): string {
-  return values(environment.claudeCode.hooks)[0]?.settingsFile ?? '.claude/settings.json';
-}
-
 /**
  * The finding for a registry setting the install would use but depcurfew did not take (decision D-113). The fix says
  * how to make depcurfew check what the install uses, when the user trusts it: --registry or --index of the command
- * (in the hook command, for depcurfew mcp or on the command line), a scope registry or dist-tag in the .npmrc next to
- * depcurfew.json. agentFix turns it into telling the user.
+ * (in the hook command, for depcurfew mcp or on the command line; for a scope too, decision D-168), a dist-tag in the
+ * .npmrc next to depcurfew.json. agentFix turns it into telling the user. A setting of the environment is named by its
+ * variable. When the package was not looked up (a scope, a setting of the machine, decision D-168), the message says so.
  */
 function unreadFinding(setting: UnreadSetting, report: PackageReport, applied: Pick<AppliedPolicy, 'registry' | 'index' | 'scopes' | 'tag'>): CheckFinding {
-  const where = `${setting.file} (line ${setting.line})`;
+  const where = whereOf(setting);
+  const source = setting.variable ?? setting.file;
   const used = usedFor(setting, report, applied);
   const value = setting.value;
   const finding = (message: string, fix: string): CheckFinding => ({ level: 'error', code: 'unverified', message, fix: `${UNREAD_REGISTRY_FIX_START} ${fix}` });
-  const options = `to depcurfew check in the hook command (${hookSettingsFile()}), to depcurfew mcp, or on the command line`;
+  const options = lookupOptionPlaces();
   if (setting.composer !== undefined) {
     // depcurfew asks Packagist only, and has no option to ask another repository (decision D-133).
     const fix = `the package in the repositories that ${setting.file} declares: depcurfew checks only Packagist (${used}), so it cannot vouch for a package from another repository`;
@@ -496,17 +516,31 @@ function unreadFinding(setting: UnreadSetting, report: PackageReport, applied: P
   if (setting.effect === 'adds') {
     return finding(
       `the install may also take it from ${value ?? 'the places'} that ${where} adds; depcurfew checked only ${used}`,
-      `the package in every ${what} that ${setting.file} adds: depcurfew checks one ${what}, so it cannot vouch for a package from the others`,
+      `the package in every ${what} that ${source} adds: depcurfew checks one ${what}, so it cannot vouch for a package from the others`,
     );
   }
   const scope = setting.applies === 'scope' ? ` for ${setting.scope ?? ''}` : '';
   const named = value === undefined ? `the ${what}${scope} set in ${where}, whose value depcurfew cannot read` : `the ${what}${scope} ${value} from ${where}`;
-  const url = value ?? '<its URL>';
-  const remedy =
-    setting.applies === 'scope'
-      ? `set ${setting.scope ?? '@scope'}:registry=${url} in the .npmrc next to ${POLICY_FILE}`
-      : `pass ${python ? '--index' : '--registry'} ${url} ${options}`;
-  return finding(`the install would use ${named}; depcurfew checked ${used}`, `the package in the ${what} that ${setting.file} names; if you trust that ${what}, ${remedy}`);
+  // A scope of another registry is looked up only where --registry names it, also when the .npmrc next to
+  // depcurfew.json assigns it (decision D-168), so --registry is how to have depcurfew check it.
+  const remedy = `pass ${python ? '--index' : '--registry'} ${value ?? '<its URL>'} ${options}`;
+  const checked = notLookedUp(setting) ? `depcurfew asks ${used}, so it did not look the package up there` : `depcurfew checked ${used}`;
+  return finding(`the install would use ${named}; ${checked}`, `the package in the ${what} that ${source} names; if you trust that ${what}, ${remedy}`);
+}
+
+/** Where a setting is written, for messages: the file and the line, or the variable of the environment (decision D-168). */
+function whereOf(setting: UnreadSetting): string {
+  return setting.variable === undefined ? `${setting.file} (line ${setting.line})` : `${setting.variable} in the environment`;
+}
+
+/**
+ * Whether a setting that points the install elsewhere keeps a package from being looked up at all (decision D-168): a
+ * scope registry, and a registry or index of the machine (the environment, a user or global file), so that a private
+ * name does not reach a registry the install does not use. Settings that add a place to install from leave the lookup,
+ * as the install asks the default index too.
+ */
+function notLookedUp(setting: UnreadSetting): boolean {
+  return setting.effect === 'replaces' && (setting.applies === 'scope' || (setting.machine === true && setting.applies === 'all'));
 }
 
 /** Findings that the checked registry or index does not have the package or the version. */
@@ -520,7 +554,7 @@ const MISSING: ReadonlySet<CheckFinding['code']> = new Set(['not-found', 'no-ver
 function missingMessage(missing: CheckFinding, setting: UnreadSetting, report: PackageReport, applied: Pick<AppliedPolicy, 'registry' | 'index' | 'scopes' | 'tag'>): string {
   const used = usedFor(setting, report, applied);
   const absent = missing.code === 'not-found' ? `${report.name ?? report.spec} does not exist in ${used}` : `${missing.message} in ${used}`;
-  const where = `${setting.file} (line ${setting.line})`;
+  const where = whereOf(setting);
   const value = setting.value === undefined ? '' : ` ${setting.value}`;
   if (setting.composer !== undefined) {
     if (setting.composer.kind === 'packagist-off') return `${absent}, and ${where} turns packagist.org off, so it may come from the other repositories it declares, which depcurfew did not check`;
@@ -536,14 +570,26 @@ function missingMessage(missing: CheckFinding, setting: UnreadSetting, report: P
   return `${absent}, but it may come from ${source}, which depcurfew did not check`;
 }
 
+/** The tools of the npm ecosystem other than npm and of Python whose registry or index the machine may set (decision D-168). */
+const MACHINE_TOOLS: ReadonlySet<ToolId> = new Set(['pnpm', 'yarn', 'bun', 'pip', 'uv', 'pdm', 'pipenv', 'poetry']);
+
 /**
  * The settings of a tool's own configuration files for the requests of a command, read once per tool, and those of the
- * root composer.json for Composer packages, also without a command (decision D-133).
+ * root composer.json for Composer packages, also without a command (decision D-133); and those of the machine for each
+ * tool, pip's for Python packages no command names a tool for (decision D-168), in the order the tools take them, as
+ * the first setting that applies names a package's finding: the variables of the environment, the files of the
+ * project, the user files.
  */
-function toolSettings(requests: readonly CheckRequest[], applied: Pick<AppliedPolicy, 'start' | 'top'>, composer: ComposerProject | undefined): { unread: UnreadSetting[]; skipped: SkippedFile[] } {
+function toolSettings(requests: readonly CheckRequest[], applied: Pick<AppliedPolicy, 'start' | 'top' | 'machine'>, composer: ComposerProject | undefined): { unread: UnreadSetting[]; skipped: SkippedFile[] } {
   const tools = [...new Set(requests.map((request) => request.tool).filter((tool): tool is ToolId => tool !== undefined && hasRegistrySettings(tool)))];
+  const machineTools = [
+    ...new Set(requests.flatMap((request) => (request.tool !== undefined ? [request.tool] : isPythonSpec(request.spec) ? ['pip' as const] : [])).filter((tool) => MACHINE_TOOLS.has(tool))),
+  ];
+  const machine = machineTools.map((tool) => machineToolSettings(tool, applied.start, applied.machine.home, applied.machine.environment));
   const found = [...tools.map((tool) => toolRegistrySettings(tool, applied.start, applied.top)), ...(composer === undefined ? [] : [composer])];
-  return { unread: found.flatMap((entry) => entry.unread), skipped: found.flatMap((entry) => entry.skipped) };
+  const variables = machine.flatMap((entry) => entry.unread.filter((setting) => setting.variable !== undefined));
+  const files = machine.flatMap((entry) => entry.unread.filter((setting) => setting.variable === undefined));
+  return { unread: [...variables, ...found.flatMap((entry) => entry.unread), ...files], skipped: [...found, ...machine].flatMap((entry) => entry.skipped) };
 }
 
 /** Composer's command names (extra.commandNames), for the words the scripts of composer.json may change (decision D-136). */
@@ -632,6 +678,10 @@ export async function checkApplied(given: readonly CheckRequest[], applied: Appl
   const requests = [...asked, ...again.map((index): CheckRequest => ({ ...(asked[index] as CheckRequest), rootStability: false }))];
   const tools = toolSettings(requests, applied, composer);
   const unread = [...applied.unread, ...tools.unread];
+  // npm takes the registry of a package's scope wherever it is set, so a registry of every package does not reach the
+  // packages of a scope that has one (pickRegistry in npm-registry-fetch; decision D-168).
+  const scoped = new Set([...applied.scopes.keys(), ...unread.flatMap((setting) => (setting.applies === 'scope' && setting.scope !== undefined ? [setting.scope] : []))]);
+  const ownRegistry = (name: string) => scopeOf(name) !== '' && scoped.has(scopeOf(name));
   const options = (policy: ResolvedPolicy) => ({
     policy,
     fetch: settings.fetch,
@@ -640,20 +690,25 @@ export async function checkApplied(given: readonly CheckRequest[], applied: Appl
     popular: new PopularNames(values(popularPackages)[0] ?? []),
     popularPython: popularPython(),
     scopeRegistries: applied.scopes,
+    scopeWhere: applied.scopeWhere,
     lookups,
     // A scope whose registry is set elsewhere, to another registry than depcurfew would ask, is not looked up; nor is a
     // Composer package when the root composer.json declares another repository (decision D-136).
+    // A registry or index of the machine that replaces the one depcurfew asks keeps the package from being looked up as
+    // well (decision D-168), for npm packages and for Python packages of the tool that reads it (pip without a tool).
     skipLookup: (name: string, tool: ToolId | undefined, request?: Omit<CheckRequest, 'spec'>) =>
       isComposerSpec(name)
         ? request?.readsManifest !== false && unread.some((setting) => setting.tool === 'composer')
-        : unread.some(
-            (setting) =>
-              setting.applies === 'scope' &&
-              setting.scope === scopeOf(name) &&
-              (setting.tool === 'npm' || setting.tool === tool) &&
-              readsSetting(setting, request ?? { ...(tool === undefined ? {} : { tool }) }) &&
-              changesTheCheck(setting, applied.scopes.get(setting.scope) ?? applied.registry.url),
-          ),
+        : isPythonSpec(name)
+          ? unread.some((setting) => notLookedUp(setting) && setting.tool === (tool ?? 'pip') && changesTheCheck(setting, applied.index))
+          : unread.some(
+              (setting) =>
+                notLookedUp(setting) &&
+                (setting.applies === 'all' ? !ownRegistry(name) : setting.scope === scopeOf(name)) &&
+                (setting.tool === 'npm' || setting.tool === tool) &&
+                readsSetting(setting, request ?? { ...(tool === undefined ? {} : { tool }) }) &&
+                changesTheCheck(setting, (setting.scope === undefined ? undefined : applied.scopes.get(setting.scope)) ?? applied.registry.url),
+            ),
     ...(composer?.stability === undefined || composer.file === undefined ? {} : { composerStability: { ...composer.stability, file: composer.file } }),
     ...(settings.index === undefined ? {} : { index: applied.index }),
     ...(applied.tag === undefined ? {} : { defaultTag: applied.tag.value }),
@@ -665,8 +720,13 @@ export async function checkApplied(given: readonly CheckRequest[], applied: Appl
   const reports = mergedReports(own, other, applied.nearer?.file ?? POLICY_FILE, { own: delayOf([applied.policy]), other: delayOf(applied.nearer === undefined ? [] : [applied.nearer.policy]) });
   for (const [index, report] of reports.entries()) {
     const request = requests[index] ?? { spec: report.spec };
-    // One finding per package: the first setting that applies to it.
-    const setting = unread.find((candidate) => appliesTo(candidate, report, request) && changesTheCheck(candidate, usedFor(candidate, report, applied)));
+    // One finding per package: the first setting that applies to it, a registry of its scope before one of every
+    // package, as npm takes the scope's for it wherever each is set (decision D-168).
+    const applies = (candidate: UnreadSetting) =>
+      appliesTo(candidate, report, request) &&
+      changesTheCheck(candidate, usedFor(candidate, report, applied)) &&
+      !(candidate.applies === 'all' && candidate.composer === undefined && !isPythonSpec(report.spec) && ownRegistry(report.name ?? ''));
+    const setting = unread.find((candidate) => candidate.applies === 'scope' && applies(candidate)) ?? unread.find(applies);
     if (setting === undefined) continue;
     const finding = unreadFinding(setting, report, applied);
     // A package or version missing where depcurfew looked may be where the install looks (decision D-120): the
@@ -961,7 +1021,7 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
     // The project an install directory is judged against (decision D-118): CLAUDE_PROJECT_DIR when the working
     // directory lies in it, else the directory of the policy that applies there, its repository or itself.
     const project = root.project ?? realPathOfAny(findPolicyDirectory(cwd) ?? repositoryRoot(cwd) ?? cwd);
-    const common = { registry: flags.registry, index: flags.index, home: dependencies.home?.() ?? homedir(), base };
+    const common = { registry: flags.registry, index: flags.index, home: dependencies.home?.() ?? homedir(), base, machine: machineOf(dependencies) };
     // Outside the project, and where depcurfew cannot tell, only the project's policy applies (or the nearest one from
     // the working directory when the project has none): never one found from a directory the command names.
     const projectOnly = { start: root.start, project };
@@ -1048,6 +1108,7 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     registry: flags.registry,
     index: flags.index,
     home: dependencies.home?.() ?? homedir(),
+    machine: machineOf(dependencies),
     fetch: dependencies.fetch,
     now: dependencies.now(),
     ...(flags.osv === true ? { osv: true } : {}),
@@ -1096,6 +1157,8 @@ export interface CheckSettings {
   index?: string | undefined;
   /** The user's home directory, with the user's .npmrc. */
   home: string;
+  /** The machine whose registry and index settings count (decision D-168); this process's when left out. */
+  machine?: MachineEnvironment;
   fetch: FetchLike;
   now: Date;
   /** Stops the lookups (a cancelled call of depcurfew mcp); the promise then rejects. */
@@ -1256,6 +1319,7 @@ export async function checkDocument(specs: readonly string[], settings: CheckSet
     registry: settings.registry,
     index: settings.index,
     home: settings.home,
+    ...(settings.machine === undefined ? {} : { machine: settings.machine }),
     ...(settings.project === undefined ? {} : { project: settings.project, base: settings.project }),
   });
   if (!result.ok) return failed('policy-error', result.file, result.error);

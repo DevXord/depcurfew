@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { EnvironmentNameRule, SourceKnowledge, ToolKnowledge } from './types.ts';
+import type { EnvironmentNameRule, MachineSettingsKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
 const guard = verifiedOn('2026-11-01');
@@ -23,6 +23,7 @@ const finalReview = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
 // pip 26.3 (2026-11-02): platformdirs 4.12.4 and the parser that normalizes key names (decision D-170).
 const d170 = verifiedOn('2026-11-03');
+const secrets = verifiedOn('2026-11-03');
 
 const noSetting = (kind: string): SourceKnowledge => ({
   setting: uncertain(
@@ -259,6 +260,27 @@ export const pip: ToolKnowledge = {
     ),
   },
   extra: {
+    machineSettings: secrets.verified<MachineSettingsKnowledge>(
+      {
+        variables: [
+          { name: 'PIP_INDEX_URL', effect: 'replaces' },
+          { name: 'PIP_PYPI_URL', effect: 'replaces' },
+          { name: 'PIP_EXTRA_INDEX_URL', effect: 'adds', list: 'spaces' },
+          { name: 'PIP_FIND_LINKS', effect: 'adds', list: 'spaces' },
+        ],
+        configFile: { variable: 'PIP_CONFIG_FILE', format: 'ini', whenMissing: 'user-file' },
+        sections: ['global', 'install'],
+        keys: [
+          { key: 'index-url', effect: 'replaces' },
+          { key: 'pypi-url', effect: 'replaces' },
+          { key: 'extra-index-url', effect: 'adds' },
+          { key: 'find-links', effect: 'adds' },
+        ],
+        legacyUserFiles: { posix: '.pip/pip.conf', win32: 'pip/pip.ini' },
+      },
+      `${PIP}/src/pip/_internal/configuration.py`,
+      'iter_config_files: the global files, then the user files unless PIP_CONFIG_FILE names a file that exists ("per-user config is not loaded when env_config_file exists"), the legacy ~/.pip/pip.conf (~/pip/pip.ini on Windows, get_configuration_files) before the user file of user.files, the site file of the environment, and the file PIP_CONFIG_FILE names; each is read with configparser.RawConfigParser (= or : between key and value, full-line comments with # or ;, indented lines continue a value, keys in lower case) and _normalize_name writes _ as -. ConfigOptionParser (src/pip/_internal/cli/parser.py) takes the sections global, the name of the command (install for pip install) and :env: (the PIP_ variables, which win), matches a key to the long option of that name, so pypi-url sets --index-url too (-i, --index-url and --pypi-url are one option in cli/cmdoptions.py), and splits the value of an append option (--extra-index-url, --find-links) at whitespace. --index-url replaces the index, --extra-index-url adds indexes and --find-links adds pages or directories of archives (cmdoptions.py).',
+    ),
     environmentNames: release14.verified<EnvironmentNameRule[]>(
       [{ prefix: 'PIP_', match: 'prefix-then-any-case' }],
       `${PIP}/src/pip/_internal/configuration.py`,

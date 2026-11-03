@@ -5,15 +5,15 @@
 import { isRecord, values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 import type { PypiIndexKnowledge } from '../knowledge/types.ts';
-import { normalizePythonName } from '../policy/python-names.ts';
+import { normalizedLengths, normalizePythonName } from '../policy/python-names.ts';
 import { formatVersion, parseVersion, type Pep440 } from './pep440.ts';
-import { fetchSameOrigin, MAX_DOCUMENT_SIZE, MAX_VERSIONS, readError, readLimited, requestSignal, tooManyMembers, tooManyVersions, type FetchLike } from './registry.ts';
+import { fetchSameOrigin, MAX_INDEX_PAGE_SIZE, MAX_VERSIONS, readError, readLimited, requestSignal, tooManyMembers, tooManyVersions, type FetchLike } from './registry.ts';
 
 const NOT_A_PROJECT_PAGE = 'the index answered something that is not a project page';
 
 /**
  * The most files of one project page depcurfew reads (decision D-113): projects with many wheels per release have a
- * few dozen files per version, so this is far above real pages under MAX_DOCUMENT_SIZE, and a page with more is made
+ * few dozen files per version, so this is far above real pages under MAX_INDEX_PAGE_SIZE, and a page with more is made
  * to cost time.
  */
 export const MAX_FILES = 200_000;
@@ -81,9 +81,21 @@ export function fileVersion(filename: string, name: string): { version: string; 
   const extension = sdistExtensions().find((candidate) => lower.endsWith(candidate));
   if (extension === undefined) return undefined;
   const stem = filename.slice(0, -extension.length);
-  // Older source distributions keep dashes in the name, so the name is whatever part before a dash matches.
-  for (let dash = stem.indexOf('-'); dash !== -1; dash = stem.indexOf('-', dash + 1)) {
-    if (normalizePythonName(stem.slice(0, dash)) === name && parseVersion(stem.slice(dash + 1)) !== undefined) return { version: stem.slice(dash + 1), kind: 'sdist' };
+  // Older source distributions keep dashes in the name, so the name is whatever part before a dash matches: the first
+  // dash whose normalized prefix is the name and after which a version follows. Normalizing the prefix before every
+  // dash took time quadratic in the length of the file name (decision D-168); its normalized length is counted on
+  // instead, and only a dash where it is the length of the name is compared. The lengths never shrink, so the search
+  // ends once they pass it, and at most one dash of each run of separators gets that far with a version after it.
+  const lengthBefore = normalizedLengths();
+  for (let index = 0; index < stem.length; ) {
+    const character = String.fromCodePoint(stem.codePointAt(index) ?? 0);
+    const length = lengthBefore(character);
+    if (length > name.length) break;
+    if (character === '-' && length === name.length) {
+      const version = stem.slice(index + 1);
+      if (parseVersion(version) !== undefined && normalizePythonName(stem.slice(0, index)) === name) return { version, kind: 'sdist' };
+    }
+    index += character.length;
   }
   return undefined;
 }
@@ -154,7 +166,7 @@ export async function fetchProject(name: string, options: { index: string; fetch
   if (response.status === fields.notFoundStatus) return { status: 'not-found' };
   if (!response.ok) return { status: 'error', reason: `the index answered HTTP ${response.status}` };
   try {
-    const text = await readLimited(response, options.maxBytes ?? MAX_DOCUMENT_SIZE);
+    const text = await readLimited(response, options.maxBytes ?? MAX_INDEX_PAGE_SIZE);
     // Counted before the page is parsed (decision D-113).
     const over = tooManyMembers(text, { [fields.versionsField]: MAX_VERSIONS, [fields.filesField]: MAX_FILES });
     if (over !== undefined) return tooManyVersions(normalizePythonName(name), 'index', over === fields.filesField ? `${MAX_FILES} files` : `${MAX_VERSIONS} versions`);

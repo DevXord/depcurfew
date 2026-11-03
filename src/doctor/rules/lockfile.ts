@@ -1,5 +1,6 @@
 // Lockfile rules. lockfile-forbidden-source: a package from a source depcurfew.json denies. lockfile-install-scripts:
 // a package with install scripts that depcurfew.json does not allow, where the lockfile records scripts.
+import { posix } from 'node:path';
 import { extraOf, isRecord, isSwitch, sinceOf, values } from '../../apply/facts.ts';
 import { listing } from '../../apply/requirements.ts';
 import { compareVersions, parseVersion, pinnedVersion, type Version } from '../../apply/version.ts';
@@ -132,7 +133,7 @@ export const lockfileForbiddenSource: Rule = {
         context.report({
           location: location(lockfile, entry),
           message: `${lockfile.file} installs ${entry.unnamed === true ? 'a package' : entry.name} from ${LABELS[ecosystemOfTool(tool)][entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies${entry.why === undefined ? '' : `: ${entry.why}`}`,
-          fix: `Use a registry version ${entry.unnamed === true ? 'instead' : `of ${entry.name}`}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`,
+          fix: entry.registrySpec === true ? registrySpecFix(lockfile, entry) : `Use a registry version ${entry.unnamed === true ? 'instead' : `of ${entry.name}`}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`,
         });
       }
       for (const [host, entries] of unknownHosts) reportUnknownArchives(context, tool, lockfile, host, entries);
@@ -141,6 +142,19 @@ export const lockfileForbiddenSource: Rule = {
     });
   },
 };
+
+/**
+ * What to do about a tarball URL of package-lock.json that package.json asks for by version (decision D-168): npm 12
+ * installs it as a registry package only from the registry it is set to use for the package (npm
+ * extra.registryHostTarballs), so the fix says how to set that registry, and never to allow tarball URLs, which would
+ * let any URL in.
+ */
+function registrySpecFix(lockfile: Lockfile, entry: LockEntry): string {
+  const scope = entry.name.startsWith('@') ? entry.name.slice(0, entry.name.indexOf('/')) : undefined;
+  const directory = posix.dirname(lockfile.file);
+  const npmrc = directory === '.' ? '.npmrc' : `${directory}/.npmrc`;
+  return `package.json asks for ${entry.name} by version, not by URL: if it comes from a private registry, set ${scope === undefined ? 'registry' : `${scope}:registry`}= to the URL of that registry in the ${npmrc} next to ${posix.basename(lockfile.file)}, as npm installs the tarballs of the registry it is set to use as registry packages; otherwise lock ${entry.name} again from the registry with npm install`;
+}
 
 /** The host of the archive of a composer.lock entry from its spec ("zip https://host/…"), or "" when it names none. */
 function archiveHost(spec: string): string {

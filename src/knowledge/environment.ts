@@ -23,6 +23,7 @@ const finalReview = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
 const ruby = verifiedOn('2026-11-03');
 const ciOverrides = verifiedOn('2026-11-03');
+const secrets = verifiedOn('2026-11-03');
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/v0.36.0/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/v0.36.0/CHANGELOG.md';
@@ -266,6 +267,11 @@ export const environment: EnvironmentKnowledge = {
       ['.nvmrc', '.node-version', '.tool-versions'],
       'https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/README.md',
       'nvm: "nvm use et. al. will traverse directory structure upwards from the current directory looking for the .nvmrc file". nodenv: find_local_version_file in libexec/nodenv-version-file checks the directory for .node-version and then each parent up to the root (https://github.com/nodenv/nodenv/blob/5083e9819756c1a127a626a874703349f4ddb2e4/libexec/nodenv-version-file). asdf: the tool versions a .tool-versions file declares "will be used in that directory and any subdirectories" (https://github.com/asdf-vm/asdf/blob/master/docs/manage/configuration.md). Volta is not one of them: for_dir in crates/volta-core/src/project/mod.rs "will search ancestors to find a package.json and use that as the root of the project" and reads a parent package.json only through extends (https://github.com/volta-cli/volta/blob/main/crates/volta-core/src/project/mod.rs), so the volta key of the root package.json does not reach a project with a package.json of its own.',
+    ),
+    environmentProxy: secrets.verified(
+      { variable: 'NODE_USE_ENV_PROXY', value: '1', option: '--use-env-proxy', since: ['22.21.0', '24.0.0'], proxyVariables: ['HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY'] },
+      'https://github.com/nodejs/node/blob/v26.13.0/doc/api/cli.md',
+      'NODE_USE_ENV_PROXY=1 (added in v24.0.0 and v22.21.0, "Stability: 1.1 - Active Development"): "When enabled, Node.js parses the HTTP_PROXY, HTTPS_PROXY and NO_PROXY environment variables during startup, and routes requests through the specified proxy"; --use-env-proxy does the same and wins over it. doc/api/http.md at the same tag (Built-in Proxy Support, http.setGlobalProxyFromEnv) names fetch() among the requests it covers, and the lower-case spellings win over the upper-case ones. Without it, fetch connects directly, whatever the proxy variables say; Node.js before 22.21.0 has no such switch.',
     ),
   },
   docker: {
@@ -583,6 +589,21 @@ export const environment: EnvironmentKnowledge = {
       { path: '/-/v1/search', maxSize: 250, weeklyDownloadsField: 'downloads.weekly' },
       'https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md',
       'The description documents text, size (at most 250) and from. Results carried downloads.weekly on 2026-10-29, which the description does not list, and from was ignored, so one query returns at most 250 packages.',
+    ),
+    githubPackagesTarballs: secrets.verified(
+      { host: 'npm.pkg.github.com', path: '/download/{scope}/{name}/{version}/{digest}' },
+      'https://github.com/pnpm/pnpm/blob/v11.28.9/pnpm11/core/types/src/misc.ts',
+      'RegistryServerType: "A registry that serves tarballs from a content-derived path (GitHub Packages /download/<scope>/<name>/<version>/<sha256>) has no value: the digest is a fact about the bytes rather than about the package\'s identity, so its URLs are kept in the lockfile instead"; the test "keeps GitHub Packages /download/ tarball URLs" of pnpm11/lockfile/utils/test/toLockfileResolution.ts at the same tag uses https://npm.pkg.github.com/download/@example/private/1.2.3/<40 hex digits>. npm.pkg.github.com is the npm registry of GitHub Packages on github.com; GitHub Enterprise uses npm.SUBDOMAIN.ghe.com or npm.HOSTNAME (content/packages/working-with-a-github-packages-registry/working-with-the-npm-registry.md in github/docs), which depcurfew recognizes only through the .npmrc of the project (npm extra.registryHostTarballs).',
+    ),
+    gitlabTarballs: secrets.verified(
+      { path: '{scope}/{name}/-/{scope}/{name}-{version}.tgz' },
+      'https://gitlab.com/gitlab-org/gitlab/-/blob/v18.5.0-ee/doc/api/packages/npm.md',
+      'GET projects/:id/packages/npm/:package_name/-/:file_name downloads a package file; the metadata names the tarball https://gitlab.example.com/api/v4/projects/1/packages/npm/@myscope/my-pkg/-/@myscope/my-pkg-1.3.7.tgz, so the file name keeps the scope, and the registry is mounted below /api/v4/projects/<id>/packages/npm (or the group and instance endpoints).',
+    ),
+    artifactoryTarballs: secrets.verified(
+      { path: '{scope}/{name}/-/{scope}/{name}-{version}.tgz' },
+      'https://github.com/pnpm/pnpm/blob/v11.28.9/pnpm11/resolving/tarball-url/src/index.ts',
+      'getNpmTarballUrl: "Artifactory keeps the scope in the filename of a scoped package\'s tarball (@acme/widget/-/@acme/widget-1.0.0.tgz); the npm layout strips it". npm\'s versionFromTgz reads no name and version from such a URL (the part after /-/ is not the file name alone), so npm 12 cannot match it in allowScripts by version.',
     ),
   },
   pypiIndex: {

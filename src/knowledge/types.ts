@@ -788,6 +788,58 @@ export interface RegistryOverridesKnowledge {
   configVariables: readonly string[];
 }
 
+/**
+ * Where a tool takes its registry or index from on the machine, outside the repository (decision D-168): variables of
+ * the environment, each replacing the default registry or index or adding a place to install from, and the
+ * configuration file a variable names. The variables' names count as the tool's environmentNames say.
+ */
+export interface MachineSettingsKnowledge {
+  variables: readonly { name: string; effect: 'replaces' | 'adds'; list?: 'spaces' | 'commas' }[];
+  /** A variable whose value is the path of a configuration file, read in place of the user file when it exists. */
+  configFile?: { variable: string; format: 'ini' | 'toml'; whenMissing: 'user-file' | 'nothing' };
+  /** INI files (pip.conf): the sections that count for an install, and its keys with what they do (names lower case, _ as -). */
+  sections?: readonly string[];
+  keys?: readonly { key: string; effect: 'replaces' | 'adds' }[];
+  /** More user files read before the one of user.files, relative to the home directory, by platform family. */
+  legacyUserFiles?: Readonly<Partial<Record<'posix' | 'win32', string>>>;
+}
+
+/** npm's global npmrc: the file npm_config_globalconfig names, else etc/npmrc below its global prefix (decision D-168). */
+export interface NpmGlobalConfigKnowledge {
+  /** The settings that name the user file, the global file and the global prefix. */
+  userKey: string;
+  globalKey: string;
+  prefixKey: string;
+  /** The global file below the prefix. */
+  file: string;
+  /** Variables of the environment that set the default prefix (PREFIX) and are put before it on POSIX (DESTDIR). */
+  prefixVariable: string;
+  destDirVariable: string;
+  /** How many directories up from the Node.js executable the default prefix is: on Windows, elsewhere. */
+  execPathLevels: { win32: number; other: number };
+  /** The files npm reads, from the one that wins. */
+  order: readonly ('cli' | 'env' | 'project' | 'user' | 'global' | 'builtin')[];
+}
+
+/**
+ * When npm installs a tarball URL of package-lock.json as a registry package (decision D-168): every dependency on it
+ * is declared with a registry spec, and the URL has the origin of the registry npm uses for the package (its scope's,
+ * else registry) and a path below that registry's path.
+ */
+export interface NpmRegistryHostKnowledge {
+  dependencies: 'registry specs';
+  match: 'origin and path';
+}
+
+/**
+ * A layout of the tarball URLs of a registry (decision D-168): `path` with {scope}, {name}, {version} and {digest}; on
+ * `host` only, or at the end of any path (a registry mounted below the root) when there is none.
+ */
+export interface RegistryTarballLayoutKnowledge {
+  host?: string;
+  path: string;
+}
+
 /** Where a project sets the registry packages come from, for all packages or for a scope. */
 export interface RegistryConfigKnowledge {
   /** The project's configuration file. */
@@ -1610,6 +1662,8 @@ export interface EnvironmentKnowledge {
     engines: Fact<{ key: string; runtimeKey: string }>;
     /** The Node.js version files that version managers also use in subdirectories of their directory. */
     inheritedVersionFiles: Fact<readonly string[]>;
+    /** How Node.js sends fetch() through the proxy of HTTPS_PROXY and HTTP_PROXY: only when this variable or option asks. */
+    environmentProxy: Fact<{ variable: string; value: string; option: string; since: readonly string[]; proxyVariables: readonly string[] }>;
   };
   docker: {
     imageReference: Fact<ImageReferenceKnowledge>;
@@ -1691,6 +1745,11 @@ export interface EnvironmentKnowledge {
     notFoundStatus: Fact<number>;
     /** Search endpoint, its result limit and the field with weekly downloads. */
     search: Fact<{ path: string; maxSize: number; weeklyDownloadsField: string }>;
+    /** The tarball URLs of GitHub Packages, which name the package and the version but not as npm's layout does. */
+    githubPackagesTarballs: Fact<RegistryTarballLayoutKnowledge>;
+    /** The tarball URLs of GitLab's npm registry and of Artifactory, whose file name keeps the scope. */
+    gitlabTarballs: Fact<RegistryTarballLayoutKnowledge>;
+    artifactoryTarballs: Fact<RegistryTarballLayoutKnowledge>;
   };
   pypiIndex: {
     api: Fact<PypiIndexKnowledge>;
