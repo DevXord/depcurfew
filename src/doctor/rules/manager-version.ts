@@ -17,6 +17,7 @@ import { COMPOSER_MANIFEST, lockedPluginApi } from '../composer.ts';
 import { yarnClassicFix } from '../unreadable-warnings.ts';
 import { readPythonSetting } from '../python.ts';
 import { lineOf, readSetting } from '../settings.ts';
+import { readRuleSetting } from '../pnpm-config.ts';
 import type { Rule, RuleContext } from '../types.ts';
 import { belowVersion, formatBound, lowestVersion } from '../version-range.ts';
 import { checkBundledVersions, SOURCE_LABEL, strictAdvice, type StrictAdvice } from './bundled-versions.ts';
@@ -129,7 +130,7 @@ function configuredFeatures(context: RuleContext, tool: ToolKnowledge): Feature[
   const configured = (setting: string) =>
     ecosystemOfTool(tool) === 'pypi'
       ? readPythonSetting(context.repository, tool, setting) !== undefined
-      : files.some((name) => readSetting(context.repository, name, setting) !== undefined);
+      : files.some((name) => readRuleSetting(context, tool, name, setting) !== undefined);
   return candidates
     .filter(([setting]) => setting !== null && configured(setting))
     .map(([setting, since, kind]) => (kind === undefined ? feature(setting, since) : kinded(kind, feature(setting, since))))

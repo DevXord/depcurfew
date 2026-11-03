@@ -1744,3 +1744,55 @@ export interface EnvironmentKnowledge {
     hatch: Fact<{ pyprojectTable: string; configFile: string }>;
   };
 }
+
+/**
+ * pnpm 12.15+: `include` in pnpm-workspace.yaml hands settings to local YAML files and to config dependencies, each
+ * setting with one owner (decision D-164).
+ */
+export interface PnpmIncludesKnowledge {
+  since: string;
+  /** The root manifest, the only file that may hold `key`. */
+  file: string;
+  key: string;
+  /** The delegation that lets a local file define any setting no other source owns. */
+  unrestricted: string;
+  /** How a local source starts; anything else is a config dependency named as in configDependencies. */
+  localPrefixes: readonly string[];
+  localExtensions: readonly string[];
+  /** Characters that make a local source a glob, which pnpm rejects. */
+  globCharacters: string;
+  /** Spellings of one setting, which share one owner: spelling -> canonical name. */
+  spellings: Readonly<Record<string, string>>;
+  /** Settings a config dependency can neither define nor be delegated. */
+  notForDependencies: readonly string[];
+  /** The setting that declares config dependencies, which a config dependency source must be listed in. */
+  dependencies: string;
+}
+
+/** The pnpmfiles pnpm loads and the settings that choose them (decision D-164). */
+export interface PnpmfilesKnowledge {
+  /** The first version whose pnpmfile can change settings with hooks.updateConfig. */
+  updateConfigSince: string;
+  /** The project pnpmfile pnpm looks for when `setting` is not set: the first of the names that exists. */
+  defaults: Versioned<readonly string[]>;
+  /** A path or a list of paths; when set (also to []), the defaults are not looked for. */
+  setting: string;
+  /** true: no pnpmfile is loaded at all, those of config-dependency plugins included. */
+  ignore: string;
+  /** A path of a pnpmfile loaded ahead of the others. */
+  global: string;
+}
+
+/** Config dependencies whose pnpmfile pnpm loads by their name alone (decision D-164). */
+export interface PnpmPluginsKnowledge {
+  setting: string;
+  /** Name patterns, `*` for any text. */
+  patterns: Versioned<readonly string[]>;
+}
+
+/** What a known config-dependency plugin sets with its updateConfig hook, from the version given on (decision D-164). */
+export interface PnpmKnownPlugin {
+  name: string;
+  since: string;
+  settings: Readonly<Record<string, unknown>>;
+}

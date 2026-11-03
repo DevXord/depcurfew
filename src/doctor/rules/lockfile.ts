@@ -33,6 +33,7 @@ import { readLockfiles, type Lockfile, type LockEntry, type Source } from '../lo
 import { requirementsFormatOf } from '../python-lockfiles.ts';
 import { readPythonSetting, requirementsOptions } from '../python.ts';
 import { iniValue, readSetting } from '../settings.ts';
+import { readRuleSetting } from '../pnpm-config.ts';
 import type { Rule, RuleContext } from '../types.ts';
 import { hasBuildRecords, showsBuilds } from '../python-lockfiles.ts';
 import { hasLockfile } from '../applies.ts';
@@ -347,8 +348,8 @@ function scriptsDisabledBy(context: RuleContext, tool: ToolKnowledge): { reason:
   const match = typeof value === 'string' ? /^([\w.-]+)(?::\s*(\S+))?$/u.exec(value) : null;
   if (match !== null) {
     const [, key = '', expected] = match;
-    const found = readSetting(context.repository, file, key);
-    if (found !== undefined && found.value === (expected === undefined ? true : iniValue(expected))) return { reason: `${key} in ${file} turns them off`, all: true, setting: `${key} in ${file}` };
+    const found = readRuleSetting(context, tool, file, key);
+    if (found !== undefined && found.value === (expected === undefined ? true : iniValue(expected))) return { reason: `${key} in ${found.file} turns them off`, all: true, setting: `${key} in ${found.file}` };
   }
   const strict = tool.extra?.['strictAllowScripts'] === undefined ? undefined : extraOf(tool, 'strictAllowScripts', isSwitch);
   if (strict !== undefined && readSetting(context.repository, file, strict.setting)?.value === strict.value) {

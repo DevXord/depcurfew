@@ -4,6 +4,7 @@
 import { delayMinutes, formatMinutes } from '../doctor/durations.ts';
 import { gemfileNamesOf, latestVersion } from '../doctor/effective.ts';
 import { readPythonSetting } from '../doctor/python.ts';
+import { readToolSetting } from '../doctor/pnpm-config.ts';
 import { jsonSetting, readSetting, rejectsYamlAliases, yamlAliasLine, yamlKeyLine, yamlSetting, type Setting } from '../doctor/settings.ts';
 import { Repository } from '../detect/repository.ts';
 import type { Detection, PackageManagerInfo } from '../detect/types.ts';
@@ -114,7 +115,8 @@ function managerDelay(repository: Repository, manager: PackageManagerInfo, tool:
     if (python !== undefined && setting !== null) found = { ...python, setting };
   } else {
     for (const source of managerSources(repository, manager, tool, version)) {
-      const setting = readSetting(repository, source.file, source.setting);
+      // pnpm 12.15+ may take the delay from a file of include (decision D-164).
+      const setting = readToolSetting(repository, tool, version, source.file, source.setting);
       if (setting !== undefined) {
         found = { ...setting, setting: source.setting };
         break;

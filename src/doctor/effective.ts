@@ -10,6 +10,8 @@ import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import { delayMinutes } from './durations.ts';
 import { readPythonSetting } from './python.ts';
 import { iniEntries, npmrcKey, readSetting, yamlSetting, type Setting } from './settings.ts';
+import { readToolSetting, settingOwner } from './pnpm-config.ts';
+import { ownerText } from '../apply/pnpm-includes.ts';
 import type { RuleContext } from './types.ts';
 
 export interface Delay {
@@ -120,7 +122,17 @@ export function managerDelay(context: RuleContext, manager: PackageManagerInfo, 
     let found: Setting | undefined;
     let key = setting;
     if (ecosystemOfTool(tool) === 'pypi') found = readPythonSetting(context.repository, tool, setting);
-    else for (const file of managerConfigFiles(tool, manager)) found ??= readSetting(context.repository, file, setting);
+    else {
+      for (const file of managerConfigFiles(tool, manager)) {
+        // pnpm 12.15+ may take the delay from a file of include, or from a config dependency (decision D-164).
+        const owner = settingOwner(context.repository, tool, version, file, setting);
+        if (owner.kind !== 'file') {
+          context.notice(`${tool.name}: ${setting} comes from ${ownerText(owner, file)}, whose value depcurfew cannot read`, file);
+          return undefined;
+        }
+        found ??= readToolSetting(context.repository, tool, version, file, setting);
+      }
+    }
     if (found === undefined) {
       found = pnpmNpmrcSetting(context, tool, version, setting);
       if (found !== undefined) key = npmrcKey(setting);

@@ -1,0 +1,20 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "config/deps.yaml",
+      "line": 1
+    },
+    "message": "minimumReleaseAgeExclude contains \"*\", so pnpm applies no release-age delay to any package",
+    "fix": "Remove \"*\" and list only the packages that need the exception"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "config/deps.yaml",
+      "line": 1
+    },
+    "message": "minimumReleaseAgeExclude contains \"@*/*\", so pnpm applies no release-age delay to any package",
+    "fix": "Remove \"@*/*\" and list only the packages that need the exception"
+  }
+]

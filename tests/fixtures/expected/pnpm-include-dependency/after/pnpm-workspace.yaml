@@ -1,0 +1,10 @@
+configDependencies:
+  '@acme/pnpm-policy': 3.1.0
+include:
+  '@acme/pnpm-policy': [minimumReleaseAge, allowBuilds, blockExoticSubdeps]
+# managed by depcurfew
+minimumReleaseAgeStrict: true
+# managed by depcurfew
+minimumReleaseAgeExclude:
+  - "@acme/*"
+  - left-pad

@@ -1,5 +1,17 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, EnvironmentNameRule, RootLifecycleScriptsKnowledge, RunnerOptionsKnowledge, SourceKnowledge, ToolKnowledge, UserLocation } from './types.ts';
+import type {
+  DirectoryOptionsKnowledge,
+  EnvironmentNameRule,
+  PnpmfilesKnowledge,
+  PnpmIncludesKnowledge,
+  PnpmKnownPlugin,
+  PnpmPluginsKnowledge,
+  RootLifecycleScriptsKnowledge,
+  RunnerOptionsKnowledge,
+  SourceKnowledge,
+  ToolKnowledge,
+  UserLocation,
+} from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-28');
 // Facts whose sources D-170 pinned to a release tag or commit, checked again on 2026-11-03.
@@ -11,7 +23,9 @@ const user = verifiedOn('2026-10-31');
 const runtimes = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
 const runners = verifiedOn('2026-11-03');
+const includes = verifiedOn('2026-11-03');
 const PNPM_V12 = 'https://github.com/pnpm/pnpm/blob/v12.16.1';
+const PNPM_V12_17 = 'https://github.com/pnpm/pnpm/blob/v12.17.0';
 const PNPM_V11_CODE = 'https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/config/reader/src';
 
 /** A file in pnpm's config directory (getConfigDir): $XDG_CONFIG_HOME/pnpm when set, else the platform's own place. */
@@ -126,10 +140,10 @@ export const pnpm: ToolKnowledge = {
         BUILD_V11,
       ),
     },
-    disableAll: verified(
+    disableAll: includes.verified(
       'ignoreScripts',
       'https://pnpm.io/cli/install',
-      'Default false; --ignore-scripts on the CLI. Also skips the project\'s own scripts.',
+      'Default false; --ignore-scripts on the CLI. Also skips the project\'s own scripts. It does not stop the pnpmfiles (.pnpmfile.mjs, .pnpmfile.cjs, the pnpmfile and globalPnpmfile settings and the pnpmfiles of config-dependency plugins, extra.pnpmfiles), whose hooks still run and can change every setting; only ignorePnpmfile does ("Useful together with --ignore-scripts when you want to make sure that no script gets executed during install", pnpm/docs/pnpmfile.md at v12.17.0). resolve_pnpmfile_paths in pnpm/crates/cli/src/config_deps/hooks.rs at v12.17.0 tests ignore_pnpmfile only.',
     ),
   },
   sources: {
@@ -548,6 +562,77 @@ export const pnpm: ToolKnowledge = {
       { since: '10.0.0', field: 'packageManager' },
       'https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md',
       '10.0.0: "manage-package-manager-versions: enabled by default. pnpm now manages its own version based on the packageManager field in package.json by default" (added in 9.7.0, off by default: "pnpm will switch to the version specified in the packageManager field of package.json ... This is the same field used by Corepack"). The 11.0.0 release notes replace the setting with pmOnFail, which "directly sets the onFail behavior of both packageManager and devEngines.packageManager" (https://github.com/pnpm/pnpm/releases/tag/v11.0.0); pnpm 12 documents pmOnFail with the default download: "download and run the declared pnpm version (this is the default and matches the previous managePackageManagerVersions: true behavior)" (pnpm/docs/settings/cli.md at v12.16.1). So any pnpm 10 or later honors a pnpm pin without Corepack.',
+    ),
+    configIncludes: includes.verified<PnpmIncludesKnowledge>(
+      {
+        since: '12.15.0',
+        file: 'pnpm-workspace.yaml',
+        key: 'include',
+        unrestricted: '*',
+        localPrefixes: ['./', '../'],
+        localExtensions: ['.yaml', '.yml'],
+        globCharacters: '*?[]{}',
+        spellings: {
+          enableGlobalVirtualStore: 'virtualStoreType',
+          nodeExperimentalPackageMap: 'nodePackageMap',
+          nodePackageMapType: 'nodePackageMap',
+          noproxy: 'noProxy',
+          proxy: 'httpsProxy',
+          permissions: 'allowBuilds',
+          auditConfig: 'audit',
+          auditLevel: 'audit',
+          cleanupUnusedCatalogs: 'catalogPrune',
+          maxsockets: 'maxSockets',
+          namedRegistries: 'registries',
+          updateConfig: 'update',
+        },
+        notForDependencies: [
+          'bootConfig', 'cacheDir', 'configDependencies', 'globalBinDir', 'globalDir', 'globalPnpmfile', 'globalVirtualStoreDir', 'lockfileDir', 'modulesDir', 'npmrcAuthFile',
+          'onlyBuiltDependenciesFile', 'packages', 'patchedDependencies', 'patchesDir', 'pnpmfile', 'scriptShell', 'stateDir', 'storeDir', 'virtualStoreDir',
+        ],
+        dependencies: 'configDependencies',
+      },
+      `${PNPM_V12_17}/pnpm/docs/config-includes.md`,
+      '"Added in: v12.15.0" (12.15.0 release notes, 21 Oct: "can now delegate settings to other YAML files and to config dependencies through a new include field"). include in the root pnpm-workspace.yaml maps a source to the settings it may define: a list of settings, which the source both may define and owns ("A list both permits and reserves its settings ... no other source may define them, even when the file omits them"), or \'*\' for a local file, which then owns the settings it defines that no other source owns. A local source starts with ./ or ../, is resolved from the workspace root, must end in .yaml or .yml and exist; a glob is rejected, and so is a file named twice or the root itself. Every other source is a config dependency named in configDependencies, which always needs a list. Settings defined in pnpm-workspace.yaml itself belong to it; a setting reserved twice, or defined where another source owns it, fails with ERR_PNPM_DUPLICATE_SETTING, a listed file that defines another setting with ERR_PNPM_SETTING_NOT_DELEGATED, a bad source with ERR_PNPM_INVALID_WORKSPACE_INCLUDE. A delegated setting the owner omits is not set by the project. Writes go to the owner: a delegated setting to its file even when the file omits it, a setting a \'*\' file defines stays there, one no source owns goes to pnpm-workspace.yaml, and one a config dependency owns cannot be changed (ERR_PNPM_SETTING_OWNED_BY_CONFIG_DEPENDENCY). Relative paths in an included file are relative to that file. The included files are read with merge keys like the root (normalize.rs applies <<). The spellings share one owner, so permissions and allowBuilds are one setting for ownership (canonical_setting_name in pnpm/crates/workspace/src/include/selector.rs); catalog is catalogs.default, catalogs.<name> one catalog and catalogs every catalog. Code: pnpm/crates/workspace/src/include.rs, include/selector.rs (parse_source, is_package_name_shaped, parse_delegation, SETTINGS_FORBIDDEN_TO_PACKAGES in include.rs), include/ownership.rs (reservations before definitions; the owner of a setting is its reservation, else its definition), include/package.rs (a config dependency\'s settings come from the YAML file its package.json names in pnpm.config, read from node_modules/.pnpm-config/<name> once installed); the same code at v12.15.0. Decision D-164.',
+    ),
+    bootConfig: includes.verified(
+      {
+        since: '12.15.0',
+        setting: 'bootConfig',
+        settings: ['minimumReleaseAge', 'minimumReleaseAgeExclude', 'minimumReleaseAgeStrict', 'minimumReleaseAgeIgnoreMissingTime', 'trustPolicy', 'trustPolicyExclude', 'trustPolicyIgnoreAfter'],
+      },
+      `${PNPM_V12_17}/pnpm/docs/config-includes.md`,
+      'bootConfig in pnpm-workspace.yaml sets the release-age and trust policy pnpm resolves and installs config dependencies and the pnpm version of packageManager under, before the settings of config dependencies are loaded (12.15.0 release notes: "The new bootConfig setting sets the release-age and trust policy pnpm uses to install config dependencies"). A setting it leaves unset or null takes its regular value; for a setting a config dependency owns, the value of the global config.yaml, the environment or the built-in default. The environment and the command line beat bootConfig (for_boot in pnpm/crates/config/src/boot_config.rs at v12.17.0). A config dependency cannot be delegated bootConfig (configIncludes.notForDependencies). Config dependencies pinned with version+integrity keep that pin (docs/config-dependencies.md). depcurfew neither writes nor checks it.',
+    ),
+    pnpmfiles: includes.verified<PnpmfilesKnowledge>(
+      {
+        updateConfigSince: '10.8.0',
+        defaults: [
+          { since: '6.0.0', value: ['.pnpmfile.cjs'] },
+          { since: '11.0.0', value: ['.pnpmfile.mjs', '.pnpmfile.cjs'] },
+        ],
+        setting: 'pnpmfile',
+        ignore: 'ignorePnpmfile',
+        global: 'globalPnpmfile',
+      },
+      `${PNPM_V12_17}/pnpm/docs/pnpmfile.md`,
+      'hooks.updateConfig "Allows you to modify the configuration settings used by pnpm" and "runs after the settings are merged and can still change any of them" (config-includes.md); since v12.4.1 it receives the resolved configuration, and since v12.8.0 only a setting given on the command line wins over it. Added in 10.8.0 ("Experimental. A new hook is supported for updating configuration settings. The hook can be provided via .pnpmfile.cjs", pnpm/CHANGELOG.md at v10.34.9). The project pnpmfile sits next to the lockfile (the workspace root): .pnpmfile.cjs since 6.0.0 ("pnpmfile.js renamed to .pnpmfile.cjs"); since 11.0.0 .pnpmfile.mjs, which "takes priority over .pnpmfile.cjs when present" (11.0.0 release notes). When the pnpmfile setting is set, also to [], pnpm does not look for these files ("Set pnpmfile: [] in pnpm-workspace.yaml when the workspace has no pnpmfile, so a new .pnpmfile.mjs is not picked up automatically", config-includes.md); its paths are relative to the file that sets it. globalPnpmfile is loaded first. ignorePnpmfile: true loads no pnpmfile, those of config-dependency plugins included: cli/cli-utils/src/getConfig.ts at v10.34.9, pnpm11/pnpm/src/getConfig.ts at v11.28.10 (installConfigDepsAndLoadHooks, tryLoadDefaultPnpmfile = config.pnpmfile == null), pnpm/crates/hooks/src/finder.rs (find_pnpmfiles) and pnpm/crates/cli/src/config_deps/hooks.rs (resolve_pnpmfile_paths, may_update_config) at v12.17.0; pnpm 12 does not take ignorePnpmfile from the global config.yaml (workspace_scope.rs). With sharedWorkspaceLockfile: false each project also runs the pnpmfile in its own directory (pnpmfile.md). ignoreScripts does not stop any of them (installScripts.disableAll).',
+    ),
+    configPlugins: includes.verified<PnpmPluginsKnowledge>(
+      {
+        setting: 'configDependencies',
+        patterns: [
+          { since: '10.13.0', value: ['pnpm-plugin-*', '@pnpm/plugin-*'] },
+          { since: '10.15.0', value: ['pnpm-plugin-*', '@pnpm/plugin-*', '@*/pnpm-plugin-*'] },
+        ],
+      },
+      `${PNPM_V12_17}/pnpm/docs/config-dependencies.md`,
+      '"If your config dependency is named following the pnpm-plugin-*, @*/pnpm-plugin-*, or @pnpm/plugin-* pattern, pnpm will automatically load its pnpmfile.mjs (falling back to pnpmfile.cjs) from the package root." 10.13.0: "pnpm will now automatically load the pnpmfile.cjs file from any config dependency named @pnpm/plugin-* or pnpm-plugin-*"; 10.15.0: "Automatically load pnpmfiles from config dependencies that are named @*/pnpm-plugin-*" (pnpm/CHANGELOG.md at v10.34.9). The test is a prefix pnpm-plugin- or @pnpm/plugin-, or a scoped name containing /pnpm-plugin- (isPluginName in cli/cli-utils/src/getConfig.ts at v10.34.9 and pnpm11/pnpm/src/getConfig.ts at v11.28.10, is_plugin_name in pnpm/crates/hooks/src/finder.rs at v12.17.0). Such a pnpmfile loads also when the package supplies settings through include ("A config dependency whose name follows the plugin naming pattern still loads its pnpmfile", config-includes.md), unless ignorePnpmfile is true (extra.pnpmfiles). Config dependencies came in 10.0.0 ("configurational dependencies", then in the pnpm field of package.json); the docs of 10.x, 11.x and 12.17.0 declare them in pnpm-workspace.yaml.',
+    ),
+    knownPlugins: includes.verified<PnpmKnownPlugin[]>(
+      [{ name: '@pnpm/plugin-better-defaults', since: '0.3.0', settings: { minimumReleaseAge: 1440, blockExoticSubdeps: true } }],
+      'https://github.com/pnpm/plugin-better-defaults/blob/v0.3.0/src/pnpmfile.cjs',
+      'The official plugin\'s updateConfig sets minimumReleaseAge: 1 * 24 * 60 ("1 day in minutes") and blockExoticSubdeps: true with Object.assign, so it replaces a longer delay of pnpm-workspace.yaml. Versions 0.1.0 to 0.2.1 (the pnpmfile.cjs of the published packages on registry.npmjs.org) set neither; 0.3.0, published on 2026-03-01, is the latest. pnpm/docs/pnpmfile.md at v12.17.0 names it as the example of the hook.',
     ),
   },
 };

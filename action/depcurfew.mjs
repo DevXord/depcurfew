@@ -4445,7 +4445,9 @@ const user$3 = verifiedOn("2026-10-31");
 const runtimes$1 = verifiedOn("2026-11-01");
 const release14$3 = verifiedOn("2026-11-02");
 const runners$1 = verifiedOn("2026-11-03");
+const includes = verifiedOn("2026-11-03");
 const PNPM_V12 = "https://github.com/pnpm/pnpm/blob/v12.16.1";
+const PNPM_V12_17 = "https://github.com/pnpm/pnpm/blob/v12.17.0";
 const PNPM_V11_CODE = "https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/config/reader/src";
 /** A file in pnpm's config directory (getConfigDir): $XDG_CONFIG_HOME/pnpm when set, else the platform's own place. */
 const inConfigDir = (file) => [
@@ -4548,7 +4550,7 @@ const pnpm$1 = {
 			availableSince: verified$7("10.26.0", SETTINGS_V10),
 			format: verified$7("Map of package matcher to true (allow) or false (deny), e.g. esbuild: true or \"nx@21.6.4 || 21.6.5\": true; a bare name never approves git or tarball dependencies (pnpm 11+)", BUILD_V11)
 		},
-		disableAll: verified$7("ignoreScripts", "https://pnpm.io/cli/install", "Default false; --ignore-scripts on the CLI. Also skips the project's own scripts.")
+		disableAll: includes.verified("ignoreScripts", "https://pnpm.io/cli/install", "Default false; --ignore-scripts on the CLI. Also skips the project's own scripts. It does not stop the pnpmfiles (.pnpmfile.mjs, .pnpmfile.cjs, the pnpmfile and globalPnpmfile settings and the pnpmfiles of config-dependency plugins, extra.pnpmfiles), whose hooks still run and can change every setting; only ignorePnpmfile does (\"Useful together with --ignore-scripts when you want to make sure that no script gets executed during install\", pnpm/docs/pnpmfile.md at v12.17.0). resolve_pnpmfile_paths in pnpm/crates/cli/src/config_deps/hooks.rs at v12.17.0 tests ignore_pnpmfile only.")
 	},
 	sources: {
 		git: exoticSubdeps,
@@ -5212,7 +5214,100 @@ const pnpm$1 = {
 		managesOwnVersion: release14$3.verified({
 			since: "10.0.0",
 			field: "packageManager"
-		}, "https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md", "10.0.0: \"manage-package-manager-versions: enabled by default. pnpm now manages its own version based on the packageManager field in package.json by default\" (added in 9.7.0, off by default: \"pnpm will switch to the version specified in the packageManager field of package.json ... This is the same field used by Corepack\"). The 11.0.0 release notes replace the setting with pmOnFail, which \"directly sets the onFail behavior of both packageManager and devEngines.packageManager\" (https://github.com/pnpm/pnpm/releases/tag/v11.0.0); pnpm 12 documents pmOnFail with the default download: \"download and run the declared pnpm version (this is the default and matches the previous managePackageManagerVersions: true behavior)\" (pnpm/docs/settings/cli.md at v12.16.1). So any pnpm 10 or later honors a pnpm pin without Corepack.")
+		}, "https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md", "10.0.0: \"manage-package-manager-versions: enabled by default. pnpm now manages its own version based on the packageManager field in package.json by default\" (added in 9.7.0, off by default: \"pnpm will switch to the version specified in the packageManager field of package.json ... This is the same field used by Corepack\"). The 11.0.0 release notes replace the setting with pmOnFail, which \"directly sets the onFail behavior of both packageManager and devEngines.packageManager\" (https://github.com/pnpm/pnpm/releases/tag/v11.0.0); pnpm 12 documents pmOnFail with the default download: \"download and run the declared pnpm version (this is the default and matches the previous managePackageManagerVersions: true behavior)\" (pnpm/docs/settings/cli.md at v12.16.1). So any pnpm 10 or later honors a pnpm pin without Corepack."),
+		configIncludes: includes.verified({
+			since: "12.15.0",
+			file: "pnpm-workspace.yaml",
+			key: "include",
+			unrestricted: "*",
+			localPrefixes: ["./", "../"],
+			localExtensions: [".yaml", ".yml"],
+			globCharacters: "*?[]{}",
+			spellings: {
+				enableGlobalVirtualStore: "virtualStoreType",
+				nodeExperimentalPackageMap: "nodePackageMap",
+				nodePackageMapType: "nodePackageMap",
+				noproxy: "noProxy",
+				proxy: "httpsProxy",
+				permissions: "allowBuilds",
+				auditConfig: "audit",
+				auditLevel: "audit",
+				cleanupUnusedCatalogs: "catalogPrune",
+				maxsockets: "maxSockets",
+				namedRegistries: "registries",
+				updateConfig: "update"
+			},
+			notForDependencies: [
+				"bootConfig",
+				"cacheDir",
+				"configDependencies",
+				"globalBinDir",
+				"globalDir",
+				"globalPnpmfile",
+				"globalVirtualStoreDir",
+				"lockfileDir",
+				"modulesDir",
+				"npmrcAuthFile",
+				"onlyBuiltDependenciesFile",
+				"packages",
+				"patchedDependencies",
+				"patchesDir",
+				"pnpmfile",
+				"scriptShell",
+				"stateDir",
+				"storeDir",
+				"virtualStoreDir"
+			],
+			dependencies: "configDependencies"
+		}, `${PNPM_V12_17}/pnpm/docs/config-includes.md`, "\"Added in: v12.15.0\" (12.15.0 release notes, 21 Oct: \"can now delegate settings to other YAML files and to config dependencies through a new include field\"). include in the root pnpm-workspace.yaml maps a source to the settings it may define: a list of settings, which the source both may define and owns (\"A list both permits and reserves its settings ... no other source may define them, even when the file omits them\"), or '*' for a local file, which then owns the settings it defines that no other source owns. A local source starts with ./ or ../, is resolved from the workspace root, must end in .yaml or .yml and exist; a glob is rejected, and so is a file named twice or the root itself. Every other source is a config dependency named in configDependencies, which always needs a list. Settings defined in pnpm-workspace.yaml itself belong to it; a setting reserved twice, or defined where another source owns it, fails with ERR_PNPM_DUPLICATE_SETTING, a listed file that defines another setting with ERR_PNPM_SETTING_NOT_DELEGATED, a bad source with ERR_PNPM_INVALID_WORKSPACE_INCLUDE. A delegated setting the owner omits is not set by the project. Writes go to the owner: a delegated setting to its file even when the file omits it, a setting a '*' file defines stays there, one no source owns goes to pnpm-workspace.yaml, and one a config dependency owns cannot be changed (ERR_PNPM_SETTING_OWNED_BY_CONFIG_DEPENDENCY). Relative paths in an included file are relative to that file. The included files are read with merge keys like the root (normalize.rs applies <<). The spellings share one owner, so permissions and allowBuilds are one setting for ownership (canonical_setting_name in pnpm/crates/workspace/src/include/selector.rs); catalog is catalogs.default, catalogs.<name> one catalog and catalogs every catalog. Code: pnpm/crates/workspace/src/include.rs, include/selector.rs (parse_source, is_package_name_shaped, parse_delegation, SETTINGS_FORBIDDEN_TO_PACKAGES in include.rs), include/ownership.rs (reservations before definitions; the owner of a setting is its reservation, else its definition), include/package.rs (a config dependency's settings come from the YAML file its package.json names in pnpm.config, read from node_modules/.pnpm-config/<name> once installed); the same code at v12.15.0. Decision D-164."),
+		bootConfig: includes.verified({
+			since: "12.15.0",
+			setting: "bootConfig",
+			settings: [
+				"minimumReleaseAge",
+				"minimumReleaseAgeExclude",
+				"minimumReleaseAgeStrict",
+				"minimumReleaseAgeIgnoreMissingTime",
+				"trustPolicy",
+				"trustPolicyExclude",
+				"trustPolicyIgnoreAfter"
+			]
+		}, `${PNPM_V12_17}/pnpm/docs/config-includes.md`, "bootConfig in pnpm-workspace.yaml sets the release-age and trust policy pnpm resolves and installs config dependencies and the pnpm version of packageManager under, before the settings of config dependencies are loaded (12.15.0 release notes: \"The new bootConfig setting sets the release-age and trust policy pnpm uses to install config dependencies\"). A setting it leaves unset or null takes its regular value; for a setting a config dependency owns, the value of the global config.yaml, the environment or the built-in default. The environment and the command line beat bootConfig (for_boot in pnpm/crates/config/src/boot_config.rs at v12.17.0). A config dependency cannot be delegated bootConfig (configIncludes.notForDependencies). Config dependencies pinned with version+integrity keep that pin (docs/config-dependencies.md). depcurfew neither writes nor checks it."),
+		pnpmfiles: includes.verified({
+			updateConfigSince: "10.8.0",
+			defaults: [{
+				since: "6.0.0",
+				value: [".pnpmfile.cjs"]
+			}, {
+				since: "11.0.0",
+				value: [".pnpmfile.mjs", ".pnpmfile.cjs"]
+			}],
+			setting: "pnpmfile",
+			ignore: "ignorePnpmfile",
+			global: "globalPnpmfile"
+		}, `${PNPM_V12_17}/pnpm/docs/pnpmfile.md`, "hooks.updateConfig \"Allows you to modify the configuration settings used by pnpm\" and \"runs after the settings are merged and can still change any of them\" (config-includes.md); since v12.4.1 it receives the resolved configuration, and since v12.8.0 only a setting given on the command line wins over it. Added in 10.8.0 (\"Experimental. A new hook is supported for updating configuration settings. The hook can be provided via .pnpmfile.cjs\", pnpm/CHANGELOG.md at v10.34.9). The project pnpmfile sits next to the lockfile (the workspace root): .pnpmfile.cjs since 6.0.0 (\"pnpmfile.js renamed to .pnpmfile.cjs\"); since 11.0.0 .pnpmfile.mjs, which \"takes priority over .pnpmfile.cjs when present\" (11.0.0 release notes). When the pnpmfile setting is set, also to [], pnpm does not look for these files (\"Set pnpmfile: [] in pnpm-workspace.yaml when the workspace has no pnpmfile, so a new .pnpmfile.mjs is not picked up automatically\", config-includes.md); its paths are relative to the file that sets it. globalPnpmfile is loaded first. ignorePnpmfile: true loads no pnpmfile, those of config-dependency plugins included: cli/cli-utils/src/getConfig.ts at v10.34.9, pnpm11/pnpm/src/getConfig.ts at v11.28.10 (installConfigDepsAndLoadHooks, tryLoadDefaultPnpmfile = config.pnpmfile == null), pnpm/crates/hooks/src/finder.rs (find_pnpmfiles) and pnpm/crates/cli/src/config_deps/hooks.rs (resolve_pnpmfile_paths, may_update_config) at v12.17.0; pnpm 12 does not take ignorePnpmfile from the global config.yaml (workspace_scope.rs). With sharedWorkspaceLockfile: false each project also runs the pnpmfile in its own directory (pnpmfile.md). ignoreScripts does not stop any of them (installScripts.disableAll)."),
+		configPlugins: includes.verified({
+			setting: "configDependencies",
+			patterns: [{
+				since: "10.13.0",
+				value: ["pnpm-plugin-*", "@pnpm/plugin-*"]
+			}, {
+				since: "10.15.0",
+				value: [
+					"pnpm-plugin-*",
+					"@pnpm/plugin-*",
+					"@*/pnpm-plugin-*"
+				]
+			}]
+		}, `${PNPM_V12_17}/pnpm/docs/config-dependencies.md`, "\"If your config dependency is named following the pnpm-plugin-*, @*/pnpm-plugin-*, or @pnpm/plugin-* pattern, pnpm will automatically load its pnpmfile.mjs (falling back to pnpmfile.cjs) from the package root.\" 10.13.0: \"pnpm will now automatically load the pnpmfile.cjs file from any config dependency named @pnpm/plugin-* or pnpm-plugin-*\"; 10.15.0: \"Automatically load pnpmfiles from config dependencies that are named @*/pnpm-plugin-*\" (pnpm/CHANGELOG.md at v10.34.9). The test is a prefix pnpm-plugin- or @pnpm/plugin-, or a scoped name containing /pnpm-plugin- (isPluginName in cli/cli-utils/src/getConfig.ts at v10.34.9 and pnpm11/pnpm/src/getConfig.ts at v11.28.10, is_plugin_name in pnpm/crates/hooks/src/finder.rs at v12.17.0). Such a pnpmfile loads also when the package supplies settings through include (\"A config dependency whose name follows the plugin naming pattern still loads its pnpmfile\", config-includes.md), unless ignorePnpmfile is true (extra.pnpmfiles). Config dependencies came in 10.0.0 (\"configurational dependencies\", then in the pnpm field of package.json); the docs of 10.x, 11.x and 12.17.0 declare them in pnpm-workspace.yaml."),
+		knownPlugins: includes.verified([{
+			name: "@pnpm/plugin-better-defaults",
+			since: "0.3.0",
+			settings: {
+				minimumReleaseAge: 1440,
+				blockExoticSubdeps: true
+			}
+		}], "https://github.com/pnpm/plugin-better-defaults/blob/v0.3.0/src/pnpmfile.cjs", "The official plugin's updateConfig sets minimumReleaseAge: 1 * 24 * 60 (\"1 day in minutes\") and blockExoticSubdeps: true with Object.assign, so it replaces a longer delay of pnpm-workspace.yaml. Versions 0.1.0 to 0.2.1 (the pnpmfile.cjs of the published packages on registry.npmjs.org) set neither; 0.3.0, published on 2026-03-01, is the latest. pnpm/docs/pnpmfile.md at v12.17.0 names it as the example of the hook.")
 	}
 };
 
@@ -21352,6 +21447,461 @@ function lineOf$1(text, needle) {
 	return offset === -1 ? void 0 : lineAt$1(text, offset);
 }
 
+// src/apply/pnpm-includes.ts
+const isIncludesFact = (value) => isRecord(value) && typeof value["since"] === "string" && typeof value["key"] === "string" && isRecord(value["spellings"]) && Array.isArray(value["notForDependencies"]);
+/** The facts of include, when the version reads it (the latest known when the version is unknown). */
+function includesFacts(tool, version) {
+	if (tool.extra?.["configIncludes"] === void 0) return void 0;
+	const facts = extraOf(tool, "configIncludes", isIncludesFact);
+	const since = parseVersion(facts.since);
+	return version !== void 0 && since !== void 0 && compareVersions$1(version, since) < 0 ? void 0 : facts;
+}
+/** The slot a selector of a list names, as pnpm reads it (SettingSlot::parse_selector); undefined for an invalid one. */
+function selectorSlot(facts, selector) {
+	if (selector === "" || selector === facts.key) return void 0;
+	if (selector === "catalog") return "catalogs.default";
+	if (selector === "catalogs") return "catalogs";
+	if (selector.startsWith("catalogs.")) return selector === "catalogs." ? void 0 : selector;
+	if (selector.includes(".")) return void 0;
+	return facts.spellings[selector] ?? selector;
+}
+/** The slots a top-level key of a settings file defines (defined_slots). */
+function definedSlots(facts, key, value) {
+	if (key === "$schema") return [];
+	if (key === "catalog") return ["catalogs.default"];
+	if (key === "catalogs") return isRecord(value) ? Object.keys(value).map((name) => `catalogs.${name}`) : [];
+	return [facts.spellings[key] ?? key];
+}
+/** A slot as pnpm names it in messages. */
+function slotName(slot) {
+	return slot === "catalogs.default" ? "catalog" : slot;
+}
+/** A source that can only be a package name: no path, URL or protocol (is_package_name_shaped). */
+function isPackageName(spec) {
+	let unscoped = spec;
+	if (spec.startsWith("@")) {
+		const slash = spec.indexOf("/");
+		if (slash <= 1) return false;
+		unscoped = spec.slice(slash + 1);
+	}
+	return unscoped !== "" && !/[/\\:]/u.test(unscoped) && !unscoped.startsWith(".");
+}
+/** A local path from the directory, or undefined when it leads out of it (or has a backslash, which pnpm reads by platform). */
+function localPath(spec) {
+	if (spec.includes("\\")) return void 0;
+	const path = posix.normalize(spec);
+	return path === ".." || path.startsWith("../") || path.startsWith("/") ? void 0 : path;
+}
+/** The most problems of one index that are reported (pnpm itself stops at the first). */
+const MAX_PROBLEMS = 20;
+/**
+* The include index of `manifest` as pnpm reads it, or undefined when the version does not read include (before
+* 12.15.0), the manifest is missing or cannot be parsed (unreadable-config reports that), or has no include. `read`
+* gives the text of a file of the directory, undefined when it is missing or cannot be read.
+*/
+function readPnpmIncludes(tool, version, read, manifest = "pnpm-workspace.yaml") {
+	const facts = includesFacts(tool, version);
+	if (facts === void 0) return void 0;
+	const text = read(manifest);
+	if (text === void 0 || !text.includes(facts.key)) return void 0;
+	const options = { merge: mergesYamlKeys(tool) };
+	let root;
+	try {
+		root = parseYaml(text, options);
+	} catch {
+		return;
+	}
+	if (!isRecord(root) || !Object.hasOwn(root, facts.key)) return void 0;
+	const lineOf = (path) => yamlSetting(text, path, options)?.line ?? 1;
+	const entryLine = entryLines$1(text, facts.key, options);
+	const line = lineOf([facts.key]);
+	const problems = [];
+	const add = (found) => {
+		if (problems.length < 20) problems.push(found);
+	};
+	const problem = (code, message, at) => add({
+		code,
+		message,
+		file: manifest,
+		line: at
+	});
+	const sources = [];
+	const index = root[facts.key];
+	if (!isRecord(index)) problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `${facts.key} is not a mapping of sources to the settings they may define`, line);
+	for (const [spec, delegation] of Object.entries(isRecord(index) ? index : {})) {
+		const at = entryLine.get(spec) ?? line;
+		const local = facts.localPrefixes.some((prefix) => spec.startsWith(prefix));
+		if (!local && !isPackageName(spec)) {
+			problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `the source "${spec}" is neither a relative path that starts with ${facts.localPrefixes.join(" or ")} nor the name of a config dependency`, at);
+			continue;
+		}
+		if (local && [...facts.globCharacters].some((character) => spec.includes(character))) {
+			problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `the source "${spec}" is a glob, which pnpm does not accept`, at);
+			continue;
+		}
+		if (local && !facts.localExtensions.some((extension) => spec.endsWith(extension))) {
+			problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `the source "${spec}" is not a ${facts.localExtensions.join(" or ")} file`, at);
+			continue;
+		}
+		const all = delegation === facts.unrestricted;
+		const slots = [];
+		const selectors = [];
+		if (!all) {
+			if (!Array.isArray(delegation) || delegation.some((item) => typeof item !== "string")) {
+				problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `"${spec}" is delegated neither '${facts.unrestricted}' nor a list of settings`, at);
+				continue;
+			}
+			let valid = true;
+			const seenSlots = /* @__PURE__ */ new Set();
+			for (const selector of delegation) {
+				const slot = selectorSlot(facts, selector);
+				if (slot === void 0 || seenSlots.has(slot)) {
+					problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `"${selector}" in the list of "${spec}" is ${slot === void 0 ? "not a setting that can be delegated" : "listed twice"}`, at);
+					valid = false;
+					break;
+				}
+				slots.push(slot);
+				seenSlots.add(slot);
+				selectors.push(selector);
+			}
+			if (!valid) continue;
+		}
+		if (!local) {
+			if (all) {
+				problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `the config dependency ${spec} is delegated '${facts.unrestricted}', but a config dependency always needs a list of settings`, at);
+				continue;
+			}
+			const forbidden = slots.find((slot) => facts.notForDependencies.includes(slot));
+			if (forbidden !== void 0) {
+				problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `${forbidden} cannot be delegated to the config dependency ${spec}`, at);
+				continue;
+			}
+			sources.push({
+				spec,
+				kind: "dependency",
+				line: at,
+				all,
+				slots,
+				selectors
+			});
+			continue;
+		}
+		const file = localPath(spec);
+		sources.push({
+			spec,
+			kind: "file",
+			...file === void 0 ? {} : { file },
+			line: at,
+			all,
+			slots,
+			selectors
+		});
+	}
+	const fragments = /* @__PURE__ */ new Map();
+	const seen = /* @__PURE__ */ new Map();
+	for (const [position, source] of sources.entries()) {
+		if (source.kind !== "file" || source.file === void 0) continue;
+		if (source.file === posix.normalize(manifest)) {
+			problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `the source "${source.spec}" is ${manifest} itself`, source.line);
+			continue;
+		}
+		const other = seen.get(source.file);
+		if (other !== void 0) {
+			problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `"${source.spec}" names the same file as "${other}"`, source.line);
+			continue;
+		}
+		seen.set(source.file, source.spec);
+		const fragment = read(source.file);
+		if (fragment === void 0) {
+			problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `${source.file}, which include names, does not exist or cannot be read (pnpm needs every included file, also an empty one)`, source.line);
+			continue;
+		}
+		let settings;
+		try {
+			settings = parseYaml(fragment, options);
+		} catch {
+			continue;
+		}
+		if (settings === null || settings === void 0) settings = {};
+		if (!isRecord(settings)) {
+			problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `${source.file}, which include names, is not a mapping of settings`, source.line);
+			continue;
+		}
+		if (Object.hasOwn(settings, facts.key)) {
+			problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `${source.file} has an ${facts.key} of its own, which only ${manifest} may have`, source.line);
+			continue;
+		}
+		fragments.set(position, settings);
+	}
+	const describe = (claimant) => claimant === "root" ? manifest : sources[claimant]?.spec ?? "";
+	const reserved = /* @__PURE__ */ new Map();
+	const defined = /* @__PURE__ */ new Map();
+	const reservationOf = (slot) => reserved.get(slot) ?? (slot.startsWith("catalogs.") ? reserved.get("catalogs") : void 0);
+	let firstCatalog;
+	const overlapping = (slot) => {
+		if (reserved.has(slot)) return slot;
+		if (slot.startsWith("catalogs.") && reserved.has("catalogs")) return "catalogs";
+		return slot === "catalogs" ? firstCatalog : void 0;
+	};
+	for (const [position, source] of sources.entries()) for (const slot of source.slots) {
+		const listed = overlapping(slot);
+		const other = listed === void 0 ? void 0 : reserved.get(listed);
+		if (listed !== void 0 && other !== void 0) {
+			problem("ERR_PNPM_DUPLICATE_SETTING", `${slotName(listed === "catalogs" ? slot : slot === "catalogs" ? listed : listed < slot ? listed : slot)} is delegated to ${describe(other)} and to ${source.spec}`, source.line);
+			continue;
+		}
+		reserved.set(slot, position);
+		if (slot.startsWith("catalogs.")) firstCatalog ??= slot;
+	}
+	const listed = sources.map((source) => new Set(source.slots));
+	const permits = (claimant, slot) => listed[claimant]?.has(slot) === true || slot.startsWith("catalogs.") && listed[claimant]?.has("catalogs") === true;
+	const define = (claimant, settings, at) => {
+		const source = claimant === "root" ? void 0 : sources[claimant];
+		for (const [key, value] of Object.entries(settings)) {
+			if (key === facts.key) continue;
+			for (const slot of definedSlots(facts, key, value)) {
+				if (source !== void 0 && claimant !== "root" && !source.all && !permits(claimant, slot)) {
+					if (problems.length < 20) add({
+						code: "ERR_PNPM_SETTING_NOT_DELEGATED",
+						message: `${source.spec} defines ${key}, which include does not give to it`,
+						file: source.file ?? manifest,
+						line: (source.file === void 0 ? void 0 : yamlLine(read(source.file), key, options)) ?? source.line
+					});
+					continue;
+				}
+				const owner = reservationOf(slot);
+				const where = () => claimant === "root" ? yamlLine(text, key, options) ?? at : at;
+				if (owner !== void 0 && owner !== claimant) {
+					if (problems.length < 20) problem("ERR_PNPM_DUPLICATE_SETTING", `${slotName(slot)} is delegated to ${describe(owner)} and defined in ${describe(claimant)}`, where());
+					continue;
+				}
+				const other = defined.get(slot);
+				if (other !== void 0 && other !== claimant) {
+					if (problems.length < 20) problem("ERR_PNPM_DUPLICATE_SETTING", `${slotName(slot)} is defined in ${describe(other)} and in ${describe(claimant)}`, where());
+					continue;
+				}
+				if (owner === void 0) defined.set(slot, claimant);
+			}
+		}
+	};
+	define("root", root, line);
+	for (const [position, settings] of fragments) define(position, settings, sources[position]?.line ?? line);
+	const declared = /* @__PURE__ */ new Set();
+	for (const settings of [root, ...fragments.values()]) {
+		const dependencies = settings[facts.dependencies];
+		if (isRecord(dependencies)) for (const name of Object.keys(dependencies)) declared.add(name);
+	}
+	for (const source of sources) if (source.kind === "dependency" && !declared.has(source.spec)) problem("ERR_PNPM_INVALID_WORKSPACE_INCLUDE", `the config dependency ${source.spec} is not declared in ${facts.dependencies}`, source.line);
+	const ownerOf = (claimant) => {
+		const source = claimant === "root" ? void 0 : sources[claimant];
+		if (source === void 0) return {
+			kind: "file",
+			file: manifest
+		};
+		if (source.kind === "dependency") return {
+			kind: "dependency",
+			name: source.spec,
+			line: source.line
+		};
+		return source.file === void 0 ? {
+			kind: "outside",
+			spec: source.spec,
+			line: source.line
+		} : {
+			kind: "file",
+			file: source.file
+		};
+	};
+	return {
+		manifest,
+		line,
+		sources,
+		problems,
+		owner(setting) {
+			const slot = definedSlots(facts, setting, {})[0] ?? setting;
+			const claimant = reservationOf(slot) ?? defined.get(slot);
+			return ownerOf(claimant ?? "root");
+		},
+		files: sources.flatMap((source) => source.kind === "file" && source.file !== void 0 ? [source.file] : [])
+	};
+}
+/** The line of each entry of the include map, read once: a lookup per entry would walk the map once per entry. */
+function entryLines$1(text, key, options) {
+	const lines = /* @__PURE__ */ new Map();
+	const { document, lineCounter } = readYamlDocument(text, options);
+	const root = document.contents;
+	if (!(0, import_dist.isMap)(root)) return lines;
+	const index = root.items.find((pair) => (0, import_dist.isScalar)(pair.key) && String(pair.key.value) === key)?.value;
+	if (!(0, import_dist.isMap)(index)) return lines;
+	for (const pair of index.items) {
+		if (!(0, import_dist.isScalar)(pair.key) || pair.key.range === void 0 || pair.key.range === null) continue;
+		const name = String(pair.key.value);
+		if (!lines.has(name)) lines.set(name, lineCounter.linePos(pair.key.range[0]).line);
+	}
+	return lines;
+}
+/** The line of a top-level key of a YAML file, for messages. */
+function yamlLine(text, key, options) {
+	return text === void 0 ? void 0 : yamlSetting(text, [key], options)?.line;
+}
+/** Where pnpm takes `setting` from: its owner in include, else pnpm-workspace.yaml. */
+function pnpmOwner(includes, setting, manifest = "pnpm-workspace.yaml") {
+	return includes?.owner(setting) ?? {
+		kind: "file",
+		file: manifest
+	};
+}
+/** The owner in words, for messages: "the config dependency @acme/policy (include in pnpm-workspace.yaml, line 3)". */
+function ownerText(owner, manifest = "pnpm-workspace.yaml") {
+	return owner.kind === "dependency" ? `the config dependency ${owner.name} (include in ${manifest}, line ${owner.line})` : `${owner.spec}, which lies outside the directory (include in ${manifest}, line ${owner.line})`;
+}
+
+// src/apply/pnpm-hooks.ts
+const isPnpmfiles = (value) => isRecord(value) && typeof value["updateConfigSince"] === "string" && Array.isArray(value["defaults"]) && typeof value["setting"] === "string";
+const isPlugins = (value) => isRecord(value) && typeof value["setting"] === "string" && Array.isArray(value["patterns"]);
+const isKnownPlugins = (value) => Array.isArray(value) && value.every((item) => isRecord(item) && typeof item["name"] === "string" && typeof item["since"] === "string" && isRecord(item["settings"]));
+const atLeast$2 = (version, since) => {
+	const required = parseVersion(since);
+	return version === void 0 || required === void 0 || compareVersions$1(version, required) >= 0;
+};
+/** The value of a versioned list in effect at `version` (the latest entry when it is unknown). */
+function inEffect(list, version) {
+	let current;
+	for (const entry of list) if (atLeast$2(version, entry.since)) current = entry.value;
+	return current;
+}
+/** A name pattern with * for any text, as a regular expression. */
+function patternOf(pattern) {
+	return new RegExp(`^${pattern.split("*").map((part) => part.replace(/[.*+?^${}()|[\]\\/]/gu, "\\$&")).join(".*")}$`, "u");
+}
+/** Whether a configDependencies entry may be a release from `since` on: an exact version below it is not. */
+function mayBeFrom(spec, since) {
+	const exact = /^v?(\d+\.\d+\.\d+)(?:\+.*)?$/u.exec(spec.trim())?.[1];
+	const version = exact === void 0 ? void 0 : parseVersion(exact);
+	const required = parseVersion(since);
+	return version === void 0 || required === void 0 || compareVersions$1(version, required) >= 0;
+}
+/** A path a setting names, from the directory: undefined when it lies outside it (absolute, ~, an environment variable, ..). */
+function insidePath(from, path) {
+	if (path === "" || path.includes("\\") || /^[~$/]/u.test(path) || /^[A-Za-z]:/u.test(path)) return void 0;
+	const joined = posix.normalize(posix.join(posix.dirname(from), path));
+	return joined === ".." || joined.startsWith("../") ? void 0 : joined;
+}
+/**
+* The pnpmfiles and plugins the pnpm version loads in the directory, in the order pnpm loads them; none before the
+* version whose pnpmfiles can change settings, and none with ignorePnpmfile: true.
+*/
+function pnpmHooks(tool, version, sources, manifest = "pnpm-workspace.yaml") {
+	if (tool.extra?.["pnpmfiles"] === void 0) return [];
+	const facts = extraOf(tool, "pnpmfiles", isPnpmfiles);
+	if (!atLeast$2(version, facts.updateConfigSince)) return [];
+	const options = { merge: mergesYamlKeys(tool) };
+	const includes = sources.includes ?? readPnpmIncludes(tool, version, sources.read, manifest);
+	/** A setting where pnpm reads it, with the file; undefined when it is not set or not in a file depcurfew reads. */
+	const settingOf = (setting) => {
+		const owner = pnpmOwner(includes, setting, manifest);
+		if (owner.kind !== "file") return void 0;
+		const text = sources.read(owner.file);
+		const found = text === void 0 ? void 0 : yamlSetting(text, [setting], options);
+		return found === void 0 ? void 0 : {
+			value: found.value,
+			file: owner.file,
+			line: found.line
+		};
+	};
+	if (settingOf(facts.ignore)?.value === true) return [];
+	const hooks = [];
+	const pnpmfileAt = (file) => {
+		const text = sources.read(file);
+		const index = text?.indexOf("updateConfig") ?? -1;
+		return {
+			kind: "pnpmfile",
+			file,
+			...text === void 0 || index === -1 ? {} : { updateConfigLine: text.slice(0, index).split("\n").length }
+		};
+	};
+	const named = (setting, from) => {
+		const paths = Array.isArray(from.value) ? from.value : [from.value];
+		for (const path of paths.filter((item) => typeof item === "string")) {
+			const inside = insidePath(from.file, path);
+			if (inside !== void 0 && sources.isFile(inside)) hooks.push({
+				...pnpmfileAt(inside),
+				setting
+			});
+			else if (inside === void 0) hooks.push({
+				kind: "pnpmfile",
+				file: from.file,
+				line: from.line,
+				setting,
+				path
+			});
+		}
+	};
+	const global = settingOf(facts.global);
+	if (global !== void 0 && typeof global.value === "string") named(facts.global, global);
+	const plugins = tool.extra?.["configPlugins"] === void 0 ? void 0 : extraOf(tool, "configPlugins", isPlugins);
+	const patterns = (plugins === void 0 ? void 0 : inEffect(plugins.patterns, version))?.map(patternOf) ?? [];
+	const dependencies = plugins === void 0 ? void 0 : settingOf(plugins.setting);
+	if (plugins !== void 0 && dependencies !== void 0 && isRecord(dependencies.value)) {
+		const known = tool.extra?.["knownPlugins"] === void 0 ? [] : values$1(tool.extra["knownPlugins"])[0];
+		const list = isKnownPlugins(known) ? known : [];
+		const text = sources.read(dependencies.file) ?? "";
+		for (const name of Object.keys(dependencies.value).filter((key) => patterns.some((pattern) => pattern.test(key))).sort()) {
+			const spec = String(dependencies.value[name] ?? "");
+			const entry = list.find((item) => item.name === name && mayBeFrom(spec, item.since));
+			hooks.push({
+				kind: "plugin",
+				name,
+				spec,
+				file: dependencies.file,
+				line: yamlSetting(text, [plugins.setting, name], options)?.line ?? dependencies.line,
+				...entry === void 0 ? {} : { known: entry }
+			});
+		}
+	}
+	const configured = settingOf(facts.setting);
+	const defaults = inEffect(facts.defaults, version) ?? [];
+	const lookFor = (directory) => {
+		const file = defaults.map((name) => directory === "" ? name : `${directory}/${name}`).find((candidate) => sources.isFile(candidate));
+		if (file !== void 0) hooks.push(pnpmfileAt(file));
+	};
+	if (configured !== void 0 && configured.value !== null) named(facts.setting, configured);
+	else lookFor("");
+	if (settingOf("sharedWorkspaceLockfile")?.value === false) {
+		for (const directory of sources.packages ?? []) if (directory !== "" && directory !== ".") lookFor(directory);
+	}
+	const key = (hook) => `${hook.kind}\0${hook.file}\0${hook.kind === "plugin" ? hook.name : hook.path ?? ""}`;
+	return hooks.filter((hook, index) => hooks.findIndex((other) => key(other) === key(hook)) === index);
+}
+/** The settings a known plugin sets, for messages: "minimumReleaseAge: 1440 and blockExoticSubdeps: true". */
+function knownSettingsText(known) {
+	const items = Object.entries(known.settings).map(([key, value]) => `${key}: ${JSON.stringify(value)}`);
+	return items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
+}
+/**
+* What a hook is, in one sentence of doctor and explain (one source for both): what pnpm loads and why depcurfew cannot
+* verify the settings, with what a known plugin sets.
+*/
+function hookMessage(hook, name) {
+	const can = `can change every setting after pnpm has read its configuration files, so depcurfew cannot verify the settings it checks`;
+	if (hook.kind === "plugin") {
+		const known = hook.known === void 0 ? "" : `; ${hook.name} ${hook.known.since} and later sets ${knownSettingsText(hook.known)}`;
+		return `${name} loads the pnpmfile of the config dependency ${hook.name} (configDependencies in ${hook.file}, line ${hook.line}) because of its name, and its updateConfig hook ${can}${known}`;
+	}
+	if (hook.path !== void 0) return `${name} loads the pnpmfile ${hook.path}, which ${hook.setting ?? "pnpmfile"} in ${hook.file} names and depcurfew cannot read, and the updateConfig hook of a pnpmfile ${can}`;
+	const named = hook.setting === void 0 ? "" : `, which ${hook.setting} names`;
+	const defines = hook.updateConfigLine === void 0 ? "" : ` and names updateConfig at line ${hook.updateConfigLine}`;
+	return `${name} loads ${hook.file}${named}${defines}, and the updateConfig hook of a pnpmfile ${can}`;
+}
+/** What to do about a hook, for doctor and explain. */
+function hookFix(hook, manifest = "pnpm-workspace.yaml") {
+	const check = "make sure its updateConfig hook leaves minimumReleaseAge, allowBuilds and the other security settings as they are";
+	const off = `ignorePnpmfile: true in ${manifest} stops every pnpmfile, those of plugins too`;
+	if (hook.kind === "plugin") return hook.known === void 0 ? `Remove ${hook.name} from configDependencies in ${hook.file} if the project does not need it, or read the pnpmfile of the version you install and ${check} (${off})` : `Remove ${hook.name} from configDependencies in ${hook.file}: what it sets replaces the settings of ${manifest} (${off})`;
+	if (hook.setting !== void 0) return `Read ${hook.path ?? hook.file} and ${check}, or take it out of ${hook.setting} in ${hook.path === void 0 ? manifest : hook.file} if the project does not need it`;
+	return `Read ${hook.file} and ${check}; if the project needs no pnpmfile, remove it and set pnpmfile: [] in ${manifest}, so that pnpm loads no new one by itself`;
+}
+
 // src/detect/bot-ecosystems.ts
 /** The ecosystems of the knowledge base, in its order; for a disputed fact the first variant. */
 function botEcosystemFacts(environment$3 = environment) {
@@ -21804,6 +22354,28 @@ function configFiles(repository, manager, directories, project) {
 	return directories.flatMap((directory) => [...manager.configFiles.map((file) => joinPath(directory, file)).filter((file) => repository.isFile(file)), ...table !== void 0 && tomlAt(readToml(repository, joinPath(directory, project)), table) !== void 0 ? [joinPath(directory, project)] : []]).sort(byPath);
 }
 /**
+* pnpm 12.15+: the local files include in pnpm-workspace.yaml names are configuration files of pnpm too; the pnpmfiles
+* and config-dependency plugins whose updateConfig can change every setting are warnings, which explain shows and
+* doctor reports as pnpm-config-unverifiable (decision D-164). The version is the pinned one, else the latest known.
+*/
+function readPnpmSources(repository, manager, tool, packages) {
+	const latest = tool.extra?.["latestVersion"] === void 0 ? void 0 : values$1(tool.extra["latestVersion"])[0];
+	const version = pinnedVersion(manager) ?? (typeof latest === "string" ? parseVersion(latest) : void 0);
+	const read = (file) => repository.readText(file);
+	const includes = readPnpmIncludes(tool, version, read);
+	const found = (includes?.files ?? []).filter((file) => !manager.configFiles.includes(file) && repository.isFile(file));
+	if (found.length > 0) manager.configFiles = [...manager.configFiles, ...found].sort(byPath);
+	for (const hook of pnpmHooks(tool, version, {
+		read,
+		isFile: (file) => repository.isFile(file),
+		packages,
+		...includes === void 0 ? {} : { includes }
+	})) {
+		const line = hook.kind === "plugin" ? hook.line : hook.line ?? hook.updateConfigLine;
+		repository.warn("pnpm-hook", hookMessage(hook, tool.name), [hook.file], line);
+	}
+}
+/**
 * What the project .npmrc of the repository says about optional dependencies (omit, include and optional, as npm
 * reads them: the last line of a key wins, key[] lines add to the list), for the npm installs of CI jobs and
 * Dockerfiles, whose command line and variables override it key by key (decision D-143). The installs are read with
@@ -21957,6 +22529,9 @@ function detectProject(root, tools = knowledgeBase, environment$2 = environment,
 			configFiles: configFiles(repository, manager, directories, facts.pythonProject)
 		});
 	}
+	const pnpm = packageManagers.find((entry) => entry.id === "pnpm" && entry.supported);
+	const pnpmTool = tools.find((tool) => tool.id === "pnpm");
+	if (pnpm !== void 0 && pnpmTool !== void 0) readPnpmSources(repository, pnpm, pnpmTool, workspaces?.packages ?? []);
 	const bots = [];
 	for (const bot of facts.bots) {
 		const files = bot.configFiles.filter((file) => repository.isFile(file));
@@ -24408,21 +24983,26 @@ function listEntries(repository, manager, configFiles, options, allowed) {
 			entries.push(...fromManifestKeys("allowScripts", (entry) => entry === allowed));
 			break;
 		case "pnpm": {
-			const workspace = read(repository, "pnpm-workspace.yaml");
+			const includes = options.tool === void 0 ? void 0 : readPnpmIncludes(options.tool, options.version, (file) => read(repository, file));
+			const owner = pnpmOwner(includes, "allowBuilds");
+			const file = owner.kind === "file" ? owner.file : void 0;
+			const workspace = file === void 0 ? void 0 : read(repository, file);
 			const yaml = yamlOptionsFor("pnpm-workspace.yaml");
-			if (workspace !== void 0) {
+			if (workspace !== void 0 && file !== void 0) {
 				const permissions = buildPermissions(workspace, options.tool, options.version);
-				const allowBuilds = fromKeys(workspace, "pnpm-workspace.yaml", "allowBuilds", yamlSetting(workspace, ["allowBuilds"], yaml)?.value, (entry) => entry === allowed, (name) => yamlSetting(workspace, ["allowBuilds", name], yaml)?.line);
+				const allowBuilds = fromKeys(workspace, file, "allowBuilds", yamlSetting(workspace, ["allowBuilds"], yaml)?.value, (entry) => entry === allowed, (name) => yamlSetting(workspace, ["allowBuilds", name], yaml)?.line);
 				entries.push(...allowBuilds.filter((entry) => permissions?.has(entry.name) !== true));
 				for (const [name, decision] of permissions ?? []) if (decision.allowed === allowed) entries.push({
 					name,
 					package: splitSpec(name).name,
-					file: "pnpm-workspace.yaml",
+					file,
 					line: decision.line,
 					setting: "permissions"
 				});
-				if (allowed) entries.push(...fromList(workspace, "pnpm-workspace.yaml", "onlyBuiltDependencies", yamlSetting(workspace, ["onlyBuiltDependencies"], yaml)?.value));
 			}
+			const legacy = pnpmOwner(includes, "onlyBuiltDependencies");
+			const legacyText = legacy.kind === "file" ? read(repository, legacy.file) : void 0;
+			if (allowed && legacy.kind === "file" && legacyText !== void 0) entries.push(...fromList(legacyText, legacy.file, "onlyBuiltDependencies", yamlSetting(legacyText, ["onlyBuiltDependencies"], yaml)?.value));
 			if (allowed && manifest !== void 0) entries.push(...fromList(manifest, "package.json", "pnpm.onlyBuiltDependencies", json(["pnpm", "onlyBuiltDependencies"]), "", jsonLine(manifest, "package.json", ["pnpm", "onlyBuiltDependencies"])));
 			break;
 		}
@@ -24580,6 +25160,7 @@ const WARNING_FIXES = {
 	"package-manager-mismatch": "Commit the lockfile of the package manager that packageManager in package.json names, or correct packageManager",
 	"python-tool-unknown": `Commit the lockfile of the tool that installs the project, or name the tool in targets in ${POLICY_FILE}`,
 	"script-not-followed": "Split the script into shorter run steps or RUN instructions, or check by hand where the installs after that point run and with which variables",
+	"pnpm-hook": "Read the pnpmfile and make sure its updateConfig hook leaves the security settings as they are; set pnpmfile: [] in pnpm-workspace.yaml when the project needs no pnpmfile, and remove config-dependency plugins it does not need (depcurfew doctor reports each one as pnpm-config-unverifiable)",
 	"workspace-search-limit": `Narrow the workspace patterns (for example packages/* instead of **), so that they match at most ${MAX_WORKSPACE_DIRECTORIES} directories and depcurfew finds every workspace package`
 };
 /**
@@ -24995,6 +25576,57 @@ function requirementsOptions(repository, file, format) {
 	});
 }
 
+// src/doctor/pnpm-config.ts
+const CACHE = /* @__PURE__ */ new WeakMap();
+/** The include index of the repository for a pnpm version (undefined: the latest known). */
+function repositoryIncludes(repository, tool, version) {
+	let known = CACHE.get(repository);
+	if (known === void 0) {
+		known = /* @__PURE__ */ new Map();
+		CACHE.set(repository, known);
+	}
+	const key = version === void 0 ? "" : formatVersion(version);
+	if (!known.has(key)) known.set(key, readPnpmIncludes(tool, version, (file) => repository.readText(file)));
+	return known.get(key);
+}
+/** pnpm as doctor checks it: the detected manager, its knowledge and the pinned version, else the latest known. */
+function pnpmOf(detection, tools) {
+	const manager = detection.packageManagers.find((entry) => entry.id === "pnpm" && entry.supported);
+	const tool = tools.find((entry) => entry.id === "pnpm");
+	return manager === void 0 || tool === void 0 ? void 0 : {
+		manager,
+		tool,
+		version: pinnedVersion(manager) ?? latestVersion$1(tool)
+	};
+}
+/** The root manifest of pnpm, whose settings include may give to other files. */
+function manifestOf(tool) {
+	return values$1(tool.cooldown.configFiles)[0]?.[0] ?? "pnpm-workspace.yaml";
+}
+/** Where pnpm takes `setting` from, for a file doctor would read it in; the file itself for every other tool and file. */
+function settingOwner(repository, tool, version, file, setting) {
+	if (tool.id !== "pnpm" || file !== manifestOf(tool)) return {
+		kind: "file",
+		file
+	};
+	return pnpmOwner(repositoryIncludes(repository, tool, version), setting, file);
+}
+/**
+* A setting of a tool's configuration file as the tool reads it: readSetting, except that pnpm 12.15+ takes a setting
+* of pnpm-workspace.yaml from the file include gives it to, read with merge keys as pnpm reads it; undefined when a
+* config dependency or a file outside the directory owns it. The version is the one doctor checks pnpm against.
+*/
+function readRuleSetting(context, tool, file, setting) {
+	const version = tool.id === "pnpm" ? pnpmOf(context.detection, context.tools)?.version : void 0;
+	return readToolSetting(context.repository, tool, version, file, setting);
+}
+/** readToolSetting with the version of the tool given. */
+function readToolSetting(repository, tool, version, file, setting) {
+	const owner = settingOwner(repository, tool, version, file, setting.split(".")[0] ?? setting);
+	if (owner.kind !== "file") return void 0;
+	return owner.file === file ? readSetting(repository, file, setting) : readSetting(repository, owner.file, setting, { merge: mergesYamlKeys(tool) });
+}
+
 // src/doctor/effective.ts
 /** The names of the Gemfile in the order Bundler looks for them (extra.gemfileNames). */
 function gemfileNamesOf(tool) {
@@ -25079,7 +25711,14 @@ function managerDelay$1(context, manager, tool) {
 		let found;
 		let key = setting;
 		if (ecosystemOfTool(tool) === "pypi") found = readPythonSetting(context.repository, tool, setting);
-		else for (const file of managerConfigFiles(tool, manager)) found ??= readSetting(context.repository, file, setting);
+		else for (const file of managerConfigFiles(tool, manager)) {
+			const owner = settingOwner(context.repository, tool, version, file, setting);
+			if (owner.kind !== "file") {
+				context.notice(`${tool.name}: ${setting} comes from ${ownerText(owner, file)}, whose value depcurfew cannot read`, file);
+				return;
+			}
+			found ??= readToolSetting(context.repository, tool, version, file, setting);
+		}
 		if (found === void 0) {
 			found = pnpmNpmrcSetting(context, tool, version, setting);
 			if (found !== void 0) key = npmrcKey(setting);
@@ -26955,7 +27594,7 @@ function configuredFeatures(context, tool) {
 		])
 	];
 	const files = tool.id === "deno" ? context.detection.packageManagers.find((entry) => entry.id === "deno")?.configFiles.filter((name) => /^deno\.jsonc?$/u.test(name)) ?? [] : [file];
-	const configured = (setting) => ecosystemOfTool(tool) === "pypi" ? readPythonSetting(context.repository, tool, setting) !== void 0 : files.some((name) => readSetting(context.repository, name, setting) !== void 0);
+	const configured = (setting) => ecosystemOfTool(tool) === "pypi" ? readPythonSetting(context.repository, tool, setting) !== void 0 : files.some((name) => readRuleSetting(context, tool, name, setting) !== void 0);
 	return candidates.filter(([setting]) => setting !== null && configured(setting)).map(([setting, since, kind]) => kind === void 0 ? feature(setting, since) : kinded(kind, feature(setting, since))).filter((item) => item !== void 0);
 }
 /** Where a version is declared, for messages; a tool's own required version is named by its key. */
@@ -27954,16 +28593,20 @@ function settingName(setting) {
 }
 /**
 * Records installScripts.deny where the tool has an explicit denial (npm allowScripts, pnpm allowBuilds, Yarn
-* dependenciesMeta): the tool then keeps those scripts blocked without warning about them on every install.
+* dependenciesMeta): the tool then keeps those scripts blocked without warning about them on every install. `fileFor`
+* gives the file that holds the setting when it is not always the same (pnpm include, decision D-164), undefined when
+* apply cannot write it.
 */
-function writeDenyList(context) {
+function writeDenyList(context, fileFor) {
 	const deny = denyList(context);
 	if (deny === void 0 || (context.policy.installScripts?.deny.length ?? 0) === 0) return;
 	if (!context.supports(deny.since, deny.setting)) return;
-	const file = deny.file.endsWith(".yaml") ? context.yaml(deny.file) : context.json(deny.file);
 	const allowed = allowedInFiles(context);
 	const names = deniedNames(context, settingName(deny.setting)).filter((name) => !allowed.has(name));
-	if (names.length > 0) context.writes("installScripts", deny.setting, deny.file);
+	const target = names.length === 0 || fileFor === void 0 ? deny.file : fileFor(settingName(deny.setting));
+	if (target === void 0) return;
+	const file = target.endsWith(".yaml") || target.endsWith(".yml") ? context.yaml(target) : context.json(target);
+	if (names.length > 0) context.writes("installScripts", deny.setting, target);
 	for (const name of names) {
 		const path = deny.setting.includes("<package>") ? deny.setting.split(".").map((segment) => segment === "<package>" ? name : segment) : [...deny.setting.split("."), name];
 		if (file.get(path) !== deny.value) file.set(path, deny.value);
@@ -28637,7 +29280,7 @@ function managerDelay(repository, manager, tool) {
 			setting
 		};
 	} else for (const source of managerSources(repository, manager, tool, version)) {
-		const setting = readSetting(repository, source.file, source.setting);
+		const setting = readToolSetting(repository, tool, version, source.file, source.setting);
 		if (setting !== void 0) {
 			found = {
 				...setting,
@@ -30628,17 +31271,46 @@ function renovateEntries(context, file, setting) {
 }
 const pnpm = (context) => {
 	const { tool, policy } = context;
-	const file = firstFile(tool.cooldown.configFiles) ?? "pnpm-workspace.yaml";
-	const yaml = context.yaml(file);
+	const root = firstFile(tool.cooldown.configFiles) ?? "pnpm-workspace.yaml";
+	const includes = readPnpmIncludes(tool, context.version, (name) => workspaceText(context.workspace).readText(name), root);
+	const owned = (setting) => pnpmOwner(includes, setting, root);
+	/** The file apply writes `setting` into; undefined, with a warning, when a config dependency or a file outside owns it. */
+	const fileFor = (setting, value) => {
+		const owner = owned(setting);
+		if (owner.kind === "file") return owner.file;
+		const reason = `${setting} belongs to ${ownerText(owner, root)}, ${owner.kind === "dependency" ? "whose settings depcurfew cannot change" : "which depcurfew does not edit"}; written into ${root}, it would make pnpm stop with ERR_PNPM_DUPLICATE_SETTING`;
+		const wanted = value === void 0 ? `as ${POLICY_FILE} requires` : `to ${JSON.stringify(value)}`;
+		const fix = owner.kind === "dependency" ? `Take ${setting} out of the list of ${owner.name} in include in ${root}, then run depcurfew apply again, which writes it into ${root}; or set ${setting} ${wanted} in the settings of ${owner.name}` : `Take ${setting} out of the list of ${owner.spec} in include in ${root}, or move that file into the directory, then run depcurfew apply again`;
+		const location = {
+			file: root,
+			line: owner.line
+		};
+		if (setting === settingOf(tool.cooldown.setting)) context.warn({
+			code: "cooldown-not-written",
+			location,
+			message: `${context.name}: cooldown not written: ${reason}`,
+			fix
+		});
+		else context.warn({
+			code: "setting-owned-elsewhere",
+			location,
+			message: `${context.name}: ${setting} not written: ${reason}`,
+			fix
+		});
+	};
 	let minutes;
 	if (policy.cooldown !== void 0) {
 		const setting = settingOf(tool.cooldown.setting) ?? "minimumReleaseAge";
 		const cooldown = cooldownValue(context);
 		if (cooldown !== void 0) {
-			minutes = cooldown.minutes;
-			yaml.set([setting], cooldown.value);
+			const file = fileFor(setting, cooldown.value);
+			if (file !== void 0) {
+				minutes = cooldown.minutes;
+				context.yaml(file).set([setting], cooldown.value);
+			}
 			const strict = extraOf(tool, "minimumReleaseAgeStrict", isSwitch);
-			if (context.atLeast(strict.since) && yaml.get([strict.setting]) !== strict.value) yaml.set([strict.setting], strict.value);
+			const strictFile = context.atLeast(strict.since) ? fileFor(strict.setting, strict.value) : void 0;
+			if (strictFile !== void 0 && context.yaml(strictFile).get([strict.setting]) !== strict.value) context.yaml(strictFile).set([strict.setting], strict.value);
 			const exact = extraOf(tool, "cooldownExactVersions", (value) => typeof value === "string");
 			if (!context.atLeast(exact)) context.warn({
 				code: "exact-version-gap",
@@ -30652,7 +31324,10 @@ const pnpm = (context) => {
 		}
 		const excludeSetting = settingOf(tool.cooldown.exclude.setting);
 		const patterns = cooldown === void 0 ? void 0 : exclusions(context);
-		if (excludeSetting !== null && patterns !== void 0 && (patterns.length > 0 || yaml.get([excludeSetting]) !== void 0)) {
+		const excludeOwner = excludeSetting === null ? void 0 : owned(excludeSetting);
+		const file = excludeSetting === null || excludeOwner === void 0 || patterns === void 0 ? void 0 : excludeOwner.kind === "file" ? excludeOwner.file : patterns.length > 0 ? fileFor(excludeSetting, patterns) : void 0;
+		const yaml = file === void 0 ? void 0 : context.yaml(file);
+		if (excludeSetting !== null && file !== void 0 && yaml !== void 0 && patterns !== void 0 && (patterns.length > 0 || yaml.get([excludeSetting]) !== void 0)) {
 			const kept = renovateEntries(context, file, excludeSetting);
 			const wanted = [...patterns, ...kept.map((entry) => entry.value).filter((value) => !patterns.includes(value))];
 			const current = yaml.get([excludeSetting]);
@@ -30666,8 +31341,9 @@ const pnpm = (context) => {
 	if (policy.installScripts !== void 0) {
 		const allowAll = extraOf(tool, "allowAllBuilds", isSwitch);
 		if (policy.installScripts.default === "allow") {
-			if (context.supports(allowAll.since, allowAll.setting)) {
-				yaml.set([allowAll.setting], allowAll.value);
+			const file = context.supports(allowAll.since, allowAll.setting) ? fileFor(allowAll.setting, allowAll.value) : void 0;
+			if (file !== void 0) {
+				context.yaml(file).set([allowAll.setting], allowAll.value);
 				context.writes("installScripts", allowAll.setting, file);
 			}
 		} else {
@@ -30683,8 +31359,9 @@ const pnpm = (context) => {
 				])} runs every dependency install script and has no allow-list, so "deny" cannot be enforced`,
 				fix: `Require pnpm ${legacy.since} or later, which reads pnpm.onlyBuiltDependencies in package.json, or ${defaults.changesIn ?? "a newer version"}, which blocks dependency install scripts by default`
 			});
-			const current = yaml.get([allowAll.setting]);
-			if (context.atLeast(allowAll.since) && !switchIsOff(allowAll, current)) {
+			const file = context.atLeast(allowAll.since) ? fileFor(allowAll.setting, false) : void 0;
+			const current = file === void 0 ? void 0 : context.yaml(file).get([allowAll.setting]);
+			if (file !== void 0 && !switchIsOff(allowAll, current)) {
 				const found = context.exists(file) ? yamlSetting(context.read(file), [allowAll.setting], { merge: mergesYamlKeys(tool) }) : void 0;
 				const written = `${allowAll.setting}: ${JSON.stringify(current)}`;
 				const where = found === void 0 ? "" : ` (line ${found.line}${found.mergedAt === void 0 ? "" : `, through the merge key << at line ${found.mergedAt}`})`;
@@ -30699,7 +31376,7 @@ const pnpm = (context) => {
 					message: `${context.name}: ${written} in ${file}${where} allowed every build script${reading}; set to false because the policy denies install scripts`,
 					fix: `Add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`
 				});
-				yaml.set([allowAll.setting], false);
+				context.yaml(file).set([allowAll.setting], false);
 				context.writes("installScripts", allowAll.setting, file);
 			}
 			const setting = settingOf(tool.installScripts.allowList.setting) ?? "allowBuilds";
@@ -30707,9 +31384,13 @@ const pnpm = (context) => {
 			const wanted = policy.installScripts.allow.length > 0;
 			if (context.atLeast(since)) {
 				const names = wanted ? allowedNames(context, setting) : [];
-				if (names.length > 0) context.writes("installScripts", setting, file);
-				for (const name of names) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
-				writeDenyList(context);
+				const listFile = names.length > 0 ? fileFor(setting) : void 0;
+				if (listFile !== void 0) {
+					context.writes("installScripts", setting, listFile);
+					const yaml = context.yaml(listFile);
+					for (const name of names) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
+				}
+				writeDenyList(context, fileFor);
 			} else {
 				if ((wanted || mustList) && (mustList ? context.atLeast(legacy.since) : context.supports(legacy.since, "onlyBuiltDependencies"))) mergeList(context, legacy.workspaceFileSince, "onlyBuiltDependencies", allowedNames(context, "onlyBuiltDependencies"));
 				const ignored = extraOf(tool, "ignoredBuiltDependencies", isIgnoredList);
@@ -30727,11 +31408,11 @@ const pnpm = (context) => {
 						file: ".npmrc",
 						line: fromNpmrc.line
 					},
-					message: `${context.name}: ${fromNpmrc.key}=${fromNpmrc.value} in .npmrc (line ${fromNpmrc.line}) allowed every build script, because ${file} has no build settings that override it; set ${allowAll.setting}: false in ${file}, which wins, because the policy denies install scripts`,
+					message: `${context.name}: ${fromNpmrc.key}=${fromNpmrc.value} in .npmrc (line ${fromNpmrc.line}) allowed every build script, because ${root} has no build settings that override it; set ${allowAll.setting}: false in ${root}, which wins, because the policy denies install scripts`,
 					fix: `Remove the ${fromNpmrc.key} line from .npmrc; add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`
 				});
-				yaml.set([allowAll.setting], false);
-				context.writes("installScripts", allowAll.setting, file);
+				context.yaml(root).set([allowAll.setting], false);
+				context.writes("installScripts", allowAll.setting, root);
 			}
 		}
 	}
@@ -30755,8 +31436,11 @@ const pnpm = (context) => {
 				fix: `pnpm cannot deny one and allow the other: give sources.git and sources.remoteTarball the same value in ${POLICY_FILE}, so that the policy says what pnpm does`
 			});
 		}
-		yaml.set([exoticSetting], denied.length > 0);
-		context.writes("sources", exoticSetting, file);
+		const file = fileFor(exoticSetting, denied.length > 0);
+		if (file !== void 0) {
+			context.yaml(file).set([exoticSetting], denied.length > 0);
+			context.writes("sources", exoticSetting, file);
+		}
 	}
 	return minutes;
 };
@@ -34767,14 +35451,15 @@ function checkManagers(context) {
 		const setting = settingOf(knowledge.cooldown.exclude.setting);
 		if (setting === null) continue;
 		const files = manager.id === "deno" ? manager.configFiles.filter((file) => /^deno\.jsonc?$/u.test(file)) : (values$1(knowledge.cooldown.configFiles)[0] ?? []).slice(0, 1);
+		const version = pinnedVersion(manager) ?? latestVersion$1(knowledge);
 		for (const file of files) {
-			const found = readSetting(context.repository, file, setting);
+			const found = readToolSetting(context.repository, knowledge, version, file, setting);
 			const items = Array.isArray(found?.value) ? found.value : isRecord(found?.value) ? Object.keys(found.value) : void 0;
 			if (found === void 0 || items === void 0) continue;
 			const broad = (item) => isBroad(item) || ecosystemOfTool(knowledge) === "packagist" && matchesEveryComposerName(item);
 			for (const pattern of items.filter((item) => typeof item === "string" && broad(item))) context.report({
 				location: {
-					file,
+					file: found.file,
 					line: found.line
 				},
 				message: `${setting} contains "${pattern}", so ${knowledge.name} applies no release-age delay to any package`,
@@ -37340,11 +38025,11 @@ function scriptsDisabledBy(context, tool) {
 	const match = typeof value === "string" ? /^([\w.-]+)(?::\s*(\S+))?$/u.exec(value) : null;
 	if (match !== null) {
 		const [, key = "", expected] = match;
-		const found = readSetting(context.repository, file, key);
+		const found = readRuleSetting(context, tool, file, key);
 		if (found !== void 0 && found.value === (expected === void 0 ? true : iniValue(expected))) return {
-			reason: `${key} in ${file} turns them off`,
+			reason: `${key} in ${found.file} turns them off`,
 			all: true,
-			setting: `${key} in ${file}`
+			setting: `${key} in ${found.file}`
 		};
 	}
 	const strict = tool.extra?.["strictAllowScripts"] === void 0 ? void 0 : extraOf(tool, "strictAllowScripts", isSwitch);
@@ -38261,6 +38946,103 @@ const pnpmSharedWorkspaceLockfile = {
 	}
 };
 
+// src/doctor/rules/pnpm-config.ts
+const hasSetting = (value) => isRecord(value) && typeof value["setting"] === "string";
+/**
+* The settings of pnpm that depcurfew manages or that weaken the policy, by the canonical name include uses for them
+* (allowBuilds stands for permissions too).
+*/
+function securitySettings(tool) {
+	const names = [
+		settingOf(tool.cooldown.setting),
+		settingOf(tool.cooldown.exclude.setting),
+		settingOf(tool.installScripts.allowList.setting),
+		settingOf(tool.sources?.git.setting),
+		...[
+			"minimumReleaseAgeStrict",
+			"allowAllBuilds",
+			"buildPermissions"
+		].map((key) => tool.extra?.[key] === void 0 ? void 0 : extraOf(tool, key, hasSetting).setting),
+		...tool.user === void 0 ? [] : (evidenceOf(tool.user.weakening)[0]?.value ?? []).map((entry) => entry.key).filter((key) => /^[a-z][A-Za-z]*$/u.test(key))
+	].filter((name) => typeof name === "string" && name !== "");
+	const spellings = includesFacts(tool, void 0)?.spellings ?? {};
+	return new Set(names.map((name) => spellings[name] ?? name));
+}
+const pnpmConfigUnverifiable = {
+	id: "pnpm-config-unverifiable",
+	checks: "pnpm takes its security settings only from files depcurfew reads",
+	summary: "pnpm loads a pnpmfile or a config-dependency plugin that can change every setting, takes a security setting from a config dependency, or stops at include in pnpm-workspace.yaml.",
+	description: "The updateConfig hook of a pnpmfile (.pnpmfile.mjs, .pnpmfile.cjs, or the files the pnpmfile and globalPnpmfile settings name) and of the pnpmfile pnpm loads by itself from a config dependency named pnpm-plugin-*, @*/pnpm-plugin-* or @pnpm/plugin-* can change every setting after pnpm has read pnpm-workspace.yaml, so the delay and the build settings depcurfew checks may not hold; ignoreScripts does not stop them, ignorePnpmfile does. A plugin the knowledge base knows to set a shorter release-age delay than depcurfew.json is an error. From pnpm 12.15, include in pnpm-workspace.yaml can give a setting to a config dependency, whose values depcurfew cannot read, or to a file outside the directory; and an include pnpm rejects (ERR_PNPM_INVALID_WORKSPACE_INCLUDE, ERR_PNPM_DUPLICATE_SETTING, ERR_PNPM_SETTING_NOT_DELEGATED) makes every pnpm command stop.",
+	help: "Read what the pnpmfile or plugin changes; set pnpmfile: [] when the project needs no pnpmfile, remove plugins it does not need, keep security settings in pnpm-workspace.yaml or a local file of include, and fix what pnpm rejects in include.",
+	level: "warning",
+	requiresPolicy: false,
+	applies: (scope) => usesManager(scope, ["pnpm"]),
+	check(context) {
+		const pnpm = pnpmOf(context.detection, context.tools);
+		if (pnpm === void 0) return;
+		const { tool, version } = pnpm;
+		const manifest = values$1(tool.cooldown.configFiles)[0]?.[0] ?? "pnpm-workspace.yaml";
+		const name = version === void 0 ? tool.name : `${tool.name} ${formatVersion(version)}`;
+		const includes = repositoryIncludes(context.repository, tool, version);
+		for (const problem of includes?.problems ?? []) context.report({
+			location: {
+				file: problem.file,
+				line: problem.line
+			},
+			message: `${name} stops with ${problem.code}: ${problem.message}, so it runs no command in this directory and depcurfew cannot tell which settings it would use`,
+			fix: `Fix include in ${manifest} as the message says (each setting may have one owner, and a list names the only settings its file may define)`
+		});
+		const security = securitySettings(tool);
+		for (const source of includes?.sources ?? []) {
+			if (source.kind === "file" && source.file !== void 0) continue;
+			const owned = source.slots.flatMap((slot, index) => security.has(slot) ? [source.selectors[index] ?? slotName(slot)] : []);
+			if (source.kind === "dependency") {
+				if (owned.length === 0) continue;
+				context.report({
+					location: {
+						file: manifest,
+						line: source.line
+					},
+					message: `include in ${manifest} gives ${listing$1(owned)} to the config dependency ${source.spec}, whose settings depcurfew cannot read, so it cannot verify ${owned.length === 1 ? "that setting" : "these settings"}, and depcurfew apply does not write ${owned.length === 1 ? "it" : "them"}`,
+					fix: `Take ${listing$1(owned)} out of the list of ${source.spec} in include, so that depcurfew apply writes ${owned.length === 1 ? "it" : "them"} into ${manifest} and depcurfew doctor checks ${owned.length === 1 ? "it" : "them"}; or check the pnpm.config file of ${source.spec} by hand against ${POLICY_FILE}`
+				});
+				continue;
+			}
+			if (!source.all && owned.length === 0) continue;
+			context.report({
+				location: {
+					file: manifest,
+					line: source.line
+				},
+				message: `include in ${manifest} gives ${source.all ? "every setting it defines" : listing$1(owned)} to ${source.spec}, which lies outside the directory, so depcurfew cannot read the settings ${name} takes from it`,
+				fix: `Move ${source.spec} into the directory and refer to it from there, or keep the security settings in ${manifest}`
+			});
+		}
+		const minimum = context.policy?.cooldown?.minimum;
+		const delaySetting = settingOf(tool.cooldown.setting);
+		for (const hook of pnpmHooks(tool, version, {
+			read: (file) => context.repository.readText(file),
+			isFile: (file) => context.repository.isFile(file),
+			packages: context.detection.workspaces?.packages ?? [],
+			...includes === void 0 ? {} : { includes }
+		})) {
+			const known = hook.kind === "plugin" && delaySetting !== null ? hook.known?.settings[delaySetting] : void 0;
+			const delay = known === void 0 ? void 0 : delayMinutes(tool, known, version);
+			const shorter = minimum !== void 0 && delay?.ok === true && delay.minutes < minimum.minutes;
+			const line = hook.kind === "plugin" ? hook.line : hook.line ?? hook.updateConfigLine;
+			context.report({
+				...shorter ? { level: "error" } : {},
+				location: {
+					file: hook.file,
+					...line === void 0 ? {} : { line }
+				},
+				message: `${hookMessage(hook, name)}${shorter && delay?.ok === true ? `, so pnpm waits only ${formatMinutes(delay.minutes)}, shorter than ${minimum.text} in ${POLICY_FILE}` : ""}`,
+				fix: hookFix(hook, manifest)
+			});
+		}
+	}
+};
+
 // src/doctor/rules/python-config.ts
 const isStrings = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 /** The settings depcurfew manages for a Python tool, as keys of its configuration table. */
@@ -38631,6 +39413,7 @@ const RULES = [
 	settingIgnoredByVersion,
 	npmrcOverridesPolicy,
 	pnpmSharedWorkspaceLockfile,
+	pnpmConfigUnverifiable,
 	pythonConfigIgnored,
 	composerConfigWeakens,
 	bundlerConfigWeakens,

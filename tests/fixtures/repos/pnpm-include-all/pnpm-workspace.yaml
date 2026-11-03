@@ -1,0 +1,3 @@
+# Security settings live in config/security.yaml.
+include:
+  ./config/security.yaml: '*'

@@ -128,16 +128,20 @@ function settingName(setting: string): string {
 
 /**
  * Records installScripts.deny where the tool has an explicit denial (npm allowScripts, pnpm allowBuilds, Yarn
- * dependenciesMeta): the tool then keeps those scripts blocked without warning about them on every install.
+ * dependenciesMeta): the tool then keeps those scripts blocked without warning about them on every install. `fileFor`
+ * gives the file that holds the setting when it is not always the same (pnpm include, decision D-164), undefined when
+ * apply cannot write it.
  */
-export function writeDenyList(context: Context): void {
+export function writeDenyList(context: Context, fileFor?: (setting: string) => string | undefined): void {
   const deny = denyList(context);
   if (deny === undefined || (context.policy.installScripts?.deny.length ?? 0) === 0) return;
   if (!context.supports(deny.since, deny.setting)) return;
-  const file = deny.file.endsWith('.yaml') ? context.yaml(deny.file) : context.json(deny.file);
   const allowed = allowedInFiles(context);
   const names = deniedNames(context, settingName(deny.setting)).filter((name) => !allowed.has(name));
-  if (names.length > 0) context.writes('installScripts', deny.setting, deny.file);
+  const target = names.length === 0 || fileFor === undefined ? deny.file : fileFor(settingName(deny.setting));
+  if (target === undefined) return;
+  const file = target.endsWith('.yaml') || target.endsWith('.yml') ? context.yaml(target) : context.json(target);
+  if (names.length > 0) context.writes('installScripts', deny.setting, target);
   for (const name of names) {
     const path = deny.setting.includes('<package>') ? deny.setting.split('.').map((segment) => (segment === '<package>' ? name : segment)) : [...deny.setting.split('.'), name];
     if (file.get(path) !== deny.value) file.set(path, deny.value);

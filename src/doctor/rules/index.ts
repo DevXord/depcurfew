@@ -14,6 +14,7 @@ import { lockfileForbiddenSource, lockfileInstallScripts } from './lockfile.ts';
 import { lockfileOutOfDate } from './lockfile-out-of-date.ts';
 import { managerVersionTooOld } from './manager-version.ts';
 import { npmrcOverridesPolicy, pnpmSharedWorkspaceLockfile } from './npmrc.ts';
+import { pnpmConfigUnverifiable } from './pnpm-config.ts';
 import { pythonConfigIgnored } from './python-config.ts';
 import { runtimeEndOfLife } from './runtime-end-of-life.ts';
 import { unreadableConfig } from './unreadable-config.ts';
@@ -29,6 +30,7 @@ export const RULES: readonly Rule[] = [
   settingIgnoredByVersion,
   npmrcOverridesPolicy,
   pnpmSharedWorkspaceLockfile,
+  pnpmConfigUnverifiable,
   pythonConfigIgnored,
   composerConfigWeakens,
   bundlerConfigWeakens,

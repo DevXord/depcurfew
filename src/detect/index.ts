@@ -26,9 +26,11 @@ import { normalizePythonName } from '../policy/python-names.ts';
 import { parseYaml } from '../yaml-parse.ts';
 import { iniEntries, yamlSetting } from '../doctor/settings.ts';
 import type { ProjectOptional } from './commands.ts';
-import { yamlOptionsFor } from '../apply/facts.ts';
+import { values, yamlOptionsFor } from '../apply/facts.ts';
+import { hookMessage, pnpmHooks } from '../apply/pnpm-hooks.ts';
+import { readPnpmIncludes } from '../apply/pnpm-includes.ts';
+import { parseVersion, pinnedVersion } from '../apply/version.ts';
 import { botEcosystemFacts, detectBotEcosystems } from './bot-ecosystems.ts';
-import { parseVersion } from '../apply/version.ts';
 import { isAbsoluteAnywhere } from '../paths.ts';
 import { posix } from 'node:path';
 
@@ -392,6 +394,24 @@ function configFiles(repository: Repository, manager: ManagerFacts, directories:
     .sort(byPath);
 }
 
+/**
+ * pnpm 12.15+: the local files include in pnpm-workspace.yaml names are configuration files of pnpm too; the pnpmfiles
+ * and config-dependency plugins whose updateConfig can change every setting are warnings, which explain shows and
+ * doctor reports as pnpm-config-unverifiable (decision D-164). The version is the pinned one, else the latest known.
+ */
+function readPnpmSources(repository: Repository, manager: PackageManagerInfo, tool: ToolKnowledge, packages: readonly string[]): void {
+  const latest = tool.extra?.['latestVersion'] === undefined ? undefined : values(tool.extra['latestVersion'])[0];
+  const version = pinnedVersion(manager) ?? (typeof latest === 'string' ? parseVersion(latest) : undefined);
+  const read = (file: string) => repository.readText(file);
+  const includes = readPnpmIncludes(tool, version, read);
+  const found = (includes?.files ?? []).filter((file) => !manager.configFiles.includes(file) && repository.isFile(file));
+  if (found.length > 0) manager.configFiles = [...manager.configFiles, ...found].sort(byPath);
+  for (const hook of pnpmHooks(tool, version, { read, isFile: (file) => repository.isFile(file), packages, ...(includes === undefined ? {} : { includes }) })) {
+    const line = hook.kind === 'plugin' ? hook.line : (hook.line ?? hook.updateConfigLine);
+    repository.warn('pnpm-hook', hookMessage(hook, tool.name), [hook.file], line);
+  }
+}
+
 export interface DetectOptions {
   /** The directories listed in projects in depcurfew.json, relative to the root (decision D-137). */
   projects?: readonly string[];
@@ -543,6 +563,10 @@ export function detectProject(
       configFiles: configFiles(repository, manager, directories, facts.pythonProject),
     });
   }
+
+  const pnpm = packageManagers.find((entry) => entry.id === 'pnpm' && entry.supported);
+  const pnpmTool = tools.find((tool) => tool.id === 'pnpm');
+  if (pnpm !== undefined && pnpmTool !== undefined) readPnpmSources(repository, pnpm, pnpmTool, workspaces?.packages ?? []);
 
   const bots: BotInfo[] = [];
   for (const bot of facts.bots) {

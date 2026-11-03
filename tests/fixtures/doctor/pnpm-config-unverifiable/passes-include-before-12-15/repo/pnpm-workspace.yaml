@@ -1,0 +1,8 @@
+configDependencies:
+  '@acme/pnpm-policy': 3.1.0
+include:
+  '@acme/pnpm-policy': [minimumReleaseAge]
+# managed by depcurfew
+minimumReleaseAge: 4320
+# managed by depcurfew
+minimumReleaseAgeStrict: true

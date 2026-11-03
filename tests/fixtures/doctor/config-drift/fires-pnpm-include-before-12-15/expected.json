@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "pnpm-workspace.yaml",
+      "line": 2
+    },
+    "message": "pnpm-workspace.yaml does not match depcurfew.json: `minimumReleaseAge: 4320` (and 1 more line) is missing",
+    "fix": "Run depcurfew apply to bring pnpm-workspace.yaml back in line with depcurfew.json (depcurfew apply --dry-run shows the change first), or change depcurfew.json if the edit was intended"
+  }
+]

@@ -1,0 +1,3 @@
+# Reviewed by the security team.
+dangerouslyAllowAllBuilds: true
+blockExoticSubdeps: false

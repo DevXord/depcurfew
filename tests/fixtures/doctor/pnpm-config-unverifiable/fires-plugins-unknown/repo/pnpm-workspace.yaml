@@ -1,0 +1,9 @@
+configDependencies:
+  '@pnpm/plugin-better-defaults': 0.2.1
+  pnpm-plugin-acme: 1.0.0
+  '@acme/pnpm-plugin-catalogs': 2.0.0
+  '@acme/config': 1.0.0
+# managed by depcurfew
+minimumReleaseAge: 4320
+# managed by depcurfew
+minimumReleaseAgeStrict: true

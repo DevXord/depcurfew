@@ -2,6 +2,7 @@
 // the line that names them, and the entries that block a package's scripts on purpose (installScripts.deny).
 import { extraOf, isRecord, yamlOptionsFor } from '../apply/facts.ts';
 import { compareVersions, parseVersion, type Version } from '../apply/version.ts';
+import { pnpmOwner, readPnpmIncludes } from '../apply/pnpm-includes.ts';
 import type { PackageManagerId } from '../detect/types.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import { wildcardMatch } from '../detect/wildcard.ts';
@@ -148,21 +149,28 @@ function listEntries(repository: TextSource, manager: PackageManagerId, configFi
       entries.push(...fromManifestKeys('allowScripts', (entry) => entry === allowed));
       break;
     case 'pnpm': {
-      const workspace = read(repository, 'pnpm-workspace.yaml');
+      // pnpm 12.15+ reads allowBuilds (and permissions, which shares its owner) from the file include gives it to; a
+      // config dependency's list cannot be read (decision D-164).
+      const includes = options.tool === undefined ? undefined : readPnpmIncludes(options.tool, options.version, (file) => read(repository, file));
+      const owner = pnpmOwner(includes, 'allowBuilds');
+      const file = owner.kind === 'file' ? owner.file : undefined;
+      const workspace = file === undefined ? undefined : read(repository, file);
       const yaml = yamlOptionsFor('pnpm-workspace.yaml');
-      if (workspace !== undefined) {
+      if (workspace !== undefined && file !== undefined) {
         const permissions = buildPermissions(workspace, options.tool, options.version);
         // A permissions entry outranks the allowBuilds entry of the same package.
-        const allowBuilds = fromKeys(workspace, 'pnpm-workspace.yaml', 'allowBuilds', yamlSetting(workspace, ['allowBuilds'], yaml)?.value, (entry) => entry === allowed, (name) =>
+        const allowBuilds = fromKeys(workspace, file, 'allowBuilds', yamlSetting(workspace, ['allowBuilds'], yaml)?.value, (entry) => entry === allowed, (name) =>
           yamlSetting(workspace, ['allowBuilds', name], yaml)?.line,
         );
         entries.push(...allowBuilds.filter((entry) => permissions?.has(entry.name) !== true));
         for (const [name, decision] of permissions ?? []) {
-          if (decision.allowed === allowed) entries.push({ name, package: splitSpec(name).name, file: 'pnpm-workspace.yaml', line: decision.line, setting: 'permissions' });
+          if (decision.allowed === allowed) entries.push({ name, package: splitSpec(name).name, file, line: decision.line, setting: 'permissions' });
         }
-        // ignoredBuiltDependencies only silences pnpm's report about a skipped build, so it neither allows nor blocks.
-        if (allowed) entries.push(...fromList(workspace, 'pnpm-workspace.yaml', 'onlyBuiltDependencies', yamlSetting(workspace, ['onlyBuiltDependencies'], yaml)?.value));
       }
+      // ignoredBuiltDependencies only silences pnpm's report about a skipped build, so it neither allows nor blocks.
+      const legacy = pnpmOwner(includes, 'onlyBuiltDependencies');
+      const legacyText = legacy.kind === 'file' ? read(repository, legacy.file) : undefined;
+      if (allowed && legacy.kind === 'file' && legacyText !== undefined) entries.push(...fromList(legacyText, legacy.file, 'onlyBuiltDependencies', yamlSetting(legacyText, ['onlyBuiltDependencies'], yaml)?.value));
       if (allowed && manifest !== undefined) {
         entries.push(...fromList(manifest, 'package.json', 'pnpm.onlyBuiltDependencies', json(['pnpm', 'onlyBuiltDependencies']), '', jsonLine(manifest, 'package.json', ['pnpm', 'onlyBuiltDependencies'])));
       }

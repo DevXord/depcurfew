@@ -1,0 +1,29 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "pnpm-workspace.yaml",
+      "line": 2
+    },
+    "message": "pnpm 12.16.1 loads the pnpmfile of the config dependency @pnpm/plugin-better-defaults (configDependencies in pnpm-workspace.yaml, line 2) because of its name, and its updateConfig hook can change every setting after pnpm has read its configuration files, so depcurfew cannot verify the settings it checks",
+    "fix": "Remove @pnpm/plugin-better-defaults from configDependencies in pnpm-workspace.yaml if the project does not need it, or read the pnpmfile of the version you install and make sure its updateConfig hook leaves minimumReleaseAge, allowBuilds and the other security settings as they are (ignorePnpmfile: true in pnpm-workspace.yaml stops every pnpmfile, those of plugins too)"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "pnpm-workspace.yaml",
+      "line": 3
+    },
+    "message": "pnpm 12.16.1 loads the pnpmfile of the config dependency pnpm-plugin-acme (configDependencies in pnpm-workspace.yaml, line 3) because of its name, and its updateConfig hook can change every setting after pnpm has read its configuration files, so depcurfew cannot verify the settings it checks",
+    "fix": "Remove pnpm-plugin-acme from configDependencies in pnpm-workspace.yaml if the project does not need it, or read the pnpmfile of the version you install and make sure its updateConfig hook leaves minimumReleaseAge, allowBuilds and the other security settings as they are (ignorePnpmfile: true in pnpm-workspace.yaml stops every pnpmfile, those of plugins too)"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "pnpm-workspace.yaml",
+      "line": 4
+    },
+    "message": "pnpm 12.16.1 loads the pnpmfile of the config dependency @acme/pnpm-plugin-catalogs (configDependencies in pnpm-workspace.yaml, line 4) because of its name, and its updateConfig hook can change every setting after pnpm has read its configuration files, so depcurfew cannot verify the settings it checks",
+    "fix": "Remove @acme/pnpm-plugin-catalogs from configDependencies in pnpm-workspace.yaml if the project does not need it, or read the pnpmfile of the version you install and make sure its updateConfig hook leaves minimumReleaseAge, allowBuilds and the other security settings as they are (ignorePnpmfile: true in pnpm-workspace.yaml stops every pnpmfile, those of plugins too)"
+  }
+]

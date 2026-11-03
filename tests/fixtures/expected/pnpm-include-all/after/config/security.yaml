@@ -1,0 +1,5 @@
+# Reviewed by the security team.
+# managed by depcurfew
+dangerouslyAllowAllBuilds: false
+# managed by depcurfew
+blockExoticSubdeps: true

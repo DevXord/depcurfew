@@ -43,7 +43,8 @@ export const WARNING_FIXES: Readonly<Record<string, string>> = {
   'package-manager-mismatch': 'Commit the lockfile of the package manager that packageManager in package.json names, or correct packageManager',
   'python-tool-unknown': `Commit the lockfile of the tool that installs the project, or name the tool in targets in ${POLICY_FILE}`,
   'script-not-followed': 'Split the script into shorter run steps or RUN instructions, or check by hand where the installs after that point run and with which variables',
-  'workspace-search-limit': `Narrow the workspace patterns (for example packages/* instead of **), so that they match at most ${MAX_WORKSPACE_DIRECTORIES} directories and depcurfew finds every workspace package`,
+  'pnpm-hook': 'Read the pnpmfile and make sure its updateConfig hook leaves the security settings as they are; set pnpmfile: [] in pnpm-workspace.yaml when the project needs no pnpmfile, and remove config-dependency plugins it does not need (depcurfew doctor reports each one as pnpm-config-unverifiable)',
+  'workspace-search-limit':`Narrow the workspace patterns (for example packages/* instead of **), so that they match at most ${MAX_WORKSPACE_DIRECTORIES} directories and depcurfew finds every workspace package`,
 };
 
 /**

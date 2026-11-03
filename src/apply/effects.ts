@@ -6,7 +6,7 @@ import { knowledgeBase } from '../knowledge/index.ts';
 import { SOURCE_KINDS } from '../knowledge/schema.ts';
 import type { ToolId, ToolKnowledge } from '../knowledge/types.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
-import { settingOf } from './facts.ts';
+import { isRecord, settingOf, values } from './facts.ts';
 import { recordSettings } from './generators/context.ts';
 import { planRepository } from './index.ts';
 import { inProject } from './projects.ts';
@@ -54,6 +54,17 @@ function partOfSetting(tool: ToolKnowledge | undefined, setting: string): Policy
 }
 
 /**
+ * The part of the setting a setting-owned-elsewhere warning names ("pnpm: allowBuilds not written: …"); undefined for the
+ * settings of the release-age delay, minimumReleaseAgeStrict included.
+ */
+function ownedPart(tool: ToolKnowledge | undefined, message: string): PolicyPart | undefined {
+  const setting = /^[^:]+: (\S+) not written:/u.exec(message)?.[1];
+  const strict = tool?.extra?.['minimumReleaseAgeStrict'];
+  const strictSetting = strict === undefined ? undefined : values(strict).map((value) => (isRecord(value) ? value['setting'] : undefined))[0];
+  return setting === undefined || setting === strictSetting ? undefined : partOfSetting(tool, setting);
+}
+
+/**
  * Plans the repository as apply does, without writing anything, and returns what the plan did with installScripts and
  * sources for each tool. A setting in a manifest that does not exist is not written: the warning manifest-missing
  * says so instead.
@@ -75,6 +86,8 @@ export function policyEffects(root: string, policy: ResolvedPolicy, detection: D
         mine(warning) &&
         ((WARNING_PARTS[warning.code] ?? []).includes(part) ||
           (warning.code === 'version-too-old' && tooOld) ||
+          // pnpm include gives the setting to another source (decision D-164): shown with the part of that setting.
+          (warning.code === 'setting-owned-elsewhere' && ownedPart(knowledge, warning.message) === part) ||
           (warning.code === 'manifest-missing' && own.some((entry) => entry.file === warning.location?.file))),
     );
     const skipped = new Set(warnings.filter((warning) => warning.code === 'manifest-missing').map((warning) => warning.location?.file));

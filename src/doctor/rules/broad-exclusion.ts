@@ -13,6 +13,7 @@ import { latestVersion } from '../effective.ts';
 import { actionsTarget, botEcosystemTargets, managerTargets, matchesEveryName, readRenovateConfig, ruleScope, type RenovateTarget, type RuleScope } from '../renovate.ts';
 import { lineOf, readSetting, rejectsYamlAliases, yamlAliasLine, yamlSetting } from '../settings.ts';
 import { managerSources } from '../projects.ts';
+import { readToolSetting } from '../pnpm-config.ts';
 import type { Rule, RuleContext } from '../types.ts';
 import { usesBot, usesManager } from '../applies.ts';
 import { coversActions, coversBotEcosystems } from '../../apply/targets.ts';
@@ -53,15 +54,17 @@ function checkManagers(context: RuleContext): void {
     const setting = settingOf(knowledge.cooldown.exclude.setting);
     if (setting === null) continue;
     const files = manager.id === 'deno' ? manager.configFiles.filter((file) => /^deno\.jsonc?$/u.test(file)) : (values(knowledge.cooldown.configFiles)[0] ?? []).slice(0, 1);
+    const version = pinnedVersion(manager) ?? latestVersion(knowledge);
     for (const file of files) {
-      const found = readSetting(context.repository, file, setting);
+      // pnpm 12.15+ may take the list from a file of include (decision D-164); found.file says which.
+      const found = readToolSetting(context.repository, knowledge, version, file, setting);
       // Composer's ignore may also be an object of names to reasons, and its * matches / as well (vendor names).
       const items: unknown[] | undefined = Array.isArray(found?.value) ? found.value : isRecord(found?.value) ? Object.keys(found.value) : undefined;
       if (found === undefined || items === undefined) continue;
       const broad = (item: string) => isBroad(item) || (ecosystemOfTool(knowledge) === 'packagist' && matchesEveryComposerName(item));
       for (const pattern of items.filter((item): item is string => typeof item === 'string' && broad(item))) {
         context.report({
-          location: { file, line: found.line },
+          location: { file: found.file, line: found.line },
           message: `${setting} contains "${pattern}", so ${knowledge.name} applies no release-age delay to any package`,
           fix: `Remove "${pattern}" and list only the packages that need the exception`,
         });
