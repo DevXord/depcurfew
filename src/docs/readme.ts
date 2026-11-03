@@ -32,7 +32,7 @@ export const KNOWLEDGE_DOCUMENT = 'https://github.com/DevXord/depcurfew/blob/mai
  * The release the example workflow pins the action to: its full commit, with the tag in a comment. Updated after each
  * release (docs/RELEASING.md, „Każde wydanie”), then npm run docs:readme.
  */
-export const ACTION_RELEASE = { version: '1.4.1', commit: '7ad4fa864789f5f266cc99cf2d58538597b8238e' } as const;
+export const ACTION_RELEASE = { version: '1.5.0', commit: '2c45b13c38b5fbae4b3b7ce71d57e7cee084610e' } as const;
 
 const SOURCE_LABELS: Record<(typeof SOURCE_KINDS)[number], string> = {
   git: 'git',
@@ -252,9 +252,16 @@ function exampleWorkflow(environment: EnvironmentKnowledge, workflow: string): s
   ].join('\n');
 }
 
-/** The commands that check a release against its tag, for the release the example workflow pins (ACTION_RELEASE). */
+/**
+ * The release the verification commands of "Verifying a release" check: the newest one whose package equals the build of
+ * its tag. 1.5.0 is not one: its declaration file lists the properties of one type in another order than a build of
+ * the tag does (decision D-174). Updated after each release with ACTION_RELEASE.
+ */
+export const VERIFIED_RELEASE = { version: '1.4.1' } as const;
+
+/** The commands that check a release against its tag, for VERIFIED_RELEASE. */
 function verifyRelease(): string {
-  const { version } = ACTION_RELEASE;
+  const { version } = VERIFIED_RELEASE;
   return [
     '```bash',
     `git clone --branch v${version} https://github.com/DevXord/depcurfew.git`,

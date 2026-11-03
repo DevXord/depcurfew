@@ -93,7 +93,7 @@ node dist/cli.js doctor /path/to/your/repository
 
 Every release is built and published from its git tag by the [Release workflow](https://github.com/DevXord/depcurfew/blob/main/.github/workflows/release.yml) with npm trusted publishing, so the npm page of each version shows its provenance: the repository, the workflow and the commit it was built from. After installing, `npm audit signatures` checks the registry signature and the provenance attestation of every installed package, depcurfew included.
 
-The package contains nothing but the build of that commit, and anyone can check it: check out the tag, build it and compare the checksum with the one the registry serves, here for the release the [GitHub Action](#github-action) example uses:
+The package contains nothing but the build of that commit, and anyone can check it: check out the tag, build it and compare the checksum with the one the registry serves, here for 1.4.1:
 
 <!-- BEGIN GENERATED: verify-release -->
 ```bash
@@ -106,7 +106,7 @@ npm view depcurfew@1.4.1 dist.shasum
 ```
 <!-- END GENERATED: verify-release -->
 
-The two checksums are the same. The [Verify release workflow](https://github.com/DevXord/depcurfew/blob/main/.github/workflows/verify-release.yml) does this for the newest version on npm every day and on demand, and its runs are public in the Actions tab of the repository.
+The two checksums are the same. For 1.5.0 they differ: its JavaScript files are the build of the tag byte for byte, but its declaration file `dist/index.d.ts` lists the properties of the policy types in another order, which a build that ran right after the tests produced; later releases write those types out, so every build gives the same file. The [Verify release workflow](https://github.com/DevXord/depcurfew/blob/main/.github/workflows/verify-release.yml) does this for the newest version on npm every day and on demand, and its runs are public in the Actions tab of the repository.
 
 ## Step-by-step guide
 
@@ -734,7 +734,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: DevXord/depcurfew@7ad4fa864789f5f266cc99cf2d58538597b8238e # v1.4.1
+      - uses: DevXord/depcurfew@2c45b13c38b5fbae4b3b7ce71d57e7cee084610e # v1.5.0
 ```
 <!-- END GENERATED: action-workflow -->
 
