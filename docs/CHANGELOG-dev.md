@@ -2,6 +2,10 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-11-04 · Odznaki w README (D-179)
+
+- Pod tytułem README odznaki: wersja na npm, wersje Node.js z `engines`, licencja, CI, CodeQL, Verify release i strona dokumentacji, między znacznikami `<!-- BEGIN BADGES` i `<!-- END BADGES -->`; `npm run site` pomija je w README bieżącej wersji i wcześniejszych wersji (`withoutBadges`), bo strona nie ładuje niczego z innych serwerów (D-179).
+
 ## 2026-11-04 · Pytania w Discussions
 
 - `.github/ISSUE_TEMPLATE/config.yml` ma linki „Ask a question” (Discussions, kategoria Q&A) i „Share an idea” (kategoria Ideas) obok prywatnego zgłoszenia podatności; zgłoszenia zostają dla błędów, złych wyników i funkcji. `CONTRIBUTING.md` mówi to samo.
