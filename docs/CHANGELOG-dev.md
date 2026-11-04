@@ -2,6 +2,10 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-11-04 · Pytania w Discussions
+
+- `.github/ISSUE_TEMPLATE/config.yml` ma linki „Ask a question” (Discussions, kategoria Q&A) i „Share an idea” (kategoria Ideas) obok prywatnego zgłoszenia podatności; zgłoszenia zostają dla błędów, złych wyników i funkcji. `CONTRIBUTING.md` mówi to samo.
+
 ## 2026-11-04 · Wydanie 1.5.2; strona budowana z `main` (D-178)
 
 - `depcurfew@1.5.2` opublikowana z tagu `v1.5.2` (commit 8b9a6f0, scalenie PR #41) przez trusted publishing, z proweniencją SLSA; suma paczki (`f86b1fcb3a430d0e123c399e1d190b768f5d2ccb`) równa lokalnemu buildowi taga, `homepage` to strona dokumentacji.
