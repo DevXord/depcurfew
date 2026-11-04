@@ -93,16 +93,16 @@ node dist/cli.js doctor /path/to/your/repository
 
 Every release is built and published from its git tag by the [Release workflow](https://github.com/DevXord/depcurfew/blob/main/.github/workflows/release.yml) with npm trusted publishing, so the npm page of each version shows its provenance: the repository, the workflow and the commit it was built from. One job of the workflow installs, tests and packs the package without the right to publish it; a second job, which runs no code of the repository or of its dependencies, stages exactly the file the first one packed, after comparing its SHA-512 checksum. After installing, `npm audit signatures` checks the registry signature and the provenance attestation of every installed package, depcurfew included.
 
-The package contains nothing but the build of that commit, and anyone can check it: check out the tag, build it and compare the checksum with the one the registry serves, here for 1.4.1:
+The package contains nothing but the build of that commit, and anyone can check it: check out the tag, build it and compare the checksum with the one the registry serves, here for 1.5.1:
 
 <!-- BEGIN GENERATED: verify-release -->
 ```bash
-git clone --branch v1.4.1 https://github.com/DevXord/depcurfew.git
+git clone --branch v1.5.1 https://github.com/DevXord/depcurfew.git
 cd depcurfew
 npm ci --ignore-scripts
 npm run build
 npm pack --dry-run --json | grep shasum
-npm view depcurfew@1.4.1 dist.shasum
+npm view depcurfew@1.5.1 dist.shasum
 ```
 <!-- END GENERATED: verify-release -->
 
@@ -734,7 +734,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: DevXord/depcurfew@2c45b13c38b5fbae4b3b7ce71d57e7cee084610e # v1.5.0
+      - uses: DevXord/depcurfew@8607ccd41a2a306d90a631b037e6d3d5f344584f # v1.5.1
 ```
 <!-- END GENERATED: action-workflow -->
 

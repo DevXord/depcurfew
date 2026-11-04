@@ -2,6 +2,11 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-11-03 · Wydanie 1.5.1 i przykład Action z SHA wydania
+
+- `depcurfew@1.5.1` opublikowana 22:32 UTC z tagu `v1.5.1` (commit 8607ccd, scalenie PR #39) przez trusted publishing, z proweniencją SLSA, jako pierwsze wydanie z workflow w dwóch jobach (D-175): job `stage` zetapował plik `depcurfew-1.5.1.tgz` z joba `build` po porównaniu SHA-512. Suma paczki w rejestrze (`f5c64c6f58df32958692af4f1e01a796e4415a41`, `sha512-UC90i1j0…`) jest równa lokalnemu buildowi taga i skrótowi w atestacji.
+- Przykład Action w README przypina `DevXord/depcurfew@8607ccd41a2a306d90a631b037e6d3d5f344584f # v1.5.1` (`ACTION_RELEASE`), a polecenia „Verifying a release” sprawdzają 1.5.1 (`VERIFIED_RELEASE` w `src/docs/readme.ts`).
+
 ## 2026-11-03 · 1.5.1: Release w dwóch jobach, CodeQL (D-175, D-176)
 
 - Wersja 1.5.1 w `package.json` i `package-lock.json`, sekcja 1.5.1 w `CHANGELOG.md` (plik deklaracji z D-174, workflow Release i CodeQL).
