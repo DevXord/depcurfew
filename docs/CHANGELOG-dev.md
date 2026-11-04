@@ -4,7 +4,7 @@ Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/
 
 ## 2026-11-04 · Pytania w Discussions
 
-- `.github/ISSUE_TEMPLATE/config.yml` ma link „Ask a question or share an idea” do Discussions obok prywatnego zgłoszenia podatności; zgłoszenia zostają dla błędów, złych wyników i funkcji. `CONTRIBUTING.md` mówi to samo.
+- `.github/ISSUE_TEMPLATE/config.yml` ma linki „Ask a question” (Discussions, kategoria Q&A) i „Share an idea” (kategoria Ideas) obok prywatnego zgłoszenia podatności; zgłoszenia zostają dla błędów, złych wyników i funkcji. `CONTRIBUTING.md` mówi to samo.
 
 ## 2026-11-04 · Wydanie 1.5.2; strona budowana z `main` (D-178)
 

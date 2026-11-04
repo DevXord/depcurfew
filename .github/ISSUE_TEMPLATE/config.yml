@@ -1,10 +1,14 @@
 # The choice a person sees on "New issue": issues are for bugs, wrong results and features (the forms in this
-# directory); questions and ideas go to Discussions; vulnerabilities go to a private report, as SECURITY.md describes.
+# directory); questions go to the Q&A category of Discussions and ideas to talk over to its Ideas category;
+# vulnerabilities go to a private report, as SECURITY.md describes.
 blank_issues_enabled: false
 contact_links:
-  - name: Ask a question or share an idea
-    url: https://github.com/DevXord/depcurfew/discussions
-    about: How to set depcurfew up, what a finding means, whether a setup is supported, or an idea to talk over first. Please ask in Discussions, not in an issue.
+  - name: Ask a question
+    url: https://github.com/DevXord/depcurfew/discussions/new?category=q-a
+    about: How to set depcurfew up, what a finding means, or whether a setup is supported. Please ask in Discussions (Q&A), not in an issue.
+  - name: Share an idea
+    url: https://github.com/DevXord/depcurfew/discussions/new?category=ideas
+    about: An idea to talk over before it becomes a feature request with links to the official documentation of the tool (Discussions, Ideas).
   - name: Report a vulnerability
     url: https://github.com/DevXord/depcurfew/security/advisories/new
     about: Report security problems privately, as SECURITY.md describes, never in an issue or a discussion.
