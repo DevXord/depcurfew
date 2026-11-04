@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildSite, freshReadme, groupPages, HOME_TITLE, PAGE_GROUPS, README_PAGES, SITE_PAGES, siteAddress, START_PAGES, VERSIONS_PAGE } from '../../scripts/site/build.ts';
+import { buildSite, freshReadme, groupPages, HOME_TITLE, PAGE_GROUPS, README_PAGES, SITE_PAGES, siteAddress, START_PAGES, VERSIONS_PAGE, withoutBadges } from '../../scripts/site/build.ts';
 import { escapeHtml, splitSections } from '../../scripts/site/markdown.ts';
 import { repositoryUrl } from '../../scripts/site/versions.ts';
 import { APPLY_ERRORS, APPLY_WARNINGS } from '../../src/apply/warnings.ts';
@@ -244,7 +244,7 @@ describe('hero of the start page (D-140)', () => {
   const hero = () => /<div class="hero">\n([\s\S]*?)\n<\/div>\n/u.exec(page('index.html'))?.[1] ?? '';
 
   it('shows the icon, the name and the introduction of the README above the README text', () => {
-    const intro = splitSections(freshReadme()).sections[0];
+    const intro = splitSections(withoutBadges(freshReadme())).sections[0];
     expect(intro?.id).toBe('depcurfew');
     expect(hero()).toContain('<img class="logo" src="favicon.svg" alt="" width="96" height="96">');
     expect(hero()).toContain('<h1 id="depcurfew">depcurfew</h1>');
@@ -339,7 +339,7 @@ describe('levels as pills (D-140)', () => {
 });
 
 describe('site content', () => {
-  const readme = () => splitSections(freshReadme()).sections;
+  const readme = () => splitSections(withoutBadges(freshReadme())).sections;
 
   it('puts every README section on exactly one README page', () => {
     for (const section of readme()) {
@@ -525,5 +525,33 @@ describe('search engines (D-177)', () => {
       expect(FILES, value).toContain(path);
     }
     expect(navigation(html).flatMap((group) => group.links)).toEqual(expect.arrayContaining(PAGES.map((name) => `${root}${name}`)));
+  });
+});
+
+describe('README badges (D-179)', () => {
+  const BLOCK = [
+    '<!-- BEGIN BADGES: images from other hosts, left out of the documentation site -->',
+    '[![npm](https://img.shields.io/npm/v/depcurfew)](https://www.npmjs.com/package/depcurfew)',
+    '[![node](https://img.shields.io/node/v/depcurfew)](https://github.com/DevXord/depcurfew/blob/main/package.json)',
+    '[![license](https://img.shields.io/npm/l/depcurfew)](https://github.com/DevXord/depcurfew/blob/main/LICENSE)',
+    '[![CI](https://github.com/DevXord/depcurfew/actions/workflows/ci.yml/badge.svg)](https://github.com/DevXord/depcurfew/actions/workflows/ci.yml)',
+    '[![CodeQL](https://github.com/DevXord/depcurfew/actions/workflows/codeql.yml/badge.svg)](https://github.com/DevXord/depcurfew/actions/workflows/codeql.yml)',
+    '[![Verify release](https://github.com/DevXord/depcurfew/actions/workflows/verify-release.yml/badge.svg)](https://github.com/DevXord/depcurfew/actions/workflows/verify-release.yml)',
+    '[![docs](https://img.shields.io/badge/docs-depcurfew.github.io-blue)](https://depcurfew.github.io/)',
+    '<!-- END BADGES -->',
+  ].join('\n');
+
+  it('has the version on npm, the Node.js versions, the license, CI, CodeQL, Verify release and the site right under the title of the README', () => {
+    expect(read('README.md').startsWith(`# depcurfew\n\n${BLOCK}\n\nOne supply-chain security policy`)).toBe(true);
+  });
+
+  it('leaves the badges and the blank line after them out of the README text of the site, and nothing else', () => {
+    expect(withoutBadges(`# depcurfew\n\n${BLOCK}\n\nIntro.\n`)).toBe('# depcurfew\n\nIntro.\n');
+    expect(withoutBadges('# depcurfew\n\nIntro without badges.\n')).toBe('# depcurfew\n\nIntro without badges.\n');
+    expect(withoutBadges(freshReadme())).not.toMatch(/BADGES|img\.shields\.io|badge\.svg/u);
+  });
+
+  it('shows no badge on any page of the site', () => {
+    for (const name of files(site)) if (name.endsWith('.html')) expect(readFileSync(join(site, name), 'utf8'), name).not.toMatch(/img\.shields\.io|badge\.svg|BADGES/u);
   });
 });
