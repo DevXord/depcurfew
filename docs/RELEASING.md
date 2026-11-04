@@ -94,7 +94,8 @@ Kroki 2–4 trzeba wykonać jeden po drugim, a po kroku 3 w ciągu 2 dni wydać 
 6. **Sprawdzenie proweniencji:** strona paczki na npmjs.com pokazuje proweniencję (repozytorium, workflow, commit). W dowolnym projekcie po instalacji `depcurfew@X.Y.Z` polecenie `npm audit signatures` powinno wykazać zweryfikowaną attestację.
 7. **Po wydaniu:**
    - w `src/docs/readme.ts` wpisać w `ACTION_RELEASE` wersję i pełny SHA commita wydania (`git rev-parse vX.Y.Z`), potem `npm run docs:readme` i PR do `main`; przykład Action w README przypina wtedy ten commit;
-   - utworzyć na GitHubie Release `vX.Y.Z` z tagu, z sekcją wersji z `CHANGELOG.md` jako opisem; https://depcurfew.github.io/ pokazuje to wydanie po najbliższym codziennym przebiegu workflow „Pages” w `depcurfew/depcurfew.github.io` albo od razu po jego ręcznym uruchomieniu (**Actions** → „Pages” → **Run workflow**), a poprzednie wydanie trafia pod `/<wersja>/`;
+   - utworzyć na GitHubie Release `vX.Y.Z` z tagu, z sekcją wersji z `CHANGELOG.md` jako opisem;
+   - https://depcurfew.github.io/ buduje się z gałęzi `main` (decyzja D-178), więc zmiany dokumentacji są na niej po najbliższym codziennym przebiegu workflow „Pages” w `depcurfew/depcurfew.github.io` albo od razu po jego ręcznym uruchomieniu (**Actions** → „Pages” → **Run workflow**), bez wydania; do wydania strony mają pasek, że opisują niewydaną wersję albo zmiany po wydaniu. Po tagu uruchomić „Pages”: pasek znika, a poprzednie wydanie trafia pod `/<wersja>/`;
    - poprzednią wersję z błędem, którego nie powinno się już instalować, oznaczyć `npm deprecate`.
 8. **Tylko po pierwszym wydaniu:** odrzuć etap próbny z kroku 2 jednorazowej konfiguracji (`npm stage list depcurfew`, potem `npm stage reject <stage-id>`, z 2FA). Opublikowana wersja zostaje. Po 1.0.0 to już zrobione. README trafia do paczki w chwili publikacji i to ono jest na stronie npm, więc wszystko, co ma się tam znaleźć, musi być w `main` przed tagiem.
 

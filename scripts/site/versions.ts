@@ -82,6 +82,40 @@ function firstLine(error: unknown): string {
   return text.trim().split('\n')[0] ?? '';
 }
 
+/** Where the commit being built stands against the release tags (decision D-178). */
+export interface ReleaseState {
+  /** The highest version among the release tags v<major>.<minor>.<patch>, pre-releases left out. */
+  latest: string;
+  /** The tag of the version being built exists and is the commit being built, so the site shows exactly that release. */
+  released: boolean;
+}
+
+/**
+ * The release state of the commit checked out in `directory` for `current`, the version in its package.json, or
+ * undefined when git cannot tell or there is no release tag (decision D-178).
+ */
+export function readReleaseState(directory: string, current: string): ReleaseState | undefined {
+  try {
+    const versions = git(directory, ['tag', '--list', 'v*'])
+      .toString('utf8')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((tag) => {
+        const match = TAG.exec(tag);
+        return match !== null && match[4] === undefined;
+      })
+      .map((tag) => tag.slice(1))
+      .sort(compareVersions);
+    const latest = versions.at(-1);
+    if (latest === undefined) return undefined;
+    const commit = (revision: string) => git(directory, ['rev-parse', '--verify', '--quiet', `${revision}^{commit}`]).toString('utf8').trim();
+    const released = versions.includes(current) && commit(`v${current}`) === commit('HEAD');
+    return { latest, released };
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * The earlier versions to archive from the release tags of the git repository in `directory`, newest first. `current`
  * is the version being built, whose documentation is the root of the site; every tag that is left out is named in a
