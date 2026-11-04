@@ -1,6 +1,6 @@
 {
   "name": "depcurfew",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Composer, Bundler, Renovate and Dependabot, plus a doctor that finds config that silently does nothing.",
   "license": "MIT",
   "author": "depcurfew",
@@ -8,7 +8,7 @@
     "type": "git",
     "url": "git+https://github.com/DevXord/depcurfew.git"
   },
-  "homepage": "https://github.com/DevXord/depcurfew#readme",
+  "homepage": "https://depcurfew.github.io/",
   "bugs": {
     "url": "https://github.com/DevXord/depcurfew/issues"
   },

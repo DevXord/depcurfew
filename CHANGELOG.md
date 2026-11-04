@@ -2,6 +2,14 @@
 
 All notable changes for users of depcurfew. The project follows [semantic versioning](https://semver.org/): the policy file (`version: 1`), the command-line options, the exit codes and the JSON and SARIF output (`schemaVersion: 1`) only change in a backward-incompatible way in a new major version.
 
+## 1.5.2
+
+### Documentation site
+
+- Every page of https://depcurfew.github.io has its own description, names its address as the canonical one and has Open Graph tags, so search results and shared links show its title and what it is about. The start page is titled "depcurfew · Supply-chain security policy for package managers".
+- The site has `robots.txt`, `sitemap.xml` with the pages of the current version, and a page for addresses that do not exist. The pages of earlier versions stay readable but are marked `noindex`, so search engines list the current documentation.
+- The `homepage` of the npm package is the documentation site instead of the README on GitHub.
+
 ## 1.5.1
 
 ### Fixes

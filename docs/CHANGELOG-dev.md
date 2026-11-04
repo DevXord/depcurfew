@@ -2,6 +2,12 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-11-04 · 1.5.2: strona dokumentacji dla wyszukiwarek (D-177)
+
+- Wersja 1.5.2 w `package.json` i `package-lock.json`, sekcja 1.5.2 w `CHANGELOG.md`.
+- `homepage` w `package.json` to `https://depcurfew.github.io/`; `npm run site` dodaje adres kanoniczny, własny opis i Open Graph każdej strony bieżącej wersji, tytuł strony startowej z opisem, `robots.txt`, `sitemap.xml` i `404.html`, a stronom wcześniejszych wersji `noindex`; plik potwierdzenia Google Search Console z `site/` na najwyższym poziomie strony (D-177).
+- Tag `v1.3.1` postawiony przez pomyłkę na scaleniu PR #40 zatrzymał workflow Release na sprawdzeniu wersji (nic nie zostało zetapowane) i został usunięty, zanim strona zbudowała archiwum z nim.
+
 ## 2026-11-03 · Wydanie 1.5.1 i przykład Action z SHA wydania
 
 - `depcurfew@1.5.1` opublikowana 22:32 UTC z tagu `v1.5.1` (commit 8607ccd, scalenie PR #39) przez trusted publishing, z proweniencją SLSA, jako pierwsze wydanie z workflow w dwóch jobach (D-175): job `stage` zetapował plik `depcurfew-1.5.1.tgz` z joba `build` po porównaniu SHA-512. Suma paczki w rejestrze (`f5c64c6f58df32958692af4f1e01a796e4415a41`, `sha512-UC90i1j0…`) jest równa lokalnemu buildowi taga i skrótowi w atestacji.
