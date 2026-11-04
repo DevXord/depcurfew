@@ -8,7 +8,7 @@
 // groups of the navigation (PAGE_GROUPS), a hero on the start page, an "On this page" list on long pages and the
 // levels of doctor rules and codes as pills, all without JavaScript.
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, posix } from 'node:path';
 import { KNOWLEDGE_DOCUMENT, readmeSections, renderReadme, type ReadmeInputs } from '../../src/docs/readme.ts';
 import { environment } from '../../src/knowledge/environment.ts';
@@ -242,6 +242,8 @@ interface Context {
   description: string;
   license: string;
   repository: string | undefined;
+  /** The address of the published site from homepage in package.json, ending with /, or undefined (decision D-177). */
+  site: string | undefined;
   template: string;
   /** The pages in the navigation of the current version: SITE_PAGES, and the Versions page with earlier versions. */
   pages: readonly Page[];
@@ -419,6 +421,10 @@ interface Frame {
   hero: string;
   /** HTML of the footer. */
   footer: string;
+  /** Tags at the end of the head: the canonical address and Open Graph of a current page, noindex elsewhere (D-177). */
+  head: string;
+  /** The path back to the root, when it cannot be relative: `/` on the 404 page, which may be served at any path. */
+  root?: string;
 }
 
 /** The relative path from a page to the root of the site: empty at the root, `../` in a version directory. */
@@ -502,7 +508,8 @@ function pageHtml(frame: Frame, content: string, template: string): string {
   const values: Record<string, string> = {
     title: escapeHtml(frame.title),
     description: escapeHtml(frame.description),
-    root: rootOf(frame.file),
+    head: frame.head,
+    root: frame.root ?? rootOf(frame.file),
     version: escapeHtml(frame.version),
     nav: navHtml(frame.nav),
     banner: frame.banner,
@@ -523,13 +530,56 @@ function pageHtml(frame: Frame, content: string, template: string): string {
   return html;
 }
 
+/** The title of the start page in search results and browser tabs (D-177): the name and what it is. */
+export const HOME_TITLE = 'depcurfew · Supply-chain security policy for package managers';
+
+/** The noindex tag of pages that search engines should not list: earlier versions and the 404 page (D-177). */
+const NOINDEX = '<meta name="robots" content="noindex">';
+
+/**
+ * The address of the published site from homepage in package.json (D-177): an https address that ends with / and is
+ * not on github.com, so that a homepage that names the repository gives no canonical addresses, sitemap or robots.txt.
+ */
+export function siteAddress(homepage: unknown): string | undefined {
+  if (typeof homepage !== 'string' || !homepage.endsWith('/')) return undefined;
+  let url: URL;
+  try {
+    url = new URL(homepage);
+  } catch {
+    return undefined;
+  }
+  if (url.protocol !== 'https:' || url.search !== '' || url.hash !== '' || url.username !== '' || url.password !== '') return undefined;
+  if (url.hostname === 'github.com' || url.hostname.endsWith('.github.com')) return undefined;
+  return url.href;
+}
+
+/** The address of a page of the current version on the published site; the start page is the root. */
+export const pageAddress = (site: string, file: string) => (file === 'index.html' ? site : `${site}${file}`);
+
+/** The canonical address and Open Graph tags of a page of the current version (D-177). */
+function currentHead(file: string, title: string, description: string, context: Context): string {
+  const address = context.site === undefined ? undefined : pageAddress(context.site, file);
+  return [
+    ...(address === undefined ? [] : [`<link rel="canonical" href="${escapeHtml(address)}">`]),
+    '<meta property="og:type" content="website">',
+    '<meta property="og:site_name" content="depcurfew">',
+    `<meta property="og:title" content="${escapeHtml(title)}">`,
+    `<meta property="og:description" content="${escapeHtml(description)}">`,
+    ...(address === undefined ? [] : [`<meta property="og:url" content="${escapeHtml(address)}">`]),
+  ].join('\n');
+}
+
 /** The frame of a page of the current version. */
 function currentFrame(page: Page, context: Context): Frame {
   const source = context.repository === undefined ? '' : ` · <a href="${escapeHtml(context.repository)}">Source on GitHub</a>`;
+  const title = page.title === 'depcurfew' ? HOME_TITLE : `${page.title} · depcurfew`;
+  // Each page its own description; the start page the one of package.json (D-177).
+  const description = page.file === 'index.html' ? context.description : page.summary;
   return {
     file: page.file,
-    title: page.title === 'depcurfew' ? 'depcurfew' : `${page.title} · depcurfew`,
-    description: context.description,
+    title,
+    description,
+    head: currentHead(page.file, title, description, context),
     version: context.version,
     nav: groupPages(context.pages).map((group) => ({
       title: group.title,
@@ -674,7 +724,8 @@ function archiveFiles(archive: Archive, context: Context, report: (line: string)
         ],
       },
     ];
-    const frame: Frame = { file: `${entry.version}/${page.file}`, title: page.title, description: entry.description ?? context.description, version: entry.version, nav, banner, hero: '', footer };
+    // Earlier versions stay readable but out of search results, which list the current version (D-177).
+    const frame: Frame = { file: `${entry.version}/${page.file}`, title: page.title, description: entry.description ?? context.description, head: NOINDEX, version: entry.version, nav, banner, hero: '', footer };
     files.set(frame.file, pageHtml(frame, renderParts(page.parts, (target) => archiveTarget(target, page, archive, context, report)), context.template));
   }
   if (entry.schema !== undefined) files.set(`${entry.version}/schema.json`, entry.schema);
@@ -703,6 +754,57 @@ function versionsMarkdown(archives: readonly Archive[], context: Context): strin
   ].join('\n');
 }
 
+// Search engines (decision D-177).
+
+/** The name of a file of site/ that confirms the site in Google Search Console (HTML file method). */
+const GOOGLE_VERIFICATION = /^google[0-9a-f]{16}\.html$/u;
+
+/**
+ * The files of site/ that confirm the site to Google Search Console, served at the root as they are. Each one holds
+ * only the line Google gives for its name, so that no other page can be added this way.
+ */
+function verificationFiles(root: URL): Map<string, Buffer> {
+  const files = new Map<string, Buffer>();
+  for (const name of readdirSync(new URL('site/', root)).sort()) {
+    if (!GOOGLE_VERIFICATION.test(name)) continue;
+    const content = readFileSync(new URL(`site/${name}`, root));
+    if (content.toString('utf8').trimEnd() !== `google-site-verification: ${name}`) throw new Error(`site: site/${name} is not a Google Search Console verification file`);
+    files.set(name, content);
+  }
+  return files;
+}
+
+/** robots.txt: every page may be crawled, and the sitemap is named. */
+function robotsTxt(site: string): string {
+  return ['# The documentation of depcurfew. Earlier versions carry noindex; the sitemap lists the current one.', 'User-agent: *', 'Allow: /', '', `Sitemap: ${site}sitemap.xml`, ''].join('\n');
+}
+
+/** sitemap.xml: the pages of the current version in the order of the navigation, the start page as the root. */
+function sitemapXml(site: string, pages: readonly Page[]): string {
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...groupPages(pages).flatMap((group) => group.pages.map((page) => `  <url><loc>${escapeHtml(pageAddress(site, page.file))}</loc></url>`)),
+    '</urlset>',
+    '',
+  ].join('\n');
+}
+
+/**
+ * 404.html, which GitHub Pages serves for an address that has no file, at that address: its links start at the path
+ * of the site instead of being relative, so that they work at any depth.
+ */
+function notFoundPage(site: string, context: Context): string {
+  const root = new URL(site).pathname;
+  const frame = currentFrame({ file: '404.html', nav: 'Page not found', title: 'Page not found', summary: 'There is no page at this address.' }, context);
+  const nav = frame.nav.map((group) => ({ ...group, entries: group.entries.map((entry) => ({ ...entry, href: `${root}${entry.href}` })) }));
+  const content = [
+    '<h1 id="page-not-found">Page not found</h1>',
+    `<p>There is no page at this address. The documentation of depcurfew ${escapeHtml(context.version)} starts on <a href="${escapeHtml(root)}">the start page</a>; the <a href="${escapeHtml(`${root}guide.html`)}">step-by-step guide</a> leads from the first run to CI.</p>`,
+  ].join('\n');
+  return pageHtml({ ...frame, nav, head: NOINDEX, root }, content, context.template);
+}
+
 export interface SiteOptions {
   /** Earlier versions, from readVersions; without any, only the current version is built. */
   versions?: readonly ArchivedVersion[];
@@ -714,7 +816,7 @@ export interface SiteOptions {
 export function renderSite(root: URL = REPOSITORY, options: SiteOptions = {}): Map<string, string | Buffer> {
   const versions = options.versions ?? [];
   const report = options.report ?? (() => undefined);
-  const pkg = JSON.parse(read(root, 'package.json')) as { name: string; version: string; description: string; license: string; repository?: unknown };
+  const pkg = JSON.parse(read(root, 'package.json')) as { name: string; version: string; description: string; license: string; repository?: unknown; homepage?: unknown };
   const { preamble, sections } = splitSections(freshReadme(root));
   if (preamble.trim() !== '') throw new Error('site: README.md has text before its first heading, which no page would show');
   const assigned = assignSections(sections);
@@ -727,6 +829,7 @@ export function renderSite(root: URL = REPOSITORY, options: SiteOptions = {}): M
     description: pkg.description,
     license: pkg.license,
     repository: repositoryUrl(pkg.repository),
+    site: siteAddress(pkg.homepage),
     // The address of the stylesheet changes with its content, so that a browser does not keep a cached one after a
     // change of the site (decision D-147).
     template: read(root, 'site/template.html').replaceAll('{{stamp}}', createHash('sha256').update(read(root, 'site/style.css')).digest('hex').slice(0, 12)),
@@ -763,6 +866,12 @@ export function renderSite(root: URL = REPOSITORY, options: SiteOptions = {}): M
     for (const archive of archives) for (const [path, content] of archiveFiles(archive, context, report)) files.set(path, content);
     const page = renderMarkdown(versionsMarkdown(archives, context), { slug: createSlugger(['content']) });
     files.set(VERSIONS_PAGE.file, pageHtml(currentFrame(VERSIONS_PAGE, context), page.html, context.template));
+  }
+  if (context.site !== undefined) {
+    files.set('robots.txt', robotsTxt(context.site));
+    files.set('sitemap.xml', sitemapXml(context.site, context.pages));
+    files.set('404.html', notFoundPage(context.site, context));
+    for (const [name, content] of verificationFiles(root)) files.set(name, content);
   }
   return new Map([...files].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }

@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildSite, freshReadme, groupPages, PAGE_GROUPS, README_PAGES, SITE_PAGES, START_PAGES, VERSIONS_PAGE } from '../../scripts/site/build.ts';
+import { buildSite, freshReadme, groupPages, HOME_TITLE, PAGE_GROUPS, README_PAGES, SITE_PAGES, siteAddress, START_PAGES, VERSIONS_PAGE } from '../../scripts/site/build.ts';
 import { escapeHtml, splitSections } from '../../scripts/site/markdown.ts';
 import { repositoryUrl } from '../../scripts/site/versions.ts';
 import { APPLY_ERRORS, APPLY_WARNINGS } from '../../src/apply/warnings.ts';
@@ -16,11 +16,11 @@ import { RULES } from '../../src/doctor/index.ts';
 import { evidenceOf, collectFacts } from '../../src/knowledge/facts.ts';
 import { environment, knowledgeBase } from '../../src/knowledge/index.ts';
 import { USER_RULES } from '../../src/user/doctor.ts';
-import { checkDocument, checkLinks, checkLoadsNothing, files, ids, navigation, onThisPage } from './pages.ts';
+import { attributes, canonicalOf, checkDocument, checkLinks, checkLoadsNothing, files, ids, isExternal, navigation, onThisPage, SITE, STYLE_STAMP, unescape } from './pages.ts';
 
 const ROOT = new URL('../../', import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, ROOT), 'utf8');
-const manifest = JSON.parse(read('package.json')) as { name: string; version: string; repository: unknown };
+const manifest = JSON.parse(read('package.json')) as { name: string; version: string; description: string; homepage: string; repository: unknown };
 
 // The pages in the order of the navigation: Start, Reference, Integrations, then About. The start pages follow the
 // ecosystems of the knowledge base; npm, Python, PHP and the bots have one each.
@@ -42,7 +42,10 @@ const PAGES = [
   'about.html',
   'other-tools.html',
 ];
-const FILES = [...PAGES, 'favicon.svg', 'schema.json', 'schema/v1.json', 'style.css'].sort();
+// robots.txt, sitemap.xml and 404.html, because homepage in package.json is the address of the site (D-177).
+// The file that confirms the site in Google Search Console, from site/, is served at the root as it is.
+const GOOGLE = 'google489721fb1ec8d3a9.html';
+const FILES = [...PAGES, '404.html', 'favicon.svg', GOOGLE, 'robots.txt', 'schema.json', 'schema/v1.json', 'sitemap.xml', 'style.css'].sort();
 
 let directories: string[] = [];
 let site = '';
@@ -60,7 +63,7 @@ afterAll(() => {
 });
 
 describe('site build', () => {
-  it('writes every page, the stylesheet, the icon and the schema, and nothing else: no Versions page or version directories', () => {
+  it('writes every page, the stylesheet, the icon, the schema and the files for search engines, and nothing else: no Versions page or version directories', () => {
     expect(files(site)).toEqual(FILES);
     expect(START_PAGES.map((entry) => entry.file)).toEqual(expect.arrayContaining(['npm.html', 'python.html', 'bots.html']));
     expect(SITE_PAGES.map((entry) => entry.file)).toEqual(PAGES);
@@ -424,5 +427,103 @@ describe('repository', () => {
     expect(pkg.scripts['site']).toBe('node scripts/site.ts');
     expect(read('.gitignore').split('\n')).toContain('dist-site/');
     expect(pkg.files).not.toContain('site');
+  });
+});
+
+/** The value of the meta tag with this name or property, or of the canonical link, in the head of a page. */
+function head(html: string): { title: string | undefined; description: string | undefined; canonical: string | undefined; robots: string | undefined; og: Map<string, string> } {
+  const og = new Map<string, string>();
+  for (const match of html.matchAll(/<meta property="(og:[\w:]+)" content="([^"]*)">/gu)) og.set(match[1] ?? '', unescape(match[2] ?? ''));
+  return {
+    title: unescape(/<title>([^<]*)<\/title>/u.exec(html)?.[1] ?? '') || undefined,
+    description: /<meta name="description" content="([^"]*)">/u.exec(html)?.[1],
+    canonical: /<link rel="canonical" href="([^"]*)">/u.exec(html)?.[1],
+    robots: /<meta name="robots" content="([^"]*)">/u.exec(html)?.[1],
+    og,
+  };
+}
+
+describe('search engines (D-177)', () => {
+  it('takes the address of the site from homepage in package.json', () => {
+    expect(manifest.homepage).toBe('https://depcurfew.github.io/');
+    expect(siteAddress(manifest.homepage)).toBe(SITE);
+  });
+
+  it.each([
+    ['https://depcurfew.github.io/', 'https://depcurfew.github.io/'],
+    ['https://example.org/docs/', 'https://example.org/docs/'],
+    ['https://github.com/DevXord/depcurfew#readme', undefined],
+    ['https://github.com/DevXord/depcurfew/', undefined],
+    ['https://depcurfew.github.io', undefined],
+    ['http://depcurfew.github.io/', undefined],
+    ['https://depcurfew.github.io/?page=1/', undefined],
+    ['https://user:secret@depcurfew.github.io/', undefined],
+    ['not a URL/', undefined],
+    [undefined, undefined],
+    [{ url: 'https://depcurfew.github.io/' }, undefined],
+  ])('gives %j the site address %j', (homepage, expected) => {
+    expect(siteAddress(homepage)).toBe(expected);
+  });
+
+  it('lets every page be crawled and names the sitemap in robots.txt', () => {
+    expect(readFileSync(join(site, 'robots.txt'), 'utf8')).toBe(
+      `# The documentation of depcurfew. Earlier versions carry noindex; the sitemap lists the current one.\nUser-agent: *\nAllow: /\n\nSitemap: ${SITE}sitemap.xml\n`,
+    );
+  });
+
+  it('lists every page of the current version in sitemap.xml, in the order of the navigation, the start page as the root', () => {
+    const xml = readFileSync(join(site, 'sitemap.xml'), 'utf8');
+    expect(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n')).toBe(true);
+    expect(xml.endsWith('</urlset>\n')).toBe(true);
+    expect([...xml.matchAll(/<loc>([^<]*)<\/loc>/gu)].map((match) => match[1])).toEqual(PAGES.map((name) => canonicalOf(name)));
+    expect(canonicalOf('index.html')).toBe(SITE);
+  });
+
+  it.each(PAGES)('%s names its canonical address, its own description and Open Graph tags that repeat them', (name) => {
+    const tags = head(page(name));
+    expect(tags.canonical).toBe(canonicalOf(name));
+    expect(tags.robots).toBeUndefined();
+    expect(tags.og.get('og:url')).toBe(canonicalOf(name));
+    expect(tags.og.get('og:type')).toBe('website');
+    expect(tags.og.get('og:site_name')).toBe('depcurfew');
+    expect(tags.og.get('og:title')).toBe(tags.title);
+    expect(tags.og.get('og:description')).toBe(unescape(tags.description ?? ''));
+    const entry = SITE_PAGES.find((candidate) => candidate.file === name);
+    expect(unescape(tags.description ?? '')).toBe(name === 'index.html' ? manifest.description : entry?.summary);
+  });
+
+  it('gives each page another description, and the start page a title that says what depcurfew is', () => {
+    const descriptions = PAGES.map((name) => head(page(name)).description);
+    expect(new Set(descriptions).size).toBe(PAGES.length);
+    expect(head(page('index.html')).title).toBe(HOME_TITLE);
+    expect(HOME_TITLE.length).toBeLessThanOrEqual(70);
+  });
+
+  it('serves the Google Search Console verification file of site/ as it is, and no other file of site/ that looks like one', () => {
+    expect(readFileSync(join(site, GOOGLE)).equals(readFileSync(new URL(`site/${GOOGLE}`, ROOT)))).toBe(true);
+    expect(readFileSync(join(site, GOOGLE), 'utf8').trimEnd()).toBe(`google-site-verification: ${GOOGLE}`);
+    expect(files(site).filter((name) => /^google/u.test(name))).toEqual([GOOGLE]);
+    expect(readFileSync(join(site, 'sitemap.xml'), 'utf8')).not.toContain(GOOGLE);
+  });
+
+  it('has a 404 page with noindex whose links start at the root of the site, so that they work at any address', () => {
+    const html = page('404.html');
+    expect(html.startsWith('<!doctype html>\n<html lang="en">\n')).toBe(true);
+    expect(html.match(/<h1[ >]/gu)?.length).toBe(1);
+    expect(html).toContain('<h1 id="page-not-found">Page not found</h1>');
+    const tags = head(html);
+    expect(tags.robots).toBe('noindex');
+    expect(tags.canonical).toBeUndefined();
+    expect(html).toContain(`<link rel="stylesheet" href="/style.css?v=${STYLE_STAMP}">`);
+    const root = new URL(SITE).pathname;
+    for (const { name: attribute, value: raw } of attributes(html)) {
+      if (!['href', 'src'].includes(attribute)) continue;
+      const value = unescape(raw);
+      if (isExternal(value) || value.startsWith('#')) continue;
+      expect(value.startsWith(root), value).toBe(true);
+      const path = (value.slice(root.length).split('?')[0] ?? '') || 'index.html';
+      expect(FILES, value).toContain(path);
+    }
+    expect(navigation(html).flatMap((group) => group.links)).toEqual(expect.arrayContaining(PAGES.map((name) => `${root}${name}`)));
   });
 });

@@ -13,6 +13,12 @@ import { expect } from 'vitest';
  */
 export const STYLE_STAMP = createHash('sha256').update(readFileSync(new URL('../../site/style.css', import.meta.url))).digest('hex').slice(0, 12);
 
+/** The address of the published site: homepage in package.json (decision D-177). */
+export const SITE = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { homepage: string }).homepage;
+
+/** The canonical address of a page of the current version; none for earlier versions and the 404 page (D-177). */
+export const canonicalOf = (name: string) => (name.includes('/') || name === '404.html' ? undefined : name === 'index.html' ? SITE : `${SITE}${name}`);
+
 /** The files under a directory, as paths with `/`. */
 export function files(directory: string): string[] {
   return readdirSync(directory, { recursive: true, withFileTypes: true })
@@ -130,13 +136,21 @@ export function checkLoadsNothing(html: string, name: string): void {
   expect(html).not.toMatch(/<(script|iframe|object|embed|video|audio|source|picture|form|base|svg|meta http-equiv)\b/iu);
   expect(html).not.toMatch(/\sstyle="/u);
   expect(html).not.toMatch(/\son\w+="/u);
+  const canonical = canonicalOf(name);
   for (const { tag, name: attribute, value } of attributes(html)) {
     if (tag === 'a' && attribute === 'href') {
       if (isExternal(unescape(value))) expect(unescape(value), name).toMatch(/^(https?|mailto):/u);
       continue;
     }
+    // og:type and the other Open Graph properties are names, not addresses (D-177).
+    if (tag === 'meta' && (attribute === 'property' || attribute === 'name')) continue;
+    // The canonical address and og:url name the page itself on the published site; nothing loads them (D-177).
+    if ((tag === 'link' && attribute === 'href') || (tag === 'meta' && attribute === 'content')) {
+      if (isExternal(unescape(value))) expect(unescape(value), `${name}: <${tag} ${attribute}="${value}">`).toBe(canonical);
+      continue;
+    }
     expect(isExternal(unescape(value)), `${name}: <${tag} ${attribute}="${value}">`).toBe(false);
   }
-  expect(html.match(/<link\b[^>]*>/gu), name).toEqual([expected.stylesheet, expected.icon]);
+  expect(html.match(/<link\b[^>]*>/gu), name).toEqual([expected.stylesheet, expected.icon, ...(canonical === undefined ? [] : [`<link rel="canonical" href="${canonical}">`])]);
   expect(html.match(/<img\b[^>]*>/gu), name).toEqual(images(name));
 }

@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildSite, PAGE_GROUPS, SITE_PAGES, START_PAGES, VERSIONS_PAGE } from '../../scripts/site/build.ts';
 import { readVersions, repositoryUrl, siteArguments, type ArchivedVersion } from '../../scripts/site/versions.ts';
-import { checkDocument, checkLinks, checkLoadsNothing, files, ids, navigation, readPage } from './pages.ts';
+import { canonicalOf, checkDocument, checkLinks, checkLoadsNothing, files, ids, navigation, readPage, SITE } from './pages.ts';
 
 const ROOT = new URL('../../', import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL('package.json', ROOT), 'utf8')) as { version: string; repository: unknown };
@@ -141,8 +141,10 @@ afterAll(() => {
 
 const ROOT_PAGES = [...SITE_PAGES.map((entry) => entry.file), VERSIONS_PAGE.file];
 const ARCHIVE = ['1.1.0/changelog.html', '1.1.0/index.html', '1.1.0/knowledge.html', '1.1.0/schema.json', '1.2.0/changelog.html', '1.2.0/index.html', '1.2.0/schema.json'];
-const FILES = [...ROOT_PAGES, 'favicon.svg', 'schema.json', 'schema/v1.json', 'style.css', ...ARCHIVE].sort();
-const HTML = FILES.filter((name) => name.endsWith('.html'));
+const FILES = [...ROOT_PAGES, '404.html', 'favicon.svg', 'google489721fb1ec8d3a9.html', 'robots.txt', 'schema.json', 'schema/v1.json', 'sitemap.xml', 'style.css', ...ARCHIVE].sort();
+// The 404 page links from the root of the site, not relatively, and the Google file is no page; tests/site/build.test.ts
+// checks both (D-177).
+const HTML = FILES.filter((name) => name.endsWith('.html') && name !== '404.html' && !name.startsWith('google'));
 const page = (name: string) => readPage(site, name);
 
 describe('reading the release tags', () => {
@@ -220,6 +222,19 @@ describe('site with earlier versions', () => {
     expect(readFileSync(join(site, '1.1.0', 'schema.json'), 'utf8')).toBe(SCHEMA_110);
     expect(readFileSync(join(site, '1.2.0', 'schema.json'), 'utf8')).toBe(SCHEMA_120);
     expect(readFileSync(join(site, 'schema.json')).equals(readFileSync(new URL('schema.json', ROOT)))).toBe(true);
+  });
+
+  it('lists the Versions page in sitemap.xml but no page of an earlier version, which carry noindex instead (D-177)', () => {
+    const locations = [...readFileSync(join(site, 'sitemap.xml'), 'utf8').matchAll(/<loc>([^<]*)<\/loc>/gu)].map((match) => match[1]);
+    expect(locations).toEqual(ROOT_PAGES.map((name) => canonicalOf(name)));
+    expect(locations).toContain(`${SITE}${VERSIONS_PAGE.file}`);
+    for (const name of HTML.filter((entry) => entry.includes('/'))) {
+      const html = page(name);
+      expect(html, name).toContain('<meta name="robots" content="noindex">');
+      expect(html, name).not.toContain('rel="canonical"');
+      expect(html, name).not.toContain('property="og:');
+    }
+    expect(navigation(page('404.html')).flatMap((group) => group.links)).toContain(`/${VERSIONS_PAGE.file}`);
   });
 
   it.each(HTML)('%s is a complete page whose links and anchors resolve and that loads nothing from elsewhere', (name) => {
