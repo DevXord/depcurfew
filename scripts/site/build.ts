@@ -17,7 +17,7 @@ import { knowledgeBase } from '../../src/knowledge/index.ts';
 import { renderKnowledgeMarkdown } from '../../src/knowledge/render.ts';
 import type { Ecosystem, ToolId, ToolKnowledge } from '../../src/knowledge/types.ts';
 import { createSlugger, escapeHtml, renderMarkdown, slugify, splitSections, type Section } from './markdown.ts';
-import { FIRST_ARCHIVED_VERSION, repositoryUrl, type ArchivedVersion } from './versions.ts';
+import { compareVersions, FIRST_ARCHIVED_VERSION, repositoryUrl, type ArchivedVersion, type ReleaseState } from './versions.ts';
 
 const REPOSITORY = new URL('../../', import.meta.url);
 
@@ -244,6 +244,10 @@ interface Context {
   repository: string | undefined;
   /** The address of the published site from homepage in package.json, ending with /, or undefined (decision D-177). */
   site: string | undefined;
+  /** Where the commit being built stands against the release tags, when git told (decision D-178). */
+  release: ReleaseState | undefined;
+  /** The earlier versions that have a directory on the site. */
+  archived: ReadonlySet<string>;
   template: string;
   /** The pages in the navigation of the current version: SITE_PAGES, and the Versions page with earlier versions. */
   pages: readonly Page[];
@@ -569,8 +573,28 @@ function currentHead(file: string, title: string, description: string, context: 
   ].join('\n');
 }
 
-/** The frame of a page of the current version. */
-function currentFrame(page: Page, context: Context): Frame {
+/**
+ * The banner of a page of the current version built from a commit that is not its release (D-178): the version is not
+ * released yet, or the commit has changes after the release of its version. `root` leads back to the root of the site.
+ */
+function unreleasedBanner(context: Context, root: string): string {
+  const { release } = context;
+  if (release === undefined || release.released) return '';
+  const versions = context.archived.size === 0 ? '' : ` · <a href="${escapeHtml(`${root}${VERSIONS_PAGE.file}`)}">all versions</a>`;
+  const comparison = compareVersions(context.version, release.latest);
+  if (comparison > 0) {
+    const latest = context.archived.has(release.latest) ? `<a href="${escapeHtml(`${root}${release.latest}/index.html`)}">its documentation</a>` : `<a href="${escapeHtml(`https://www.npmjs.com/package/${context.name}/v/${release.latest}`)}">its page on npm</a>`;
+    return `<p class="banner">This documentation is of depcurfew ${escapeHtml(context.version)} from the main branch, which is not released yet. The latest release on npm is ${escapeHtml(release.latest)}: ${latest}${versions}</p>\n`;
+  }
+  if (comparison === 0) {
+    const notes = context.repository === undefined ? '' : ` · <a href="${escapeHtml(`${context.repository}/releases/tag/v${context.version}`)}">release notes of ${escapeHtml(context.version)}</a>`;
+    return `<p class="banner">This documentation is built from the main branch and may describe changes made after depcurfew ${escapeHtml(context.version)}, the latest release on npm; they come with the next release${notes}${versions}</p>\n`;
+  }
+  return '';
+}
+
+/** The frame of a page of the current version; `root` leads back to the root of the site, for the 404 page. */
+function currentFrame(page: Page, context: Context, root = ''): Frame {
   const source = context.repository === undefined ? '' : ` · <a href="${escapeHtml(context.repository)}">Source on GitHub</a>`;
   const title = page.title === 'depcurfew' ? HOME_TITLE : `${page.title} · depcurfew`;
   // Each page its own description; the start page the one of package.json (D-177).
@@ -585,7 +609,7 @@ function currentFrame(page: Page, context: Context): Frame {
       title: group.title,
       entries: group.pages.map((entry) => ({ href: entry.file, text: entry.nav, current: entry.file === page.file })),
     })),
-    banner: '',
+    banner: unreleasedBanner(context, root),
     hero: '',
     footer: `<p>depcurfew ${escapeHtml(context.version)} · built from README.md and src/knowledge/ with <code>npm run site</code>${source} · ${escapeHtml(context.license)} license</p>`,
   };
@@ -796,7 +820,7 @@ function sitemapXml(site: string, pages: readonly Page[]): string {
  */
 function notFoundPage(site: string, context: Context): string {
   const root = new URL(site).pathname;
-  const frame = currentFrame({ file: '404.html', nav: 'Page not found', title: 'Page not found', summary: 'There is no page at this address.' }, context);
+  const frame = currentFrame({ file: '404.html', nav: 'Page not found', title: 'Page not found', summary: 'There is no page at this address.' }, context, root);
   const nav = frame.nav.map((group) => ({ ...group, entries: group.entries.map((entry) => ({ ...entry, href: `${root}${entry.href}` })) }));
   const content = [
     '<h1 id="page-not-found">Page not found</h1>',
@@ -810,6 +834,8 @@ export interface SiteOptions {
   versions?: readonly ArchivedVersion[];
   /** Receives a line for each link of an earlier version that the site cannot keep. */
   report?: (line: string) => void;
+  /** Where the commit being built stands against the release tags, from readReleaseState (decision D-178). */
+  release?: ReleaseState;
 }
 
 /** Every file of the site by its path, from the sources in `root`. */
@@ -830,6 +856,8 @@ export function renderSite(root: URL = REPOSITORY, options: SiteOptions = {}): M
     license: pkg.license,
     repository: repositoryUrl(pkg.repository),
     site: siteAddress(pkg.homepage),
+    release: options.release,
+    archived: new Set(versions.map((entry) => entry.version)),
     // The address of the stylesheet changes with its content, so that a browser does not keep a cached one after a
     // change of the site (decision D-147).
     template: read(root, 'site/template.html').replaceAll('{{stamp}}', createHash('sha256').update(read(root, 'site/style.css')).digest('hex').slice(0, 12)),

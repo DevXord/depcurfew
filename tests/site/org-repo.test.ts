@@ -1,17 +1,14 @@
-// The files of the organization repository depcurfew/depcurfew.github.io (decision D-139), kept in site/org-repo/:
-// its Pages workflow builds the site of the latest release of the main repository, named once in SOURCE_REPOSITORY,
-// with npm run site -- --versions, once a day and by hand, and deploys it with the official Pages actions, with pages
-// and id-token permissions only in the deploy job. This repository has no Pages workflow of its own.
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { Script } from 'node:vm';
+// The files of the organization repository depcurfew/depcurfew.github.io (decisions D-139 and D-178), kept in
+// site/org-repo/: its Pages workflow builds the site from the main branch of the main repository, named once in
+// SOURCE_REPOSITORY, with every tag and npm run site -- --versions, once a day and by hand, and deploys it with the
+// official Pages actions, with pages and id-token permissions only in the deploy job. This repository has no Pages
+// workflow of its own.
+import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { repositoryUrl } from '../../scripts/site/versions.ts';
 import { files } from './pages.ts';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 interface Step {
   id?: string;
@@ -68,15 +65,13 @@ describe('Pages workflow of depcurfew/depcurfew.github.io', () => {
     expect(text.split('\n').filter((line) => line.includes(source))).toEqual([`  SOURCE_REPOSITORY: ${source}`]);
   });
 
-  it('finds the latest release with the workflow token, then checks out the main repository at its tag with every tag and no credentials', () => {
-    const find = index(build, (step) => step.id === 'release');
+  it('checks out the main branch of the main repository with every tag and no credentials, without a token or the GitHub API', () => {
     const checkout = index(build, (step) => step.uses?.startsWith('actions/checkout@') === true);
-    expect(index(build, (step) => step.uses?.startsWith('actions/setup-node@') === true)).toBeLessThan(find);
-    expect(find).toBeGreaterThan(-1);
-    expect(build.steps[find]?.env).toEqual({ GITHUB_TOKEN: '${{ github.token }}' });
-    expect(checkout).toBeGreaterThan(find);
-    expect(build.steps[checkout]?.with).toEqual({ repository: '${{ env.SOURCE_REPOSITORY }}', ref: '${{ steps.release.outputs.tag }}', 'fetch-depth': 0, 'persist-credentials': false });
+    expect(index(build, (step) => step.uses?.startsWith('actions/setup-node@') === true)).toBeLessThan(checkout);
+    expect(build.steps[checkout]?.with).toEqual({ repository: '${{ env.SOURCE_REPOSITORY }}', ref: 'main', 'fetch-depth': 0, 'persist-credentials': false });
     expect(action(build, 'setup-node')?.with).toEqual({ 'node-version': 24, 'package-manager-cache': false });
+    expect(text).not.toMatch(/github\.token|GITHUB_TOKEN|api\.github\.com/u);
+    expect(build.steps.every((step) => step.env === undefined)).toBe(true);
   });
 
   it('installs the npm of packageManager, runs npm ci without scripts, builds the earlier versions too and uploads dist-site', () => {
@@ -121,109 +116,13 @@ describe('Pages workflow of depcurfew/depcurfew.github.io', () => {
   });
 });
 
-describe('finding the latest release', () => {
-  // The script of the step, run by Node.js with fetch replaced by recorded answers of the GitHub API.
-  const script = /node -e '([\s\S]*?)'\s*$/u.exec(build.steps.find((step) => step.id === 'release')?.run ?? '')?.[1] ?? '';
-  let directory = '';
-  let stub = '';
-
-  beforeAll(() => {
-    directory = mkdtempSync(join(tmpdir(), 'depcurfew-org-release-'));
-    stub = join(directory, 'stub.mjs');
-    writeFileSync(
-      stub,
-      [
-        "import { writeFileSync } from 'node:fs';",
-        'globalThis.fetch = async (url, init) => {',
-        '  writeFileSync(process.env.STUB_REQUEST, JSON.stringify({ url: String(url), headers: init?.headers ?? {} }));',
-        '  const status = Number(process.env.STUB_STATUS);',
-        '  return { ok: status === 200, status, url: String(url), json: async () => JSON.parse(process.env.STUB_RELEASES) };',
-        '};',
-        '',
-      ].join('\n'),
-    );
-  });
-
-  afterAll(() => {
-    if (directory !== '') rmSync(directory, { recursive: true, force: true });
-  });
-
-  type Release = { tag_name: string; draft?: boolean; prerelease?: boolean };
-  const release = (tag_name: string, extra: Partial<Release> = {}): Release => ({ tag_name, draft: false, prerelease: false, ...extra });
-
-  function run(releases: Release[], status = 200) {
-    const output = join(directory, 'output');
-    const request = join(directory, 'request.json');
-    rmSync(output, { force: true });
-    writeFileSync(output, '');
-    const result = spawnSync(process.execPath, ['--import', pathToFileURL(stub).href, '-e', script], {
-      encoding: 'utf8',
-      // SystemRoot, which Node.js needs on Windows, and nothing else of the environment of the tests.
-      env: { PATH: process.env['PATH'] ?? '', ...(process.env['SystemRoot'] === undefined ? {} : { SystemRoot: process.env['SystemRoot'] }), SOURCE_REPOSITORY: source, GITHUB_TOKEN: 'token-of-the-test', GITHUB_OUTPUT: output, STUB_REQUEST: request, STUB_STATUS: String(status), STUB_RELEASES: JSON.stringify(releases) },
-    });
-    return { status: result.status, stderr: result.stderr, output: readFileSync(output, 'utf8'), request: existsSync(request) ? (JSON.parse(readFileSync(request, 'utf8')) as { url: string; headers: Record<string, string> }) : undefined };
-  }
-
-  it('is a script of the step', () => {
-    expect(script).toContain('fetch(');
-    // The script is what the shell passes to Node.js: it parses as it is.
-    expect(() => new Script(script)).not.toThrow();
-  });
-
-  it('asks the GitHub API for the releases of the main repository with the workflow token', () => {
-    const result = run([release('v1.4.0')]);
-    expect(result.request?.url).toBe(`https://api.github.com/repos/${source}/releases?per_page=100`);
-    expect(result.request?.headers).toEqual({ accept: 'application/vnd.github+json', authorization: 'Bearer token-of-the-test' });
-    expect(result.output).toBe('tag=v1.4.0\n');
-  });
-
-  it('takes the highest version among the published full releases, never a draft, a pre-release or another tag', () => {
-    const result = run([
-      release('v1.3.0'),
-      release('v1.10.0'),
-      release('v1.9.0'),
-      release('v2.0.0', { draft: true }),
-      release('v2.0.0-rc.1', { prerelease: true }),
-      release('nightly'),
-      release('v3.0.0\ntag=v0.0.1'),
-    ]);
-    expect(result.status).toBe(0);
-    expect(result.output).toBe('tag=v1.10.0\n');
-  });
-
-  it('takes the highest pre-release when there is no full release', () => {
-    const result = run([release('v2.0.0-rc.2', { prerelease: true }), release('v2.0.0-rc.10', { prerelease: true }), release('v2.0.0-beta.3', { prerelease: true }), release('v2.0.0', { draft: true })]);
-    expect(result.status).toBe(0);
-    expect(result.output).toBe('tag=v2.0.0-rc.10\n');
-  });
-
-  it('stops with an error that names a latest release older than 1.4.0, which has no npm run site (decision D-141)', () => {
-    for (const tags of [['v1.3.0', 'v1.2.0'], ['v0.9.0']]) {
-      const result = run(tags.map((tag) => release(tag)));
-      expect(result.status).toBe(1);
-      expect(result.output).toBe('');
-      expect(result.stderr).toContain(`::error::the latest release of ${source} is ${tags[0] ?? ''}, but the site needs depcurfew 1.4.0 or later (npm run site); publish the GitHub Release of v1.4.0 or later, then run this workflow again`);
-    }
-    expect(run([release('v1.4.0-rc.1', { prerelease: true })]).output).toBe('tag=v1.4.0-rc.1\n');
-    expect(run([release('v1.3.0'), release('v1.4.0')]).output).toBe('tag=v1.4.0\n');
-  });
-
-  it('fails with an error annotation when there is no release or the API answers with an error', () => {
-    for (const result of [run([release('v1.0.0', { draft: true })]), run([], 403)]) {
-      expect(result.status).toBe(1);
-      expect(result.output).toBe('');
-      expect(result.stderr).toMatch(/^::error::/mu);
-    }
-    expect(run([], 403).stderr).toContain('HTTP 403');
-  });
-});
-
 describe('README of depcurfew/depcurfew.github.io', () => {
   const readme = readFileSync(new URL('site/org-repo/README.md', ROOT), 'utf8');
 
   it('says what the repository is, where its content comes from and how it updates', () => {
     expect(readme).toMatch(/^# depcurfew\.github\.io\n/u);
-    expect(readme).toContain('The site needs depcurfew 1.4.0 or later');
+    expect(readme).toContain('It checks out the main branch of the main repository with every tag');
+    expect(readme).toContain('every page of the root says so in a banner');
     for (const part of ['https://depcurfew.github.io/', `https://github.com/${source}`, 'SOURCE_REPOSITORY', 'npm run site -- --versions', '.github/workflows/pages.yml', 'site/org-repo/']) expect(readme, part).toContain(part);
   });
 });
