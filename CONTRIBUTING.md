@@ -5,6 +5,7 @@ depcurfew is a security tool: it writes the supply-chain settings of package man
 ## Before you start
 
 - Open an issue first for anything larger than a fix of a few lines: another package manager, a new check, a new option. The issue forms ask for what is needed, above all links to the official documentation of the tool.
+- Ask questions and talk over ideas in [Discussions](https://github.com/DevXord/depcurfew/discussions); issues are for bugs, wrong results and features.
 - Report a vulnerability privately, as [SECURITY.md](SECURITY.md) describes, never in an issue or a pull request.
 
 ## Setting up
