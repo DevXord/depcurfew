@@ -4,7 +4,7 @@
 CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa łańcucha dostaw dla npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Composera, Bundlera (Ruby), Renovate i Dependabota oraz wykrywa konfigurację, która po cichu nie działa.
 
 ## Twarde reguły
-- To narzędzie bezpieczeństwa. Minimum zależności w czasie działania: wolno użyć wyłącznie `yaml` (zero zależności przechodnich), wszystko inne piszemy sami. Każda nowa zależność wymaga uzasadnienia w docs/decisions.md.
+- To narzędzie bezpieczeństwa. Minimum zależności w czasie działania: wolno użyć wyłącznie `yaml` (zero zależności przechodnich), wszystko inne piszemy sami. Każda nowa zależność wymaga uzasadnienia w decisions.md (dokument wewnętrzny).
 - Każda zależność poza `yaml`, także deweloperska, wymaga wcześniejszej zgody właściciela repozytorium.
 - Wszystkie fakty o menedżerach paczek (nazwy opcji, pliki, jednostki, wersje, wartości domyślne) żyją wyłącznie w src/knowledge/. Każdy wpis ma `source` (URL oficjalnej dokumentacji lub changelogu) i `verifiedAt` (data). Testy pilnują, że żaden wpis nie ma pustego źródła.
 - Nigdy nie wpisuj faktu o menedżerze paczek z pamięci. Sprawdź w aktualnej dokumentacji (WebFetch/WebSearch) i dopisz źródło.
@@ -14,7 +14,13 @@ CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa ła�
 - Testy nie korzystają z sieci; fikstury repozytoriów leżą w tests/fixtures.
 - Tylko ESM, bez top-level await.
 - Nie publikuj niczego na npm, nie twórz kont i nie wypychaj zmian do zdalnego repozytorium bez zgody właściciela. Nie zmieniaj ustawień poza tym repozytorium.
-- docs/PLAN.md jest dokumentem lokalnym (jest w .gitignore) i nigdy nie trafia do commitów.
+
+## Internal documents
+- PLAN.md (plan, strategia, ceny i wersja płatna), decisions.md (dziennik decyzji D-NNN) i CHANGELOG-dev.md (dziennik faz i sesji) to dokumenty wewnętrzne. Opiekun trzyma je poza repozytorium i poza jego katalogiem roboczym.
+- Nigdy nie są śledzone, commitowane ani wypychane; `.gitignore` wymienia je jako zabezpieczenie.
+- Teksty publiczne (README, CHANGELOG, CONTRIBUTING, SECURITY, dokumentacja w docs/, szablony GitHuba, dokumentacja paczki i strony) ich nie wymieniają i do nich nie linkują; pilnuje tego test `tests/meta/internal-docs.test.ts`. Identyfikatory decyzji (D-NNN) w komentarzach kodu zostają.
+- W sesji w chmurze opiekun przesyła je na początku. Sesja trzyma je poza repozytorium (np. w katalogu na notatki), dopisuje w nich decyzje i wpisy, a na końcu oddaje zmienione pliki jako .zip (bez katalogu docs/ w środku) i ich nie commituje.
+- Bez nich sesja pyta o nie, zanim zacznie pracę, która wymaga planu, decyzji albo faktu z tych dokumentów.
 
 ## Komunikaty (dla człowieka i dla AI)
 - Każdy błąd i ostrzeżenie mówi, co jest nie tak, gdzie (plik i linia, gdy są znane) i co zrobić (`fix` w `doctor`, wskazówka w `apply` i `check`). Prosty angielski, nazwy plików i ustawień dosłownie.
@@ -45,7 +51,7 @@ CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa ła�
 - Użytkownicy CLI potrzebują Node zgodnego z `engines` w package.json.
 
 ## Sposób pracy
-- Jedna faza planu na sesję. Na początku sesji przeczytaj docs/PLAN.md i docs/decisions.md.
+- Jedna faza planu na sesję. Na początku sesji przeczytaj PLAN.md i decisions.md (dokumenty wewnętrzne, zob. „Internal documents”).
 - Najpierw testy (fikstura wejściowa i oczekiwany wynik), potem implementacja.
-- Po każdej fazie: krótkie podsumowanie w docs/CHANGELOG-dev.md i commit.
+- Po każdej fazie: krótkie podsumowanie w CHANGELOG-dev.md (dokument wewnętrzny, poza commitem) i commit zmian w repozytorium.
 - Projekty testowe do ręcznych testów (poza tests/fixtures) usuwamy po teście; zostaje tylko zapis konsoli. Testy automatyczne też sprzątają po sobie, również uruchomione z filtrem `-t`.

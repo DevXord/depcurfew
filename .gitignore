@@ -1,5 +1,8 @@
-# Local planning documents (never committed)
+# Internal documents of the maintainer (plan, decision log, log of the work). They are kept outside the repository and
+# never committed; listed here as a safeguard against adding them by accident.
 docs/PLAN.md
+docs/decisions.md
+docs/CHANGELOG-dev.md
 plan-polityka-supply-chain.md
 
 # Dependencies and build output

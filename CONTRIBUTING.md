@@ -7,6 +7,7 @@ depcurfew is a security tool: it writes the supply-chain settings of package man
 - Open an issue first for anything larger than a fix of a few lines: another package manager, a new check, a new option. The issue forms ask for what is needed, above all links to the official documentation of the tool.
 - Ask questions in [Discussions, Q&A](https://github.com/DevXord/depcurfew/discussions/categories/q-a) and talk over ideas in [Discussions, Ideas](https://github.com/DevXord/depcurfew/discussions/categories/ideas); issues are for bugs, wrong results and features.
 - Report a vulnerability privately, as [SECURITY.md](SECURITY.md) describes, never in an issue or a pull request.
+- Identifiers such as D-099 in code comments and in the notes of the knowledge base point to internal notes of the maintainer, which are not in the repository.
 
 ## Setting up
 
@@ -33,7 +34,7 @@ To try a change by hand: `node dist/cli.js explain tests/fixtures/repos/<name>`,
 
 ## Rules
 
-- **Dependencies.** At run time depcurfew depends on `yaml` only, and everything else is written in the repository. Any new dependency, also a development one, needs agreement in an issue first and a justification in `docs/decisions.md`.
+- **Dependencies.** At run time depcurfew depends on `yaml` only, and everything else is written in the repository. Any new dependency, also a development one, needs agreement in an issue first, and the pull request says why it is needed.
 - **Facts about package managers** (option names, files, units, versions, defaults) live only in `src/knowledge/`. Every entry has a `source` (the official documentation, source code at a release tag, or a changelog) and a `verifiedAt` date, and is checked at that source, never written from memory. Tests fail on an entry without a source.
 - **Units** are converted towards the longer delay.
 - **Editing other tools' files.** `apply` keeps comments and formatting, marks the parts it manages, never removes a setting it does not manage, and a second `apply` without a change of the policy changes no file.
@@ -49,6 +50,6 @@ To try a change by hand: `node dist/cli.js explain tests/fixtures/repos/<name>`,
 
 ## Pull requests
 
-- Describe what the change does for users, and add or change the entry in `docs/decisions.md`: the decision, why, and its consequences.
+- Describe what the change does for users, why, and its consequences.
 - Regenerate the generated files (the commands above) and add user-facing changes to `CHANGELOG.md`.
 - The pull request template lists the checks that have to pass.
