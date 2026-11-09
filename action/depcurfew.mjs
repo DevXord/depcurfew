@@ -747,6 +747,7 @@ const bundler$1 = {
 // src/knowledge/composer.ts
 const { verified: verified$14, uncertain: uncertain$12 } = verifiedOn("2026-11-02");
 const ciOverrides$1 = verifiedOn("2026-11-03");
+const d192 = verifiedOn("2026-11-09");
 const COMPOSER = "https://github.com/composer/composer/blob/2.11.1";
 const CONFIG$3 = `${COMPOSER}/doc/06-config.md`;
 const CLI$1 = `${COMPOSER}/doc/03-cli.md`;
@@ -755,6 +756,7 @@ const REPOSITORIES = `${COMPOSER}/doc/05-repositories.md`;
 const CHANGELOG$3 = `${COMPOSER}/CHANGELOG.md`;
 const SRC = `${COMPOSER}/src/Composer`;
 const VERSIONS = `${COMPOSER}/doc/articles/versions.md`;
+const AUTHENTICATION = `${COMPOSER}/doc/articles/authentication-for-private-packages.md`;
 const MINIFIER = "https://github.com/composer/metadata-minifier/blob/1.0.1/src/MetadataMinifier.php";
 const CONSOLE = "https://github.com/symfony/console/blob/v5.4.55";
 const PACKAGIST_API = "https://packagist.org/apidoc";
@@ -1603,7 +1605,28 @@ const composer$3 = {
 			}],
 			variables: [],
 			lookup: "first-token"
-		}, `${CLI$1}#global-options`, "\"--working-dir (-d): If specified, use the given directory as working directory.\" Application::doRunComposer changes to it before it reads composer.json (src/Composer/Console/Application.php at 2.11.1). Without it and without composer.json in the current directory (and for a command other than list, init, about, help, diagnose, self-update, global, create-project and outdated), Composer looks for the nearest parent with one, stopping before the home directory and the root of the file system: an interactive run asks whether to use it, use-parent-dir true uses it without asking, and a run without a terminal (stdin not a TTY, or COMPOSER_NO_INTERACTION) with the default use-parent-dir \"prompt\" (Config::$defaultConfig in src/Composer/Config.php) stays in the current directory and only says so; with --working-dir it never looks at a parent. It then registers the scripts (Application.php) and reads minimum-stability (PackageDiscoveryTrait::getMinimumStability) of Factory::getComposerFile() in the directory it is in. getNewWorkingDir reads the directory with $input->getParameterOption(['--working-dir', '-d'], null, true), which in symfony/console v5.4.55 (Input/ArgvInput.php) takes the first word, up to --, that is --working-dir or -d (then the next word) or starts with --working-dir= or -d (then the rest of the word); a grouped -nd dir does not start with -d, so Composer stays where it is, although the command later binds -n and -d dir as options.")
+		}, `${CLI$1}#global-options`, "\"--working-dir (-d): If specified, use the given directory as working directory.\" Application::doRunComposer changes to it before it reads composer.json (src/Composer/Console/Application.php at 2.11.1). Without it and without composer.json in the current directory (and for a command other than list, init, about, help, diagnose, self-update, global, create-project and outdated), Composer looks for the nearest parent with one, stopping before the home directory and the root of the file system: an interactive run asks whether to use it, use-parent-dir true uses it without asking, and a run without a terminal (stdin not a TTY, or COMPOSER_NO_INTERACTION) with the default use-parent-dir \"prompt\" (Config::$defaultConfig in src/Composer/Config.php) stays in the current directory and only says so; with --working-dir it never looks at a parent. It then registers the scripts (Application.php) and reads minimum-stability (PackageDiscoveryTrait::getMinimumStability) of Factory::getComposerFile() in the directory it is in. getNewWorkingDir reads the directory with $input->getParameterOption(['--working-dir', '-d'], null, true), which in symfony/console v5.4.55 (Input/ArgvInput.php) takes the first word, up to --, that is --working-dir or -d (then the next word) or starts with --working-dir= or -d (then the rest of the word); a grouped -nd dir does not start with -d, so Composer stays where it is, although the command later binds -n and -d dir as options."),
+		credentials: d192.verified({
+			keys: [
+				"http-basic",
+				"bearer",
+				"custom-headers",
+				"gitlab-oauth",
+				"gitlab-token",
+				"github-oauth",
+				"bitbucket-oauth",
+				"client-certificate",
+				"forgejo-token"
+			],
+			config: "config",
+			headers: [
+				"repositories",
+				"*",
+				"options",
+				"http",
+				"header"
+			]
+		}, AUTHENTICATION, "\"Credentials can be stored on 4 different places; in an auth.json for the project, a global auth.json, in the composer.json itself or in the COMPOSER_AUTH environment variable\"; in composer.json \"in the config section or directly in the repository definition\". Each method is a key with the host under it: \"http-basic\": {\"example.org\": {\"username\": …, \"password\": …}}, \"bearer\": {\"example.org\": \"TOKEN\"}, \"custom-headers\": {\"repo.example.org\": [\"API-TOKEN: YOUR-API-TOKEN\", …]}, \"gitlab-oauth\" and \"gitlab-token\": {\"example.org\": \"token\"}, \"github-oauth\": {\"github.com\": \"token\"}, \"bitbucket-oauth\": {\"bitbucket.org\": {\"consumer-key\": \"key\", \"consumer-secret\": \"secret\"}}, \"client-certificate\": {\"repo.example.org\": {\"local_cert\": …, \"local_pk\": …, \"passphrase\": \"MySecretPassword\"}} and \"forgejo-token\": {\"forgejo.example.org\": {\"username\": \"forgejo-user\", \"token\": \"access-token\"}}; inline custom headers sit in the repository as \"options\": {\"http\": {\"header\": [\"API-TOKEN: YOUR-API-TOKEN\", …]}}. The token is the value under the host, so a diff that reads a line alone does not see that it is one (decision D-192).")
 	}
 };
 
@@ -20816,13 +20839,13 @@ function topBlock(lines, at, entries, separate, marker) {
 }
 
 // src/apply/gemfile-scan.ts
-const isStrings$7 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-const isSyntax = (value) => isRecord(value) && isRecord(value["endOfScript"]) && typeof value["endOfScript"]["marker"] === "string" && isStrings$7(value["endOfScript"]["characters"]) && isStrings$7(value["embeddedDocument"]) && value["embeddedDocument"].length === 2 && isRecord(value["percentLiterals"]) && isStrings$7(value["percentLiterals"]["expanding"]) && isStrings$7(value["percentLiterals"]["plain"]) && isRecord(value["pairedDelimiters"]) && isStrings$7(value["heredocIndent"]) && typeof value["globalPunctuation"] === "string" && isStrings$7(value["numberSuffixes"]) && typeof value["lineEnding"] === "string" && isRecord(value["keywords"]) && Object.values(value["keywords"]).every(isStrings$7) && [
+const isStrings$8 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isSyntax = (value) => isRecord(value) && isRecord(value["endOfScript"]) && typeof value["endOfScript"]["marker"] === "string" && isStrings$8(value["endOfScript"]["characters"]) && isStrings$8(value["embeddedDocument"]) && value["embeddedDocument"].length === 2 && isRecord(value["percentLiterals"]) && isStrings$8(value["percentLiterals"]["expanding"]) && isStrings$8(value["percentLiterals"]["plain"]) && isRecord(value["pairedDelimiters"]) && isStrings$8(value["heredocIndent"]) && typeof value["globalPunctuation"] === "string" && isStrings$8(value["numberSuffixes"]) && typeof value["lineEnding"] === "string" && isRecord(value["keywords"]) && Object.values(value["keywords"]).every(isStrings$8) && [
 	"opening",
 	"loops",
 	"closing"
-].every((key) => isRecord(value["keywords"]) && isStrings$7(value["keywords"][key])) && value["keywords"]["closing"].length === 1;
-const isParsers = (value) => isRecord(value) && isRecord(value["differences"]) && typeof value["differences"]["characterBeyondAscii"] === "boolean" && isStrings$7(value["differences"]["embeddedDocumentAfter"]) && typeof value["differences"]["globalZeroWithName"] === "boolean";
+].every((key) => isRecord(value["keywords"]) && isStrings$8(value["keywords"][key])) && value["keywords"]["closing"].length === 1;
+const isParsers = (value) => isRecord(value) && isRecord(value["differences"]) && typeof value["differences"]["characterBeyondAscii"] === "boolean" && isStrings$8(value["differences"]["embeddedDocumentAfter"]) && typeof value["differences"]["globalZeroWithName"] === "boolean";
 const SYNTAX$2 = extraOf(bundler$1, "rubySyntax", isSyntax);
 const DIFFERENCES = extraOf(bundler$1, "rubyParsers", isParsers).differences;
 const [EMBEDDED_BEGIN, EMBEDDED_END] = SYNTAX$2.embeddedDocument;
@@ -22160,7 +22183,7 @@ function lineEndingPositions(original) {
 }
 
 // src/apply/gemfile.ts
-const isStrings$6 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isStrings$7 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 /** The second token of a source line that makes it no call of source: an assignment, a method of it, a comparison. */
 const NOT_A_CALL = /* @__PURE__ */ new Set([
 	"=",
@@ -22238,7 +22261,7 @@ function cooldownKey(tokens, k) {
 }
 /** Whitespace Ruby skips at the start of the next line while it looks for a leading .method. */
 const isLeadingSpace = (c) => c === " " || c === "	" || c === "\f" || c === "\r" || c === "\v";
-const isContinuation = (value) => isRecord(value) && isStrings$6(value["calls"]) && isRecord(value["logical"]) && isStrings$6(value["logical"]["operators"]) && isStrings$6(value["logical"]["words"]);
+const isContinuation = (value) => isRecord(value) && isStrings$7(value["calls"]) && isRecord(value["logical"]) && isStrings$7(value["logical"]["operators"]) && isStrings$7(value["logical"]["words"]);
 /** What continues a statement at the start of the next line: .method and &.method, and since Ruby 4.0 && || and or. */
 const CONTINUATION = extraOf(bundler$1, "lineContinuation", isContinuation);
 const CONTINUING = [...CONTINUATION.calls, ...CONTINUATION.logical.operators];
@@ -22319,7 +22342,7 @@ const VALUE_ENDS = /* @__PURE__ */ new Set([
 const ARGUMENTS_END = /* @__PURE__ */ new Set([
 	"do",
 	"end",
-	...extraOf(bundler$1, "rubySyntax", (value) => isRecord(value) && isRecord(value["keywords"]) && isStrings$6(value["keywords"]["modifiers"])).keywords.modifiers,
+	...extraOf(bundler$1, "rubySyntax", (value) => isRecord(value) && isRecord(value["keywords"]) && isStrings$7(value["keywords"]["modifiers"])).keywords.modifiers,
 	...CONTINUATION.logical.words
 ]);
 /** Whether the value before `next` ends there; at the end of the line when the statement ends there. */
@@ -24345,8 +24368,8 @@ function patternsFor(patterns, ecosystem) {
 
 // src/doctor/composer.ts
 const COMPOSER_MANIFEST = "composer.json";
-const isStrings$5 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-const isRepositoryTypes = (value) => isRecord(value) && isStrings$5(value["vcs"]) && isStrings$5(value["directory"]) && isStrings$5(value["file"]) && isStrings$5(value["inline"]) && typeof value["disable"] === "string";
+const isStrings$6 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isRepositoryTypes = (value) => isRecord(value) && isStrings$6(value["vcs"]) && isStrings$6(value["directory"]) && isStrings$6(value["file"]) && isStrings$6(value["inline"]) && typeof value["disable"] === "string";
 function repositoryTypes(tool) {
 	return extraOf(tool, "repositoryTypes", isRepositoryTypes);
 }
@@ -24430,7 +24453,7 @@ const REMOTE = /^[a-z][a-z0-9+.-]*:\/\//iu;
 function isLocal(url) {
 	return /^file:\/\//iu.test(url) || !REMOTE.test(url);
 }
-const isFormat = (value) => isRecord(value) && isStrings$5(value["sections"]) && typeof value["name"] === "string" && typeof value["version"] === "string" && typeof value["pluginType"] === "string" && isStrings$5(value["pluginTypes"]) && isStrings$5(value["optionalPlugin"]) && typeof value["pathType"] === "string";
+const isFormat = (value) => isRecord(value) && isStrings$6(value["sections"]) && typeof value["name"] === "string" && typeof value["version"] === "string" && typeof value["pluginType"] === "string" && isStrings$6(value["pluginTypes"]) && isStrings$6(value["optionalPlugin"]) && typeof value["pathType"] === "string";
 const isBranches = (value) => isRecord(value) && typeof value["prefix"] === "string" && typeof value["suffix"] === "string";
 function describe$2(location) {
 	return isRecord(location) ? [location["type"], location["url"]].filter((part) => typeof part === "string").join(" ") : "";
@@ -24444,7 +24467,7 @@ function hostOf(url) {
 * it knows by default (extra.registryDistHosts), and the hosts of the repositories composer.json declares.
 */
 function registryHosts(tool, repositories) {
-	const known = extraOf(tool, "registryDistHosts", isStrings$5);
+	const known = extraOf(tool, "registryDistHosts", isStrings$6);
 	const archives = repositoryArchiveHosts(tool);
 	return /* @__PURE__ */ new Set([...known, ...repositories.flatMap((entry) => {
 		if (entry.url === void 0 || entry.kind === "disable") return [];
@@ -24452,7 +24475,7 @@ function registryHosts(tool, repositories) {
 		return [host, ...entry.kind === "registry" && Object.hasOwn(archives, host) ? archives[host] ?? [] : []];
 	})]);
 }
-const isHostLists = (value) => isRecord(value) && Object.values(value).every(isStrings$5);
+const isHostLists = (value) => isRecord(value) && Object.values(value).every(isStrings$6);
 /** The hosts of the archives of Composer repositories other than Packagist.org, by the host of the repository (decision D-141). */
 function repositoryArchiveHosts(tool) {
 	return tool.extra?.["repositoryArchiveHosts"] === void 0 ? {} : extraOf(tool, "repositoryArchiveHosts", isHostLists);
@@ -31127,14 +31150,14 @@ function execExclusionWarning(context, setting, patterns) {
 }
 
 // src/doctor/renovate.ts
-const isStrings$4 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isStrings$5 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 const isNames = (value) => isRecord(value) && Object.values(value).every((item) => typeof item === "string");
-const isLists = (value) => isRecord(value) && Object.values(value).every(isStrings$4);
+const isLists = (value) => isRecord(value) && Object.values(value).every(isStrings$5);
 const isManagerMatching$1 = (value) => isRecord(value) && typeof value["managerMatcher"] === "string" && typeof value["categoryMatcher"] === "string" && typeof value["stringIsList"] === "boolean";
 const isActions = (value) => isRecord(value) && typeof value["manager"] === "string" && typeof value["datasource"] === "string";
 const isActionsMatching$1 = (value) => isRecord(value) && typeof value["fileMatcher"] === "string" && typeof value["depTypeMatcher"] === "string" && typeof value["depType"] === "string";
-const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$4(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
-const isPresetFact = (value) => isRecord(value) && isStrings$4(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
+const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$5(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
+const isPresetFact = (value) => isRecord(value) && isStrings$5(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
 /** The built-in presets that set minimumReleaseAge, each in a packageRules entry with matchDatasources for its datasource. */
 function presetDelays(bot) {
 	return [
@@ -31147,7 +31170,7 @@ function presetDelays(bot) {
 function presetIn(presets, fact) {
 	return presets.find((item) => fact.presets.includes(presetName(item)));
 }
-const isInternal = (value) => isRecord(value) && isStrings$4(value["prefixes"]) && isStrings$4(value["settingDelay"]);
+const isInternal = (value) => isRecord(value) && isStrings$5(value["prefixes"]) && isStrings$5(value["settingDelay"]);
 function readRenovateConfig(text, file, base) {
 	const top = jsonSetting(text, [...base, "minimumReleaseAge"]);
 	const extendsList = jsonSetting(text, [...base, "extends"]);
@@ -31163,7 +31186,7 @@ function readRenovateConfig(text, file, base) {
 		base,
 		top,
 		extends: {
-			presets: isStrings$4(extendsList?.value) ? extendsList.value : [],
+			presets: isStrings$5(extendsList?.value) ? extendsList.value : [],
 			line: extendsList?.line ?? 1
 		},
 		rules
@@ -31272,7 +31295,7 @@ function actionsTarget(bot, files = []) {
 		...matching === void 0 ? {} : { depTypes: [matching.depType] }
 	};
 }
-const isBotOnly = (value) => isRecord(value) && Object.values(value).every((entry) => isRecord(entry) && typeof entry["manager"] === "string" && typeof entry["datasource"] === "string" && isStrings$4(entry["categories"]));
+const isBotOnly = (value) => isRecord(value) && Object.values(value).every((entry) => isRecord(entry) && typeof entry["manager"] === "string" && typeof entry["datasource"] === "string" && isStrings$5(entry["categories"]));
 /**
 * The dependencies of the ecosystems updated by bots only among `ids` (extra.botOnlyEcosystems, decision D-151), one
 * target each, with the manager, datasource and categories Renovate gives them; none without the fact.
@@ -31316,7 +31339,7 @@ function targetOf(bot, on) {
 }
 /** The patterns of a matcher: a list, or one string when Renovate reads a string as a list of one (extra.managerMatching). */
 function patternsOf(value, stringIsList) {
-	if (isStrings$4(value)) return value;
+	if (isStrings$5(value)) return value;
 	return stringIsList && typeof value === "string" ? [value] : void 0;
 }
 /** anyMatchRegexOrGlobList: some input matches the list. */
@@ -31334,7 +31357,7 @@ function ruleCoverage(bot, rule, on) {
 	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
 	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
 	const stringIsList = managerMatching?.stringIsList === true;
-	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$4);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$5);
 	const actionsMatching = target.actions === true && bot.extra?.["actionsMatching"] !== void 0 ? extraOf(bot, "actionsMatching", isActionsMatching$1) : void 0;
 	const matchers = Object.keys(rule).filter((key) => /^(match|exclude)[A-Z]/u.test(key));
 	const known = /* @__PURE__ */ new Set([
@@ -31463,7 +31486,7 @@ function matchesName(bot, name, pattern) {
 /** The delayed update types a rule applies to (all without matchUpdateTypes); undefined when depcurfew cannot read its patterns. */
 function ruleUpdateTypes(bot, rule) {
 	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
-	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$4);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$5);
 	if (!(matching.updateTypeMatcher in rule)) return updateTypes;
 	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
 	const patterns = patternsOf(rule[matching.updateTypeMatcher], managerMatching?.stringIsList === true);
@@ -31501,7 +31524,7 @@ function presetName(preset) {
 */
 function renovateDelay$1(bot, config, on) {
 	const target = targetOf(bot, on);
-	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$4);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$5);
 	const internal = extraOf(bot, "internalPresets", isInternal);
 	const byType = /* @__PURE__ */ new Map();
 	const unreadable = [];
@@ -32565,7 +32588,7 @@ const bun = (context) => {
 };
 
 // src/apply/generators/bundler.ts
-const isStrings$3 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isStrings$4 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 const isGap = (value) => isRecord(value) && typeof value["since"] === "string" && typeof value["scope"] === "string";
 const isServer = (value) => isRecord(value) && typeof value["url"] === "string";
 /**
@@ -32573,7 +32596,7 @@ const isServer = (value) => isRecord(value) && typeof value["url"] === "string";
 * names are only looked at (File.file?, extra.gemfileNames), so a directory named gems.rb stops nothing.
 */
 function plannedGemfile(context) {
-	const names = context.tool.extra?.["gemfileNames"] === void 0 ? ["gems.rb", "Gemfile"] : extraOf(context.tool, "gemfileNames", isStrings$3);
+	const names = context.tool.extra?.["gemfileNames"] === void 0 ? ["gems.rb", "Gemfile"] : extraOf(context.tool, "gemfileNames", isStrings$4);
 	return gemfileIn((file) => context.isFile(file), names);
 }
 /** Why apply does not edit a source call, for messages. */
@@ -32719,7 +32742,7 @@ const bundler = (context) => {
 		message: `${context.name} builds the native extensions of gems when it installs them, which runs code of the gem (extconf.rb, a Rakefile), and has no setting that blocks this or allows it for some gems only, so installScripts "deny" cannot be enforced`,
 		fix: `Review gems with native extensions (extensions in the gemspec, an ext directory) before you add or update them; there is nothing to set for ${context.name}`
 	});
-	const kinds = tool.extra?.["dependencySources"] === void 0 ? void 0 : extraOf(tool, "dependencySources", isStrings$3);
+	const kinds = tool.extra?.["dependencySources"] === void 0 ? void 0 : extraOf(tool, "dependencySources", isStrings$4);
 	const sources = policy.sources === void 0 || kinds === void 0 ? policy.sources : Object.fromEntries(Object.entries(policy.sources).filter(([kind]) => kinds.includes(kind)));
 	eachSource({
 		...context,
@@ -33654,7 +33677,7 @@ function replaceUserParts(text, replace) {
 	return result + text.slice(last);
 }
 /** The text that stands for credentials in messages and diffs. */
-const REDACTED = "<redacted>";
+const REDACTED$1 = "<redacted>";
 /**
 * The text with the user name and password of every URL in it shown as <redacted> (https://user:token@host/ becomes
 * https://<redacted>@host/), as the diff of apply shows them: for messages, where people should see that a URL
@@ -33665,9 +33688,9 @@ const REDACTED = "<redacted>";
 */
 function redactCredentials(text) {
 	return replaceUserParts(text, (part, userinfo) => {
-		if (userinfo === "" || userinfo === REDACTED) return `${userinfo}@`;
+		if (userinfo === "" || userinfo === REDACTED$1) return `${userinfo}@`;
 		if (part.scheme.split("+").includes("ssh") && !userinfo.includes(":")) return `${userinfo}@`;
-		return `${REDACTED}@`;
+		return `${REDACTED$1}@`;
 	});
 }
 /**
@@ -33811,6 +33834,186 @@ function approximateEdit(a, b, window = 32) {
 		});
 	}
 	return operations;
+}
+/**
+* Keys whose value is a secret, in INI (.npmrc, pip.conf), TOML and YAML lines: npm's _auth, _authToken and
+* _password (also under a //host/: prefix), npm's key (a client key in PEM format, not a path; certfile and keyfile
+* are paths, decision D-115), and in any file a key that ends in token, password or secret, or npmAuthIdent.
+* depcurfew writes none of these keys; the names only decide which values a diff hides, so they err on the side of
+* hiding (decision D-091).
+*/
+const SECRET_KEY = /^(?:_auth|npmauthident|key|[a-z0-9_-]*(?:token|password|passwd|secret))$/iu;
+/** Line terminators, which end a line for `.` and `$` of the patterns below; \n and a lone \r are split before. */
+const TERMINATORS = /[\n\r\u2028\u2029]/u;
+const QUOTES = /* @__PURE__ */ new Set(["\"", "'"]);
+const BLANK = /\s/u;
+/**
+* key = value, as in .npmrc and pip.conf: the key is everything before the first `=`, as in .npmrc, where it may hold
+* colons (//host:443/:_auth), after blanks, a dash of a YAML list and a quote, and before a closing quote and blanks;
+* the value follows the blanks after `=`. This is what /^(\s*(?:-\s+)?["']?)([^="'\s][^="']*?)(["']?\s*=\s*)(.*)$/u
+* matches, read without it: that pattern backtracks quadratically on a long run of blanks with no `=` after it (a
+* line of 80,000 tabs took 6 s), and a configuration file may be 1 MiB (decision D-192).
+*/
+function equalsPair(line) {
+	const at = line.indexOf("=");
+	if (at === -1) return void 0;
+	const value = line.slice(at + 1).trimStart();
+	if (TERMINATORS.test(value)) return void 0;
+	const before = line.slice(0, at);
+	let start = 0;
+	while (start < before.length && BLANK.test(before[start] ?? "")) start += 1;
+	const starts = [start];
+	if (before[start] === "-") {
+		let after = start + 1;
+		while (after < before.length && BLANK.test(before[after] ?? "")) after += 1;
+		if (after > start + 1) starts.unshift(after);
+	}
+	for (const first of starts) {
+		const from = QUOTES.has(before[first] ?? "") ? first + 1 : first;
+		const region = before.slice(from).trimEnd();
+		const key = QUOTES.has(region.at(-1) ?? "") ? region.slice(0, -1) : region;
+		if (key === "" || BLANK.test(key[0] ?? "") || [...key].some((character) => QUOTES.has(character))) continue;
+		return {
+			key,
+			value
+		};
+	}
+}
+/**
+* A key as YAML, TOML and JSON write it: in double quotes (with escapes), in single quotes, or bare. A quoted key may
+* hold any character, as "//registry.npmjs.org/:_authToken" does; a bare one may hold a colon that no space follows.
+*/
+const KEY = String.raw`(?:"((?:[^"\\]|\\.)*)"|'([^']*)'|([A-Za-z0-9_.\/@-]+(?::[A-Za-z0-9_.\/@-]+)*))`;
+/** key: value, as in YAML. */
+const COLON = new RegExp(String.raw`^\s*(?:-\s+)?${KEY}\s*:(?:\s+|$)(.*)$`, "u");
+/** A key and its value inside an inline table or a flow mapping: { token = "…", url = "…" }, {npmAuthToken: …}. */
+const INLINE = new RegExp(String.raw`[{,]\s*${KEY}\s*[=:]\s*("(?:[^"\\]|\\.)*"|'[^']*'|[^,{}[\]\s][^,}\s]*)`, "gu");
+/** A reference to an environment variable (${NPM_TOKEN}, $NPM_TOKEN) is no secret, and shows where the value comes from. */
+const REFERENCE = /^(["']?)\$(?:\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)\1$/u;
+const REDACTED = "<redacted>";
+function isSecret(key, value) {
+	const name = key.split(/[:.]/u).at(-1)?.trim() ?? "";
+	return SECRET_KEY.test(name) && value.trim() !== "" && !REFERENCE.test(value.trim());
+}
+/**
+* A line of a configuration file with the value of a secret key and the user part of URLs as <redacted>
+* (redactCredentials: also a token alone and a password with an unencoded @). The diff splits lines at \n only, while
+* npm's ini, pip's configparser and YAML end a line at a lone \r too (decision D-168): each part is redacted as the
+* line of its own that those tools read, so that `fund=false\r_authToken=…` hides the token.
+*/
+function redactSecrets(line) {
+	return line.includes("\r") ? line.split("\r").map(redactLine).join("\r") : redactLine(line);
+}
+function redactLine(line) {
+	const equals = equalsPair(line);
+	if (equals !== void 0 && isSecret(equals.key, equals.value)) return `${line.slice(0, line.length - equals.value.length)}${REDACTED}`;
+	const colon = COLON.exec(line);
+	const value = colon?.[4] ?? "";
+	if (colon !== null && isSecret(colon[1] ?? colon[2] ?? colon[3] ?? "", value)) return `${line.slice(0, line.length - value.length)}${REDACTED}`;
+	return redactCredentials(line.replace(INLINE, (whole, double, single, bare, found) => isSecret(double ?? single ?? bare ?? "", found) ? `${whole.slice(0, whole.length - found.length)}${REDACTED}` : whole));
+}
+const isStrings$3 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isCredentials = (value) => isRecord(value) && isStrings$3(value["keys"]) && typeof value["config"] === "string" && isStrings$3(value["headers"]);
+let credentials;
+function composerCredentials() {
+	const composer = knowledgeBase.find((tool) => tool.id === "composer");
+	if (composer === void 0) throw new Error("knowledge base: composer is missing");
+	credentials ??= extraOf(composer, "credentials", isCredentials);
+	return credentials;
+}
+/** A JSON file by its name, as detection and apply read it: .json, .jsonc and .renovaterc. */
+function isJsonFile(file) {
+	const name = file.split(/[\\/]/u).at(-1) ?? file;
+	return /\.jsonc?$/u.test(name) || name === ".renovaterc";
+}
+/** The string a JSON string literal stands for; the text between the quotes when it is not valid JSON. */
+function decoded(literal) {
+	try {
+		const value = JSON.parse(literal);
+		return typeof value === "string" ? value : literal.slice(1, -1);
+	} catch {
+		return literal.slice(1, literal.endsWith("\"") && literal.length > 1 ? -1 : void 0);
+	}
+}
+/**
+* JSON text with the string values that are secrets as "<redacted>", by their place in the document: the value of a
+* secret key (SECRET_KEY, as in other files), every string under one of Composer's credentials, which it keys by host
+* ("github-oauth": {"github.com": "…"}), at the top (auth.json) or under config (composer.json), and the HTTP headers of
+* a repository (decision D-192). Comments are skipped, as JSONC has them. Every line stays where it is, and a file that
+* does not parse is read as far as it goes; each string is checked in constant time, however deep it is.
+*/
+function redactJson(text) {
+	const { keys, config, headers } = composerCredentials();
+	const stack = [];
+	const at = (index) => {
+		const level = stack[index];
+		return level === void 0 ? void 0 : level.list ? "*" : level.key;
+	};
+	const hidden = (value) => {
+		const first = at(0);
+		if (first !== void 0 && keys.includes(first) && stack.length >= 2) return true;
+		const second = at(1);
+		if (first === config && second !== void 0 && keys.includes(second) && stack.length >= 3) return true;
+		if (stack.length === headers.length + 1 && headers.every((key, index) => key === "*" || at(index) === key)) return true;
+		const last = stack.at(-1);
+		return last !== void 0 && !last.list && isSecret(last.key, value);
+	};
+	let expectKey = false;
+	let output = "";
+	let copied = 0;
+	let index = 0;
+	while (index < text.length) {
+		const character = text[index];
+		if (character === "\"") {
+			let end = index + 1;
+			while (end < text.length && text[end] !== "\"" && text[end] !== "\n") end += text[end] === "\\" && text[end + 1] !== "\n" ? 2 : 1;
+			if (text[end] === "\"") end += 1;
+			const literal = text.slice(index, end);
+			const level = stack.at(-1);
+			if (level !== void 0 && !level.list && expectKey) {
+				level.key = decoded(literal);
+				expectKey = false;
+			} else if (level !== void 0 && hidden(decoded(literal))) {
+				output += `${text.slice(copied, index)}"${REDACTED}"`;
+				copied = end;
+			}
+			index = end;
+			continue;
+		}
+		if (character === "/" && text[index + 1] === "/") {
+			const newline = text.indexOf("\n", index);
+			index = newline === -1 ? text.length : newline;
+			continue;
+		}
+		if (character === "/" && text[index + 1] === "*") {
+			const close = text.indexOf("*/", index + 2);
+			index = close === -1 ? text.length : close + 2;
+			continue;
+		}
+		if (character === "{" || character === "[") {
+			stack.push({
+				list: character === "[",
+				key: ""
+			});
+			expectKey = character === "{";
+		} else if (character === "}" || character === "]") {
+			stack.pop();
+			expectKey = false;
+		} else if (character === ",") expectKey = stack.at(-1)?.list === false;
+		else if (character === ":") expectKey = false;
+		index += 1;
+	}
+	return output + text.slice(copied);
+}
+/**
+* A file with the values of secrets as <redacted>, line for line, for what people or logs see: JSON by the place of
+* each value in the document (redactJson, then the user part of URLs), so that a Composer token under its host is
+* hidden too, also in a minified file; other files each line as redactSecrets reads it (decision D-192). The text keeps
+* its lines, so line numbers stay, and JSON stays JSON.
+*/
+function redactText(file, text) {
+	if (isJsonFile(file)) return redactJson(text).split("\n").map(redactCredentials).join("\n");
+	return text.split("\n").map(redactSecrets).join("\n");
 }
 
 // src/apply/generators/python.ts
@@ -40264,7 +40467,9 @@ const configDrift = {
 				});
 				continue;
 			}
-			const all = reportedDifferences(change.before, change.after);
+			const before = redactText(change.file, change.before);
+			const after = redactText(change.file, change.after);
+			const all = reportedDifferences(before, after);
 			const shown = all.slice(0, 5);
 			const rest = all.length - shown.length;
 			for (const [index, difference] of shown.entries()) {
@@ -40272,9 +40477,9 @@ const configDrift = {
 				context.report({
 					location: {
 						file: change.file,
-						line: findingLine(change.file, difference, change.before)
+						line: findingLine(change.file, difference, before)
 					},
-					message: `${change.file} does not match ${POLICY_FILE}: ${describe(change.file, difference, change.before, change.after)}${more}`,
+					message: `${change.file} does not match ${POLICY_FILE}: ${describe(change.file, difference, before, after)}${more}`,
 					fix: `Run depcurfew apply to bring ${change.file} back in line with ${POLICY_FILE} (depcurfew apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`
 				});
 			}

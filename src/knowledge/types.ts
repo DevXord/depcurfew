@@ -661,6 +661,17 @@ export interface CommandNamesKnowledge {
 }
 
 /**
+ * Where Composer reads credentials (decision D-192): the methods, each a key whose value holds the credentials by host,
+ * at the top of auth.json or under `config` in composer.json (and in the global config.json), and the path of the list
+ * of HTTP headers of a repository in composer.json, which may carry a token (`*`: any entry of a list or a map).
+ */
+export interface ComposerCredentialsKnowledge {
+  keys: string[];
+  config: string;
+  headers: string[];
+}
+
+/**
  * How Composer's commands name the packages they install (decision D-133): the commands by name, the arguments of
  * composer require (name and constraint in one word, separated by one of `pairSeparators`, or in two words), the
  * names that are platform packages and the options that name packages or a stability.
