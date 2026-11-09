@@ -6282,6 +6282,7 @@ const release13$1 = verifiedOn("2026-11-01");
 const final = verifiedOn("2026-11-01");
 const release14$2 = verifiedOn("2026-11-02");
 const d167$1 = verifiedOn("2026-11-03");
+const d195 = verifiedOn("2026-11-09");
 /** The values clap's BoolishValueParser reads as true, compared without regard to case (user.variables). */
 const TRUE_VALUES = [
 	"1",
@@ -6340,7 +6341,7 @@ const uv$1 = {
 			value: null
 		}], SETTINGS, "No default: without a value every upload time is accepted."),
 		exclude: {
-			setting: verified$4("exclude-newer-package", `${RESOLUTION}`, "A table mapping package names to false (exempt), a date or a duration; package values take precedence over the global and index values."),
+			setting: d195.verified("exclude-newer-package", `${RESOLUTION}`, "A table mapping package names to false (exempt), a date or a duration: \"Values may also be specified for specific packages\", \"The package option also accepts <package>=false to opt a package out of the restriction\", and exclude-newer-package = { setuptools = \"30 days\" } next to exclude-newer = \"1 week\". \"Package-specific values will take precedence over both global and index-specific values.\" So an entry with a longer delay than exclude-newer holds its package back longer, and apply keeps it; a shorter one exempts the package in part (decision D-195)."),
 			availableSince: verified$4("0.9.25", changelog("0.9", "0.9.25"), "The table exists since 0.8.4 (dates); false, which exempts a package, since 0.9.25. Tested on 2026-10-30: with a false entry, uv 0.9.17 warned \"data did not match any variant of untagged enum\" and ignored the whole [tool.uv] table, the delay included; 0.9.25 and 0.13.6 exempted the package."),
 			patternSyntax: verified$4("Exact package names as table keys; no wildcards", SETTINGS, "Keys are package names, compared after name normalization.")
 		},
@@ -27439,12 +27440,12 @@ function delayMinutes(tool, value, version) {
 }
 const CUTOFF = /^(\d{4})-(\d{2})-(\d{2})(?:[Tt ](\d{2}):(\d{2})(?::(\d{2})(\.\d+)?)?([Zz]|[+-]\d{2}:?\d{2})?)?$/u;
 /**
-* A fixed date or time that the tool reads in place of a delay (extra.cutoffDates: uv's and PDM's exclude-newer, Deno's
-* minimumDependencyAge): it holds back every version uploaded after it, so it counts as the time since it, in whole
-* days rounded up (decision D-167). A date without a time counts from its start in UTC, the earliest moment any time
-* zone gives it; a time without an offset only where the tool reads it as UTC. undefined for any other value.
+* The moment (milliseconds since the epoch) of a fixed date or time that the tool reads in place of a delay
+* (extra.cutoffDates: uv's and PDM's exclude-newer, Deno's minimumDependencyAge), with the text as written. A date
+* without a time is its start in UTC, the earliest moment any time zone gives it; a time without an offset counts only
+* where the tool reads it as UTC. undefined for any other value.
 */
-function cutoffAge(tool, value, now) {
+function cutoffTime(tool, value) {
 	const fact = tool.extra?.["cutoffDates"];
 	const format = fact === void 0 ? void 0 : values$1(fact)[0];
 	if (!isRecord(format)) return void 0;
@@ -27458,10 +27459,22 @@ function cutoffAge(tool, value, now) {
 	if (check.getUTCMonth() !== Number(month) - 1 || check.getUTCDate() !== Number(day)) return void 0;
 	const sign = offset === void 0 || /^[Zz]$/u.test(offset) ? 0 : offset.startsWith("-") ? -1 : 1;
 	const digits = offset?.replace(/[^0-9]/gu, "") ?? "";
-	const age = (now - (date - sign * (Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2) || 0)) * 6e4)) / 6e4;
+	return {
+		time: date - sign * (Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2) || 0)) * 6e4,
+		text
+	};
+}
+/**
+* A fixed date or time that the tool reads in place of a delay (cutoffTime): it holds back every version uploaded after
+* it, so it counts as the time since it, in whole days rounded up (decision D-167). undefined for any other value.
+*/
+function cutoffAge(tool, value, now) {
+	const cutoff = cutoffTime(tool, value);
+	if (cutoff === void 0) return void 0;
+	const age = (now - cutoff.time) / 6e4;
 	return {
 		minutes: age <= 0 ? 0 : Math.ceil(age / 1440) * 1440,
-		text
+		text: cutoff.text
 	};
 }
 function formatMinutes(minutes) {
@@ -32088,7 +32101,8 @@ function namesOf$1(tool, value) {
 	const exempt = tool.extra?.["excludeValue"] === void 0 ? void 0 : values$1(tool.extra["excludeValue"])[0];
 	return exempt === void 0 ? void 0 : Object.keys(value).filter((key) => value[key] === exempt);
 }
-function managerExclusion(repository, tool, configFiles) {
+function managerExclusion(repository, tool, manager) {
+	const { configFiles } = manager;
 	const setting = settingOf(tool.cooldown.exclude.setting);
 	const ecosystem = ecosystemOfTool(tool);
 	if (setting === null || ecosystem === "packagist" || ecosystem === "rubygems") return void 0;
@@ -32099,7 +32113,9 @@ function managerExclusion(repository, tool, configFiles) {
 	else {
 		const manifests = tool.id === "deno" && tool.project !== void 0 ? values$1(tool.project.manifests)[0] ?? [] : [];
 		const file = tool.id === "deno" ? manifests.find((name) => repository.isFile(name)) ?? configFiles.find((name) => /^deno\.jsonc?$/u.test(name)) : values$1(tool.cooldown.configFiles)[0]?.[0];
-		found = file === void 0 || !mentions(file) ? void 0 : readSetting(repository, file, setting);
+		const version = pinnedVersion(manager) ?? latestVersion$1(tool);
+		const owner = file === void 0 ? void 0 : settingOwner(repository, tool, version, file, setting);
+		found = owner?.kind !== "file" || file === void 0 || !mentions(owner.file) ? void 0 : readToolSetting(repository, tool, version, file, setting);
 	}
 	if (found === void 0) return void 0;
 	const names = namesOf$1(tool, found.value);
@@ -32179,7 +32195,7 @@ function configuredExclusions(repository, detection, tools, only) {
 	for (const manager of detection.packageManagers) {
 		const tool = tools.find((entry) => entry.id === manager.id);
 		if (!manager.supported || tool === void 0 || only !== void 0 && !only.has(tool.id)) continue;
-		const exclusion = read(() => managerExclusion(repository, tool, manager.configFiles), void 0);
+		const exclusion = read(() => managerExclusion(repository, tool, manager), void 0);
 		if (exclusion !== void 0) found.push(exclusion);
 	}
 	for (const detected of detection.bots) {
@@ -35079,7 +35095,9 @@ const uv = (context) => {
 				managed.push(excludeSetting);
 				const exempt = extraOf(tool, "excludeValue", (value) => typeof value === "boolean");
 				const names = pythonNames(patterns);
-				if (names.length > 0) entries.push(`${excludeSetting} = { ${names.map((name) => `${JSON.stringify(name)} = ${String(exempt)}`).join(", ")} }`);
+				const kept = longerPackageDelays(context, file, table, excludeSetting, cooldown.minutes, new Set(names));
+				const written = [...names.map((name) => `${JSON.stringify(name)} = ${String(exempt)}`), ...kept.map((entry) => `${JSON.stringify(entry.name)} = ${entry.text}`)];
+				if (written.length > 0) entries.push(`${excludeSetting} = { ${written.join(", ")} }`);
 			}
 		}
 	}
@@ -35109,6 +35127,58 @@ const uv = (context) => {
 	}
 	return minutes;
 };
+/**
+* The entries of exclude-newer-package that the project sets to a date or a duration and that hold the package back
+* longer than cooldown.minimum (an earlier date, a longer duration), as written, for the managed block: uv takes the
+* value of a package over exclude-newer ("Package-specific values will take precedence over both global and
+* index-specific values"), so they keep what the project had (decision D-195). A shorter one exempts the package in
+* part: apply comments it out with exclusion-dropped, and the package waits as long as the others. A value depcurfew
+* cannot read stays as written; false and the packages of cooldown.exclude are the exceptions, which apply writes.
+*/
+function longerPackageDelays(context, file, table, setting, minutes, exempt) {
+	if (!context.exists(file)) return [];
+	let document;
+	try {
+		document = parseToml(context.read(file));
+	} catch {
+		return [];
+	}
+	const path = [...table === "" ? [] : table.split("."), setting];
+	const value = tomlValueAt(document, path);
+	if (!isRecord(value)) return [];
+	const minimum = context.policy.cooldown?.minimum.text ?? "";
+	const now = Date.now();
+	return Object.entries(value).flatMap(([name, entry]) => {
+		if (entry === false || exempt.has(normalizePythonName(name))) return [];
+		const text = entry instanceof TomlDateTime ? entry.text : typeof entry === "string" ? JSON.stringify(entry) : void 0;
+		if (text === void 0) return [];
+		const cutoff = cutoffTime(context.tool, entry);
+		const delay = cutoff === void 0 ? delayMinutes(context.tool, entry, context.version) : void 0;
+		if (cutoff === void 0 && delay?.ok !== true) return [{
+			name,
+			text
+		}];
+		const age = cutoff === void 0 ? delay?.ok === true ? delay.minutes : 0 : (now - cutoff.time) / 6e4;
+		if (age > minutes) return [{
+			name,
+			text
+		}];
+		if (age < minutes) {
+			const line = document.lineOf([...path, name]) ?? document.lineOf(path);
+			const shown = cutoff === void 0 ? `${text}, a delay of ${formatMinutes(age)}` : age <= 0 ? `${text}, a date to come, which holds back nothing` : `${text}, which holds back only what was uploaded in the last ${formatMinutes(age >= 60 ? Math.floor(age / 60) * 60 : Math.floor(age))}`;
+			context.warn({
+				code: "exclusion-dropped",
+				location: {
+					file,
+					...line === void 0 ? {} : { line }
+				},
+				message: `${context.name}: ${setting} in ${file}${line === void 0 ? "" : ` (line ${line})`} gives ${name} ${shown}, shorter than cooldown.minimum "${minimum}" in ${POLICY_FILE}, and uv takes the value of a package over exclude-newer; depcurfew apply comments it out, so uv delays ${name} like every other package`,
+				fix: `To exempt ${name} from the delay, add ${JSON.stringify(`pypi:${normalizePythonName(name)}`)} to cooldown.exclude in ${POLICY_FILE} and run depcurfew apply again; otherwise nothing to do`
+			});
+		}
+		return [];
+	});
+}
 
 // src/apply/generators/yarn.ts
 const isScriptsSwitch = (value) => isRecord(value) && typeof value["setting"] === "string" && "allow" in value && "deny" in value;

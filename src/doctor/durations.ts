@@ -98,12 +98,12 @@ export function delayMinutes(tool: ToolKnowledge, value: unknown, version: Versi
 const CUTOFF = /^(\d{4})-(\d{2})-(\d{2})(?:[Tt ](\d{2}):(\d{2})(?::(\d{2})(\.\d+)?)?([Zz]|[+-]\d{2}:?\d{2})?)?$/u;
 
 /**
- * A fixed date or time that the tool reads in place of a delay (extra.cutoffDates: uv's and PDM's exclude-newer, Deno's
- * minimumDependencyAge): it holds back every version uploaded after it, so it counts as the time since it, in whole
- * days rounded up (decision D-167). A date without a time counts from its start in UTC, the earliest moment any time
- * zone gives it; a time without an offset only where the tool reads it as UTC. undefined for any other value.
+ * The moment (milliseconds since the epoch) of a fixed date or time that the tool reads in place of a delay
+ * (extra.cutoffDates: uv's and PDM's exclude-newer, Deno's minimumDependencyAge), with the text as written. A date
+ * without a time is its start in UTC, the earliest moment any time zone gives it; a time without an offset counts only
+ * where the tool reads it as UTC. undefined for any other value.
  */
-export function cutoffAge(tool: ToolKnowledge, value: unknown, now: number): { minutes: number; text: string } | undefined {
+export function cutoffTime(tool: ToolKnowledge, value: unknown): { time: number; text: string } | undefined {
   const fact = tool.extra?.['cutoffDates'];
   const format = fact === undefined ? undefined : values(fact)[0];
   if (!isRecord(format)) return undefined;
@@ -118,8 +118,18 @@ export function cutoffAge(tool: ToolKnowledge, value: unknown, now: number): { m
   const sign = offset === undefined || /^[Zz]$/u.test(offset) ? 0 : offset.startsWith('-') ? -1 : 1;
   const digits = offset?.replace(/[^0-9]/gu, '') ?? '';
   const shift = sign * (Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2) || 0));
-  const age = (now - (date - shift * 60000)) / 60000;
-  return { minutes: age <= 0 ? 0 : Math.ceil(age / 1440) * 1440, text };
+  return { time: date - shift * 60000, text };
+}
+
+/**
+ * A fixed date or time that the tool reads in place of a delay (cutoffTime): it holds back every version uploaded after
+ * it, so it counts as the time since it, in whole days rounded up (decision D-167). undefined for any other value.
+ */
+export function cutoffAge(tool: ToolKnowledge, value: unknown, now: number): { minutes: number; text: string } | undefined {
+  const cutoff = cutoffTime(tool, value);
+  if (cutoff === undefined) return undefined;
+  const age = (now - cutoff.time) / 60000;
+  return { minutes: age <= 0 ? 0 : Math.ceil(age / 1440) * 1440, text: cutoff.text };
 }
 
 /** The unit of the release-age setting in the tool's user file, when it is not the unit of its own setting (user.cooldownUnit). */
