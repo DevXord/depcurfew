@@ -2,6 +2,7 @@
 // match (H3), the package sources of Poetry, PDM and Pipenv and uv's explicit indexes, which were not reported (M3),
 // and a package missing from the checked index while the install may take it from another one (V9).
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -82,9 +83,9 @@ async function fixFor(root: string, request: CheckRequest): Promise<string | und
 }
 
 function elapsed(action: () => void): number {
-  const start = performance.now();
+  const start = cpuNow();
   action();
-  return performance.now() - start;
+  return cpuNow() - start;
 }
 
 /** A directory `depth` levels below `root`, each named `name`, with a package.json of its own at the bottom. */
@@ -114,9 +115,9 @@ describe('workspace patterns made to take long (H3)', () => {
     const root = repository({ cooldown: { minimum: '3d' } });
     writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'root', workspaces: [`${'**/'.repeat(18)}zzz`] }));
     const deep = deepPackage(root, 18);
-    const start = performance.now();
+    const start = cpuNow();
     expect(await hook('npm install lodash', deep, root)).toEqual({});
-    expect(performance.now() - start).toBeLessThan(1000);
+    expect(cpuNow() - start).toBeLessThan(1000);
   });
 
   it.each([

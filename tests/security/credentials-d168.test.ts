@@ -5,6 +5,7 @@
 // fixture full of such URLs (tests/fixtures/credentials) and none of its secrets may show up, in text, JSON, SARIF,
 // diffs, the hook's answer or depcurfew mcp, nor in a URL that depcurfew asks.
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -104,10 +105,10 @@ describe('the user part of a URL', () => {
   it('is found in linear time', () => {
     const texts = ['a+'.repeat(200_000), `${'x://'.repeat(100_000)}@`, `https://${'a@'.repeat(200_000)}`, `${'a'.repeat(400_000)}://`];
     for (const text of texts) {
-      const start = performance.now();
+      const start = cpuNow();
       redactCredentials(text);
       withoutCredentials(text);
-      expect(performance.now() - start).toBeLessThan(500);
+      expect(cpuNow() - start).toBeLessThan(500);
     }
   });
 });

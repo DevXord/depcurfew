@@ -5,6 +5,7 @@
 // the reader cannot tell. A quoted composer is the command after &, or a string, not the variable COMPOSER. Composer
 // scripts-aliases, which Composer reads only since 2.7.0, are read with and without them.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -158,9 +159,9 @@ describe('the names the item cmdlets give on the Env: drive, bound as PowerShell
 
   it('reads long lines in linear time', () => {
     for (const line of [`Set-Item Env:X ${'(a)'.repeat(60_000)}`, `Set-Item Env:a${' ,a'.repeat(60_000)} x`, `npm i x${'SetEnvironmentVariable(a)'.repeat(8000)}`, `npm i ${'`a'.repeat(100_000)}`]) {
-      const start = performance.now();
+      const start = cpuNow();
       powerShellEnvironment(line);
-      expect(performance.now() - start).toBeLessThan(1500);
+      expect(cpuNow() - start).toBeLessThan(1500);
     }
   });
 });

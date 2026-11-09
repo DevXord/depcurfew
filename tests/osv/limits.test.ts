@@ -4,6 +4,7 @@
 // download, names no text of the file in the reason for another format version, removes only temporary files of its
 // own names, and osv update and the lookups warn when other users can write the directory of the data.
 import { chmodSync, chownSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, truncateSync, utimesSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -71,9 +72,9 @@ describe('records are read in linear time', () => {
   const record = { id: 'MAL-2026-1', affected };
 
   it('reads all 60,000 entries for one package in well under 2 seconds when the limits allow them', () => {
-    const started = performance.now();
+    const started = cpuNow();
     const read = readRecord(record, 'npm', { ...OSV_DATA_LIMITS, affectedEntries: 100_000, versions: 100_000 });
-    expect(performance.now() - started).toBeLessThan(2000);
+    expect(cpuNow() - started).toBeLessThan(2000);
     if (read.status !== 'kept') throw new Error(read.status);
     expect(read.packages.get('react')?.versions).toHaveLength(60_000);
   });
@@ -84,9 +85,9 @@ describe('records are read in linear time', () => {
       { name: 'MAL-2026-1.json', data: JSON.stringify(record) },
       { name: 'MAL-2026-2.json', data: malRecord('MAL-2026-2', 'npm', 'evil', { versions: ['1.0.0'] }) },
     ]);
-    const started = performance.now();
+    const started = cpuNow();
     const result = await update(data, zip);
-    expect(performance.now() - started).toBeLessThan(2000);
+    expect(cpuNow() - started).toBeLessThan(2000);
     expect(result).toMatchObject({ status: 'updated', records: 1, tooLarge: 1, skipped: 0 });
     const local = new LocalOsvData(data);
     expect(local.lookup({ ecosystem: 'npm', name: 'react', version: '1.0.7' })).toEqual([]);
@@ -150,9 +151,9 @@ describe('what osv update keeps', () => {
     expect(result).toMatchObject({ status: 'updated', records: 1, tooLarge: 19 });
     expect(statSync(osvDataFile(data, 'npm')).size).toBeLessThan(1.1 * 1024 * 1024);
     const local = new LocalOsvData(data);
-    const started = performance.now();
+    const started = cpuNow();
     expect(local.lookup({ ecosystem: 'npm', name: 'react', version: '19.0.0' })).toEqual([]);
-    expect(performance.now() - started).toBeLessThan(500);
+    expect(cpuNow() - started).toBeLessThan(500);
   });
 
   it('keeps the old data when what it keeps would make a data file larger than the limit', async () => {

@@ -6,6 +6,7 @@
 // doctor, global changes of Composer's configuration, the sources of Poetry and the configuration of PDM, OSV.dev and
 // v-prefixed Packagist versions, and the stability flag of a long constraint in linear time.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -419,9 +420,9 @@ describe('the stability flag of a long constraint in linear time (P1)', () => {
   it('reads a long run of spaces or tabs at once and gives the same flag', () => {
     for (const blank of [' ', '\t']) {
       const text = `^1.0${blank.repeat(200_000)}@beta`;
-      const start = performance.now();
+      const start = cpuNow();
       expect(stabilityFlag(text)).toBe('beta');
-      expect(performance.now() - start).toBeLessThan(1000);
+      expect(cpuNow() - start).toBeLessThan(1000);
     }
   });
 

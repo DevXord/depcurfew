@@ -2,6 +2,7 @@
 // here-document markers inside quotes, ARG values that grow without bound, matrix values and working directories,
 // and linear time on pathological input.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -200,17 +201,17 @@ describe('linear time on pathological input', () => {
   ];
 
   it.each(dockerfiles)('reads a Dockerfile with %s in linear time', (_name, text) => {
-    const start = performance.now();
+    const start = cpuNow();
     const result = readDockerStages('Dockerfile', text, facts.docker);
     expect(result.info.stages.length).toBeGreaterThan(0);
-    expect(performance.now() - start).toBeLessThan(10_000);
+    expect(cpuNow() - start).toBeLessThan(10_000);
   });
 
   it('reads a workflow run step of 1 MiB of digits in linear time', () => {
     const run = '1'.repeat(MIB - 1024);
     const directory = repository({ '.github/workflows/ci.yml': `jobs:\n  a:\n    steps:\n      - run: ${run}\n` });
-    const start = performance.now();
+    const start = cpuNow();
     expect(detectProject(directory).jobs).toHaveLength(1);
-    expect(performance.now() - start).toBeLessThan(10_000);
+    expect(cpuNow() - start).toBeLessThan(10_000);
   });
 });

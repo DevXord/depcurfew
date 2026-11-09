@@ -5,6 +5,7 @@
 // again at each one (decision D-163): 1 MiB took doctor 4.5 s and apply 3.2 s. Each shape now takes a fraction of a
 // second; the limit leaves a wide margin for slow CI machines.
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -54,20 +55,20 @@ describe('a Gemfile of 1 MiB', () => {
     temporary.push(root);
     writeFileSync(join(root, 'Gemfile'), text);
     writeFileSync(join(root, 'depcurfew.json'), JSON.stringify({ version: 1, cooldown: { minimum: '7d' } }));
-    let start = performance.now();
+    let start = cpuNow();
     applyProject(root, { write: false });
-    expect(performance.now() - start).toBeLessThan(2000);
-    start = performance.now();
+    expect(cpuNow() - start).toBeLessThan(2000);
+    start = cpuNow();
     runDoctor(root);
-    expect(performance.now() - start).toBeLessThan(2000);
-    start = performance.now();
+    expect(cpuNow() - start).toBeLessThan(2000);
+    start = cpuNow();
     readGemfile(text);
-    expect(performance.now() - start).toBeLessThan(2000);
+    expect(cpuNow() - start).toBeLessThan(2000);
   }, 60_000);
 
   it('compares a URL of a million slashes in linear time', () => {
-    const start = performance.now();
+    const start = cpuNow();
     expect(sameServer(`${'/'.repeat(1_000_000)}x`, 'https://rubygems.org')).toBe(false);
-    expect(performance.now() - start).toBeLessThan(500);
+    expect(cpuNow() - start).toBeLessThan(500);
   });
 });

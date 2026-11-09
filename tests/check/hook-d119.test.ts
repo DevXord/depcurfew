@@ -3,6 +3,7 @@
 // not exist or is a file leaves the directory unknown, cd -P and set -P are resolved through symlinks, and the scanner's
 // fixes ($'…', --no- abbreviations, env -C, find -execdir, traps, PowerShell paths with \) reach the decision.
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -174,9 +175,9 @@ describe('the scanner fixes reach the decision', () => {
 
   it('reads an alias that expands itself quickly (H2)', async () => {
     const root = repository();
-    const start = performance.now();
+    const start = cpuNow();
     expect(await hook(`alias a='${'a;'.repeat(40)}'; a`, root, root)).toEqual({});
-    expect(performance.now() - start).toBeLessThan(1000);
+    expect(cpuNow() - start).toBeLessThan(1000);
   });
 });
 

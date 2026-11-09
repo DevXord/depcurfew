@@ -3,6 +3,7 @@
 // rules are in tests/fixtures/doctor/{pnpm-config-unverifiable,config-drift,broad-exclusion}; the apply fixtures are
 // tests/fixtures/repos/pnpm-include-* and pnpm-plugin.
 import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpuNow } from './support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -131,9 +132,9 @@ describe('include in pnpm-workspace.yaml as pnpm reads it', () => {
       'b.yaml': '',
     };
     for (const text of Object.values(files)) parseYaml(text, { merge: true });
-    const started = performance.now();
+    const started = cpuNow();
     const found = includes(files);
-    expect(performance.now() - started).toBeLessThan(3_000);
+    expect(cpuNow() - started).toBeLessThan(3_000);
     expect(found?.problems.length).toBe(MAX_PROBLEMS);
   }, 60_000);
 });

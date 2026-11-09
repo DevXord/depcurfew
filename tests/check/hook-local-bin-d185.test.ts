@@ -4,6 +4,7 @@
 // hook asks no registry about it. Anything else is checked as before: a version, a package option, a workspace option,
 // a command before it on the line that may write files, a loop, a program that is not there.
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -192,10 +193,10 @@ describe('looking for the program in a hostile tree (decision D-185)', () => {
     mkdirSync(far, { recursive: true });
     // npm's local prefix is the nearest directory with a package.json or node_modules: the program is 300 levels above it.
     writeFileSync(join(far, 'package.json'), PACKAGE);
-    const start = performance.now();
+    const start = cpuNow();
     expect(runsLocalBinary(near, 'vitest')).toBe(true);
     expect(runsLocalBinary(far, 'vitest')).toBe(false);
-    expect(performance.now() - start).toBeLessThan(1000);
+    expect(cpuNow() - start).toBeLessThan(1000);
   });
 
   it('reads a package.json of at most 1 MiB and refuses a larger one', () => {

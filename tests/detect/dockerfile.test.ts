@@ -1,6 +1,7 @@
 // The Dockerfile reader (src/detect/dockerfile.ts), the stages detection builds from it (src/detect/dockerfiles.ts) and
 // the command reader for RUN lines and CI run steps (src/detect/commands.ts).
 import { describe, expect, it } from 'vitest';
+import { cpuNow } from '../support/cpu-time.ts';
 import { findToolCommands, splitCommands } from '../../src/detect/commands.ts';
 import { argDeclarations, readDockerfile, substitute } from '../../src/detect/dockerfile.ts';
 import { readDockerStages } from '../../src/detect/dockerfiles.ts';
@@ -64,11 +65,11 @@ describe('readDockerfile', () => {
     const spaces = `# escape=${' '.repeat(200_000)}x`;
     const brackets = `FROM node:\${${'{'.repeat(100_000)}`;
     const quotes = `RUN ${'"'.repeat(200_001)}`;
-    const start = performance.now();
+    const start = cpuNow();
     for (const text of [long, continued, spaces, brackets, quotes, `${'\\\n'.repeat(100_000)}`]) {
       readDockerStages('Dockerfile', text, facts.docker);
     }
-    expect(performance.now() - start).toBeLessThan(5000);
+    expect(cpuNow() - start).toBeLessThan(5000);
   });
 });
 
@@ -251,10 +252,10 @@ describe('findToolCommands', () => {
   });
 
   it('stays linear on long and unbalanced input', () => {
-    const start = performance.now();
+    const start = cpuNow();
     for (const script of ['npm ci;'.repeat(100_000), '"'.repeat(300_001), '$('.repeat(100_000), '\\\n'.repeat(100_000), 'a '.repeat(200_000)]) {
       findToolCommands(script, facts.commands);
     }
-    expect(performance.now() - start).toBeLessThan(5000);
+    expect(cpuNow() - start).toBeLessThan(5000);
   });
 });
