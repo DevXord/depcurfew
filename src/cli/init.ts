@@ -5,7 +5,7 @@
 // --json in the document on stdout, with the same exit codes.
 import { lstatSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { homeProblem, ownerOfNewUnderHome } from '../user/home.ts';
+import { homeProblem, linkOutOfHome, ownerOfNewUnderHome } from '../user/home.ts';
 import { shownPath, type UserEnvironment } from '../user/locate.ts';
 import { userPolicyPath } from '../user/policy-path.ts';
 import { describeDelay, policyDuration, type ConfiguredDelay } from '../apply/delays.ts';
@@ -218,6 +218,16 @@ export function initUser(options: InitOptions, environment: UserEnvironment, io:
     const name = shownPath(file, environment);
     return fail('cannot-write', `${name} is not a directory, so depcurfew init --user cannot create ${shown}`, `Move the file ${name} out of the way, then run depcurfew init --user again`);
   };
+  // Run as root in the home directory of another user, nothing is written through a link that leads out of it (decision D-196).
+  const out = linkOutOfHome(environment, target);
+  if (out !== undefined) {
+    const link = shownPath(out.link, environment);
+    return fail(
+      'cannot-write',
+      `${link} leads to ${out.target}, outside the home directory ${environment.home}, and depcurfew init --user run as root in the home directory of another user does not write through such a link`,
+      `Replace ${link} with a file or directory of its own in ${environment.home}, or run depcurfew init --user as the user who owns ${environment.home}`,
+    );
+  }
   let existing;
   try {
     existing = lstatSync(target, { throwIfNoEntry: false });
