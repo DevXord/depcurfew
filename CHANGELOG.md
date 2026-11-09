@@ -6,7 +6,7 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 
 ### Claude Code hook
 
-- `npx`, `npm exec` and `npm x` without `--package` run a program of the project when `node_modules/.bin` of npm's local prefix (or of the workspace the command runs in) or of a directory above it has a file of that name and no `package.json` there declares a bin of that name. npm then downloads nothing, so the hook no longer looks the package up in the registry: `npx vitest run` in a project that installed vitest is not blocked because the newest vitest on the registry is younger than the release-age delay, and `npx tsc` no longer warns about the deprecated package `tsc`. With a version (`npx vitest@4`), `--package`, a workspace option, in a loop or a function, or after a command on the same line that may write files (`rm -rf node_modules && npx vitest`), the package is checked as before.
+- `npx`, `npm exec` and `npm x` without `--package` run a program of the project when `node_modules/.bin` of npm's local prefix (or of the workspace the command runs in) or of a directory above it has a file of that name and no `package.json` there or above declares a bin of that name. npm then downloads nothing, so the hook no longer looks the package up in the registry: `npx vitest run` in a project that installed vitest is not blocked because the newest vitest on the registry is younger than the release-age delay, and `npx tsc` no longer warns about the deprecated package `tsc`. With a version (`npx vitest@4`), `--package`, a workspace option, in a loop or a function, or after a command on the same line that may write files (`rm -rf node_modules && npx vitest`), the package is checked as before.
 
 ### apply
 

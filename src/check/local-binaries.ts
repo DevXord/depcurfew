@@ -2,9 +2,12 @@
 // then (decision D-185). As libnpmexec looks (extra.localBinaries of the npm knowledge): first for a bin of that name in
 // the package.json of npm's local prefix and of the workspace the command runs in, which npx installs into its cache
 // with that package's dependencies; then for a file of that name in node_modules/.bin of the workspace (or of the
-// local prefix) and of every directory above it, which it runs as it is. Only a file found in the second way, with no
-// such bin and nothing depcurfew could not read on the way, lets the hook leave the request out; anything else is
-// checked as a package, as before.
+// local prefix) and of every directory above it, which it runs as it is. Both start from the nearest directory with a
+// package.json or node_modules, whether or not npm takes it for a workspace; which root npm takes for the local prefix
+// depends on workspace patterns depcurfew may not read as npm does (on Windows it is never sure, decision D-124), so the
+// package.json of every directory from there up counts. Only a file found in the second way, with no such bin and
+// nothing depcurfew could not read on the way, lets the hook leave the request out; anything else is checked as a
+// package, as before.
 import { statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { values } from '../apply/facts.ts';
@@ -15,16 +18,21 @@ import { MAX_CONFIG_SIZE, npmLocalPrefix } from './registry-settings.ts';
 
 /** How many directories up from the start the program is looked for; deeper trees are checked as a package. */
 const MAX_LEVELS = 256;
+/** How many bytes of package.json files are read on the way up, at most; more is checked as a package. */
+const MAX_MANIFEST_BYTES = 4 * MAX_CONFIG_SIZE;
 
 function facts(): LocalBinariesKnowledge | undefined {
   const fact = knowledgeBase.find((tool) => tool.id === 'npm')?.extra?.['localBinaries'];
   return fact === undefined ? undefined : (values(fact)[0] as LocalBinariesKnowledge | undefined);
 }
 
-/** The bin names a package.json declares: the keys of bin, or the name without its scope for a bin path; undefined when it cannot be read. */
-function declaredBins(directory: string): { names: ReadonlySet<string>; binDirectory: boolean } | undefined {
+/**
+ * The bin names a package.json declares: the keys of bin, or the name without its scope for a bin path, with the bytes
+ * read; undefined when it cannot be read.
+ */
+function declaredBins(directory: string): { names: ReadonlySet<string>; binDirectory: boolean; bytes: number } | undefined {
   const read = readLimited(join(directory, 'package.json'), MAX_CONFIG_SIZE);
-  if (!read.ok) return read.problem === 'missing' ? { names: new Set(), binDirectory: false } : undefined;
+  if (!read.ok) return read.problem === 'missing' ? { names: new Set(), binDirectory: false, bytes: 0 } : undefined;
   let manifest: unknown;
   try {
     manifest = JSON.parse(read.bytes.toString('utf8').replace(/^\uFEFF/u, ''));
@@ -44,7 +52,7 @@ function declaredBins(directory: string): { names: ReadonlySet<string>; binDirec
   }
   // directories.bin makes every file of that directory a bin, which depcurfew does not list.
   const binDirectory = typeof directories === 'object' && directories !== null && Object.hasOwn(directories, 'bin');
-  return { names, binDirectory };
+  return { names, binDirectory, bytes: read.bytes.length };
 }
 
 /** Whether `path` is a regular file, following links; a link to nothing is not. */
@@ -63,28 +71,23 @@ function isProgram(path: string): boolean {
 export function runsLocalBinary(start: string, name: string, options: { prefix?: boolean } = {}): boolean {
   const fact = facts();
   if (fact === undefined) return false;
-  let from: string;
-  let manifests: string[];
-  if (options.prefix === true) {
-    from = resolve(start);
-    manifests = [from];
-  } else {
-    const local = npmLocalPrefix(start);
-    // A root whose workspaces depcurfew could not match may make npm look elsewhere.
-    if ((local.unsure?.length ?? 0) > 0 || (local.workspace !== undefined && local.exact !== true)) return false;
-    from = local.workspace ?? local.prefix;
-    manifests = [...new Set([from, local.prefix])];
+  // With --prefix npm looks from that directory; otherwise from the workspace the command runs in or the local prefix,
+  // both the nearest directory with a package.json or node_modules.
+  const local = options.prefix === true ? undefined : npmLocalPrefix(start);
+  const from = local === undefined ? resolve(start) : (local.workspace ?? local.prefix);
+  const levels: string[] = [];
+  for (let directory = from; ; directory = dirname(directory)) {
+    // A tree deeper than this is checked as a package.
+    if (levels.length === MAX_LEVELS) return false;
+    levels.push(directory);
+    if (dirname(directory) === directory) break;
   }
-  for (const directory of manifests) {
+  let bytes = 0;
+  for (const directory of levels) {
     const declared = declaredBins(directory);
     if (declared === undefined || declared.binDirectory || declared.names.has(name)) return false;
+    bytes += declared.bytes;
+    if (bytes > MAX_MANIFEST_BYTES) return false;
   }
-  let directory = from;
-  for (let level = 0; level < MAX_LEVELS; level++) {
-    if (isProgram(join(directory, ...fact.directory.split('/'), name))) return true;
-    const parent = dirname(directory);
-    if (parent === directory) return false;
-    directory = parent;
-  }
-  return false;
+  return levels.some((directory) => isProgram(join(directory, ...fact.directory.split('/'), name)));
 }

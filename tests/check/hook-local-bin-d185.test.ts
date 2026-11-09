@@ -160,6 +160,21 @@ describe('npx of a program in node_modules/.bin (decision D-185)', () => {
     expect((await hook('npx vitest', own, join(own, 'packages', 'a'))).urls).toContain(lookedUp('vitest'));
   });
 
+  it('looks from the nearest package.json also when depcurfew cannot tell whether npm takes it for a workspace (as on Windows)', async () => {
+    // A pattern with ? (or any workspace on Windows) leaves depcurfew unsure; npm looks from that directory either way.
+    const files = {
+      'package.json': JSON.stringify({ name: 'root', version: '1.0.0', private: true, workspaces: ['packages/?'] }),
+      'depcurfew.json': POLICY,
+      'packages/a/package.json': JSON.stringify({ name: 'a', version: '1.0.0' }),
+      'packages/a/node_modules/.bin/vitest': '#!/bin/sh\n',
+    };
+    const root = project(files);
+    expect(await hook('npx vitest', root, join(root, 'packages', 'a'))).toEqual(NOTHING);
+    // The root's package.json counts as well, since npm may take it for the local prefix.
+    const declared = project({ ...files, 'package.json': JSON.stringify({ name: 'root', version: '1.0.0', private: true, workspaces: ['packages/?'], bin: { vitest: 'cli.js' } }) });
+    expect((await hook('npx vitest', declared, join(declared, 'packages', 'a'))).urls).toContain(lookedUp('vitest'));
+  });
+
   it('looks from the directory --prefix names', async () => {
     const tools = project({ 'package.json': PACKAGE, 'depcurfew.json': POLICY, 'tools/package.json': PACKAGE, 'tools/node_modules/.bin/vitest': '#!/bin/sh\n', 'empty/package.json': PACKAGE });
     expect(await hook('npx --prefix tools vitest', tools)).toEqual(NOTHING);
