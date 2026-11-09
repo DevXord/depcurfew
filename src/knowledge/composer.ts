@@ -6,6 +6,7 @@ import type {
   ComposerRootStabilityKnowledge,
   ComposerScriptCommandsKnowledge,
   ComposerConstraintsKnowledge,
+  ComposerCredentialsKnowledge,
   ComposerStabilitiesKnowledge,
   CommandLineKnowledge,
   CommandNamesKnowledge,
@@ -22,6 +23,7 @@ import type {
 
 const { verified, uncertain } = verifiedOn('2026-11-02');
 const ciOverrides = verifiedOn('2026-11-03');
+const d192 = verifiedOn('2026-11-09');
 
 // getcomposer.org/doc is built from doc/ in the repository; the code is read at the same tag.
 const COMPOSER = 'https://github.com/composer/composer/blob/2.11.1';
@@ -32,6 +34,7 @@ const REPOSITORIES = `${COMPOSER}/doc/05-repositories.md`;
 const CHANGELOG = `${COMPOSER}/CHANGELOG.md`;
 const SRC = `${COMPOSER}/src/Composer`;
 const VERSIONS = `${COMPOSER}/doc/articles/versions.md`;
+const AUTHENTICATION = `${COMPOSER}/doc/articles/authentication-for-private-packages.md`;
 // composer/semver and composer/metadata-minifier at the versions composer.lock of Composer 2.11.1 locks.
 const SEMVER = 'https://github.com/composer/semver/blob/3.6.0/src/VersionParser.php';
 const MINIFIER = 'https://github.com/composer/metadata-minifier/blob/1.0.1/src/MetadataMinifier.php';
@@ -573,6 +576,15 @@ export const composer: ToolKnowledge = {
       { options: [{ name: '--working-dir', moves: 'directory' }, { name: '-d', moves: 'directory' }], variables: [], lookup: 'first-token' },
       `${CLI}#global-options`,
       '"--working-dir (-d): If specified, use the given directory as working directory." Application::doRunComposer changes to it before it reads composer.json (src/Composer/Console/Application.php at 2.11.1). Without it and without composer.json in the current directory (and for a command other than list, init, about, help, diagnose, self-update, global, create-project and outdated), Composer looks for the nearest parent with one, stopping before the home directory and the root of the file system: an interactive run asks whether to use it, use-parent-dir true uses it without asking, and a run without a terminal (stdin not a TTY, or COMPOSER_NO_INTERACTION) with the default use-parent-dir "prompt" (Config::$defaultConfig in src/Composer/Config.php) stays in the current directory and only says so; with --working-dir it never looks at a parent. It then registers the scripts (Application.php) and reads minimum-stability (PackageDiscoveryTrait::getMinimumStability) of Factory::getComposerFile() in the directory it is in. getNewWorkingDir reads the directory with $input->getParameterOption([\'--working-dir\', \'-d\'], null, true), which in symfony/console v5.4.55 (Input/ArgvInput.php) takes the first word, up to --, that is --working-dir or -d (then the next word) or starts with --working-dir= or -d (then the rest of the word); a grouped -nd dir does not start with -d, so Composer stays where it is, although the command later binds -n and -d dir as options.',
+    ),
+    credentials: d192.verified<ComposerCredentialsKnowledge>(
+      {
+        keys: ['http-basic', 'bearer', 'custom-headers', 'gitlab-oauth', 'gitlab-token', 'github-oauth', 'bitbucket-oauth', 'client-certificate', 'forgejo-token'],
+        config: 'config',
+        headers: ['repositories', '*', 'options', 'http', 'header'],
+      },
+      AUTHENTICATION,
+      '"Credentials can be stored on 4 different places; in an auth.json for the project, a global auth.json, in the composer.json itself or in the COMPOSER_AUTH environment variable"; in composer.json "in the config section or directly in the repository definition". Each method is a key with the host under it: "http-basic": {"example.org": {"username": …, "password": …}}, "bearer": {"example.org": "TOKEN"}, "custom-headers": {"repo.example.org": ["API-TOKEN: YOUR-API-TOKEN", …]}, "gitlab-oauth" and "gitlab-token": {"example.org": "token"}, "github-oauth": {"github.com": "token"}, "bitbucket-oauth": {"bitbucket.org": {"consumer-key": "key", "consumer-secret": "secret"}}, "client-certificate": {"repo.example.org": {"local_cert": …, "local_pk": …, "passphrase": "MySecretPassword"}} and "forgejo-token": {"forgejo.example.org": {"username": "forgejo-user", "token": "access-token"}}; inline custom headers sit in the repository as "options": {"http": {"header": ["API-TOKEN: YOUR-API-TOKEN", …]}}. The token is the value under the host, so a diff that reads a line alone does not see that it is one (decision D-192).',
     ),
   },
 };

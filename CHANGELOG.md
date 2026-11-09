@@ -25,6 +25,8 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 ### Fixes
 
 - Requirements files that include each other (`-r`, `-c`) no longer make `doctor`, `apply`, `explain` and the GitHub Action run for ever (also in 1.5.2). A file is known by its real path, so two symbolic links back to its directory (`d -> .`, `e -> .`) no longer name it in millions of ways, and the reading of `--only-binary` works out what each file does once, so a file that includes the next one twice, twenty levels deep, takes a fraction of a second. depcurfew follows at most 1,000 files from one requirements file. Past that, or when files that include a file above them make it read the same ones too many times over, `apply` warns (`requirements-include-unread`) and `doctor` reports it (`unreadable-config`) instead of passing.
+- The lines that `config-drift` and `doctor --user` quote show secrets as `<redacted>`, as the diffs of `apply` do (also in 1.5.2). Before, the text, JSON and SARIF of `doctor`, the log and job summary of the GitHub Action and `doctor --user` showed a token when its line differed from what `apply` writes: `npmAuthToken` in a `.yarnrc.yml` in flow style, a token in a `.npmrc` line that a lone carriage return joins to a managed setting, or a token in a minified `composer.json`.
+- Diffs of `apply` and the lines `doctor` quotes also hide Composer's credentials, which Composer keys by host (`"github-oauth": {"github.com": "…"}`, `bearer`, `http-basic`, `gitlab-token` and the other authentication methods, and the HTTP headers of a repository), by their place in the JSON document, and a token under a quoted key such as `"//registry.npmjs.org/:_authToken"` in `pnpm-workspace.yaml`.
 
 ### Tests
 

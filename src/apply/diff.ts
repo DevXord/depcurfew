@@ -1,6 +1,9 @@
 // Unified diff of two texts (Myers' algorithm on lines), for `apply --dry-run`.
+import type { ComposerCredentialsKnowledge } from '../knowledge/types.ts';
 import { isAbsoluteAnywhere } from '../paths.ts';
 import { printable, redactCredentials } from '../printable.ts';
+import { extraOf, isRecord } from './facts.ts';
+import { knowledgeBase } from '../knowledge/index.ts';
 
 export type Operation = { kind: 'same' | 'delete' | 'insert'; line: string };
 
@@ -119,6 +122,18 @@ function approximateEdit(a: readonly string[], b: readonly string[], window = 32
   return operations;
 }
 
+/** For each operation, its line in `before` (kept and removed lines) or in `after` (added lines). */
+function displayLines(operations: readonly Operation[], before: readonly string[], after: readonly string[]): string[] {
+  let old = 0;
+  let current = 0;
+  return operations.map((operation) => {
+    if (operation.kind === 'insert') return after[current++] ?? operation.line;
+    if (operation.kind === 'delete') return before[old++] ?? operation.line;
+    current += 1;
+    return before[old++] ?? operation.line;
+  });
+}
+
 function range(start: number, count: number): string {
   if (count === 0) return `${start - 1},0`;
   return count === 1 ? `${start}` : `${start},${count}`;
@@ -137,10 +152,14 @@ export interface DiffOptions {
  */
 export function unifiedDiff(file: string, before: string | null, after: string, context = 3, options: DiffOptions = {}): string {
   if (before === after) return '';
-  const operations = myers(lines(before ?? ''), lines(after));
   const name = printable(file);
   const [oldName, newName] = isAbsoluteAnywhere(file) ? [name, name] : [`a/${name}`, `b/${name}`];
   const output = [before === null ? '--- /dev/null' : `--- ${oldName}`, `+++ ${newName}`];
+  const operations = myers(lines(before ?? ''), lines(after));
+  // Each line as redactText shows it: the line of the same number in the redacted text, so that a secret that only its
+  // place in a JSON document shows (a Composer token under its host) is hidden too, and a changed secret still shows
+  // as a changed line (decision D-192).
+  const display = options.redact === true ? displayLines(operations, lines(before === null ? '' : redactText(file, before)), lines(redactText(file, after))) : operations.map((operation) => operation.line);
   const shown = options.redact === true ? redactSecrets : (line: string) => line;
 
   let index = 0;
@@ -174,10 +193,11 @@ export function unifiedDiff(file: string, before: string | null, after: string, 
     const oldCount = hunk.filter((operation) => operation.kind !== 'insert').length;
     const newCount = hunk.filter((operation) => operation.kind !== 'delete').length;
     output.push(`@@ -${range(oldStart, oldCount)} +${range(newStart, newCount)} @@`);
-    for (const operation of hunk) {
+    for (const [offset, operation] of hunk.entries()) {
       const prefix = operation.kind === 'same' ? ' ' : operation.kind === 'delete' ? '-' : '+';
-      if (operation.line.endsWith(NO_EOL)) output.push(`${prefix}${shown(operation.line.slice(0, -1))}`, '\\ No newline at end of file');
-      else output.push(`${prefix}${shown(operation.line)}`);
+      const line = display[start + offset] ?? operation.line;
+      if (line.endsWith(NO_EOL)) output.push(`${prefix}${shown(line.slice(0, -1))}`, '\\ No newline at end of file');
+      else output.push(`${prefix}${shown(line)}`);
     }
     index = stop;
     start = stop;
@@ -195,10 +215,15 @@ export function unifiedDiff(file: string, before: string | null, after: string, 
 const SECRET_KEY = /^(?:_auth|npmauthident|key|[a-z0-9_-]*(?:token|password|passwd|secret))$/iu;
 /** key = value: the key is everything before the first `=`, as in .npmrc, where it may hold colons (//host:443/:_auth). */
 const EQUALS = /^(\s*(?:-\s+)?["']?)([^="'\s][^="']*?)(["']?\s*=\s*)(.*)$/u;
+/**
+ * A key as YAML, TOML and JSON write it: in double quotes (with escapes), in single quotes, or bare. A quoted key may
+ * hold any character, as "//registry.npmjs.org/:_authToken" does; a bare one may hold a colon that no space follows.
+ */
+const KEY = String.raw`(?:"((?:[^"\\]|\\.)*)"|'([^']*)'|([A-Za-z0-9_.\/@-]+(?::[A-Za-z0-9_.\/@-]+)*))`;
 /** key: value, as in YAML. */
-const COLON = /^(\s*(?:-\s+)?["']?)([A-Za-z0-9_.-]+)(["']?\s*:(?:\s+|$))(.*)$/u;
+const COLON = new RegExp(String.raw`^\s*(?:-\s+)?${KEY}\s*:(?:\s+|$)(.*)$`, 'u');
 /** A key and its value inside an inline table or a flow mapping: { token = "…", url = "…" }, {npmAuthToken: …}. */
-const INLINE = /([{,]\s*["']?)([A-Za-z0-9_.-]+)(["']?\s*[=:]\s*)("(?:[^"\\]|\\.)*"|'[^']*'|[^,{}[\]\s][^,}\s]*)/gu;
+const INLINE = new RegExp(String.raw`[{,]\s*${KEY}\s*[=:]\s*("(?:[^"\\]|\\.)*"|'[^']*'|[^,{}[\]\s][^,}\s]*)`, 'gu');
 /** A reference to an environment variable (${NPM_TOKEN}, $NPM_TOKEN) is no secret, and shows where the value comes from. */
 const REFERENCE = /^(["']?)\$(?:\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)\1$/u;
 const REDACTED = '<redacted>';
@@ -219,9 +244,121 @@ export function redactSecrets(line: string): string {
 }
 
 function redactLine(line: string): string {
-  for (const pattern of [EQUALS, COLON]) {
-    const match = pattern.exec(line);
-    if (match !== null && isSecret(match[2] ?? '', match[4] ?? '')) return `${match[1] ?? ''}${match[2] ?? ''}${match[3] ?? ''}${REDACTED}`;
+  const equals = EQUALS.exec(line);
+  if (equals !== null && isSecret(equals[2] ?? '', equals[4] ?? '')) return `${equals[1] ?? ''}${equals[2] ?? ''}${equals[3] ?? ''}${REDACTED}`;
+  const colon = COLON.exec(line);
+  const value = colon?.[4] ?? '';
+  if (colon !== null && isSecret(colon[1] ?? colon[2] ?? colon[3] ?? '', value)) return `${line.slice(0, line.length - value.length)}${REDACTED}`;
+  return redactCredentials(
+    line.replace(INLINE, (whole: string, double: string | undefined, single: string | undefined, bare: string | undefined, found: string) =>
+      isSecret(double ?? single ?? bare ?? '', found) ? `${whole.slice(0, whole.length - found.length)}${REDACTED}` : whole,
+    ),
+  );
+}
+
+const isStrings = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string');
+const isCredentials = (value: unknown): value is ComposerCredentialsKnowledge => isRecord(value) && isStrings(value['keys']) && typeof value['config'] === 'string' && isStrings(value['headers']);
+let credentials: ComposerCredentialsKnowledge | undefined;
+
+function composerCredentials(): ComposerCredentialsKnowledge {
+  const composer = knowledgeBase.find((tool) => tool.id === 'composer');
+  if (composer === undefined) throw new Error('knowledge base: composer is missing');
+  credentials ??= extraOf(composer, 'credentials', isCredentials);
+  return credentials;
+}
+
+/** A JSON file by its name, as detection and apply read it: .json, .jsonc and .renovaterc. */
+function isJsonFile(file: string): boolean {
+  const name = file.split(/[\\/]/u).at(-1) ?? file;
+  return /\.jsonc?$/u.test(name) || name === '.renovaterc';
+}
+
+/** The string a JSON string literal stands for; the text between the quotes when it is not valid JSON. */
+function decoded(literal: string): string {
+  try {
+    const value: unknown = JSON.parse(literal);
+    return typeof value === 'string' ? value : literal.slice(1, -1);
+  } catch {
+    return literal.slice(1, literal.endsWith('"') && literal.length > 1 ? -1 : undefined);
   }
-  return redactCredentials(line.replace(INLINE, (whole, before: string, key: string, separator: string, value: string) => (isSecret(key, value) ? `${before}${key}${separator}${REDACTED}` : whole)));
+}
+
+/**
+ * JSON text with the string values that are secrets as "<redacted>", by their place in the document: the value of a
+ * secret key (SECRET_KEY, as in other files), every string under one of Composer's credentials, which it keys by host
+ * ("github-oauth": {"github.com": "…"}), at the top (auth.json) or under config (composer.json), and the HTTP headers of
+ * a repository (decision D-192). Comments are skipped, as JSONC has them. Every line stays where it is, and a file that
+ * does not parse is read as far as it goes; each string is checked in constant time, however deep it is.
+ */
+function redactJson(text: string): string {
+  const { keys, config, headers } = composerCredentials();
+  const stack: { list: boolean; key: string }[] = [];
+  const at = (index: number) => {
+    const level = stack[index];
+    return level === undefined ? undefined : level.list ? '*' : level.key;
+  };
+  const hidden = (value: string): boolean => {
+    const first = at(0);
+    if (first !== undefined && keys.includes(first) && stack.length >= 2) return true;
+    const second = at(1);
+    if (first === config && second !== undefined && keys.includes(second) && stack.length >= 3) return true;
+    if (stack.length === headers.length + 1 && headers.every((key, index) => key === '*' || at(index) === key)) return true;
+    const last = stack.at(-1);
+    return last !== undefined && !last.list && isSecret(last.key, value);
+  };
+  let expectKey = false;
+  let output = '';
+  let copied = 0;
+  let index = 0;
+  while (index < text.length) {
+    const character = text[index];
+    if (character === '"') {
+      // A string ends at its closing quote, or at the end of the line when it has none.
+      let end = index + 1;
+      while (end < text.length && text[end] !== '"' && text[end] !== '\n') end += text[end] === '\\' && text[end + 1] !== '\n' ? 2 : 1;
+      if (text[end] === '"') end += 1;
+      const literal = text.slice(index, end);
+      const level = stack.at(-1);
+      if (level !== undefined && !level.list && expectKey) {
+        level.key = decoded(literal);
+        expectKey = false;
+      } else if (level !== undefined && hidden(decoded(literal))) {
+        output += `${text.slice(copied, index)}"${REDACTED}"`;
+        copied = end;
+      }
+      index = end;
+      continue;
+    }
+    if (character === '/' && text[index + 1] === '/') {
+      const newline = text.indexOf('\n', index);
+      index = newline === -1 ? text.length : newline;
+      continue;
+    }
+    if (character === '/' && text[index + 1] === '*') {
+      const close = text.indexOf('*/', index + 2);
+      index = close === -1 ? text.length : close + 2;
+      continue;
+    }
+    if (character === '{' || character === '[') {
+      stack.push({ list: character === '[', key: '' });
+      expectKey = character === '{';
+    } else if (character === '}' || character === ']') {
+      stack.pop();
+      expectKey = false;
+    } else if (character === ',') expectKey = stack.at(-1)?.list === false;
+    else if (character === ':') expectKey = false;
+    index += 1;
+  }
+  return output + text.slice(copied);
+}
+
+/**
+ * A file with the values of secrets as <redacted>, line for line, for what people or logs see: JSON by the place of
+ * each value in the document (redactJson, then the user part of URLs), so that a Composer token under its host is
+ * hidden too, also in a minified file; other files each line as redactSecrets reads it (decision D-192). The text keeps
+ * its lines, so line numbers stay, and JSON stays JSON.
+ */
+export function redactText(file: string, text: string): string {
+  if (isJsonFile(file)) return redactJson(text).split('\n').map(redactCredentials).join('\n');
+  return text.split('\n').map(redactSecrets).join('\n');
 }

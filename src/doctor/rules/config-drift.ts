@@ -1,7 +1,7 @@
 // config-drift: what `depcurfew apply` would change is exactly what no longer matches the policy, so the rule plans
 // an apply in memory and reports every difference in every file (decision D-115: not only the first). Against the
 // default policy, without depcurfew.json, it gives one note per file with the settings apply would set (decision D-149).
-import { lines, myers } from '../../apply/diff.ts';
+import { lines, myers, redactText } from '../../apply/diff.ts';
 import { BLOCK_END, isBlockStart, SUPERSEDED, TURNED_OFF } from '../../apply/block.ts';
 import { YAML_MARKER } from '../../apply/yaml-edit.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
@@ -437,15 +437,18 @@ export const configDrift: Rule = {
         });
         continue;
       }
-      const all = reportedDifferences(change.before, change.after);
+      // The lines a finding quotes show secrets as apply --dry-run does: as <redacted> (decision D-192).
+      const before = redactText(change.file, change.before);
+      const after = redactText(change.file, change.after);
+      const all = reportedDifferences(before, after);
       // A file with hundreds of differences (500 Dependabot entries) gives MAX_DIFFERENCES findings, the last with the count.
       const shown = all.slice(0, MAX_DIFFERENCES);
       const rest = all.length - shown.length;
       for (const [index, difference] of shown.entries()) {
         const more = index === shown.length - 1 && rest > 0 ? `; ${rest} more ${rest === 1 ? 'place' : 'places'} in ${change.file} ${rest === 1 ? 'differs' : 'differ'} too (depcurfew apply --dry-run shows them)` : '';
         context.report({
-          location: { file: change.file, line: findingLine(change.file, difference, change.before) },
-          message: `${change.file} does not match ${POLICY_FILE}: ${describe(change.file, difference, change.before, change.after)}${more}`,
+          location: { file: change.file, line: findingLine(change.file, difference, before) },
+          message: `${change.file} does not match ${POLICY_FILE}: ${describe(change.file, difference, before, after)}${more}`,
           fix: `Run depcurfew apply to bring ${change.file} back in line with ${POLICY_FILE} (depcurfew apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`,
         });
       }
@@ -476,6 +479,9 @@ function reportedDifferences(before: string, after: string): Difference[] {
  * Every place of a planned change that config-drift reports, as it words them, each with its line: for doctor --user,
  * whose user files drift the same way (decisions D-116 and D-122). At least one place.
  */
-export function driftPlaces(file: string, before: string, after: string): { line: number; text: string }[] {
+export function driftPlaces(file: string, original: string, planned: string): { line: number; text: string }[] {
+  // With secrets as <redacted>, as config-drift quotes lines (decision D-192).
+  const before = redactText(file, original);
+  const after = redactText(file, planned);
   return reportedDifferences(before, after).map((difference) => ({ line: findingLine(file, difference, before), text: describe(file, difference, before, after) }));
 }
