@@ -22,7 +22,7 @@ import type { ResolvedPolicy } from '../policy/schema.ts';
 import { readLimitedText } from '../read-limited.ts';
 import { parseYamlDocument } from '../yaml-parse.ts';
 import { reportProjectOnly, USER_GENERATORS, type UserTarget } from './generators.ts';
-import { homeProblem, ownerOfNewUnderHome, type HomeProblem } from './home.ts';
+import { homeProblem, linkOutOfHome, ownerOfNewUnderHome, type HomeProblem } from './home.ts';
 import { locateUserFile, shownPath, userFilePath, type UserEnvironment } from './locate.ts';
 import { listing } from '../apply/requirements.ts';
 import { userPolicyPath } from './policy-path.ts';
@@ -332,6 +332,18 @@ export function planUserApply(policy: ResolvedPolicy, options: UserApplyOptions)
       continue;
     }
     const { path } = located;
+    // Run as root in the home directory of another user, nothing is written through a link that leads out of it (decision D-196).
+    const out = linkOutOfHome(environment, path);
+    if (out !== undefined) {
+      const link = shownPath(out.link, environment);
+      failures.push({
+        tool: tool.id,
+        file: shownPath(path, environment),
+        message: `${link} leads to ${out.target}, outside the home directory ${environment.home}, and depcurfew apply --user run as root in the home directory of another user does not write through such a link`,
+        fix: `Replace ${link} with a file or directory of its own in ${environment.home}, or run depcurfew apply --user as the user who owns ${environment.home}`,
+      });
+      continue;
+    }
     const uncertain = uncertainUserFile(tool, version, environment);
     if (uncertain !== undefined) warnings.push(uncertainWarning(tool, uncertain));
     if (version === undefined) {
