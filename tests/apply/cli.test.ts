@@ -97,6 +97,8 @@ describe('depcurfew apply', () => {
       [
         'warning: npm: no exact version is pinned, so depcurfew configures for npm 12.2.1, the latest version it knows (version-not-pinned)',
         '  fix: Pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it',
+        'warning: npm: npx, npm exec and npm x pick the version of a package they download with the release-age delay alone and do not read min-release-age-exclude, so they still hold new versions of @acme/* and left-pad back for cooldown.minimum (exclude-ignored-by-exec)',
+        '  fix: Install such a package with npm install, which reads min-release-age-exclude, and run it from node_modules/.bin: npx runs it from there without downloading it',
         'warning: npm: allowScripts takes package names only; "@scope/*" not written (allow-pattern-unsupported)',
         '  fix: List the package names in installScripts.allow',
         '',
@@ -230,7 +232,7 @@ describe('depcurfew apply --json', () => {
     const result = await exec('apply', '--json', directory);
     expect([result.code, result.stderr]).toEqual([EXIT_OK, '']);
     const report = parse(result.stdout);
-    expect(report).toMatchObject({ schemaVersion: 1, policy: 'valid', dryRun: false, written: true, snippets: [], errors: [], summary: { changes: 2, warnings: 2, errors: 0 } });
+    expect(report).toMatchObject({ schemaVersion: 1, policy: 'valid', dryRun: false, written: true, snippets: [], errors: [], summary: { changes: 2, warnings: 3, errors: 0 } });
     expect(report.changes.map((change) => [change.file, change.action])).toEqual([
       ['.npmrc', 'create'],
       ['package.json', 'update'],
@@ -244,6 +246,7 @@ describe('depcurfew apply --json', () => {
         message: 'npm: no exact version is pinned, so depcurfew configures for npm 12.2.1, the latest version it knows',
         fix: 'Pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it',
       },
+      { code: 'exclude-ignored-by-exec', level: 'warning', tool: 'npm', message: 'npm: npx, npm exec and npm x pick the version of a package they download with the release-age delay alone and do not read min-release-age-exclude, so they still hold new versions of @acme/* and left-pad back for cooldown.minimum', fix: 'Install such a package with npm install, which reads min-release-age-exclude, and run it from node_modules/.bin: npx runs it from there without downloading it' },
       { code: 'allow-pattern-unsupported', level: 'warning', tool: 'npm', message: 'npm: allowScripts takes package names only; "@scope/*" not written', fix: 'List the package names in installScripts.allow' },
     ]);
     expect(readFileSync(join(directory, '.npmrc'), 'utf8')).toBe(readFileSync(join(EXPECTED, 'package-json-only/after/.npmrc'), 'utf8'));

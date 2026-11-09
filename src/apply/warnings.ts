@@ -25,6 +25,7 @@ export const APPLY_WARNINGS = {
   'cooldown-shortened': 'A release-age delay set outside depcurfew\'s markers (in JSON files also one an earlier apply wrote) is longer than the policy, and apply replaces it with the shorter one; a fixed date of uv, PDM or Deno counts as the time since that date.',
   'cooldown-environment-only': 'pip reads no project configuration, so the release-age delay has to be set in the environment where pip runs.',
   'exclude-pattern-unsupported': 'A cooldown exception uses a wildcard the tool does not support, so it is not written.',
+  'exclude-ignored-by-exec': 'npx, npm exec and npm x do not read min-release-age-exclude: the packages of cooldown.exclude that they download still wait for the release-age delay.',
   'exclude-unsupported': 'The tool has no setting for cooldown exceptions, so the release-age delay applies to every package (Bundler: also because the policy has no names for Ruby gems).',
   'exclude-not-written': "The setting that holds the cooldown exceptions (Composer's config.policy.cooldown.ignore) has a value of a type the tool does not accept there, so apply leaves it as it is and does not add the exceptions; the release-age delay is written.",
   'exclude-entry-outside-policy': "A cooldown exception in a file without depcurfew's markers (Composer's config.policy.cooldown.ignore) exempts a package that cooldown.exclude does not; apply removes only the entries it wrote, recognised by their reason, and leaves this one.",

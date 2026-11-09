@@ -7,6 +7,12 @@
   ],
   "warnings": [
     {
+      "code": "exclude-ignored-by-exec",
+      "tool": "npm",
+      "message": "npm: npx, npm exec and npm x pick the version of a package they download with the release-age delay alone and do not read min-release-age-exclude, so they still hold new versions of @acme/* and left-pad back for cooldown.minimum",
+      "fix": "Install such a package with npm install, which reads min-release-age-exclude, and run it from node_modules/.bin: npx runs it from there without downloading it"
+    },
+    {
       "code": "allow-pattern-unsupported",
       "tool": "npm",
       "message": "npm: allowScripts takes package names only; \"@scope/*\" not written",

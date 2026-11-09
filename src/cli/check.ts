@@ -29,7 +29,7 @@ import { addLocalOsvFindings, addOsvFindings, checkedEcosystems, type OsvLocalLo
 import { addListedVersions, listedReports, MAX_LISTED_SPECS } from '../check/listed.ts';
 import { LocalOsvData } from '../osv/data.ts';
 import { localDataNotices } from '../osv/notices.ts';
-import { osvDataDirectories } from '../user/cache-path.ts';
+import { userOsvData } from '../osv/default.ts';
 import { currentEnvironment } from '../user/environment.ts';
 import { currentMachine, type MachineEnvironment } from '../check/machine-settings.ts';
 import {
@@ -47,11 +47,10 @@ import {
   type WrittenSetting,
 } from '../check/registry-settings.ts';
 import { lookupOptionPlaces, quoted } from '../check/findings.ts';
-import { PopularNames } from '../check/similar.ts';
+import { defaultPopularNames } from '../check/popular.ts';
+import { runsLocalBinary } from '../check/local-binaries.ts';
 import { values } from '../apply/facts.ts';
 import type { CommandNamesKnowledge, ToolId } from '../knowledge/types.ts';
-import { popularPackages } from '../knowledge/popular.ts';
-import { popularPythonPackages } from '../knowledge/popular-python.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import { PYPI_PREFIX } from '../policy/package-pattern.ts';
 import { DEFAULT_POLICY, POLICY_FILE, renderPolicy } from '../policy/defaults.ts';
@@ -100,8 +99,8 @@ export interface CheckDependencies {
  */
 export function localOsvData(dependencies: Pick<CheckDependencies, 'osvData' | 'userEnvironment'>): LocalOsvData {
   if (dependencies.osvData !== undefined) return new LocalOsvData(dependencies.osvData());
-  const directories = osvDataDirectories(dependencies.userEnvironment?.() ?? currentEnvironment());
-  return new LocalOsvData(directories.at(-1), { guarded: directories });
+  // The same data a program gets from defaultOsvData (decision D-183).
+  return userOsvData(dependencies.userEnvironment?.() ?? currentEnvironment());
 }
 
 export interface CheckFlags {
@@ -204,11 +203,6 @@ function render(reports: readonly PackageReport[], colors: Paint): string {
   const warnings = reports.filter((report) => report.findings.some((finding) => finding.level === 'warning')).length;
   lines.push('', `${reports.length} ${reports.length === 1 ? 'package' : 'packages'}: ${errors} with errors, ${warnings} with warnings`);
   return `${lines.join('\n')}\n`;
-}
-
-/** Popular Python projects by normalized name, so that names differing only in case or separators are the same. */
-function popularPython(): PopularNames {
-  return new PopularNames((values(popularPythonPackages)[0] ?? []).map(normalizePythonName));
 }
 
 function messageOf(error: unknown): string {
@@ -687,8 +681,8 @@ export async function checkApplied(given: readonly CheckRequest[], applied: Appl
     fetch: settings.fetch,
     now: settings.now,
     registry: applied.registry.url,
-    popular: new PopularNames(values(popularPackages)[0] ?? []),
-    popularPython: popularPython(),
+    // The popular names of the knowledge base, the same a program gets from defaultPopularNames (decision D-182).
+    ...defaultPopularNames(),
     scopeRegistries: applied.scopes,
     scopeWhere: applied.scopeWhere,
     lookups,
@@ -1030,6 +1024,14 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
     const notes: string[] = [];
     const skipped: SkippedFile[] = [];
     const placed = hookGroups(cwd, specs, overrides, project);
+    // npx of a program of the project downloads nothing, so there is nothing to check (decision D-185).
+    for (const group of placed.groups) {
+      if (group.kind === 'unknown') continue;
+      const directory = group.directory ?? cwd;
+      group.requests = group.requests.filter(
+        (entry) => entry.binary !== true || entry.request.tool !== 'npm' || (entry.directory !== undefined && 'unknown' in entry.directory) || !runsLocalBinary(directory, entry.request.spec, { prefix: group.localPrefix }),
+      );
+    }
     let doubt: string | undefined = placed.tooMany;
     const cannotCheck = (result: Extract<AppliedPolicyResult, { ok: false }>) => {
       // A nearer policy is named, so that the user is not pointed at the project's policy, which is fine (decision D-110).

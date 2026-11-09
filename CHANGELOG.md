@@ -2,6 +2,25 @@
 
 All notable changes for users of depcurfew. The project follows [semantic versioning](https://semver.org/): the policy file (`version: 1`), the command-line options, the exit codes and the JSON and SARIF output (`schemaVersion: 1`) only change in a backward-incompatible way in a new major version.
 
+## Unreleased
+
+### Claude Code hook
+
+- `npx`, `npm exec` and `npm x` without `--package` run a program of the project when `node_modules/.bin` of npm's local prefix (or of the workspace the command runs in) or of a directory above it has a file of that name and no `package.json` there or above declares a bin of that name. npm then downloads nothing, so the hook no longer looks the package up in the registry: `npx vitest run` in a project that installed vitest is not blocked because the newest vitest on the registry is younger than the release-age delay, and `npx tsc` no longer warns about the deprecated package `tsc`. With a version (`npx vitest@4`), `--package`, a workspace option, in a loop or a function, or after a command on the same line that may write files (`rm -rf node_modules && npx vitest`), the package is checked as before.
+
+### apply
+
+- The new warning `exclude-ignored-by-exec`: npx, npm exec and npm x pick the version of a package they download with the release-age delay alone and do not read `min-release-age-exclude` (npm 11.21.1, 11.21.2 and 12.2.2), so the packages of `cooldown.exclude` still wait when they run through them. The fix says to install such a package with `npm install`, which reads the exceptions, and run it from `node_modules/.bin`, where npx finds it without downloading it.
+
+### Library
+
+- `defaultPopularNames()` returns the popular npm packages and PyPI projects that `check`, the hook and `depcurfew mcp` compare look-alike names with, as the options `popular` and `popularPython` of `checkSpecs`. A program that calls `checkSpecs` without the network, such as agentcurfew for the packages of MCP servers, reports names that imitate a popular package with it.
+- `defaultOsvData()` returns the `LocalOsvData` of the data `depcurfew osv update` downloaded to depcurfew's user cache directory, the one the commands read, or `undefined` when nothing was downloaded.
+
+### Documentation
+
+- The page "Alongside other supply-chain tools" names agentcurfew, depcurfew's sibling for the files that steer AI coding agents, and how the two work together.
+
 ## 1.5.2
 
 ### Documentation site

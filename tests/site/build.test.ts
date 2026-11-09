@@ -258,6 +258,12 @@ describe('hero of the start page (D-140)', () => {
     expect(html.indexOf('<div class="hero">')).toBeLessThan(html.indexOf('<h2 id="why">'));
   });
 
+  it('names agentcurfew, the sibling for the files that steer AI coding agents, on the Other tools page (decision D-186)', () => {
+    const html = page('other-tools.html');
+    expect(html).toContain('<strong><a href="https://agentcurfew.github.io/">agentcurfew</a></strong>');
+    expect(html).toContain('mcp-package');
+  });
+
   it('has the buttons to the five-minute start, the repository and the npm package', () => {
     expect(hero()).toContain(
       [

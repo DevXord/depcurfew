@@ -1123,6 +1123,14 @@ export class DirectoryWalk {
     if (!harmless) this.wrote = true;
   }
 
+  /**
+   * Whether the files a command finds may differ from those on disk now (decision D-185): a command before it on the
+   * line may have written files, or it is in a loop or a function, which may run it again or later, after such a command.
+   */
+  mayChangeFiles(): boolean {
+    return this.wrote || this.pendingFunction || this.frames.some((frame) => frame.kind === 'loop' || frame.kind === 'function');
+  }
+
   /** Where an install or override relative to the command runs, relative to the start of the line. */
   private where(directory: CommandDirectory | undefined): CommandDirectory {
     if (this.overflow > 0) return { unknown: TOO_DEEP };
