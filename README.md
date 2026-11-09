@@ -440,7 +440,7 @@ What depcurfew configures and checks for each tool, from its [knowledge base](ht
 | Tool | Release-age delay | Exceptions | Install-script allow-list (Python: packages built from source; Composer: plugins) | Dependency sources | Verified |
 | --- | --- | --- | --- | --- | --- |
 | npm | `min-release-age` in `.npmrc` (days), since 11.10.0 | `min-release-age-exclude`, since 11.17.0 | `allowScripts` in `package.json` | git: `allow-git`<br>remote tarball: `allow-remote`<br>local tarball: `allow-file`<br>local directory: `allow-directory` | 2026-10-28 – 2026-11-09 |
-| pnpm | `minimumReleaseAge` in `pnpm-workspace.yaml` (minutes), since 10.16.0 | `minimumReleaseAgeExclude`, since 10.16.0 | `allowBuilds` in `pnpm-workspace.yaml` | git: `blockExoticSubdeps`<br>remote tarball: `blockExoticSubdeps` | 2026-10-28 – 2026-11-03 |
+| pnpm | `minimumReleaseAge` in `pnpm-workspace.yaml` (minutes), since 10.16.0 | `minimumReleaseAgeExclude`, since 10.16.0 | `allowBuilds` in `pnpm-workspace.yaml` | git: `blockExoticSubdeps`<br>remote tarball: `blockExoticSubdeps` | 2026-10-28 – 2026-11-09 |
 | Yarn (Berry) | `npmMinimalAgeGate` in `.yarnrc.yml` (minutes), since 4.10.2 | `npmPreapprovedPackages`, since 4.10.0 | `dependenciesMeta.<package>.built` in `package.json` | git: `approvedGitRepositories` | 2026-10-28 – 2026-11-03 |
 | Bun | `install.minimumReleaseAge` in `bunfig.toml` (seconds), since 1.3.0 | `install.minimumReleaseAgeExcludes`, since 1.3.0 | `trustedDependencies` in `package.json` | none | 2026-10-28 – 2026-11-03 |
 | Deno | `minimumDependencyAge` in `deno.json` (minutes) or `min-release-age` in `.npmrc` (days), since 2.5.5 / 2.6.0 ⚠️ | `minimumDependencyAge.exclude`, since 2.5.5 | `allowScripts` in `deno.json` | none | 2026-10-28 – 2026-11-03 |
@@ -964,7 +964,7 @@ Commands the guard reads (an add subcommand of any npm package manager, such as 
 | Package manager | Add packages | Download and run | Starter kits |
 | --- | --- | --- | --- |
 | npm | `npm install`, `npm add`, `npm i`, `npm in`, `npm ins`, `npm inst`, `npm insta`, `npm instal`, `npm isnt`, `npm isnta`, `npm isntal`, `npm isntall`, `npm install-test`, `npm it`, `npm link`, `npm ln` | `npx`, `npm exec`, `npm x` | `npm init`, `npm create`, `npm innit` |
-| pnpm | `pnpm add` | `pnx`, `pnpx`, `pnpm dlx` | `pnpm create` |
+| pnpm | `pnpm add`, `pn add` | `pnx`, `pnpx`, `pnpm dlx`, `pn dlx` | `pnpm create`, `pn create` |
 | Yarn (Berry) | `yarn add` | `yarn dlx` | `yarn create` |
 | Bun | `bun add`, `bun a` | `bunx`, `bun x` | `bun create`, `bun c` |
 | Deno | `deno add`, `deno install` | `deno x`, `dx`, `denox`, `dnx` | none |
