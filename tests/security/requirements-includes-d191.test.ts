@@ -100,21 +100,23 @@ describe('requirements files that include each other (decision D-191)', () => {
     }
   });
 
-  it('stops reading --only-binary when each file includes the next twice and the last one the first, and says so', async () => {
+  it('stops reading --only-binary when each file includes the next twice and the last one the first, and says so', { timeout: 60_000 }, async () => {
     // a20.txt includes requirements.txt, which is on the way, so what each file does depends on the way to it.
     const root = repository(doubled('-r requirements.txt\nidna==3.10\n'));
     expect(await seconds(() => runDoctor(root))).toBeLessThan(3);
     expect(unreadable(root)).toEqual([expect.stringContaining('requirements.txt includes more than 1000 requirements files, or the same ones so many times over, that depcurfew stops following them, so it cannot tell whether --only-binary=:all: holds there')]);
   });
 
-  it('stops after 1000 included files and says so, quickly', async () => {
+  // Writing 1,500 files takes seconds on a Windows runner, so the clock gets room; what is limited is the CPU time of
+  // depcurfew (decision D-188).
+  it('stops after 1000 included files and says so, quickly', { timeout: 60_000 }, async () => {
     const files: Record<string, string> = { 'requirements.txt': 'requests==2.32.3\n-r a1.txt\n', 'depcurfew.json': POLICY };
     for (let level = 1; level < 1500; level++) files[`a${level}.txt`] = `-r a${level + 1}.txt\n`;
     files['a1500.txt'] = 'idna==3.10\n';
     const root = repository(files);
-    let report = applyProject(root, { write: false });
+    let report: ReturnType<typeof applyProject> | undefined;
     expect(await seconds(() => (report = applyProject(root, { write: false })))).toBeLessThan(5);
-    expect(report.warningDetails.filter((warning) => warning.code === 'requirements-include-unread').map((warning) => warning.message)).toEqual([
+    expect(report?.warningDetails.filter((warning) => warning.code === 'requirements-include-unread').map((warning) => warning.message)).toEqual([
       expect.stringContaining('requirements.txt includes more than 1000 requirements files, which depcurfew does not follow'),
     ]);
     expect(unreadable(root)).toEqual(expect.arrayContaining([expect.stringContaining('requirements.txt includes more than 1000 requirements files')]));
