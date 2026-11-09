@@ -8,6 +8,7 @@
 // directories (4.9 s, 1.6 s). In these tests, without the start of the process, they take 4.2 s, 1.6 s, 12 s and 18 s
 // before the fix; the limits leave a wide margin for slow CI machines.
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
@@ -59,14 +60,14 @@ const never: FetchLike = async (url) => {
 /** depcurfew doctor --json on `root` as the CLI runs it, with the local OSV.dev data of `data` (none by default). */
 async function doctor(root: string, data?: string): Promise<{ code: number; report: { policySource: string | null; findings: { rule: string }[]; notices: { code: string }[] }; seconds: number }> {
   let stdout = '';
-  const start = performance.now();
+  const start = cpuNow();
   const code = await run(['doctor', '--json', root], { stdout: (text) => (stdout += text), stderr: () => {} }, {
     fetch: never,
     now: () => NOW,
     stdin: async () => '',
     osvData: () => data,
   });
-  return { code, report: JSON.parse(stdout) as never, seconds: (performance.now() - start) / 1000 };
+  return { code, report: JSON.parse(stdout) as never, seconds: (cpuNow() - start) / 1000 };
 }
 
 describe('doctor on large repositories (decision D-157)', () => {
@@ -147,9 +148,9 @@ describe('the files of the bot-only ecosystems among many others (decision D-157
     writeFileSync(join(root, 'assets', 'nuget.config'), '<configuration />\n');
     files(join(root, 'go'), 10);
     writeFileSync(join(root, 'go', 'go.mod'), 'module example.com/x\n');
-    const start = performance.now();
+    const start = cpuNow();
     const detection = detectProject(root);
-    expect((performance.now() - start) / 1000).toBeLessThan(0.5 * SLOW);
+    expect((cpuNow() - start) / 1000).toBeLessThan(0.5 * SLOW);
     expect(detection.botEcosystems).toEqual([
       { id: 'gomod', files: ['go/go.mod'] },
       { id: 'nuget', files: ['assets/App.csproj', 'assets/nuget.config'] },

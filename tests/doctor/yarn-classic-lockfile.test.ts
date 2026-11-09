@@ -2,6 +2,7 @@
 // reads it, and the tarball of resolved, which Yarn Classic fetches, as the version looked up. Yarn Classic stays
 // unsupported for settings.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -190,14 +191,14 @@ describe('known-malicious reads the yarn.lock of Yarn Classic', () => {
 describe('the reader of the Yarn Classic yarn.lock runs in linear time', () => {
   const format = extraOf(yarn, 'classicLockfile', isRecord);
   const timed = (text: string) => {
-    const start = performance.now();
+    const start = cpuNow();
     let result: unknown;
     try {
       result = classicYarnEntries(text, format, undefined).length;
     } catch (error) {
       result = (error as Error).message;
     }
-    return { seconds: (performance.now() - start) / 1000, result };
+    return { seconds: (cpuNow() - start) / 1000, result };
   };
 
   it('reads 100 000 entries of a 30 MiB lockfile in seconds', { timeout: 120_000 }, () => {

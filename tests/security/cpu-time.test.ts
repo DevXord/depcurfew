@@ -3,6 +3,7 @@
 // requirements.txt, many keys in .yarnrc.yml, and YAML nested thousands of levels deep. Before the fixes these took
 // 217 s, 28 s, 288 s, 13 s and a fatal V8 error; the limits below leave a wide margin for slow CI machines.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -32,9 +33,9 @@ function repository(files: Record<string, string>): string {
 }
 
 function seconds(action: () => void): number {
-  const start = performance.now();
+  const start = cpuNow();
   action();
-  return (performance.now() - start) / 1000;
+  return (cpuNow() - start) / 1000;
 }
 
 const entry = '  - package-ecosystem: npm\n    directory: /\n    schedule: {interval: daily}\n    cooldown: {default-days: 1}\n';

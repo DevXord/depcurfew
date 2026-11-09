@@ -7,6 +7,7 @@
 // makes the line unreadable. pipx inject, pipx runpip, pipx install-all and pipx manifest sync (pipx 1.18.12) are read.
 // Every expected result of a shell line was checked on GNU bash 5.2.21 with a fake npm that prints its arguments.
 import { describe, expect, it } from 'vitest';
+import { cpuNow } from '../support/cpu-time.ts';
 import { scanCommandLine, unreadableFix } from '../../src/check/command.ts';
 
 const specs = (line: string) => scanCommandLine(line).requests.map((request) => `${request.tool}:${request.spec}`);
@@ -108,17 +109,17 @@ describe('in linear time', () => {
   it('reads a here-document of a million characters of continuations and of backslashes', () => {
     for (const body of ['x\\\n'.repeat(330_000), '\\'.repeat(1_000_000), 'a\\b\n'.repeat(250_000)]) {
       const line = `cat <<EOF\n${body}\nEOF\nnpm i x`;
-      const start = performance.now();
+      const start = cpuNow();
       expect(specs(line)).toEqual(['npm:x']);
-      expect(performance.now() - start).toBeLessThan(2000);
+      expect(cpuNow() - start).toBeLessThan(2000);
     }
   });
 
   it('reads a long run of assignments to array elements', () => {
     for (const line of [`${'a[0]=1 '.repeat(100_000)}npm i x`, `${'BASH_CMDS[x]=/bin/x '.repeat(50_000)}`.trim()]) {
-      const start = performance.now();
+      const start = cpuNow();
       scanCommandLine(line);
-      expect(performance.now() - start).toBeLessThan(2000);
+      expect(cpuNow() - start).toBeLessThan(2000);
     }
     expect(specs(`${'a[0]=1 '.repeat(1000)}npm i x`)).toEqual(['npm:x']);
   });

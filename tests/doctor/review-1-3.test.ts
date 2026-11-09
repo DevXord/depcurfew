@@ -1,6 +1,7 @@
 // doctor after the 1.3.0 review (decision D-105): notices instead of a silent "passed" for versions it cannot read,
 // large matrices in bounded time, and the tester's repository (tests/fixtures/repos/node-npm-scripts) after apply.
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,9 +58,9 @@ describe('large matrices', () => {
     const values = Array.from({ length: 2000 }, (_, index) => `"18.${index}.0"`).join(', ');
     const workflow = `on: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    strategy:\n      matrix:\n        node: [${values}]\n    steps:\n${setupNodeSteps(150, '${{ matrix.node }}')}`;
     const directory = repository({ 'depcurfew.json': POLICY, 'package.json': PACKAGE, 'package-lock.json': LOCK, '.github/workflows/ci.yml': workflow });
-    const start = performance.now();
+    const start = cpuNow();
     const report = runDoctor(directory);
-    expect(performance.now() - start).toBeLessThan(20_000);
+    expect(cpuNow() - start).toBeLessThan(20_000);
     const reason = 'the matrix lists more than 256 values for node, which depcurfew does not check';
     expect(report.notices.map((notice) => notice.message)).toEqual(
       expect.arrayContaining([`manager-version-too-old cannot tell which npm or pip comes with Node.js \${{ matrix.node }} (matrix.node) in GitHub Actions (.github/workflows/ci.yml, job test): ${reason}`]),
@@ -74,9 +75,9 @@ describe('large matrices', () => {
     const values = Array.from({ length: 200 }, (_, index) => `"22.${index}.0"`).join(', ');
     const workflow = `on: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    strategy:\n      matrix:\n        node: [${values}]\n    steps:\n${setupNodeSteps(200, '${{ matrix.node }}')}`;
     const directory = repository({ 'depcurfew.json': POLICY, 'package.json': PACKAGE, 'package-lock.json': LOCK, '.github/workflows/ci.yml': workflow });
-    const start = performance.now();
+    const start = cpuNow();
     const report = runDoctor(directory);
-    expect(performance.now() - start).toBeLessThan(20_000);
+    expect(cpuNow() - start).toBeLessThan(20_000);
     expect(report.findings.some((finding) => finding.rule === 'manager-version-too-old')).toBe(true);
   }, 60_000);
 });

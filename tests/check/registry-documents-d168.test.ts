@@ -4,6 +4,7 @@
 // document over the limit says so, with a fix that is not about an unreachable registry. The PyPI page of a project
 // reads the version of every file name in time linear in its length.
 import { readdirSync, readFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { describe, expect, it } from 'vitest';
 import { checkSpec } from '../../src/check/index.ts';
 import { fileVersion } from '../../src/check/pypi.ts';
@@ -146,10 +147,10 @@ describe('the version of a file on a PyPI page', () => {
 
   it('reads a name of 8000 dashes, or of 16000 parts, in well under a second', () => {
     for (const filename of [`requests${'-a'.repeat(8000)}.tar.gz`, `${'a-'.repeat(16_000)}1.0.tar.gz`, `${'-'.repeat(32_000)}1.0.tar.gz`, `${'a._-'.repeat(8000)}1.0.zip`]) {
-      const start = performance.now();
+      const start = cpuNow();
       fileVersion(filename, 'requests');
       fileVersion(filename, normalizePythonName(filename.slice(0, 2000)));
-      expect(performance.now() - start).toBeLessThan(250);
+      expect(cpuNow() - start).toBeLessThan(250);
     }
   });
 

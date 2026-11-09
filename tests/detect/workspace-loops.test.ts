@@ -4,6 +4,7 @@
 // once per pattern segment by its real path, a directory whose real path is the root is never a workspace package, and
 // one workspace declaration lists at most MAX_WORKSPACE_DIRECTORIES directories, with a notice when it stops there.
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -39,9 +40,9 @@ const never: FetchLike = async (url) => {
 
 async function cli(...argv: string[]): Promise<{ code: number; stdout: string; seconds: number }> {
   let stdout = '';
-  const start = performance.now();
+  const start = cpuNow();
   const code = await run(argv, { stdout: (text) => (stdout += text), stderr: () => {} }, { fetch: never, now: () => new Date('2026-11-02T18:00:00Z'), stdin: async () => '', osvData: () => undefined });
-  return { code, stdout, seconds: (performance.now() - start) / 1000 };
+  return { code, stdout, seconds: (cpuNow() - start) / 1000 };
 }
 
 describe.skipIf(!canSymlink())('workspace patterns over symlinks that loop (decision D-161)', () => {
@@ -62,9 +63,9 @@ describe.skipIf(!canSymlink())('workspace patterns over symlinks that loop (deci
     symlinkSync('../..', join(root, 'packages', 'a', 'up'), 'junction');
     symlinkSync('..', join(root, 'packages', 'a', 'x', 'back'), 'junction');
     symlinkSync('.', join(root, 'self'), 'junction');
-    const start = performance.now();
+    const start = cpuNow();
     const detection = detectProject(root);
-    expect((performance.now() - start) / 1000).toBeLessThan(2);
+    expect((cpuNow() - start) / 1000).toBeLessThan(2);
     // up and self are the root, which is not a workspace package of itself; back is packages/a, listed once as packages/a.
     expect(detection.workspaces?.packages).toEqual(['packages/a', 'packages/a/x/b']);
     expect(detection.warnings.filter((warning) => warning.code === 'workspace-search-limit')).toEqual([]);

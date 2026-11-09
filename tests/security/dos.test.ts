@@ -2,6 +2,7 @@
 // wildcard patterns from depcurfew.json or workspace declarations, and many ** segments in a workspace pattern. Nor can
 // a hook event of 1 MiB (the most the hook reads) with brackets, quotes or variables for the PowerShell and cmd readers.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -17,9 +18,9 @@ afterAll(() => {
 });
 
 function elapsed(action: () => void): number {
-  const start = performance.now();
+  const start = cpuNow();
   action();
-  return performance.now() - start;
+  return cpuNow() - start;
 }
 
 describe('wildcardMatch', () => {

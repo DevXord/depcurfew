@@ -1,6 +1,7 @@
 // The OSV.dev client of --osv (decision D-129): one batch query per 1000 package versions, the pages of a paged result,
 // only MAL- records count, and every way the lookup can fail leaves the version unchecked with the reason, never clean.
 import { describe, expect, it } from 'vitest';
+import { cpuNow } from '../support/cpu-time.ts';
 import { linkedIds, MAX_OSV_PAGES, osvKey, osvRecordPage, queryOsv, type OsvPackage } from '../../src/check/osv.ts';
 import type { FetchLike } from '../../src/check/registry.ts';
 import { OSV_BATCH_URL, osvFetch, unreachableOsv } from '../support/osv.ts';
@@ -200,9 +201,9 @@ describe('queryOsv', () => {
     // Every page has 2000 records: 1000 seen on the page before and 1000 new ones.
     const page = (round: number) => Array.from({ length: 2000 }, (_, index) => ({ id: `MAL-${round + Math.floor(index / 1000)}-${index % 1000}` }));
     const fetch = answering((queries, round) => json({ results: queries.map(() => ({ vulns: page(round), ...(round < MAX_OSV_PAGES ? { next_page_token: `t${round}` } : {}) })) }));
-    const started = performance.now();
+    const started = cpuNow();
     const [verdict] = await queryOsv([MALICIOUS], { fetch });
-    expect(performance.now() - started).toBeLessThan(2000);
+    expect(cpuNow() - started).toBeLessThan(2000);
     expect(verdict?.status === 'checked' ? verdict.malicious.length : verdict).toBe((MAX_OSV_PAGES + 1) * 1000);
   });
 

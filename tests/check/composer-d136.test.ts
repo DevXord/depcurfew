@@ -5,6 +5,7 @@
 // Packagist answers and Composer in the PowerShell tool. Packagist answers are recorded (tests/fixtures/packagist/) or
 // written here for a package acme/x.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -88,9 +89,9 @@ describe('Composer names in linear time (R1)', () => {
 
   it('reads a long name that fails at its end at once', () => {
     for (const text of [`${'a'.repeat(5000)}!`, `ext-${'a'.repeat(5000)}!`, `a/${'a'.repeat(5000)}!`, `${'a-'.repeat(2500)}/x!`]) {
-      const start = performance.now();
+      const start = cpuNow();
       expect(parseComposerSpec(text)).toBeUndefined();
-      expect(performance.now() - start).toBeLessThan(200);
+      expect(cpuNow() - start).toBeLessThan(200);
     }
   });
 
@@ -111,14 +112,14 @@ describe('Composer names in linear time (R1)', () => {
 
   it('gives check and the hook an answer at once for such a name', async () => {
     const root = project();
-    let start = performance.now();
+    let start = cpuNow();
     const result = await check(['check', '--json', '--dir', root, `composer:${'a'.repeat(30)}!`]);
     expect(result.code).toBe(EXIT_FAILURE);
     expect(JSON.parse(result.stdout).packages[0].findings[0].code).toBe('invalid-spec');
-    expect(performance.now() - start).toBeLessThan(2000);
-    start = performance.now();
+    expect(cpuNow() - start).toBeLessThan(2000);
+    start = cpuNow();
     await hook(`composer require ext-${'a'.repeat(30)}! ; composer require monolog/monolog`, root);
-    expect(performance.now() - start).toBeLessThan(5000);
+    expect(cpuNow() - start).toBeLessThan(5000);
   });
 
   it('does not read a name longer than 1000 characters', () => {
@@ -300,10 +301,10 @@ describe('limits for Packagist answers (finding 7)', () => {
     const root = project();
     const body = answer(10_000, '.1'.repeat(118));
     expect(body.length).toBeLessThan(16 * 1024 * 1024);
-    const start = performance.now();
+    const start = cpuNow();
     const result = await check(['check', '--json', '--dir', root, 'composer:big/p:@beta'], serving(body));
     expect(result.code).toBe(EXIT_OK);
-    expect(performance.now() - start).toBeLessThan(3000);
+    expect(cpuNow() - start).toBeLessThan(3000);
   });
 });
 

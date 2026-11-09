@@ -3,6 +3,7 @@
 // rebuilt the directory and copied every variable set before it; 32768 [tool.pdm.dev-dependencies] keys of one group
 // took 5.4 s, and explain on 1600 projects 16.7 s. Before the fixes these tests ran into their timeouts.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -33,9 +34,9 @@ function repository(files: Record<string, string>): string {
 }
 
 function seconds(action: () => void): number {
-  const start = performance.now();
+  const start = cpuNow();
   action();
-  return (performance.now() - start) / 1000;
+  return (cpuNow() - start) / 1000;
 }
 
 /** The prefix and lines after it, as many as fit in `size` bytes with the suffix (the most depcurfew reads is 1 MiB). */

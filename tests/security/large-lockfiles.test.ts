@@ -2,6 +2,7 @@
 // package's duplicate-key check is quadratic, so lockfiles are parsed without it and checked with a Set, once per
 // run, and a YAML lockfile over the limit is reported by unreadable-config instead of being parsed.
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -49,9 +50,9 @@ function yarnLock(count: number): string {
 }
 
 function elapsed(action: () => void): number {
-  const start = performance.now();
+  const start = cpuNow();
   action();
-  return performance.now() - start;
+  return cpuNow() - start;
 }
 
 describe('large YAML lockfiles', () => {
