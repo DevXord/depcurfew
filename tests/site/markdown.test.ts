@@ -55,6 +55,16 @@ describe('paragraphs', () => {
   });
 });
 
+describe('block quotes', () => {
+  it('renders consecutive > lines as one quoted paragraph with inline content', () => {
+    expect(html('> One **sentence**\n> on two lines.\n\nAfter.')).toBe('<blockquote>\n<p>One <strong>sentence</strong>\non two lines.</p>\n</blockquote>\n<p>After.</p>\n');
+  });
+
+  it('ends a paragraph at a quote and takes > with or without a space', () => {
+    expect(html('Text\n>quoted')).toBe('<p>Text</p>\n<blockquote>\n<p>quoted</p>\n</blockquote>\n');
+  });
+});
+
 describe('lists', () => {
   it('renders bullet lists with inline content and lazy continuation lines', () => {
     expect(html('- **On your machine:** run `npm ci`\n- second\n  continued\n* other')).toBe(

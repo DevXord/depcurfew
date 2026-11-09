@@ -47,7 +47,10 @@
   },
   "keywords": [
     "supply-chain",
+    "supply-chain-security",
     "security",
+    "dependency-security",
+    "malicious-packages",
     "npm",
     "pnpm",
     "yarn",
