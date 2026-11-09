@@ -25490,17 +25490,39 @@ function formatControlAfter(read, root, reading, identity = (file) => file) {
 		steps += count;
 		if (steps > 2e5) throw new TooManyIncludes();
 	};
-	const parsed = /* @__PURE__ */ new Map();
-	const parse = (file, real) => {
-		if (!parsed.has(real)) {
-			if (parsed.size >= 1e3) throw new TooManyIncludes();
+	const prepared = /* @__PURE__ */ new Map();
+	const prepare = (file, real) => {
+		if (!prepared.has(real)) {
+			if (prepared.size >= 1e3) throw new TooManyIncludes();
 			const text = read(file);
-			parsed.set(real, text === void 0 ? void 0 : {
-				includes: new Map(requirementsIncludes(text, reading.format).map((include) => [include.line, include.path])),
-				lines: requirementsLines(text, reading.format)
-			});
+			if (text === void 0) prepared.set(real, void 0);
+			else {
+				const includes = new Map(requirementsIncludes(text, reading.format).map((include) => [include.line, include.path]));
+				const items = [];
+				for (const { text: body, line } of requirementsLines(text, reading.format)) {
+					const path = includes.get(line);
+					if (path === void 0) {
+						const { options } = binaryOptions(body, facts, reading.longOptions);
+						if (options.length > 0) items.push({
+							kind: "options",
+							options
+						});
+						continue;
+					}
+					const included = includedFile(file, path);
+					if (!included.url && !included.outside) items.push({
+						kind: "include",
+						target: included.target,
+						real: identity(included.target)
+					});
+				}
+				prepared.set(real, {
+					file,
+					items
+				});
+			}
 		}
-		return parsed.get(real);
+		return prepared.get(real);
 	};
 	const known = /* @__PURE__ */ new Map();
 	const onWay = /* @__PURE__ */ new Set();
@@ -25522,30 +25544,26 @@ function formatControlAfter(read, root, reading, identity = (file) => file) {
 			},
 			from: void 0
 		};
-		const content = parse(file, real);
+		const content = prepare(file, real);
 		if (content === void 0) return {
 			change,
 			pure: true
 		};
 		let pure = true;
 		onWay.add(real);
-		for (const { text: body, line } of content.lines) {
-			const path = content.includes.get(line);
-			if (path !== void 0) {
-				const included = includedFile(file, path);
-				if (included.url || included.outside) continue;
-				const target = identity(included.target);
-				if (onWay.has(target)) {
-					if (target !== real) pure = false;
-					continue;
-				}
-				const inner = visit(included.target, target);
-				pure &&= inner.pure;
-				step(1 + inner.change.only.names.size + inner.change.no.names.size);
-				follow(change, inner.change);
+		for (const item of content.items) {
+			if (item.kind === "options") {
+				for (const option of item.options) apply(change, option.option === facts.noBinary ? "no" : "only", option.value, content.file);
 				continue;
 			}
-			for (const option of binaryOptions(body, facts, reading.longOptions).options) apply(change, option.option === facts.noBinary ? "no" : "only", option.value, file);
+			if (onWay.has(item.real)) {
+				if (item.real !== real) pure = false;
+				continue;
+			}
+			const inner = visit(item.target, item.real);
+			pure &&= inner.pure;
+			step(1 + inner.change.only.names.size + inner.change.no.names.size);
+			follow(change, inner.change);
 		}
 		onWay.delete(real);
 		if (pure) known.set(real, change);

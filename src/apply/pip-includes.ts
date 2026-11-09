@@ -268,15 +268,32 @@ export function formatControlAfter(
     steps += count;
     if (steps > MAX_FORMAT_STEPS) throw new TooManyIncludes();
   };
-  // Each file is read and split into lines once, however often it is included.
-  const parsed = new Map<string, { includes: Map<number, string>; lines: ReturnType<typeof requirementsLines> } | undefined>();
-  const parse = (file: string, real: string) => {
-    if (!parsed.has(real)) {
-      if (parsed.size >= MAX_REQUIREMENTS_FILES) throw new TooManyIncludes();
+  // Each file is read once, however often it is included: its includes, resolved and named by their real path, and
+  // its --no-binary and --only-binary options, in the order pip reads them (decision D-191).
+  type Item = { kind: 'include'; target: string; real: string } | { kind: 'options'; options: BinaryOption[] };
+  const prepared = new Map<string, { file: string; items: Item[] } | undefined>();
+  const prepare = (file: string, real: string) => {
+    if (!prepared.has(real)) {
+      if (prepared.size >= MAX_REQUIREMENTS_FILES) throw new TooManyIncludes();
       const text = read(file);
-      parsed.set(real, text === undefined ? undefined : { includes: new Map(requirementsIncludes(text, reading.format).map((include) => [include.line, include.path])), lines: requirementsLines(text, reading.format) });
+      if (text === undefined) prepared.set(real, undefined);
+      else {
+        const includes = new Map(requirementsIncludes(text, reading.format).map((include) => [include.line, include.path]));
+        const items: Item[] = [];
+        for (const { text: body, line } of requirementsLines(text, reading.format)) {
+          const path = includes.get(line);
+          if (path === undefined) {
+            const { options } = binaryOptions(body, facts, reading.longOptions);
+            if (options.length > 0) items.push({ kind: 'options', options });
+            continue;
+          }
+          const included = includedFile(file, path);
+          if (!included.url && !included.outside) items.push({ kind: 'include', target: included.target, real: identity(included.target) });
+        }
+        prepared.set(real, { file, items });
+      }
     }
-    return parsed.get(real);
+    return prepared.get(real);
   };
   // What a file does, by its real path, when it does not depend on the files above it: when what it includes, and what
   // that includes, never includes a file on the way to it. Then it does the same wherever it is included (decision D-191).
@@ -288,29 +305,25 @@ export function formatControlAfter(
     if (reused !== undefined) return { change: reused, pure: true };
     step(1);
     const change: FormatChange = { only: { cleared: false, names: new Map() }, no: { cleared: false, names: new Map() }, from: undefined };
-    const content = parse(file, real);
+    const content = prepare(file, real);
     if (content === undefined) return { change, pure: true };
     let pure = true;
     onWay.add(real);
-    for (const { text: body, line } of content.lines) {
-      const path = content.includes.get(line);
-      if (path !== undefined) {
-        const included = includedFile(file, path);
-        if (included.url || included.outside) continue;
-        const target = identity(included.target);
-        // pip stops at a file that includes itself; depcurfew stops following it, also through a symlink. A file that
-        // includes itself does so wherever it is read; one that includes a file above it, only on this way.
-        if (onWay.has(target)) {
-          if (target !== real) pure = false;
-          continue;
-        }
-        const inner = visit(included.target, target);
-        pure &&= inner.pure;
-        step(1 + inner.change.only.names.size + inner.change.no.names.size);
-        follow(change, inner.change);
+    for (const item of content.items) {
+      if (item.kind === 'options') {
+        for (const option of item.options) apply(change, option.option === facts.noBinary ? 'no' : 'only', option.value, content.file);
         continue;
       }
-      for (const option of binaryOptions(body, facts, reading.longOptions).options) apply(change, option.option === facts.noBinary ? 'no' : 'only', option.value, file);
+      // pip stops at a file that includes itself; depcurfew stops following it, also through a symlink. A file that
+      // includes itself does so wherever it is read; one that includes a file above it, only on this way.
+      if (onWay.has(item.real)) {
+        if (item.real !== real) pure = false;
+        continue;
+      }
+      const inner = visit(item.target, item.real);
+      pure &&= inner.pure;
+      step(1 + inner.change.only.names.size + inner.change.no.names.size);
+      follow(change, inner.change);
     }
     onWay.delete(real);
     if (pure) known.set(real, change);
