@@ -22,6 +22,10 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 - The page "Alongside other supply-chain tools" names agentcurfew, depcurfew's sibling for the files that steer AI coding agents, and how the two work together.
 - The README, and so the package page on npm, starts with the logo, one row of badges (CI, npm, Node.js, license, documentation) and a one-sentence summary, and names agentcurfew. The npm keywords include `supply-chain-security`, `dependency-security` and `malicious-packages`.
 
+### Fixes
+
+- Requirements files that include each other (`-r`, `-c`) no longer make `doctor`, `apply`, `explain` and the GitHub Action run for ever (also in 1.5.2). A file is known by its real path, so two symbolic links back to its directory (`d -> .`, `e -> .`) no longer name it in millions of ways, and the reading of `--only-binary` works out what each file does once, so a file that includes the next one twice, twenty levels deep, takes a fraction of a second. depcurfew follows at most 1,000 files from one requirements file. Past that, or when files that include a file above them make it read the same ones too many times over, `apply` warns (`requirements-include-unread`) and `doctor` reports it (`unreadable-config`) instead of passing.
+
 ### Tests
 
 - The time limits of the tests that guard against slow input measure the CPU time of the test process, so a busy CI machine no longer fails them; the limits are unchanged.

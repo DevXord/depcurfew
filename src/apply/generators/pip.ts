@@ -1,5 +1,7 @@
 // pip: no project configuration. The build options go into requirements.txt in a managed block; the release-age
 // delay cannot be set in the project, so apply says how to set it where pip runs.
+import { realpathSync } from 'node:fs';
+import { join } from 'node:path';
 import { requirementsLongOptions } from '../../doctor/python.ts';
 import { includedFile, requirementsFormatOf, requirementsIncludes } from '../../doctor/python-lockfiles.ts';
 import { convertCooldown } from '../../policy/convert.ts';
@@ -7,7 +9,7 @@ import { POLICY_FILE } from '../../policy/defaults.ts';
 import { hasManagedLines } from '../block.ts';
 import { lines, myers } from '../diff.ts';
 import { extraOf, firstFile, isSwitch, settingOf, sinceOf } from '../facts.ts';
-import { editIncluded, formatControlFacts, keptLines, optionsText, weakeningEffect, type KeptLine } from '../pip-includes.ts';
+import { editIncluded, formatControlFacts, keptLines, MAX_REQUIREMENTS_FILES, optionsText, weakeningEffect, type KeptLine } from '../pip-includes.ts';
 import { formatVersion } from '../version.ts';
 import { eachSource } from './common.ts';
 import type { Context, ManagerGenerator } from './context.ts';
@@ -46,7 +48,16 @@ function checkIncludes(context: Context, root: string, block: { text: string; al
   const { workspace } = context;
   const where = context.project ?? 'the repository';
   const undoing = `${facts.noBinary} or ${facts.onlyBinary}=${facts.none}`;
-  const visited = new Set([root]);
+  // A file is known by its real path: two symlinks back up (d -> ., e -> .) name one file in 2^40 ways (decision D-191).
+  const real = (file: string) => {
+    try {
+      return realpathSync(join(workspace.root, file));
+    } catch {
+      return file;
+    }
+  };
+  const visited = new Set([real(root)]);
+  let past = false;
   const queue = [root];
   for (let file = queue.shift(); file !== undefined; file = queue.shift()) {
     const includer = file;
@@ -80,8 +91,14 @@ function checkIncludes(context: Context, root: string, block: { text: string; al
       const keep = `Keep the included file in ${where} as a regular file and include it by a relative path, then run depcurfew apply again; until then check by hand that it has no ${undoing} line`;
       if (included.url) unread('which pip downloads', keep);
       else if (included.outside) unread(`which is outside ${where}`, keep);
-      else if (!visited.has(included.target)) {
-        visited.add(included.target);
+      else if (!visited.has(real(included.target))) {
+        if (visited.size >= MAX_REQUIREMENTS_FILES) {
+          // Said once, at the first include past the limit.
+          if (!past) unread(`and with it ${root} includes more than ${MAX_REQUIREMENTS_FILES} requirements files, which depcurfew does not follow`, `Include fewer requirements files from ${root}, then run depcurfew apply again; until then check by hand that the rest have no ${undoing} line`);
+          past = true;
+          continue;
+        }
+        visited.add(real(included.target));
         if (!workspace.isFile(included.target)) {
           unread('which does not exist', `Create ${included.target} or remove the line that includes it (pip stops when it cannot open an included file), then run depcurfew apply again`);
           continue;

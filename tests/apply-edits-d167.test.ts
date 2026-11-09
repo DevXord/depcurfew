@@ -196,9 +196,9 @@ describe('pip: the files a requirements file includes keep the block', () => {
       'weak.txt': '--no-binary=:all:\n',
     };
     const after = (root: string) => formatControlAfter((file) => files[file], root, reading);
-    expect(after('after.txt')).toEqual({ onlyAll: false, from: undefined });
-    expect(after('before.txt')).toEqual({ onlyAll: true, from: 'before.txt' });
-    expect(after('line.txt')).toEqual({ onlyAll: false, from: undefined });
+    expect(after('after.txt')).toEqual({ onlyAll: false, from: undefined, stopped: false });
+    expect(after('before.txt')).toEqual({ onlyAll: true, from: 'before.txt', stopped: false });
+    expect(after('line.txt')).toEqual({ onlyAll: false, from: undefined, stopped: false });
     // A line commented out with the marker counts as a comment.
     expect(editIncluded('--no-binary=:all:\n', reading, new Set()).text).toBe(`${SUPERSEDED}--no-binary=:all:\n`);
   });

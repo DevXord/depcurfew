@@ -33,7 +33,7 @@ import { latestVersion, versionedValue } from '../effective.ts';
 import { readLockfiles, type Lockfile, type LockEntry, type Source } from '../lockfiles.ts';
 import { requirementsFormatOf } from '../python-lockfiles.ts';
 import { readPythonSetting, requirementsLongOptions } from '../python.ts';
-import { formatControlAfter, formatControlFacts } from '../../apply/pip-includes.ts';
+import { formatControlAfter, formatControlFacts, MAX_REQUIREMENTS_FILES } from '../../apply/pip-includes.ts';
 import { iniValue, readSetting } from '../settings.ts';
 import { readRuleSetting } from '../pnpm-config.ts';
 import type { Rule, RuleContext } from '../types.ts';
@@ -373,6 +373,27 @@ function scriptsDisabledBy(context: RuleContext, tool: ToolKnowledge): { reason:
   return undefined;
 }
 
+/** formatControlAfter of each requirements file, once per repository: every lockfile of its tree asks for it (decision D-191). */
+const formatControls = new WeakMap<RuleContext['repository'], Map<string, ReturnType<typeof formatControlAfter>>>();
+
+function formatControlOf(context: RuleContext, root: string, reading: Parameters<typeof formatControlAfter>[2]): ReturnType<typeof formatControlAfter> {
+  let known = formatControls.get(context.repository);
+  if (known === undefined) {
+    known = new Map();
+    formatControls.set(context.repository, known);
+  }
+  let result = known.get(root);
+  if (result === undefined) {
+    result = formatControlAfter((file) => context.repository.readText(file), root, reading, (file) => context.repository.realPath(file) ?? file);
+    if (result.stopped) {
+      const { onlyBinary, all } = reading.facts;
+      context.repository.warn('too-many-includes', `${root} includes more than ${MAX_REQUIREMENTS_FILES} requirements files, or the same ones so many times over, that depcurfew stops following them, so it cannot tell whether ${onlyBinary}=${all} holds there`, [root]);
+    }
+    known.set(root, result);
+  }
+  return result;
+}
+
 /**
  * Whether the repository forbids building Python packages from source with the tool's switch (no-build in uv,
  * installer.only-binary in Poetry, --only-binary=:all: in a requirements file for pip), and where.
@@ -389,7 +410,7 @@ function buildsForbiddenBy(context: RuleContext, tool: ToolKnowledge, lockfile: 
     const roots = files.filter((file) => context.detection.packageManagers.some((manager) => manager.id === 'pip' && manager.configFiles.includes(file)));
     if (facts === undefined || roots.length === 0) return undefined;
     const reading = { facts, format, longOptions: requirementsLongOptions(format) };
-    const results = roots.map((root) => formatControlAfter((file) => context.repository.readText(file), root, reading));
+    const results = roots.map((root) => formatControlOf(context, root, reading));
     const found = results[0]?.from;
     return found === undefined || !results.every((result) => result.onlyAll) ? undefined : `${build.setting}=${String(build.value)} in ${found} forbids building`;
   }

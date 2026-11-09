@@ -9,6 +9,7 @@ import type { PackageManagerInfo } from '../detect/types.ts';
 import { environment } from '../knowledge/environment.ts';
 import type { RegistryTarballLayoutKnowledge, ToolKnowledge } from '../knowledge/types.ts';
 import { listing } from '../apply/requirements.ts';
+import { MAX_REQUIREMENTS_FILES } from '../apply/pip-includes.ts';
 import { parseYaml, parseYamlDocuments } from '../yaml-parse.ts';
 import { iniEntries } from './settings.ts';
 import { composerEntries, composerManifest, declaredRepositories } from './composer.ts';
@@ -707,10 +708,18 @@ function requirementsTrees(repository: Repository, roots: readonly string[], for
   const trees = new Map<string, string[]>();
   for (const root of roots) {
     const tree: string[] = [];
+    // By real path: two symlinks back up (d -> ., e -> .) name one file in 2^40 ways (decision D-191).
+    const seen = new Set<string>();
     const queue = [root];
     while (queue.length > 0) {
       const file = queue.shift() as string;
-      if (tree.includes(file)) continue;
+      const real = repository.realPath(file) ?? file;
+      if (seen.has(real)) continue;
+      if (seen.size >= MAX_REQUIREMENTS_FILES) {
+        repository.warn('too-many-includes', `${root} includes more than ${MAX_REQUIREMENTS_FILES} requirements files, and depcurfew follows no more of them, so it does not read the rest`, [root]);
+        break;
+      }
+      seen.add(real);
       tree.push(file);
       const text = repository.readText(file, MAX_LOCKFILE_SIZE);
       if (text === undefined) continue;

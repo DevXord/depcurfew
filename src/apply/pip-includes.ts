@@ -188,51 +188,140 @@ export function editIncluded(body: string, reading: Reading, allowed: ReadonlySe
   return { text: joinLines(lines), kept };
 }
 
-/** The final FormatControl of an install from `root` (decision D-167): whether --only-binary=:all: holds, and from which file. */
-export function formatControlAfter(read: (file: string) => string | undefined, root: string, reading: Reading): { onlyAll: boolean; from: string | undefined } {
+/**
+ * How many files of one tree of includes depcurfew follows, and how many steps the reading of --only-binary may take
+ * (a file included twice by each file above it would be read 2^depth times); past them it says so instead of running
+ * for ever (decision D-191).
+ */
+export const MAX_REQUIREMENTS_FILES = 1000;
+export const MAX_FORMAT_STEPS = 200_000;
+
+/** The reading of --only-binary went past MAX_REQUIREMENTS_FILES or MAX_FORMAT_STEPS. */
+class TooManyIncludes extends Error {}
+
+/** What reading a file does to one set of FormatControl: whether it empties the set, and the names it puts in (true) or takes out (false) after that. */
+interface SetChange {
+  cleared: boolean;
+  names: Map<string, boolean>;
+}
+
+/** What reading a file, with the files it includes, does to FormatControl, and the file of its last --only-binary=:all:. */
+interface FormatChange {
+  only: SetChange;
+  no: SetChange;
+  from: string | undefined;
+}
+
+function clearSet(set: SetChange): void {
+  set.cleared = true;
+  set.names.clear();
+}
+
+/** `change` followed by `next`: what next empties is empty, and the names next puts in or takes out are so. */
+function follow(change: FormatChange, next: FormatChange): void {
+  for (const key of ['only', 'no'] as const) {
+    if (next[key].cleared) clearSet(change[key]);
+    for (const [name, present] of next[key].names) change[key].names.set(name, present);
+  }
+  change.from = next.from ?? change.from;
+}
+
+/**
+ * The final FormatControl of an install from `root` (decision D-167): whether --only-binary=:all: holds, and from which
+ * file. `identity` names a file by its real path, so that a file reached through a symlink back up counts as the one
+ * already on the way (decision D-191). What each file does is worked out once and reused wherever it is included again,
+ * unless it depends on the files above it (it includes one of them); past MAX_REQUIREMENTS_FILES files or
+ * MAX_FORMAT_STEPS steps the result is `stopped`, and the switch counts as not holding: depcurfew cannot tell.
+ */
+export function formatControlAfter(
+  read: (file: string) => string | undefined,
+  root: string,
+  reading: Reading,
+  identity: (file: string) => string = (file) => file,
+): { onlyAll: boolean; from: string | undefined; stopped: boolean } {
   const { facts } = reading;
-  const only = new Set<string>();
-  const no = new Set<string>();
-  let from: string | undefined;
-  // handle_mutual_excludes of pip's FormatControl.
-  const apply = (target: Set<string>, other: Set<string>, value: string, file: string) => {
+  // handle_mutual_excludes of pip's FormatControl, on what reading a file does.
+  const apply = (change: FormatChange, key: 'only' | 'no', value: string, file: string) => {
+    const target = change[key];
+    const other = change[key === 'only' ? 'no' : 'only'];
     let parts = value.split(facts.separator);
     while (parts.includes(facts.all)) {
-      other.clear();
-      target.clear();
-      target.add(facts.all);
-      if (target === only) from = file;
+      clearSet(other);
+      clearSet(target);
+      target.names.set(facts.all, true);
+      if (key === 'only') change.from = file;
       parts = parts.slice(parts.indexOf(facts.all) + 1);
       if (!parts.includes(facts.none)) return;
     }
     for (const part of parts) {
       if (part === facts.none) {
-        target.clear();
+        clearSet(target);
         continue;
       }
       const name = normalizePythonName(part);
-      other.delete(name);
-      target.add(name);
+      other.names.set(name, false);
+      target.names.set(name, true);
     }
   };
-  const visit = (file: string, stack: ReadonlySet<string>) => {
-    const text = read(file);
-    if (text === undefined) return;
-    const includes = new Map(requirementsIncludes(text, reading.format).map((include) => [include.line, include.path]));
-    for (const { text: body, line } of requirementsLines(text, reading.format)) {
-      const path = includes.get(line);
+  let steps = 0;
+  const step = (count: number) => {
+    steps += count;
+    if (steps > MAX_FORMAT_STEPS) throw new TooManyIncludes();
+  };
+  // Each file is read and split into lines once, however often it is included.
+  const parsed = new Map<string, { includes: Map<number, string>; lines: ReturnType<typeof requirementsLines> } | undefined>();
+  const parse = (file: string, real: string) => {
+    if (!parsed.has(real)) {
+      if (parsed.size >= MAX_REQUIREMENTS_FILES) throw new TooManyIncludes();
+      const text = read(file);
+      parsed.set(real, text === undefined ? undefined : { includes: new Map(requirementsIncludes(text, reading.format).map((include) => [include.line, include.path])), lines: requirementsLines(text, reading.format) });
+    }
+    return parsed.get(real);
+  };
+  // What a file does, by its real path, when it does not depend on the files above it: when what it includes, and what
+  // that includes, never includes a file on the way to it. Then it does the same wherever it is included (decision D-191).
+  const known = new Map<string, FormatChange>();
+  // The files on the way to the one read, by real path.
+  const onWay = new Set<string>();
+  const visit = (file: string, real: string): { change: FormatChange; pure: boolean } => {
+    const reused = known.get(real);
+    if (reused !== undefined) return { change: reused, pure: true };
+    step(1);
+    const change: FormatChange = { only: { cleared: false, names: new Map() }, no: { cleared: false, names: new Map() }, from: undefined };
+    const content = parse(file, real);
+    if (content === undefined) return { change, pure: true };
+    let pure = true;
+    onWay.add(real);
+    for (const { text: body, line } of content.lines) {
+      const path = content.includes.get(line);
       if (path !== undefined) {
         const included = includedFile(file, path);
-        // pip stops at a file that includes itself; depcurfew stops following it.
-        if (!included.url && !included.outside && !stack.has(included.target)) visit(included.target, new Set([...stack, included.target]));
+        if (included.url || included.outside) continue;
+        const target = identity(included.target);
+        // pip stops at a file that includes itself; depcurfew stops following it, also through a symlink. A file that
+        // includes itself does so wherever it is read; one that includes a file above it, only on this way.
+        if (onWay.has(target)) {
+          if (target !== real) pure = false;
+          continue;
+        }
+        const inner = visit(included.target, target);
+        pure &&= inner.pure;
+        step(1 + inner.change.only.names.size + inner.change.no.names.size);
+        follow(change, inner.change);
         continue;
       }
-      for (const option of binaryOptions(body, facts, reading.longOptions).options) {
-        if (option.option === facts.noBinary) apply(no, only, option.value, file);
-        else apply(only, no, option.value, file);
-      }
+      for (const option of binaryOptions(body, facts, reading.longOptions).options) apply(change, option.option === facts.noBinary ? 'no' : 'only', option.value, file);
     }
+    onWay.delete(real);
+    if (pure) known.set(real, change);
+    return { change, pure };
   };
-  visit(root, new Set([root]));
-  return { onlyAll: only.has(facts.all), from: only.has(facts.all) ? from : undefined };
+  try {
+    const { change } = visit(root, identity(root));
+    const onlyAll = change.only.names.get(facts.all) === true;
+    return { onlyAll, from: onlyAll ? change.from : undefined, stopped: false };
+  } catch (error) {
+    if (error instanceof TooManyIncludes) return { onlyAll: false, from: undefined, stopped: true };
+    throw error;
+  }
 }
