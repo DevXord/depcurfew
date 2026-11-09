@@ -74,6 +74,7 @@ const FENCE = /^( {0,3})(`{3,}|~{3,})(.*)$/u;
 const BULLET = /^ {0,3}([-*+])[ \t]+(.*)$/u;
 const ORDERED = /^ {0,3}(\d{1,9})([.)])[ \t]+(.*)$/u;
 const COMMENT = /^ {0,3}<!--/u;
+const QUOTE = /^ {0,3}>[ \t]?(.*)$/u;
 const DELIMITER_CELL = /^:?-+:?$/u;
 
 function lines(markdown: string): string[] {
@@ -123,7 +124,7 @@ function startsTable(all: readonly string[], index: number): boolean {
 /** Whether a line starts a block that ends a paragraph or a list item. */
 function startsBlock(all: readonly string[], index: number): boolean {
   const line = all[index] ?? '';
-  return HEADING.test(line) || FENCE.test(line) || COMMENT.test(line) || BULLET.test(line) || ORDERED.test(line) || startsTable(all, index);
+  return HEADING.test(line) || FENCE.test(line) || COMMENT.test(line) || QUOTE.test(line) || BULLET.test(line) || ORDERED.test(line) || startsTable(all, index);
 }
 
 export function renderMarkdown(markdown: string, options: MarkdownOptions = {}): Rendered {
@@ -202,6 +203,16 @@ export function renderMarkdown(markdown: string, options: MarkdownOptions = {}):
           '</table></div>',
         ].join('\n'),
       );
+      continue;
+    }
+    // A block quote: consecutive lines that start with >, as one paragraph (the README quotes one sentence).
+    if (QUOTE.test(line)) {
+      const text: string[] = [];
+      while (index < all.length && QUOTE.test(all[index] ?? '')) {
+        text.push((QUOTE.exec(all[index] ?? '')?.[1] ?? '').trim());
+        index += 1;
+      }
+      out.push(`<blockquote>\n<p>${inline(text.join('\n').trim())}</p>\n</blockquote>`);
       continue;
     }
     const bullet = BULLET.exec(line);

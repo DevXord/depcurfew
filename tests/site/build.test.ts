@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildSite, freshReadme, groupPages, HOME_TITLE, PAGE_GROUPS, README_PAGES, SITE_PAGES, siteAddress, START_PAGES, VERSIONS_PAGE, withoutBadges } from '../../scripts/site/build.ts';
+import { buildSite, freshReadme, groupPages, HOME_TITLE, PAGE_GROUPS, README_PAGES, readmeForSite, SITE_PAGES, siteAddress, START_PAGES, VERSIONS_PAGE } from '../../scripts/site/build.ts';
 import { escapeHtml, splitSections } from '../../scripts/site/markdown.ts';
 import { repositoryUrl } from '../../scripts/site/versions.ts';
 import { APPLY_ERRORS, APPLY_WARNINGS } from '../../src/apply/warnings.ts';
@@ -244,11 +244,16 @@ describe('hero of the start page (D-140)', () => {
   const hero = () => /<div class="hero">\n([\s\S]*?)\n<\/div>\n/u.exec(page('index.html'))?.[1] ?? '';
 
   it('shows the icon, the name and the introduction of the README above the README text', () => {
-    const intro = splitSections(withoutBadges(freshReadme())).sections[0];
+    const intro = splitSections(readmeForSite(freshReadme())).sections[0];
     expect(intro?.id).toBe('depcurfew');
     expect(hero()).toContain('<img class="logo" src="favicon.svg" alt="" width="96" height="96">');
     expect(hero()).toContain('<h1 id="depcurfew">depcurfew</h1>');
-    for (const line of intro?.body.split('\n').filter((text) => text.trim() !== '') ?? []) expect(hero()).toContain(escapeHtml(line));
+    // The quote of the introduction is a block quote on the site, its text without the >.
+    for (const line of intro?.body.split('\n').filter((text) => text.trim() !== '') ?? []) {
+      if (line.startsWith('> ')) expect(hero()).toContain(`<blockquote>\n<p>${escapeHtml(line.slice(2))}</p>\n</blockquote>`);
+      else if (!line.includes('](')) expect(hero()).toContain(escapeHtml(line));
+    }
+    expect(hero()).toContain('<a href="https://agentcurfew.github.io/">agentcurfew</a>');
     const html = page('index.html');
     expect(html.indexOf('<div class="hero">')).toBeLessThan(html.indexOf('<h2 id="why">'));
   });
@@ -339,7 +344,7 @@ describe('levels as pills (D-140)', () => {
 });
 
 describe('site content', () => {
-  const readme = () => splitSections(withoutBadges(freshReadme())).sections;
+  const readme = () => splitSections(readmeForSite(freshReadme())).sections;
 
   it('puts every README section on exactly one README page', () => {
     for (const section of readme()) {
@@ -528,30 +533,44 @@ describe('search engines (D-177)', () => {
   });
 });
 
-describe('README badges (D-179)', () => {
-  const BLOCK = [
-    '<!-- BEGIN BADGES: images from other hosts, left out of the documentation site -->',
-    '[![npm](https://img.shields.io/npm/v/depcurfew)](https://www.npmjs.com/package/depcurfew)',
-    '[![node](https://img.shields.io/node/v/depcurfew)](https://github.com/DevXord/depcurfew/blob/main/package.json)',
-    '[![license](https://img.shields.io/npm/l/depcurfew)](https://github.com/DevXord/depcurfew/blob/main/LICENSE)',
-    '[![CI](https://github.com/DevXord/depcurfew/actions/workflows/ci.yml/badge.svg)](https://github.com/DevXord/depcurfew/actions/workflows/ci.yml)',
-    '[![CodeQL](https://github.com/DevXord/depcurfew/actions/workflows/codeql.yml/badge.svg)](https://github.com/DevXord/depcurfew/actions/workflows/codeql.yml)',
-    '[![Verify release](https://github.com/DevXord/depcurfew/actions/workflows/verify-release.yml/badge.svg)](https://github.com/DevXord/depcurfew/actions/workflows/verify-release.yml)',
-    '[![docs](https://img.shields.io/badge/docs-depcurfew.github.io-blue)](https://depcurfew.github.io/)',
-    '<!-- END BADGES -->',
+describe('README logo and badges (D-179)', () => {
+  const COLOR = '0f766e';
+  const HEAD = [
+    '<img src="https://raw.githubusercontent.com/DevXord/depcurfew/main/site/favicon.svg" alt="" width="96" height="96">',
+    '',
+    '# depcurfew',
+    '',
+    '[![ci](https://github.com/DevXord/depcurfew/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DevXord/depcurfew/actions/workflows/ci.yml)',
+    `[![npm](https://img.shields.io/npm/v/depcurfew?color=${COLOR}&label=npm)](https://www.npmjs.com/package/depcurfew)`,
+    `[![node](https://img.shields.io/badge/node-%E2%89%A518.3.0-${COLOR})](https://nodejs.org/)`,
+    `[![license](https://img.shields.io/badge/license-MIT-${COLOR})](https://github.com/DevXord/depcurfew/blob/main/LICENSE)`,
+    `[![docs](https://img.shields.io/badge/docs-depcurfew.github.io-${COLOR})](https://depcurfew.github.io/)`,
+    '',
+    '> ',
   ].join('\n');
 
-  it('has the version on npm, the Node.js versions, the license, CI, CodeQL, Verify release and the site right under the title of the README', () => {
-    expect(read('README.md').startsWith(`# depcurfew\n\n${BLOCK}\n\nOne supply-chain security policy`)).toBe(true);
+  it('starts with the logo at its raw address, the name, one row of five badges in the color of the logo and the quote', () => {
+    expect(read('README.md').startsWith(HEAD)).toBe(true);
+    expect(read('site/favicon.svg')).toContain(`fill="#${COLOR}"`);
+    expect(manifest.homepage).toBe('https://depcurfew.github.io/');
   });
 
-  it('leaves the badges and the blank line after them out of the README text of the site, and nothing else', () => {
-    expect(withoutBadges(`# depcurfew\n\n${BLOCK}\n\nIntro.\n`)).toBe('# depcurfew\n\nIntro.\n');
-    expect(withoutBadges('# depcurfew\n\nIntro without badges.\n')).toBe('# depcurfew\n\nIntro without badges.\n');
-    expect(withoutBadges(freshReadme())).not.toMatch(/BADGES|img\.shields\.io|badge\.svg/u);
+  it('names the minimum Node.js of engines in the node badge', () => {
+    const engines = (JSON.parse(read('package.json')) as { engines: { node: string } }).engines.node;
+    expect(engines).toMatch(/^>=\d+\.\d+\.\d+$/u);
+    expect(read('README.md')).toContain(`node-%E2%89%A5${engines.slice(2)}-${COLOR}`);
   });
 
-  it('shows no badge on any page of the site', () => {
-    for (const name of files(site)) if (name.endsWith('.html')) expect(readFileSync(join(site, name), 'utf8'), name).not.toMatch(/img\.shields\.io|badge\.svg|BADGES/u);
+  it('leaves the logo and the badge lines out of the README text of the site, and nothing else', () => {
+    const readme = `${HEAD}One sentence.\n\nA sibling of [x](https://x.example/).\n\n## Why\n\nText with ![an image](a.png) inline.\n`;
+    expect(readmeForSite(readme)).toBe('# depcurfew\n\n> One sentence.\n\nA sibling of [x](https://x.example/).\n\n## Why\n\nText with ![an image](a.png) inline.\n');
+    expect(readmeForSite('# depcurfew\n\nIntro without badges.\n')).toBe('# depcurfew\n\nIntro without badges.\n');
+    // An image line after the first heading is not the logo and stays.
+    expect(readmeForSite('# depcurfew\n\n<img src="a.png" alt="">\n')).toBe('# depcurfew\n\n<img src="a.png" alt="">\n');
+    expect(readmeForSite(freshReadme())).not.toMatch(/raw\.githubusercontent\.com|img\.shields\.io|badge\.svg|^\[!\[/mu);
+  });
+
+  it('shows no logo of another host and no badge on any page of the site', () => {
+    for (const name of files(site)) if (name.endsWith('.html')) expect(readFileSync(join(site, name), 'utf8'), name).not.toMatch(/raw\.githubusercontent\.com|img\.shields\.io|badge\.svg/u);
   });
 });

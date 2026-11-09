@@ -716,7 +716,7 @@ function enumeration(items: readonly string[]): string {
 
 function archiveOf(entry: ArchivedVersion, report: (line: string) => void): Archive {
   const version = entry.version;
-  const pages: Omit<ArchivePage, 'ids'>[] = [{ file: 'index.html', source: 'README.md', nav: 'README', title: `depcurfew ${version}`, parts: documentParts(withoutBadges(entry.readme)) }];
+  const pages: Omit<ArchivePage, 'ids'>[] = [{ file: 'index.html', source: 'README.md', nav: 'README', title: `depcurfew ${version}`, parts: documentParts(readmeForSite(entry.readme)) }];
   if (entry.knowledge !== undefined) pages.push({ file: 'knowledge.html', source: 'docs/knowledge.md', nav: 'Knowledge base', title: `Knowledge base · depcurfew ${version}`, parts: documentParts(entry.knowledge) });
   if (entry.changelog !== undefined) {
     const parts = changelogParts(entry.changelog, version);
@@ -838,21 +838,35 @@ export interface SiteOptions {
   release?: ReleaseState;
 }
 
-/**
- * The badges of README.md, from `<!-- BEGIN BADGES` to `<!-- END BADGES -->` with the blank line after them: images
- * from other hosts that the site leaves out, since it loads nothing from elsewhere (decision D-179).
- */
-const BADGES = /^<!-- BEGIN BADGES\b[^\n]*-->\n[\s\S]*?^<!-- END BADGES -->\n(?:[ \t]*\n)?/mu;
+/** An HTML image line before the first heading of README.md: the logo, from raw.githubusercontent.com. */
+const LOGO = /^<img\s[^>]*>[ \t]*$/u;
+/** A line of README.md that is only badges: images from shields.io and GitHub, each a link. */
+const BADGE_LINE = /^(?:[ \t]*\[!\[[^\]]*\]\([^)\s]*\)\]\([^)\s]*\))+[ \t]*$/u;
 
-/** README text as the site shows it: without the badges (D-179). */
-export const withoutBadges = (markdown: string) => markdown.replace(BADGES, '');
+/**
+ * README text as the site shows it (decision D-179): without the logo line before the first heading and without the
+ * lines that are only badges, images from other hosts that the site never loads, and without the blank lines that
+ * stood around them.
+ */
+export function readmeForSite(markdown: string): string {
+  const all = markdown.split('\n');
+  const heading = all.findIndex((line) => /^ {0,3}#{1,6}[ \t]/u.test(line));
+  const kept: string[] = [];
+  for (const [index, line] of all.entries()) {
+    if ((index < heading && LOGO.test(line)) || BADGE_LINE.test(line)) continue;
+    // A blank line right after another blank line, or at the very start, is what a removed line leaves.
+    if (line.trim() === '' && (kept.length === 0 || kept.at(-1)?.trim() === '')) continue;
+    kept.push(line);
+  }
+  return kept.join('\n');
+}
 
 /** Every file of the site by its path, from the sources in `root`. */
 export function renderSite(root: URL = REPOSITORY, options: SiteOptions = {}): Map<string, string | Buffer> {
   const versions = options.versions ?? [];
   const report = options.report ?? (() => undefined);
   const pkg = JSON.parse(read(root, 'package.json')) as { name: string; version: string; description: string; license: string; repository?: unknown; homepage?: unknown };
-  const { preamble, sections } = splitSections(withoutBadges(freshReadme(root)));
+  const { preamble, sections } = splitSections(readmeForSite(freshReadme(root)));
   if (preamble.trim() !== '') throw new Error('site: README.md has text before its first heading, which no page would show');
   const assigned = assignSections(sections);
   const anchors = new Map<string, string>();

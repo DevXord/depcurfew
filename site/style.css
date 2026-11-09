@@ -637,6 +637,24 @@ footer.site p {
   line-height: 1.6;
 }
 
+.content blockquote {
+  margin: 1rem 0;
+  padding: 0.25rem 1rem;
+  border-left: 4px solid var(--accent);
+  color: var(--muted);
+}
+
+.hero blockquote {
+  margin: 0.75rem 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.hero blockquote p {
+  font-size: 1.1875rem;
+  font-weight: 600;
+}
+
 .hero .actions {
   display: flex;
   flex-wrap: wrap;
