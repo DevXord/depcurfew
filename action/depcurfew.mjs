@@ -24826,6 +24826,770 @@ function describeRequirements(requirements) {
 	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;
 }
 
+// src/policy/ecosystem.ts
+function ecosystemOfTool(tool) {
+	return tool.ecosystem ?? "npm";
+}
+/** The policy with cooldown.exclude, installScripts.allow and installScripts.deny reduced to the patterns of one ecosystem. */
+function policyFor(policy, ecosystem) {
+	return {
+		...policy,
+		...policy.cooldown === void 0 ? {} : { cooldown: {
+			...policy.cooldown,
+			exclude: patternsFor(policy.cooldown.exclude, ecosystem)
+		} },
+		...policy.installScripts === void 0 ? {} : { installScripts: {
+			...policy.installScripts,
+			allow: patternsFor(policy.installScripts.allow, ecosystem),
+			deny: patternsFor(policy.installScripts.deny, ecosystem)
+		} }
+	};
+}
+
+// src/doctor/python-lockfiles.ts
+const WHEEL = evidenceOf(environment.python.wheelExtension)[0]?.value ?? ".whl";
+const SDISTS = evidenceOf(environment.python.sourceDistributionExtensions)[0]?.value ?? [];
+/**
+* Whether a Python lockfile shows which packages are built from source because it lists the files of each package
+* (wheels and source distributions): uv.lock, poetry.lock and pdm.lock (extra.lockfileFormat with wheels or files), and
+* pylock.toml (pip's format, also when another tool wrote it). Pipfile.lock and pip requirements files list hashes only,
+* so they cannot tell a package without wheels from one with them (decision D-107).
+*/
+function showsBuilds(tool, file, tools) {
+	const pip = tools.find((entry) => entry.id === "pip");
+	const names = pip?.project?.lockfiles === void 0 ? [] : values$1(pip.project.lockfiles).flatMap((list) => list.flatMap((entry) => [...entry.value]));
+	const pattern = pip?.extra?.["lockfilePattern"] === void 0 ? void 0 : values$1(pip.extra["lockfilePattern"])[0];
+	const pylock = names.includes(file) || typeof pattern === "string" && new RegExp(pattern, "u").test(file);
+	if (!pylock && tool.id === "pip") return false;
+	const fact = (pylock ? pip : tool)?.extra?.["lockfileFormat"];
+	const format = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord(format) && (typeof format["wheels"] === "string" || typeof format["files"] === "string");
+}
+/** Whether a package manager of the project has a lockfile that showsBuilds, or records install scripts (the npm ecosystem). */
+function hasBuildRecords(managers, tools, ecosystem = "any") {
+	return managers.some((manager) => {
+		const tool = tools.find((entry) => entry.id === manager.id);
+		if (!manager.supported || tool === void 0 || tool.extra?.["lockfileFormat"] === void 0) return false;
+		const python = ecosystemOfTool(tool) === "pypi";
+		if (ecosystem === "pypi" && !python) return false;
+		return manager.evidence.some((evidence) => evidence.kind === "lockfile" && (!python || showsBuilds(tool, evidence.file, tools)));
+	});
+}
+function text(value) {
+	return typeof value === "string" ? value : void 0;
+}
+function list(value) {
+	return Array.isArray(value) ? value : [];
+}
+function strings$1(value) {
+	return list(value).filter((item) => typeof item === "string");
+}
+function isWheel(location) {
+	return (location.split(/[?#]/u, 1)[0] ?? "").toLowerCase().endsWith(WHEEL);
+}
+/** A pinned version as doctor --osv looks it up (decision D-129): one word, no wildcard. */
+const PINNED = /^[^\s,;*<>=!~]+$/u;
+function entry(name, spec, source, builds, line, version) {
+	const pinned = source === "registry" && typeof version === "string" && PINNED.test(version) ? { version } : {};
+	return {
+		name: normalizePythonName(name),
+		spec,
+		source,
+		installScript: builds,
+		anchor: name,
+		...line === void 0 ? {} : { line },
+		...pinned
+	};
+}
+/** uv.lock: [[package]] with source = { registry | git | url | path | directory | editable | virtual = ... }. */
+function uvEntries(input, format, workspaces) {
+	const document = parseToml(input);
+	const keys = isRecord(format["sources"]) ? format["sources"] : {};
+	const kind = (source) => Object.entries(keys).flatMap(([name, key]) => typeof key === "string" && typeof source[key] === "string" ? [[name, source[key]]] : [])[0];
+	const members = /* @__PURE__ */ new Set([".", ...workspaces]);
+	return list(document.root[String(format["packages"])]).flatMap((item, index) => {
+		if (!isRecord(item) || typeof item["name"] !== "string") return [];
+		const line = document.lineOf([String(format["packages"]), index]);
+		const found = isRecord(item["source"]) ? kind(item["source"]) : void 0;
+		if (found === void 0) return [entry(item["name"], "no source given", "unknown", void 0, line)];
+		const [name, location] = found;
+		const wheels = list(item[String(format["wheels"])]);
+		switch (name) {
+			case "registry": return [entry(item["name"], location, "registry", item[String(format["sdist"])] !== void 0 && wheels.length === 0, line, item["version"])];
+			case "git": return [entry(item["name"], location, "git", true, line)];
+			case "remoteTarball": return [entry(item["name"], location, "remoteTarball", !isWheel(location), line)];
+			case "file": return [entry(item["name"], location, "file", !isWheel(location), line)];
+			case "directory":
+			case "editable": return members.has(location) ? [entry(item["name"], location, "workspace", false, line)] : [entry(item["name"], location, "directory", true, line)];
+			case "virtual": return [entry(item["name"], location, "workspace", false, line)];
+			default: return [entry(item["name"], location, "unknown", void 0, line)];
+		}
+	});
+}
+/** poetry.lock: [[package]] without [package.source] comes from PyPI; files list every distribution. */
+function poetryEntries(input, format) {
+	const document = parseToml(input);
+	const types = isRecord(format["sources"]) ? format["sources"] : {};
+	const kindOf = (type) => Object.entries(types).find(([, value]) => value === type)?.[0];
+	return list(document.root[String(format["packages"])]).flatMap((item, index) => {
+		if (!isRecord(item) || typeof item["name"] !== "string") return [];
+		const line = document.lineOf([String(format["packages"]), index]);
+		const files = list(item[String(format["files"])]).map((file) => isRecord(file) ? text(file["file"]) : void 0).filter((file) => file !== void 0);
+		const source = item[String(format["source"])];
+		if (!isRecord(source)) return [entry(item["name"], "PyPI", "registry", files.length > 0 && !files.some(isWheel), line, item["version"])];
+		const url = text(source["url"]) ?? "";
+		const kind = kindOf(text(source["type"]) ?? "");
+		switch (kind) {
+			case "registry": return [entry(item["name"], text(source["reference"]) ?? url, "registry", files.length > 0 && !files.some(isWheel), line, item["version"])];
+			case "git": return [entry(item["name"], url, "git", true, line)];
+			case "remoteTarball":
+			case "file": return [entry(item["name"], url, kind, !isWheel(url), line)];
+			case "directory": return [entry(item["name"], url, "directory", true, line)];
+			default: return [entry(item["name"], `${text(source["type"]) ?? "unknown"} ${url}`.trim(), "unknown", void 0, line)];
+		}
+	});
+}
+/** pdm.lock: [[package]] with files from an index, or a VCS repository (git = …), a url or a local path instead. */
+function pdmEntries(input, format) {
+	const document = parseToml(input);
+	const key = (name) => String(format[name]);
+	const vcs = strings$1(format["vcs"]);
+	return list(document.root[key("packages")]).flatMap((item, index) => {
+		if (!isRecord(item) || typeof item["name"] !== "string") return [];
+		const line = document.lineOf([key("packages"), index]);
+		const repository = vcs.find((name) => typeof item[name] === "string");
+		if (repository !== void 0) return [entry(item["name"], String(item[repository]), repository === "git" ? "git" : "unknown", true, line)];
+		const url = text(item[key("url")]);
+		if (url !== void 0) return [entry(item["name"], url, "remoteTarball", !isWheel(url), line)];
+		const path = text(item[key("path")]);
+		if (path !== void 0) {
+			const archive = [WHEEL, ...SDISTS].some((extension) => path.toLowerCase().endsWith(extension));
+			return [entry(item["name"], path, archive ? "file" : "directory", archive ? !isWheel(path) : true, line)];
+		}
+		const files = list(item[key("files")]).map((file) => isRecord(file) ? text(file[key("file")]) : void 0).filter((file) => file !== void 0);
+		return [entry(item["name"], "an index", "registry", files.length > 0 && !files.some(isWheel), line, item["version"])];
+	});
+}
+/**
+* Pipfile.lock: every key but _meta is a category of packages. Git, remote file and local path entries are built;
+* for index packages the hashes do not tell wheels from source distributions, so whether they are built is unknown.
+*/
+function pipfileLockEntries(input, format) {
+	const document = JSON.parse(input);
+	if (!isRecord(document)) throw new Error("Pipfile.lock is not a JSON object");
+	const key = (name) => String(format[name]);
+	const entries = [];
+	for (const [category, packages] of Object.entries(document)) {
+		if (category === key("meta") || !isRecord(packages)) continue;
+		for (const [name, item] of Object.entries(packages)) {
+			if (!isRecord(item)) continue;
+			const git = text(item[key("git")]);
+			const file = text(item[key("file")]);
+			const path = text(item[key("path")]);
+			const anchored = (found) => ({
+				...found,
+				anchor: JSON.stringify(name)
+			});
+			if (git !== void 0) entries.push(anchored(entry(name, git, "git", true, void 0)));
+			else if (file !== void 0) entries.push(anchored(entry(name, file, "remoteTarball", !isWheel(file), void 0)));
+			else if (path !== void 0 && isProject(path)) entries.push(anchored(entry(name, path, "workspace", false, void 0)));
+			else if (path !== void 0) entries.push(anchored(entry(name, path, "directory", true, void 0)));
+			else entries.push(anchored(entry(name, "an index", "registry", void 0, void 0, /^==(?!=)(.+)$/u.exec(text(item[key("version")]) ?? "")?.[1])));
+		}
+	}
+	return entries;
+}
+/** "." or "./": the project itself, relative to the lockfile at its root. */
+function isProject(path) {
+	return /^\.\/?$/u.test(path);
+}
+/**
+* pylock.toml (PEP 751): each [[packages]] has one of vcs, directory, archive, or sdist and wheels from an index. A
+* directory path is relative to the lock file, so "." is the project itself, which, like a workspace member, is part
+* of the work on the project rather than a dependency built from source.
+*/
+function pylockEntries(input, format, workspaces = []) {
+	const document = parseToml(input);
+	const key = (name) => String(format[name]);
+	return list(document.root[key("packages")]).flatMap((item, index) => {
+		if (!isRecord(item) || typeof item["name"] !== "string") return [];
+		const line = document.lineOf([key("packages"), index]);
+		const location = (value) => isRecord(value) ? text(value["url"]) ?? text(value["path"]) ?? "" : "";
+		const vcs = item[key("vcs")];
+		if (isRecord(vcs)) return [entry(item["name"], location(vcs), text(vcs["type"]) === "git" ? "git" : "unknown", true, line)];
+		const directory = item[key("directory")];
+		if (isRecord(directory)) {
+			const path = location(directory);
+			const relative = path.replaceAll("\\", "/").replace(/^\.\//u, "").replace(/\/+$/u, "");
+			const member = isProject(path) || relative === "" || workspaces.includes(relative);
+			return [entry(item["name"], path, member ? "workspace" : "directory", !member, line)];
+		}
+		const archive = item[key("archive")];
+		if (isRecord(archive)) {
+			const where = location(archive);
+			return [entry(item["name"], where, text(archive["url"]) !== void 0 ? "remoteTarball" : "file", !isWheel(where), line)];
+		}
+		const wheels = list(item[key("wheels")]);
+		const sdist = item[key("sdist")];
+		if (wheels.length === 0 && !isRecord(sdist)) return [entry(item["name"], "no source given", "unknown", void 0, line)];
+		return [entry(item["name"], text(item[key("index")]) ?? "an index", "registry", isRecord(sdist) && wheels.length === 0, line, item["version"])];
+	});
+}
+/**
+* The logical lines of a requirements file: continuations joined, comments removed, with the line each starts on and
+* the line it ends on.
+*/
+function requirementsLines(input, format) {
+	const comment = String(format["comment"]);
+	const continuation = String(format["continuation"]);
+	const commentPattern = new RegExp(`(^|\\s)${comment.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}.*$`, "u");
+	const lines = input.split(/\r?\n/u);
+	const result = [];
+	for (let index = 0; index < lines.length; index++) {
+		const start = index;
+		const parts = [(lines[index] ?? "").replace(commentPattern, "")];
+		const trimEnd = () => {
+			while (parts.length > 0) {
+				const last = (parts.at(-1) ?? "").trimEnd();
+				if (last !== "") {
+					parts[parts.length - 1] = last;
+					return;
+				}
+				parts.pop();
+			}
+		};
+		trimEnd();
+		while ((parts.at(-1) ?? "").endsWith(continuation) && index + 1 < lines.length) {
+			index += 1;
+			parts[parts.length - 1] = (parts.at(-1) ?? "").slice(0, -continuation.length);
+			parts.push(" ", (lines[index] ?? "").replace(commentPattern, ""));
+			trimEnd();
+		}
+		const text = parts.join("").trim();
+		if (text !== "") result.push({
+			text,
+			line: start + 1,
+			end: index + 1
+		});
+	}
+	return result;
+}
+const PYTHON_NAME = new RegExp(evidenceOf(environment.python.namePattern)[0]?.value ?? "^[A-Za-z0-9][A-Za-z0-9._-]*$", "iu");
+/** The facts about pip requirements files in one record: syntax, includes (-r, -c) and how pip tells paths and URLs. */
+function requirementsFormatOf(tool) {
+	const record = (key) => {
+		const fact = tool.extra?.[key];
+		const value = fact === void 0 ? void 0 : values$1(fact)[0];
+		return isRecord(value) ? value : {};
+	};
+	return {
+		...record("requirementsFormat"),
+		includes: record("requirementsIncludes"),
+		paths: record("requirementsPaths"),
+		parser: record("requirementsParser")
+	};
+}
+function escapeRegExp$1(text) {
+	return text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+/** The requirements and constraints files a requirements file includes (-r, -c), as written, with their lines. */
+function requirementsIncludes(input, format) {
+	const includes = isRecord(format["includes"]) ? format["includes"] : {};
+	const options = [...strings$1(includes["requirements"]), ...strings$1(includes["constraints"])];
+	const short = options.filter((option) => !option.startsWith("--")).map(escapeRegExp$1);
+	const long = options.filter((option) => option.startsWith("--")).map(escapeRegExp$1);
+	const pattern = new RegExp(`^(?:(?:${short.join("|") || "(?!)"})\\s*|(?:${long.join("|") || "(?!)"})(?:\\s+|=))(\\S+)`, "u");
+	return requirementsLines(input, format).flatMap(({ text: body, line }) => {
+		const path = pattern.exec(body)?.[1];
+		return path === void 0 ? [] : [{
+			path,
+			line
+		}];
+	});
+}
+const URL_LIKE = /^[a-z][a-z0-9+.-]+:/iu;
+/**
+* The file an include (-r, -c) names, relative to the directory of the file that includes it, as pip joins them
+* (_parse_and_recurse); `url` when pip downloads it, `outside` when it leaves the directory checked.
+*/
+function includedFile(includer, path) {
+	const target = posix.normalize(posix.join(posix.dirname(includer), path.replaceAll("\\", "/")));
+	const url = URL_LIKE.test(path);
+	return {
+		target,
+		url,
+		outside: !url && (isAbsoluteAnywhere(path) || target === ".." || target.startsWith("../"))
+	};
+}
+/**
+* Classifies one requirement (without options or environment markers): a VCS URL, a URL, a local archive or
+* directory, the project itself, or a registry package. `editable` is set for the value of -e, which is always a path
+* or a VCS URL.
+*/
+function requirementSource(requirement, format, editable) {
+	const vcs = isRecord(format["vcs"]) ? format["vcs"] : {};
+	const gitPrefixes = strings$1(vcs["git"]);
+	const otherPrefixes = strings$1(vcs["other"]);
+	const egg = new RegExp(`${escapeRegExp$1(String(format["egg"]))}([^&\\s]+)`, "u");
+	const paths = isRecord(format["paths"]) ? format["paths"] : {};
+	const separators = strings$1(paths["separators"]);
+	const currentDirectory = String(paths["currentDirectory"]);
+	const archives = strings$1(paths["archiveExtensions"]);
+	const urlSchemes = new RegExp(`^(?:${strings$1(paths["urlSchemes"]).map(escapeRegExp$1).join("|") || "(?!)"})://`, "iu");
+	const fileScheme = new RegExp(`^${escapeRegExp$1(String(paths["fileScheme"]))}(//)?`, "iu");
+	const reference = new RegExp(`^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\\[[^\\]]*\\])?\\s*${escapeRegExp$1(String(format["direct"]).trim())}\\s*(.+)$`, "u");
+	const looksLikePath = (text) => separators.some((separator) => text.includes(separator)) || text.startsWith(currentDirectory);
+	const isArchive = (text) => archives.some((extension) => text.toLowerCase().endsWith(extension));
+	const named = reference.exec(requirement);
+	const target = named?.[2] ?? requirement;
+	const name = named?.[1] ?? egg.exec(target)?.[1];
+	const located = (source, location, builds) => ({
+		source,
+		target: location,
+		...name !== void 0 && PYTHON_NAME.test(name) ? { name } : {},
+		builds
+	});
+	if (gitPrefixes.some((prefix) => target.startsWith(prefix))) return located("git", target, true);
+	if (otherPrefixes.some((prefix) => target.startsWith(prefix))) return located("unknown", target, true);
+	if (urlSchemes.test(target)) return located("remoteTarball", target, !isWheel(target));
+	if (fileScheme.test(target) || looksLikePath(target) || isArchive(target) || editable) {
+		const path = target.replace(fileScheme, "");
+		if (/^\.\/?$/u.test(path)) return {
+			source: "workspace",
+			target,
+			name: ".",
+			builds: false
+		};
+		const archive = isArchive(path);
+		return located(archive ? "file" : "directory", path, archive ? !isWheel(path) : true);
+	}
+	const registryName = /^[A-Za-z0-9][A-Za-z0-9._-]*/u.exec(requirement)?.[0];
+	return {
+		source: "registry",
+		target: requirement,
+		...registryName === void 0 ? {} : { name: registryName },
+		builds: void 0
+	};
+}
+/** A pip requirements file: VCS and URL requirements, local paths and registry requirements (which may or may not have wheels). */
+function requirementsEntries(input, format) {
+	const editable = strings$1(format["editable"]);
+	const entries = [];
+	for (const { text: body, line: lineNumber } of requirementsLines(input, format)) {
+		let requirement = body;
+		const flag = editable.find((option) => requirement.startsWith(`${option} `) || requirement.startsWith(`${option}=`));
+		if (flag !== void 0) requirement = requirement.slice(flag.length + 1).trim();
+		else if (requirement.startsWith("-")) continue;
+		requirement = (requirement.split(/\s+--?[a-z]/u, 1)[0] ?? requirement).split(";", 1)[0]?.trim() ?? requirement;
+		const found = requirementSource(requirement, format, flag !== void 0);
+		if (found.source === "workspace") entries.push({
+			...entry("", found.target, "workspace", false, lineNumber),
+			name: "."
+		});
+		else if (found.source === "registry") {
+			const pinned = /^[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[^\]]*\])?\s*===?\s*(\S+)$/u.exec(requirement)?.[1];
+			if (found.name !== void 0) entries.push(entry(found.name, requirement, "registry", void 0, lineNumber, pinned));
+		} else if (found.name !== void 0) entries.push(entry(found.name, found.target, found.source, found.builds, lineNumber));
+		else entries.push({
+			...entry("", found.target, found.source, found.builds, lineNumber),
+			name: found.target,
+			unnamed: true
+		});
+	}
+	return entries;
+}
+
+// src/doctor/python.ts
+const isStringList$1 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+/** The parsed TOML file, or undefined when it is missing or does not parse (unreadable-config then reports it). */
+function readTomlDocument(repository, file) {
+	return repository.parseOnce(file, parseToml);
+}
+/** The value at a key path of a TOML file, with the line of its key. */
+function tomlSettingAt(repository, file, path) {
+	const document = readTomlDocument(repository, file);
+	const value = document === void 0 ? void 0 : tomlValueAt(document, path);
+	return document === void 0 || value === void 0 ? void 0 : {
+		file,
+		line: document.lineOf(path) ?? 1,
+		value
+	};
+}
+/** The files and key paths where a Python tool reads `setting`, in the order the tool uses them. */
+function pythonSettingPaths(repository, tool, setting) {
+	const tables = tool.extra?.["configTables"] === void 0 ? void 0 : extraOf(tool, "configTables", isRecord);
+	if (tables !== void 0) {
+		const files = (tool.extra?.["configFileOrder"] === void 0 ? Object.keys(tables) : extraOf(tool, "configFileOrder", isStringList$1)).filter((name) => name in tables);
+		const file = files.find((name) => repository.isFile(name)) ?? files[0];
+		if (file === void 0) return [];
+		const table = String(tables[file] ?? "");
+		return [{
+			file,
+			path: [...table === "" ? [] : table.split("."), setting]
+		}];
+	}
+	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
+	return file === void 0 || !file.endsWith(".toml") ? [] : [{
+		file,
+		path: setting.split(".")
+	}];
+}
+/** A Python tool's setting as the tool reads it in the project, or undefined when it is not set. */
+function readPythonSetting(repository, tool, setting) {
+	for (const { file, path } of pythonSettingPaths(repository, tool, setting)) {
+		const found = tomlSettingAt(repository, file, path);
+		if (found !== void 0) return found;
+	}
+}
+/**
+* A long option of a requirements file as pip reads it (extra.requirementsParser): an exact name, or a prefix that
+* names exactly one option of the parser; anything else (an unknown option or an ambiguous prefix) as written.
+*/
+function expandRequirementsOption(option, longOptions) {
+	if (longOptions.includes(option)) return option;
+	const matches = longOptions.filter((name) => name.startsWith(option));
+	return matches.length === 1 ? matches[0] ?? option : option;
+}
+/** The long options of pip's requirements parser in a requirements format record (requirementsFormatOf). */
+function requirementsLongOptions(format) {
+	const parser = format["parser"];
+	const options = isRecord(parser) && parser["abbreviations"] === true ? parser["longOptions"] : void 0;
+	return isStringList$1(options) ? options : [];
+}
+/**
+* The global option lines of a requirements file, e.g. --only-binary=:all:, with their values and lines; an
+* abbreviated option (--only-bin) as the option pip reads it as. Options after a requirement on the same logical line
+* (--hash on a continuation line) belong to that requirement and are skipped.
+*/
+function requirementsOptions(repository, file, format) {
+	const text = repository.readText(file);
+	if (text === void 0) return [];
+	const longOptions = requirementsLongOptions(format);
+	return requirementsLines(text, format).flatMap(({ text: line, line: number }) => {
+		const match = /^(--[a-z-]+)(?:[=\s]\s*(\S+))?/u.exec(line);
+		return match === null ? [] : [{
+			option: expandRequirementsOption(match[1] ?? "", longOptions),
+			value: match[2] ?? "",
+			line: number
+		}];
+	});
+}
+
+// src/apply/pip-includes.ts
+const isFacts = (value) => isRecord(value) && [
+	"noBinary",
+	"onlyBinary",
+	"all",
+	"none",
+	"separator"
+].every((key) => typeof value[key] === "string");
+/** pip's FormatControl facts; undefined for a tool without them. */
+function formatControlFacts(tool) {
+	return tool.extra?.["formatControl"] === void 0 ? void 0 : extraOf(tool, "formatControl", isFacts);
+}
+/** Words as Python's shlex.split reads them (POSIX mode, no comments): quotes and backslashes group characters. */
+function shellWords(text) {
+	const words = [];
+	let word;
+	let quote = "";
+	for (let index = 0; index < text.length; index++) {
+		const char = text[index] ?? "";
+		if (quote === "'") {
+			if (char === "'") quote = "";
+			else word += char;
+			continue;
+		}
+		if (quote === "\"") {
+			if (char === "\"") quote = "";
+			else if (char === "\\" && (text[index + 1] === "\"" || text[index + 1] === "\\")) word += text[++index] ?? "";
+			else word += char;
+			continue;
+		}
+		if (/\s/u.test(char)) {
+			if (word !== void 0) words.push(word);
+			word = void 0;
+			continue;
+		}
+		word ??= "";
+		if (char === "'" || char === "\"") quote = char;
+		else if (char === "\\") word += text[++index] ?? "";
+		else word += char;
+	}
+	if (word !== void 0) words.push(word);
+	return words;
+}
+/**
+* The --no-binary and --only-binary options of a logical line as pip parses it: break_args_options leaves the words up
+* to the first that starts with - to the requirement and gives the rest to optparse, which takes an unambiguous prefix
+* of a long option (`longOptions`) and its value after = or as the next word.
+*/
+function binaryOptions(line, facts, longOptions) {
+	const tokens = line.split(" ");
+	const first = tokens.findIndex((token) => token.startsWith("-"));
+	const requirement = (first === -1 ? tokens : tokens.slice(0, first)).join(" ").trim() !== "";
+	const words = first === -1 ? [] : shellWords(tokens.slice(first).join(" "));
+	const options = [];
+	let others = false;
+	for (let index = 0; index < words.length; index++) {
+		const word = words[index] ?? "";
+		if (!word.startsWith("-")) continue;
+		const equals = word.indexOf("=");
+		const name = word.startsWith("--") ? expandRequirementsOption(equals === -1 ? word : word.slice(0, equals), longOptions) : word;
+		if (name !== facts.noBinary && name !== facts.onlyBinary) {
+			others = true;
+			continue;
+		}
+		const value = equals === -1 ? words[++index] ?? "" : word.slice(equals + 1);
+		options.push({
+			option: name,
+			value
+		});
+	}
+	return {
+		options,
+		requirement,
+		others
+	};
+}
+/**
+* Whether an option, read after --only-binary=:all: and the --no-binary of the packages `allowed` (normalized names),
+* lets pip build another package from source (handle_mutual_excludes): --no-binary with :all: or with a name not
+* allowed, --only-binary with :none: after its last :all:.
+*/
+function weakens$1(option, allowed, facts) {
+	const parts = option.value.split(facts.separator);
+	if (option.option === facts.noBinary) return parts.includes(facts.all) || parts.some((part) => part !== facts.none && part !== "" && !allowed.has(normalizePythonName(part)));
+	return parts.slice(parts.lastIndexOf(facts.all) + 1).includes(facts.none);
+}
+/** The options as messages show them: `--no-binary psycopg2` and `--only-binary :none:`. */
+function optionsText(options) {
+	const texts = options.map((option) => `${option.option} ${option.value}`);
+	return texts.length <= 1 ? texts[0] ?? "" : `${texts.slice(0, -1).join(", ")} and ${texts.at(-1) ?? ""}`;
+}
+/** What the options make pip do, for messages: build every package from source, or some named ones. */
+function weakeningEffect(options, facts) {
+	const parts = (option) => option.value.split(facts.separator);
+	if (options.some((option) => option.option === facts.noBinary && parts(option).includes(facts.all))) return "makes pip build every package from source";
+	if (options.some((option) => option.option === facts.onlyBinary)) return "lets pip build any package from source again";
+	const names = [...new Set(options.flatMap((option) => parts(option).filter((part) => part !== facts.none && part !== "")))];
+	return `makes pip build ${names.length <= 1 ? names[0] ?? "" : `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`} from source`;
+}
+/** The lines of a requirements file whose options undo the block (decision D-167); `allowed` holds normalized names. */
+function weakeningLines(text, reading, allowed) {
+	return requirementsLines(text, reading.format).flatMap(({ text: body, line, end }) => {
+		const parsed = binaryOptions(body, reading.facts, reading.longOptions);
+		const options = parsed.options.filter((option) => weakens$1(option, allowed, reading.facts));
+		return options.length === 0 ? [] : [{
+			line,
+			end,
+			parsed,
+			options
+		}];
+	});
+}
+/** Why apply leaves a weakening line as it is, or undefined when it comments the line out. */
+function keptReason(parsed, line, end) {
+	if (parsed.requirement) return "requirement";
+	if (parsed.others) return "options";
+	return end > line ? "continued" : void 0;
+}
+/** The lines of a requirements file (requirements.txt itself) whose options undo the block and stay. */
+function keptLines(text, reading, allowed) {
+	return weakeningLines(text, reading, allowed).map(({ line, end, parsed, options }) => ({
+		line,
+		options,
+		reason: keptReason(parsed, line, end) ?? "options"
+	}));
+}
+/**
+* An included file after apply: the option lines that undo the block commented out with the marker of requirements.txt
+* (`allowed` given: the block is written), and lines commented out so before brought back when they no longer undo it
+* (`allowed` undefined: no block). Lines it cannot comment out are returned.
+*/
+function editIncluded(body, reading, allowed) {
+	const lines = splitLines(body);
+	for (const [index, line] of lines.entries()) {
+		const trimmed = line.trimStart();
+		if (!trimmed.startsWith("# depcurfew: superseded by the managed block: ")) continue;
+		const original = trimmed.slice(SUPERSEDED.length);
+		if (allowed === void 0 || weakeningLines(original, reading, allowed).length === 0) lines[index] = original;
+	}
+	if (allowed === void 0) return {
+		text: joinLines(lines),
+		kept: []
+	};
+	const kept = [];
+	for (const { line, end, parsed, options } of weakeningLines(joinLines(lines), reading, allowed)) {
+		const reason = keptReason(parsed, line, end);
+		if (reason === void 0) lines[line - 1] = `${SUPERSEDED}${(lines[line - 1] ?? "").trim()}`;
+		else kept.push({
+			line,
+			options,
+			reason
+		});
+	}
+	return {
+		text: joinLines(lines),
+		kept
+	};
+}
+/**
+* How many files of one tree of includes depcurfew follows, and how many steps the reading of --only-binary may take
+* (a file included twice by each file above it would be read 2^depth times); past them it says so instead of running
+* for ever (decision D-191).
+*/
+const MAX_REQUIREMENTS_FILES = 1e3;
+const MAX_FORMAT_STEPS = 2e5;
+/** The reading of --only-binary went past MAX_REQUIREMENTS_FILES or MAX_FORMAT_STEPS. */
+var TooManyIncludes = class extends Error {};
+function clearSet(set) {
+	set.cleared = true;
+	set.names.clear();
+}
+/** `change` followed by `next`: what next empties is empty, and the names next puts in or takes out are so. */
+function follow(change, next) {
+	for (const key of ["only", "no"]) {
+		if (next[key].cleared) clearSet(change[key]);
+		for (const [name, present] of next[key].names) change[key].names.set(name, present);
+	}
+	change.from = next.from ?? change.from;
+}
+/**
+* The final FormatControl of an install from `root` (decision D-167): whether --only-binary=:all: holds, and from which
+* file. `identity` names a file by its real path, so that a file reached through a symlink back up counts as the one
+* already on the way (decision D-191). What each file does is worked out once and reused wherever it is included again,
+* unless it depends on the files above it (it includes one of them); past MAX_REQUIREMENTS_FILES files or
+* MAX_FORMAT_STEPS steps the result is `stopped`, and the switch counts as not holding: depcurfew cannot tell.
+*/
+function formatControlAfter(read, root, reading, identity = (file) => file) {
+	const { facts } = reading;
+	const apply = (change, key, value, file) => {
+		const target = change[key];
+		const other = change[key === "only" ? "no" : "only"];
+		let parts = value.split(facts.separator);
+		while (parts.includes(facts.all)) {
+			clearSet(other);
+			clearSet(target);
+			target.names.set(facts.all, true);
+			if (key === "only") change.from = file;
+			parts = parts.slice(parts.indexOf(facts.all) + 1);
+			if (!parts.includes(facts.none)) return;
+		}
+		for (const part of parts) {
+			if (part === facts.none) {
+				clearSet(target);
+				continue;
+			}
+			const name = normalizePythonName(part);
+			other.names.set(name, false);
+			target.names.set(name, true);
+		}
+	};
+	let steps = 0;
+	const step = (count) => {
+		steps += count;
+		if (steps > 2e5) throw new TooManyIncludes();
+	};
+	const prepared = /* @__PURE__ */ new Map();
+	const prepare = (file, real) => {
+		if (!prepared.has(real)) {
+			if (prepared.size >= 1e3) throw new TooManyIncludes();
+			const text = read(file);
+			if (text === void 0) prepared.set(real, void 0);
+			else {
+				const includes = new Map(requirementsIncludes(text, reading.format).map((include) => [include.line, include.path]));
+				const items = [];
+				for (const { text: body, line } of requirementsLines(text, reading.format)) {
+					const path = includes.get(line);
+					if (path === void 0) {
+						const { options } = binaryOptions(body, facts, reading.longOptions);
+						if (options.length > 0) items.push({
+							kind: "options",
+							options
+						});
+						continue;
+					}
+					const included = includedFile(file, path);
+					if (!included.url && !included.outside) items.push({
+						kind: "include",
+						target: included.target,
+						real: identity(included.target)
+					});
+				}
+				prepared.set(real, {
+					file,
+					items
+				});
+			}
+		}
+		return prepared.get(real);
+	};
+	const known = /* @__PURE__ */ new Map();
+	const onWay = /* @__PURE__ */ new Set();
+	const visit = (file, real) => {
+		const reused = known.get(real);
+		if (reused !== void 0) return {
+			change: reused,
+			pure: true
+		};
+		step(1);
+		const change = {
+			only: {
+				cleared: false,
+				names: /* @__PURE__ */ new Map()
+			},
+			no: {
+				cleared: false,
+				names: /* @__PURE__ */ new Map()
+			},
+			from: void 0
+		};
+		const content = prepare(file, real);
+		if (content === void 0) return {
+			change,
+			pure: true
+		};
+		let pure = true;
+		onWay.add(real);
+		for (const item of content.items) {
+			if (item.kind === "options") {
+				for (const option of item.options) apply(change, option.option === facts.noBinary ? "no" : "only", option.value, content.file);
+				continue;
+			}
+			if (onWay.has(item.real)) {
+				if (item.real !== real) pure = false;
+				continue;
+			}
+			const inner = visit(item.target, item.real);
+			pure &&= inner.pure;
+			step(1 + inner.change.only.names.size + inner.change.no.names.size);
+			follow(change, inner.change);
+		}
+		onWay.delete(real);
+		if (pure) known.set(real, change);
+		return {
+			change,
+			pure
+		};
+	};
+	try {
+		const { change } = visit(root, identity(root));
+		const onlyAll = change.only.names.get(facts.all) === true;
+		return {
+			onlyAll,
+			from: onlyAll ? change.from : void 0,
+			stopped: false
+		};
+	} catch (error) {
+		if (error instanceof TooManyIncludes) return {
+			onlyAll: false,
+			from: void 0,
+			stopped: true
+		};
+		throw error;
+	}
+}
+
 // src/doctor/yarn-classic-lockfile.ts
 /** A lockfile of a later format version, which Yarn Classic refuses: not checked, with the reason. */
 var UnsupportedClassicLockfile = class extends Error {};
@@ -25197,379 +25961,6 @@ function classicYarnEntries(text, format, tarballs) {
 				} }
 			});
 		}
-	}
-	return entries;
-}
-
-// src/policy/ecosystem.ts
-function ecosystemOfTool(tool) {
-	return tool.ecosystem ?? "npm";
-}
-/** The policy with cooldown.exclude, installScripts.allow and installScripts.deny reduced to the patterns of one ecosystem. */
-function policyFor(policy, ecosystem) {
-	return {
-		...policy,
-		...policy.cooldown === void 0 ? {} : { cooldown: {
-			...policy.cooldown,
-			exclude: patternsFor(policy.cooldown.exclude, ecosystem)
-		} },
-		...policy.installScripts === void 0 ? {} : { installScripts: {
-			...policy.installScripts,
-			allow: patternsFor(policy.installScripts.allow, ecosystem),
-			deny: patternsFor(policy.installScripts.deny, ecosystem)
-		} }
-	};
-}
-
-// src/doctor/python-lockfiles.ts
-const WHEEL = evidenceOf(environment.python.wheelExtension)[0]?.value ?? ".whl";
-const SDISTS = evidenceOf(environment.python.sourceDistributionExtensions)[0]?.value ?? [];
-/**
-* Whether a Python lockfile shows which packages are built from source because it lists the files of each package
-* (wheels and source distributions): uv.lock, poetry.lock and pdm.lock (extra.lockfileFormat with wheels or files), and
-* pylock.toml (pip's format, also when another tool wrote it). Pipfile.lock and pip requirements files list hashes only,
-* so they cannot tell a package without wheels from one with them (decision D-107).
-*/
-function showsBuilds(tool, file, tools) {
-	const pip = tools.find((entry) => entry.id === "pip");
-	const names = pip?.project?.lockfiles === void 0 ? [] : values$1(pip.project.lockfiles).flatMap((list) => list.flatMap((entry) => [...entry.value]));
-	const pattern = pip?.extra?.["lockfilePattern"] === void 0 ? void 0 : values$1(pip.extra["lockfilePattern"])[0];
-	const pylock = names.includes(file) || typeof pattern === "string" && new RegExp(pattern, "u").test(file);
-	if (!pylock && tool.id === "pip") return false;
-	const fact = (pylock ? pip : tool)?.extra?.["lockfileFormat"];
-	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	return isRecord(format) && (typeof format["wheels"] === "string" || typeof format["files"] === "string");
-}
-/** Whether a package manager of the project has a lockfile that showsBuilds, or records install scripts (the npm ecosystem). */
-function hasBuildRecords(managers, tools, ecosystem = "any") {
-	return managers.some((manager) => {
-		const tool = tools.find((entry) => entry.id === manager.id);
-		if (!manager.supported || tool === void 0 || tool.extra?.["lockfileFormat"] === void 0) return false;
-		const python = ecosystemOfTool(tool) === "pypi";
-		if (ecosystem === "pypi" && !python) return false;
-		return manager.evidence.some((evidence) => evidence.kind === "lockfile" && (!python || showsBuilds(tool, evidence.file, tools)));
-	});
-}
-function text(value) {
-	return typeof value === "string" ? value : void 0;
-}
-function list(value) {
-	return Array.isArray(value) ? value : [];
-}
-function strings$1(value) {
-	return list(value).filter((item) => typeof item === "string");
-}
-function isWheel(location) {
-	return (location.split(/[?#]/u, 1)[0] ?? "").toLowerCase().endsWith(WHEEL);
-}
-/** A pinned version as doctor --osv looks it up (decision D-129): one word, no wildcard. */
-const PINNED = /^[^\s,;*<>=!~]+$/u;
-function entry(name, spec, source, builds, line, version) {
-	const pinned = source === "registry" && typeof version === "string" && PINNED.test(version) ? { version } : {};
-	return {
-		name: normalizePythonName(name),
-		spec,
-		source,
-		installScript: builds,
-		anchor: name,
-		...line === void 0 ? {} : { line },
-		...pinned
-	};
-}
-/** uv.lock: [[package]] with source = { registry | git | url | path | directory | editable | virtual = ... }. */
-function uvEntries(input, format, workspaces) {
-	const document = parseToml(input);
-	const keys = isRecord(format["sources"]) ? format["sources"] : {};
-	const kind = (source) => Object.entries(keys).flatMap(([name, key]) => typeof key === "string" && typeof source[key] === "string" ? [[name, source[key]]] : [])[0];
-	const members = /* @__PURE__ */ new Set([".", ...workspaces]);
-	return list(document.root[String(format["packages"])]).flatMap((item, index) => {
-		if (!isRecord(item) || typeof item["name"] !== "string") return [];
-		const line = document.lineOf([String(format["packages"]), index]);
-		const found = isRecord(item["source"]) ? kind(item["source"]) : void 0;
-		if (found === void 0) return [entry(item["name"], "no source given", "unknown", void 0, line)];
-		const [name, location] = found;
-		const wheels = list(item[String(format["wheels"])]);
-		switch (name) {
-			case "registry": return [entry(item["name"], location, "registry", item[String(format["sdist"])] !== void 0 && wheels.length === 0, line, item["version"])];
-			case "git": return [entry(item["name"], location, "git", true, line)];
-			case "remoteTarball": return [entry(item["name"], location, "remoteTarball", !isWheel(location), line)];
-			case "file": return [entry(item["name"], location, "file", !isWheel(location), line)];
-			case "directory":
-			case "editable": return members.has(location) ? [entry(item["name"], location, "workspace", false, line)] : [entry(item["name"], location, "directory", true, line)];
-			case "virtual": return [entry(item["name"], location, "workspace", false, line)];
-			default: return [entry(item["name"], location, "unknown", void 0, line)];
-		}
-	});
-}
-/** poetry.lock: [[package]] without [package.source] comes from PyPI; files list every distribution. */
-function poetryEntries(input, format) {
-	const document = parseToml(input);
-	const types = isRecord(format["sources"]) ? format["sources"] : {};
-	const kindOf = (type) => Object.entries(types).find(([, value]) => value === type)?.[0];
-	return list(document.root[String(format["packages"])]).flatMap((item, index) => {
-		if (!isRecord(item) || typeof item["name"] !== "string") return [];
-		const line = document.lineOf([String(format["packages"]), index]);
-		const files = list(item[String(format["files"])]).map((file) => isRecord(file) ? text(file["file"]) : void 0).filter((file) => file !== void 0);
-		const source = item[String(format["source"])];
-		if (!isRecord(source)) return [entry(item["name"], "PyPI", "registry", files.length > 0 && !files.some(isWheel), line, item["version"])];
-		const url = text(source["url"]) ?? "";
-		const kind = kindOf(text(source["type"]) ?? "");
-		switch (kind) {
-			case "registry": return [entry(item["name"], text(source["reference"]) ?? url, "registry", files.length > 0 && !files.some(isWheel), line, item["version"])];
-			case "git": return [entry(item["name"], url, "git", true, line)];
-			case "remoteTarball":
-			case "file": return [entry(item["name"], url, kind, !isWheel(url), line)];
-			case "directory": return [entry(item["name"], url, "directory", true, line)];
-			default: return [entry(item["name"], `${text(source["type"]) ?? "unknown"} ${url}`.trim(), "unknown", void 0, line)];
-		}
-	});
-}
-/** pdm.lock: [[package]] with files from an index, or a VCS repository (git = …), a url or a local path instead. */
-function pdmEntries(input, format) {
-	const document = parseToml(input);
-	const key = (name) => String(format[name]);
-	const vcs = strings$1(format["vcs"]);
-	return list(document.root[key("packages")]).flatMap((item, index) => {
-		if (!isRecord(item) || typeof item["name"] !== "string") return [];
-		const line = document.lineOf([key("packages"), index]);
-		const repository = vcs.find((name) => typeof item[name] === "string");
-		if (repository !== void 0) return [entry(item["name"], String(item[repository]), repository === "git" ? "git" : "unknown", true, line)];
-		const url = text(item[key("url")]);
-		if (url !== void 0) return [entry(item["name"], url, "remoteTarball", !isWheel(url), line)];
-		const path = text(item[key("path")]);
-		if (path !== void 0) {
-			const archive = [WHEEL, ...SDISTS].some((extension) => path.toLowerCase().endsWith(extension));
-			return [entry(item["name"], path, archive ? "file" : "directory", archive ? !isWheel(path) : true, line)];
-		}
-		const files = list(item[key("files")]).map((file) => isRecord(file) ? text(file[key("file")]) : void 0).filter((file) => file !== void 0);
-		return [entry(item["name"], "an index", "registry", files.length > 0 && !files.some(isWheel), line, item["version"])];
-	});
-}
-/**
-* Pipfile.lock: every key but _meta is a category of packages. Git, remote file and local path entries are built;
-* for index packages the hashes do not tell wheels from source distributions, so whether they are built is unknown.
-*/
-function pipfileLockEntries(input, format) {
-	const document = JSON.parse(input);
-	if (!isRecord(document)) throw new Error("Pipfile.lock is not a JSON object");
-	const key = (name) => String(format[name]);
-	const entries = [];
-	for (const [category, packages] of Object.entries(document)) {
-		if (category === key("meta") || !isRecord(packages)) continue;
-		for (const [name, item] of Object.entries(packages)) {
-			if (!isRecord(item)) continue;
-			const git = text(item[key("git")]);
-			const file = text(item[key("file")]);
-			const path = text(item[key("path")]);
-			const anchored = (found) => ({
-				...found,
-				anchor: JSON.stringify(name)
-			});
-			if (git !== void 0) entries.push(anchored(entry(name, git, "git", true, void 0)));
-			else if (file !== void 0) entries.push(anchored(entry(name, file, "remoteTarball", !isWheel(file), void 0)));
-			else if (path !== void 0 && isProject(path)) entries.push(anchored(entry(name, path, "workspace", false, void 0)));
-			else if (path !== void 0) entries.push(anchored(entry(name, path, "directory", true, void 0)));
-			else entries.push(anchored(entry(name, "an index", "registry", void 0, void 0, /^==(?!=)(.+)$/u.exec(text(item[key("version")]) ?? "")?.[1])));
-		}
-	}
-	return entries;
-}
-/** "." or "./": the project itself, relative to the lockfile at its root. */
-function isProject(path) {
-	return /^\.\/?$/u.test(path);
-}
-/**
-* pylock.toml (PEP 751): each [[packages]] has one of vcs, directory, archive, or sdist and wheels from an index. A
-* directory path is relative to the lock file, so "." is the project itself, which, like a workspace member, is part
-* of the work on the project rather than a dependency built from source.
-*/
-function pylockEntries(input, format, workspaces = []) {
-	const document = parseToml(input);
-	const key = (name) => String(format[name]);
-	return list(document.root[key("packages")]).flatMap((item, index) => {
-		if (!isRecord(item) || typeof item["name"] !== "string") return [];
-		const line = document.lineOf([key("packages"), index]);
-		const location = (value) => isRecord(value) ? text(value["url"]) ?? text(value["path"]) ?? "" : "";
-		const vcs = item[key("vcs")];
-		if (isRecord(vcs)) return [entry(item["name"], location(vcs), text(vcs["type"]) === "git" ? "git" : "unknown", true, line)];
-		const directory = item[key("directory")];
-		if (isRecord(directory)) {
-			const path = location(directory);
-			const relative = path.replaceAll("\\", "/").replace(/^\.\//u, "").replace(/\/+$/u, "");
-			const member = isProject(path) || relative === "" || workspaces.includes(relative);
-			return [entry(item["name"], path, member ? "workspace" : "directory", !member, line)];
-		}
-		const archive = item[key("archive")];
-		if (isRecord(archive)) {
-			const where = location(archive);
-			return [entry(item["name"], where, text(archive["url"]) !== void 0 ? "remoteTarball" : "file", !isWheel(where), line)];
-		}
-		const wheels = list(item[key("wheels")]);
-		const sdist = item[key("sdist")];
-		if (wheels.length === 0 && !isRecord(sdist)) return [entry(item["name"], "no source given", "unknown", void 0, line)];
-		return [entry(item["name"], text(item[key("index")]) ?? "an index", "registry", isRecord(sdist) && wheels.length === 0, line, item["version"])];
-	});
-}
-/**
-* The logical lines of a requirements file: continuations joined, comments removed, with the line each starts on and
-* the line it ends on.
-*/
-function requirementsLines(input, format) {
-	const comment = String(format["comment"]);
-	const continuation = String(format["continuation"]);
-	const commentPattern = new RegExp(`(^|\\s)${comment.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}.*$`, "u");
-	const lines = input.split(/\r?\n/u);
-	const result = [];
-	for (let index = 0; index < lines.length; index++) {
-		const start = index;
-		const parts = [(lines[index] ?? "").replace(commentPattern, "")];
-		const trimEnd = () => {
-			while (parts.length > 0) {
-				const last = (parts.at(-1) ?? "").trimEnd();
-				if (last !== "") {
-					parts[parts.length - 1] = last;
-					return;
-				}
-				parts.pop();
-			}
-		};
-		trimEnd();
-		while ((parts.at(-1) ?? "").endsWith(continuation) && index + 1 < lines.length) {
-			index += 1;
-			parts[parts.length - 1] = (parts.at(-1) ?? "").slice(0, -continuation.length);
-			parts.push(" ", (lines[index] ?? "").replace(commentPattern, ""));
-			trimEnd();
-		}
-		const text = parts.join("").trim();
-		if (text !== "") result.push({
-			text,
-			line: start + 1,
-			end: index + 1
-		});
-	}
-	return result;
-}
-const PYTHON_NAME = new RegExp(evidenceOf(environment.python.namePattern)[0]?.value ?? "^[A-Za-z0-9][A-Za-z0-9._-]*$", "iu");
-/** The facts about pip requirements files in one record: syntax, includes (-r, -c) and how pip tells paths and URLs. */
-function requirementsFormatOf(tool) {
-	const record = (key) => {
-		const fact = tool.extra?.[key];
-		const value = fact === void 0 ? void 0 : values$1(fact)[0];
-		return isRecord(value) ? value : {};
-	};
-	return {
-		...record("requirementsFormat"),
-		includes: record("requirementsIncludes"),
-		paths: record("requirementsPaths"),
-		parser: record("requirementsParser")
-	};
-}
-function escapeRegExp$1(text) {
-	return text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-}
-/** The requirements and constraints files a requirements file includes (-r, -c), as written, with their lines. */
-function requirementsIncludes(input, format) {
-	const includes = isRecord(format["includes"]) ? format["includes"] : {};
-	const options = [...strings$1(includes["requirements"]), ...strings$1(includes["constraints"])];
-	const short = options.filter((option) => !option.startsWith("--")).map(escapeRegExp$1);
-	const long = options.filter((option) => option.startsWith("--")).map(escapeRegExp$1);
-	const pattern = new RegExp(`^(?:(?:${short.join("|") || "(?!)"})\\s*|(?:${long.join("|") || "(?!)"})(?:\\s+|=))(\\S+)`, "u");
-	return requirementsLines(input, format).flatMap(({ text: body, line }) => {
-		const path = pattern.exec(body)?.[1];
-		return path === void 0 ? [] : [{
-			path,
-			line
-		}];
-	});
-}
-const URL_LIKE = /^[a-z][a-z0-9+.-]+:/iu;
-/**
-* The file an include (-r, -c) names, relative to the directory of the file that includes it, as pip joins them
-* (_parse_and_recurse); `url` when pip downloads it, `outside` when it leaves the directory checked.
-*/
-function includedFile(includer, path) {
-	const target = posix.normalize(posix.join(posix.dirname(includer), path.replaceAll("\\", "/")));
-	const url = URL_LIKE.test(path);
-	return {
-		target,
-		url,
-		outside: !url && (isAbsoluteAnywhere(path) || target === ".." || target.startsWith("../"))
-	};
-}
-/**
-* Classifies one requirement (without options or environment markers): a VCS URL, a URL, a local archive or
-* directory, the project itself, or a registry package. `editable` is set for the value of -e, which is always a path
-* or a VCS URL.
-*/
-function requirementSource(requirement, format, editable) {
-	const vcs = isRecord(format["vcs"]) ? format["vcs"] : {};
-	const gitPrefixes = strings$1(vcs["git"]);
-	const otherPrefixes = strings$1(vcs["other"]);
-	const egg = new RegExp(`${escapeRegExp$1(String(format["egg"]))}([^&\\s]+)`, "u");
-	const paths = isRecord(format["paths"]) ? format["paths"] : {};
-	const separators = strings$1(paths["separators"]);
-	const currentDirectory = String(paths["currentDirectory"]);
-	const archives = strings$1(paths["archiveExtensions"]);
-	const urlSchemes = new RegExp(`^(?:${strings$1(paths["urlSchemes"]).map(escapeRegExp$1).join("|") || "(?!)"})://`, "iu");
-	const fileScheme = new RegExp(`^${escapeRegExp$1(String(paths["fileScheme"]))}(//)?`, "iu");
-	const reference = new RegExp(`^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\\[[^\\]]*\\])?\\s*${escapeRegExp$1(String(format["direct"]).trim())}\\s*(.+)$`, "u");
-	const looksLikePath = (text) => separators.some((separator) => text.includes(separator)) || text.startsWith(currentDirectory);
-	const isArchive = (text) => archives.some((extension) => text.toLowerCase().endsWith(extension));
-	const named = reference.exec(requirement);
-	const target = named?.[2] ?? requirement;
-	const name = named?.[1] ?? egg.exec(target)?.[1];
-	const located = (source, location, builds) => ({
-		source,
-		target: location,
-		...name !== void 0 && PYTHON_NAME.test(name) ? { name } : {},
-		builds
-	});
-	if (gitPrefixes.some((prefix) => target.startsWith(prefix))) return located("git", target, true);
-	if (otherPrefixes.some((prefix) => target.startsWith(prefix))) return located("unknown", target, true);
-	if (urlSchemes.test(target)) return located("remoteTarball", target, !isWheel(target));
-	if (fileScheme.test(target) || looksLikePath(target) || isArchive(target) || editable) {
-		const path = target.replace(fileScheme, "");
-		if (/^\.\/?$/u.test(path)) return {
-			source: "workspace",
-			target,
-			name: ".",
-			builds: false
-		};
-		const archive = isArchive(path);
-		return located(archive ? "file" : "directory", path, archive ? !isWheel(path) : true);
-	}
-	const registryName = /^[A-Za-z0-9][A-Za-z0-9._-]*/u.exec(requirement)?.[0];
-	return {
-		source: "registry",
-		target: requirement,
-		...registryName === void 0 ? {} : { name: registryName },
-		builds: void 0
-	};
-}
-/** A pip requirements file: VCS and URL requirements, local paths and registry requirements (which may or may not have wheels). */
-function requirementsEntries(input, format) {
-	const editable = strings$1(format["editable"]);
-	const entries = [];
-	for (const { text: body, line: lineNumber } of requirementsLines(input, format)) {
-		let requirement = body;
-		const flag = editable.find((option) => requirement.startsWith(`${option} `) || requirement.startsWith(`${option}=`));
-		if (flag !== void 0) requirement = requirement.slice(flag.length + 1).trim();
-		else if (requirement.startsWith("-")) continue;
-		requirement = (requirement.split(/\s+--?[a-z]/u, 1)[0] ?? requirement).split(";", 1)[0]?.trim() ?? requirement;
-		const found = requirementSource(requirement, format, flag !== void 0);
-		if (found.source === "workspace") entries.push({
-			...entry("", found.target, "workspace", false, lineNumber),
-			name: "."
-		});
-		else if (found.source === "registry") {
-			const pinned = /^[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[^\]]*\])?\s*===?\s*(\S+)$/u.exec(requirement)?.[1];
-			if (found.name !== void 0) entries.push(entry(found.name, requirement, "registry", void 0, lineNumber, pinned));
-		} else if (found.name !== void 0) entries.push(entry(found.name, found.target, found.source, found.builds, lineNumber));
-		else entries.push({
-			...entry("", found.target, found.source, found.builds, lineNumber),
-			name: found.target,
-			unnamed: true
-		});
 	}
 	return entries;
 }
@@ -26190,10 +26581,17 @@ function requirementsTrees(repository, roots, format) {
 	const trees = /* @__PURE__ */ new Map();
 	for (const root of roots) {
 		const tree = [];
+		const seen = /* @__PURE__ */ new Set();
 		const queue = [root];
 		while (queue.length > 0) {
 			const file = queue.shift();
-			if (tree.includes(file)) continue;
+			const real = repository.realPath(file) ?? file;
+			if (seen.has(real)) continue;
+			if (seen.size >= 1e3) {
+				repository.warn("too-many-includes", `${root} includes more than ${MAX_REQUIREMENTS_FILES} requirements files, and depcurfew follows no more of them, so it does not read the rest`, [root]);
+				break;
+			}
+			seen.add(real);
 			tree.push(file);
 			const text = repository.readText(file, MAX_LOCKFILE_SIZE);
 			if (text === void 0) continue;
@@ -26666,7 +27064,8 @@ const UNREADABLE_WARNINGS = {
 	"outside-repository": "Replace the symlink with a regular file inside the repository",
 	"not-a-regular-file": "Replace it with a regular file, or remove it; npm and pnpm read .npmrc as a file",
 	"workspace-outside-repository": "Keep workspace packages inside the repository",
-	"unreadable-include": "Keep the included files in the repository and refer to them by a relative path, so that depcurfew can check them"
+	"unreadable-include": "Keep the included files in the repository and refer to them by a relative path, so that depcurfew can check them",
+	"too-many-includes": "Include fewer requirements files, or the same ones fewer times, so that depcurfew can follow them all; until then check the rest by hand"
 };
 /**
 * What to do about each warning of detection, by its code: the fixes above for files that could not be read, and the
@@ -27048,82 +27447,6 @@ function formatMinutes(minutes) {
 	]) if (minutes >= size && minutes % size === 0) return `${minutes / size} ${unit}${minutes === size ? "" : "s"}`;
 	const rounded = Math.round(minutes * 100) / 100;
 	return `${rounded} minute${rounded === 1 ? "" : "s"}`;
-}
-
-// src/doctor/python.ts
-const isStringList$1 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-/** The parsed TOML file, or undefined when it is missing or does not parse (unreadable-config then reports it). */
-function readTomlDocument(repository, file) {
-	return repository.parseOnce(file, parseToml);
-}
-/** The value at a key path of a TOML file, with the line of its key. */
-function tomlSettingAt(repository, file, path) {
-	const document = readTomlDocument(repository, file);
-	const value = document === void 0 ? void 0 : tomlValueAt(document, path);
-	return document === void 0 || value === void 0 ? void 0 : {
-		file,
-		line: document.lineOf(path) ?? 1,
-		value
-	};
-}
-/** The files and key paths where a Python tool reads `setting`, in the order the tool uses them. */
-function pythonSettingPaths(repository, tool, setting) {
-	const tables = tool.extra?.["configTables"] === void 0 ? void 0 : extraOf(tool, "configTables", isRecord);
-	if (tables !== void 0) {
-		const files = (tool.extra?.["configFileOrder"] === void 0 ? Object.keys(tables) : extraOf(tool, "configFileOrder", isStringList$1)).filter((name) => name in tables);
-		const file = files.find((name) => repository.isFile(name)) ?? files[0];
-		if (file === void 0) return [];
-		const table = String(tables[file] ?? "");
-		return [{
-			file,
-			path: [...table === "" ? [] : table.split("."), setting]
-		}];
-	}
-	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
-	return file === void 0 || !file.endsWith(".toml") ? [] : [{
-		file,
-		path: setting.split(".")
-	}];
-}
-/** A Python tool's setting as the tool reads it in the project, or undefined when it is not set. */
-function readPythonSetting(repository, tool, setting) {
-	for (const { file, path } of pythonSettingPaths(repository, tool, setting)) {
-		const found = tomlSettingAt(repository, file, path);
-		if (found !== void 0) return found;
-	}
-}
-/**
-* A long option of a requirements file as pip reads it (extra.requirementsParser): an exact name, or a prefix that
-* names exactly one option of the parser; anything else (an unknown option or an ambiguous prefix) as written.
-*/
-function expandRequirementsOption(option, longOptions) {
-	if (longOptions.includes(option)) return option;
-	const matches = longOptions.filter((name) => name.startsWith(option));
-	return matches.length === 1 ? matches[0] ?? option : option;
-}
-/** The long options of pip's requirements parser in a requirements format record (requirementsFormatOf). */
-function requirementsLongOptions(format) {
-	const parser = format["parser"];
-	const options = isRecord(parser) && parser["abbreviations"] === true ? parser["longOptions"] : void 0;
-	return isStringList$1(options) ? options : [];
-}
-/**
-* The global option lines of a requirements file, e.g. --only-binary=:all:, with their values and lines; an
-* abbreviated option (--only-bin) as the option pip reads it as. Options after a requirement on the same logical line
-* (--hash on a continuation line) belong to that requirement and are skipped.
-*/
-function requirementsOptions(repository, file, format) {
-	const text = repository.readText(file);
-	if (text === void 0) return [];
-	const longOptions = requirementsLongOptions(format);
-	return requirementsLines(text, format).flatMap(({ text: line, line: number }) => {
-		const match = /^(--[a-z-]+)(?:[=\s]\s*(\S+))?/u.exec(line);
-		return match === null ? [] : [{
-			option: expandRequirementsOption(match[1] ?? "", longOptions),
-			value: match[2] ?? "",
-			line: number
-		}];
-	});
 }
 
 // src/doctor/pnpm-config.ts
@@ -33490,212 +33813,6 @@ function approximateEdit(a, b, window = 32) {
 	return operations;
 }
 
-// src/apply/pip-includes.ts
-const isFacts = (value) => isRecord(value) && [
-	"noBinary",
-	"onlyBinary",
-	"all",
-	"none",
-	"separator"
-].every((key) => typeof value[key] === "string");
-/** pip's FormatControl facts; undefined for a tool without them. */
-function formatControlFacts(tool) {
-	return tool.extra?.["formatControl"] === void 0 ? void 0 : extraOf(tool, "formatControl", isFacts);
-}
-/** Words as Python's shlex.split reads them (POSIX mode, no comments): quotes and backslashes group characters. */
-function shellWords(text) {
-	const words = [];
-	let word;
-	let quote = "";
-	for (let index = 0; index < text.length; index++) {
-		const char = text[index] ?? "";
-		if (quote === "'") {
-			if (char === "'") quote = "";
-			else word += char;
-			continue;
-		}
-		if (quote === "\"") {
-			if (char === "\"") quote = "";
-			else if (char === "\\" && (text[index + 1] === "\"" || text[index + 1] === "\\")) word += text[++index] ?? "";
-			else word += char;
-			continue;
-		}
-		if (/\s/u.test(char)) {
-			if (word !== void 0) words.push(word);
-			word = void 0;
-			continue;
-		}
-		word ??= "";
-		if (char === "'" || char === "\"") quote = char;
-		else if (char === "\\") word += text[++index] ?? "";
-		else word += char;
-	}
-	if (word !== void 0) words.push(word);
-	return words;
-}
-/**
-* The --no-binary and --only-binary options of a logical line as pip parses it: break_args_options leaves the words up
-* to the first that starts with - to the requirement and gives the rest to optparse, which takes an unambiguous prefix
-* of a long option (`longOptions`) and its value after = or as the next word.
-*/
-function binaryOptions(line, facts, longOptions) {
-	const tokens = line.split(" ");
-	const first = tokens.findIndex((token) => token.startsWith("-"));
-	const requirement = (first === -1 ? tokens : tokens.slice(0, first)).join(" ").trim() !== "";
-	const words = first === -1 ? [] : shellWords(tokens.slice(first).join(" "));
-	const options = [];
-	let others = false;
-	for (let index = 0; index < words.length; index++) {
-		const word = words[index] ?? "";
-		if (!word.startsWith("-")) continue;
-		const equals = word.indexOf("=");
-		const name = word.startsWith("--") ? expandRequirementsOption(equals === -1 ? word : word.slice(0, equals), longOptions) : word;
-		if (name !== facts.noBinary && name !== facts.onlyBinary) {
-			others = true;
-			continue;
-		}
-		const value = equals === -1 ? words[++index] ?? "" : word.slice(equals + 1);
-		options.push({
-			option: name,
-			value
-		});
-	}
-	return {
-		options,
-		requirement,
-		others
-	};
-}
-/**
-* Whether an option, read after --only-binary=:all: and the --no-binary of the packages `allowed` (normalized names),
-* lets pip build another package from source (handle_mutual_excludes): --no-binary with :all: or with a name not
-* allowed, --only-binary with :none: after its last :all:.
-*/
-function weakens$1(option, allowed, facts) {
-	const parts = option.value.split(facts.separator);
-	if (option.option === facts.noBinary) return parts.includes(facts.all) || parts.some((part) => part !== facts.none && part !== "" && !allowed.has(normalizePythonName(part)));
-	return parts.slice(parts.lastIndexOf(facts.all) + 1).includes(facts.none);
-}
-/** The options as messages show them: `--no-binary psycopg2` and `--only-binary :none:`. */
-function optionsText(options) {
-	const texts = options.map((option) => `${option.option} ${option.value}`);
-	return texts.length <= 1 ? texts[0] ?? "" : `${texts.slice(0, -1).join(", ")} and ${texts.at(-1) ?? ""}`;
-}
-/** What the options make pip do, for messages: build every package from source, or some named ones. */
-function weakeningEffect(options, facts) {
-	const parts = (option) => option.value.split(facts.separator);
-	if (options.some((option) => option.option === facts.noBinary && parts(option).includes(facts.all))) return "makes pip build every package from source";
-	if (options.some((option) => option.option === facts.onlyBinary)) return "lets pip build any package from source again";
-	const names = [...new Set(options.flatMap((option) => parts(option).filter((part) => part !== facts.none && part !== "")))];
-	return `makes pip build ${names.length <= 1 ? names[0] ?? "" : `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`} from source`;
-}
-/** The lines of a requirements file whose options undo the block (decision D-167); `allowed` holds normalized names. */
-function weakeningLines(text, reading, allowed) {
-	return requirementsLines(text, reading.format).flatMap(({ text: body, line, end }) => {
-		const parsed = binaryOptions(body, reading.facts, reading.longOptions);
-		const options = parsed.options.filter((option) => weakens$1(option, allowed, reading.facts));
-		return options.length === 0 ? [] : [{
-			line,
-			end,
-			parsed,
-			options
-		}];
-	});
-}
-/** Why apply leaves a weakening line as it is, or undefined when it comments the line out. */
-function keptReason(parsed, line, end) {
-	if (parsed.requirement) return "requirement";
-	if (parsed.others) return "options";
-	return end > line ? "continued" : void 0;
-}
-/** The lines of a requirements file (requirements.txt itself) whose options undo the block and stay. */
-function keptLines(text, reading, allowed) {
-	return weakeningLines(text, reading, allowed).map(({ line, end, parsed, options }) => ({
-		line,
-		options,
-		reason: keptReason(parsed, line, end) ?? "options"
-	}));
-}
-/**
-* An included file after apply: the option lines that undo the block commented out with the marker of requirements.txt
-* (`allowed` given: the block is written), and lines commented out so before brought back when they no longer undo it
-* (`allowed` undefined: no block). Lines it cannot comment out are returned.
-*/
-function editIncluded(body, reading, allowed) {
-	const lines = splitLines(body);
-	for (const [index, line] of lines.entries()) {
-		const trimmed = line.trimStart();
-		if (!trimmed.startsWith("# depcurfew: superseded by the managed block: ")) continue;
-		const original = trimmed.slice(SUPERSEDED.length);
-		if (allowed === void 0 || weakeningLines(original, reading, allowed).length === 0) lines[index] = original;
-	}
-	if (allowed === void 0) return {
-		text: joinLines(lines),
-		kept: []
-	};
-	const kept = [];
-	for (const { line, end, parsed, options } of weakeningLines(joinLines(lines), reading, allowed)) {
-		const reason = keptReason(parsed, line, end);
-		if (reason === void 0) lines[line - 1] = `${SUPERSEDED}${(lines[line - 1] ?? "").trim()}`;
-		else kept.push({
-			line,
-			options,
-			reason
-		});
-	}
-	return {
-		text: joinLines(lines),
-		kept
-	};
-}
-/** The final FormatControl of an install from `root` (decision D-167): whether --only-binary=:all: holds, and from which file. */
-function formatControlAfter(read, root, reading) {
-	const { facts } = reading;
-	const only = /* @__PURE__ */ new Set();
-	const no = /* @__PURE__ */ new Set();
-	let from;
-	const apply = (target, other, value, file) => {
-		let parts = value.split(facts.separator);
-		while (parts.includes(facts.all)) {
-			other.clear();
-			target.clear();
-			target.add(facts.all);
-			if (target === only) from = file;
-			parts = parts.slice(parts.indexOf(facts.all) + 1);
-			if (!parts.includes(facts.none)) return;
-		}
-		for (const part of parts) {
-			if (part === facts.none) {
-				target.clear();
-				continue;
-			}
-			const name = normalizePythonName(part);
-			other.delete(name);
-			target.add(name);
-		}
-	};
-	const visit = (file, stack) => {
-		const text = read(file);
-		if (text === void 0) return;
-		const includes = new Map(requirementsIncludes(text, reading.format).map((include) => [include.line, include.path]));
-		for (const { text: body, line } of requirementsLines(text, reading.format)) {
-			const path = includes.get(line);
-			if (path !== void 0) {
-				const included = includedFile(file, path);
-				if (!included.url && !included.outside && !stack.has(included.target)) visit(included.target, /* @__PURE__ */ new Set([...stack, included.target]));
-				continue;
-			}
-			for (const option of binaryOptions(body, facts, reading.longOptions).options) if (option.option === facts.noBinary) apply(no, only, option.value, file);
-			else apply(only, no, option.value, file);
-		}
-	};
-	visit(root, /* @__PURE__ */ new Set([root]));
-	return {
-		onlyAll: only.has(facts.all),
-		from: only.has(facts.all) ? from : void 0
-	};
-}
-
 // src/apply/generators/python.ts
 /** The policy's Python allow-list as normalized names; patterns with * are dropped with a warning. */
 function buildAllowList(context, setting) {
@@ -33834,7 +33951,15 @@ function checkIncludes(context, root, block, original) {
 	const { workspace } = context;
 	const where = context.project ?? "the repository";
 	const undoing = `${facts.noBinary} or ${facts.onlyBinary}=${facts.none}`;
-	const visited = /* @__PURE__ */ new Set([root]);
+	const real = (file) => {
+		try {
+			return realpathSync(join(workspace.root, file));
+		} catch {
+			return file;
+		}
+	};
+	const visited = /* @__PURE__ */ new Set([real(root)]);
+	let past = false;
 	const queue = [root];
 	for (let file = queue.shift(); file !== void 0; file = queue.shift()) {
 		const includer = file;
@@ -33872,8 +33997,13 @@ function checkIncludes(context, root, block, original) {
 			const keep = `Keep the included file in ${where} as a regular file and include it by a relative path, then run depcurfew apply again; until then check by hand that it has no ${undoing} line`;
 			if (included.url) unread("which pip downloads", keep);
 			else if (included.outside) unread(`which is outside ${where}`, keep);
-			else if (!visited.has(included.target)) {
-				visited.add(included.target);
+			else if (!visited.has(real(included.target))) {
+				if (visited.size >= 1e3) {
+					if (!past) unread(`and with it ${root} includes more than ${MAX_REQUIREMENTS_FILES} requirements files, which depcurfew does not follow`, `Include fewer requirements files from ${root}, then run depcurfew apply again; until then check by hand that the rest have no ${undoing} line`);
+					past = true;
+					continue;
+				}
+				visited.add(real(included.target));
 				if (!workspace.isFile(included.target)) {
 					unread("which does not exist", `Create ${included.target} or remove the line that includes it (pip stops when it cannot open an included file), then run depcurfew apply again`);
 					continue;
@@ -41451,6 +41581,25 @@ function scriptsDisabledBy(context, tool) {
 		setting: `${strict.setting} in ${file}`
 	};
 }
+/** formatControlAfter of each requirements file, once per repository: every lockfile of its tree asks for it (decision D-191). */
+const formatControls = /* @__PURE__ */ new WeakMap();
+function formatControlOf(context, root, reading) {
+	let known = formatControls.get(context.repository);
+	if (known === void 0) {
+		known = /* @__PURE__ */ new Map();
+		formatControls.set(context.repository, known);
+	}
+	let result = known.get(root);
+	if (result === void 0) {
+		result = formatControlAfter((file) => context.repository.readText(file), root, reading, (file) => context.repository.realPath(file) ?? file);
+		if (result.stopped) {
+			const { onlyBinary, all } = reading.facts;
+			context.repository.warn("too-many-includes", `${root} includes more than ${MAX_REQUIREMENTS_FILES} requirements files, or the same ones so many times over, that depcurfew stops following them, so it cannot tell whether ${onlyBinary}=${all} holds there`, [root]);
+		}
+		known.set(root, result);
+	}
+	return result;
+}
 /**
 * Whether the repository forbids building Python packages from source with the tool's switch (no-build in uv,
 * installer.only-binary in Poetry, --only-binary=:all: in a requirements file for pip), and where.
@@ -41468,7 +41617,7 @@ function buildsForbiddenBy(context, tool, lockfile) {
 			format,
 			longOptions: requirementsLongOptions(format)
 		};
-		const results = roots.map((root) => formatControlAfter((file) => context.repository.readText(file), root, reading));
+		const results = roots.map((root) => formatControlOf(context, root, reading));
 		const found = results[0]?.from;
 		return found === void 0 || !results.every((result) => result.onlyAll) ? void 0 : `${build.setting}=${String(build.value)} in ${found} forbids building`;
 	}

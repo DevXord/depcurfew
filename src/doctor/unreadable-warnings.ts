@@ -26,6 +26,7 @@ export const UNREADABLE_WARNINGS: Readonly<Record<string, string>> = {
   'not-a-regular-file': 'Replace it with a regular file, or remove it; npm and pnpm read .npmrc as a file',
   'workspace-outside-repository': 'Keep workspace packages inside the repository',
   'unreadable-include': 'Keep the included files in the repository and refer to them by a relative path, so that depcurfew can check them',
+  'too-many-includes': 'Include fewer requirements files, or the same ones fewer times, so that depcurfew can follow them all; until then check the rest by hand',
 };
 
 /**
