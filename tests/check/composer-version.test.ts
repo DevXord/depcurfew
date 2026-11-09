@@ -1,6 +1,7 @@
 // Composer versions and constraints (decision D-133): the normal forms of composer/semver 3.6.0, the internal forms
 // of constraints that doc/articles/versions.md lists, PHP's version_compare and the stability flags of a requirement.
 import { describe, expect, it } from 'vitest';
+import { cpuNow } from '../support/cpu-time.ts';
 import { compareVersions, matches, MAX_CONSTRAINT_LENGTH, namesBranch, normalizeVersion, parseConstraint, parseStability, stabilityFlag } from '../../src/check/composer-version.ts';
 
 /** The constraint written back as composer/semver prints it: comparisons, a space for AND, || for OR, * for any. */
@@ -126,10 +127,10 @@ describe('Composer constraints', () => {
   });
 
   it('reads long constraints in linear time and refuses ones longer than it reads', () => {
-    const started = Date.now();
+    const started = cpuNow();
     expect(parseConstraint(`1.0.0-beta${'1'.repeat(900)}x`)).toBeUndefined();
     expect(normalizeVersion(`1.0.0-beta${'1.'.repeat(400)}x`)).toBeUndefined();
-    expect(Date.now() - started).toBeLessThan(1000);
+    expect(cpuNow() - started).toBeLessThan(1000);
     expect(parseConstraint(`^${'1'.repeat(MAX_CONSTRAINT_LENGTH)}`)).toBeUndefined();
   });
 });

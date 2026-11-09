@@ -33,7 +33,6 @@ import type {
   Ecosystem,
   EnvironmentNameRule,
   InstallOverridesKnowledge,
-  LocalBinariesKnowledge,
   NpmVersionSelectionKnowledge,
   OverrideSwitch,
   OverrideValues,
@@ -120,12 +119,6 @@ export interface InstallRequest {
    * space has no package of that name (decision D-172).
    */
   linked?: true;
-  /**
-   * npx, npm exec or npm x without a package option (decision D-185): the word names a command, which npm runs from
-   * node_modules/.bin of its local prefix or of a directory above when one has it, downloading nothing. Left out when
-   * a command before it on the line may write files, and in loops and functions, which may run it after such a command.
-   */
-  binary?: true;
 }
 
 export type { CommandDirectory, KnownDirectory } from './directories.ts';
@@ -813,8 +806,6 @@ interface ToolCommands {
   applicationOptions: readonly ApplicationOption[] | undefined;
   /** Where the tool reads the options of its download commands besides after the subcommand (decision D-160). */
   runnerOptions: RunnerOptionsKnowledge | undefined;
-  /** Download commands that run a program of node_modules/.bin when there is one (npx; decision D-185). */
-  localBinaries: LocalBinariesKnowledge | undefined;
   /** Commands that link the packages they name and install those the global space lacks (npm link; decision D-172). */
   links: readonly (readonly string[])[];
 }
@@ -946,7 +937,6 @@ function commands(): Commands {
             composer: factOf<ComposerCommandsKnowledge>(tool, sibling(key, 'commandArguments')),
             applicationOptions: factOf<ApplicationOption[]>(tool, sibling(key, 'applicationOptions')),
             runnerOptions: factOf<RunnerOptionsKnowledge>(tool, sibling(key, 'runnerOptions')),
-            localBinaries: factOf<LocalBinariesKnowledge>(tool, sibling(key, 'localBinaries')),
             links: factOf<string[][]>(tool, sibling(key, 'linkCommands')) ?? [],
           },
         ];
@@ -1532,7 +1522,7 @@ type SelectionEvent =
       list?: boolean;
     };
 
-type Outcome = { specs: string[]; lines: string[]; rest: Word[]; events: SelectionEvent[]; overrides: Found[]; binary?: string } | { unreadable: string };
+type Outcome = { specs: string[]; lines: string[]; rest: Word[]; events: SelectionEvent[]; overrides: Found[] } | { unreadable: string };
 
 interface Switches {
   prereleases: SelectionSwitches;
@@ -1879,10 +1869,6 @@ function readArguments(given: readonly Word[], mode: 'add' | 'run' | 'create', t
   let shell = false;
   /** Operands before the packages that name something else (pipx inject ENVIRONMENT; decision D-172). */
   let skipped = 0;
-  // npx without a package option may run a program of node_modules/.bin instead (decision D-185), unless an option
-  // names the package or runs the command in workspaces.
-  const local = mode === 'run' && entry !== undefined && tool.localBinaries?.commands.some((command) => sameCommand(command, entry.command)) === true ? tool.localBinaries : undefined;
-  let bypassed = false;
   for (let index = 0; index < words.length; index++) {
     const word = words[index] as Word;
     if (!positional && word.text === '--') {
@@ -1897,7 +1883,6 @@ function readArguments(given: readonly Word[], mode: 'add' | 'run' | 'create', t
       }
       const option = readOption(words, index, tool, takes);
       const { name, value, next } = option;
-      if (local !== undefined && local.bypassOptions.some((bypass) => name === bypass || word.text === bypass || word.text.startsWith(`${bypass}=`))) bypassed = true;
       // The arguments are local files (deno install --entrypoint), so no package is named.
       if (mode === 'add' && tool.facts.fileOptions?.includes(name) === true) return { specs: [], lines, rest: [], events, overrides };
       // pipx inject -r: the packages are in a file (decision D-172); those named besides it are read aside (D-155).
@@ -1969,19 +1954,12 @@ function readArguments(given: readonly Word[], mode: 'add' | 'run' | 'create', t
       }
       if (!named && isInterpreter(word.text, tool.facts.interpreterNames)) return { specs, lines, rest: words.slice(index), events, overrides };
       if (!named) specs.push(entry?.binaryPath === true ? withoutBinary(word.text) : word.text);
-      if (!named && local !== undefined && !bypassed && PROGRAM_NAME.test(word.text)) return { specs, lines, rest: words.slice(index), events, overrides, binary: word.text };
     }
     if (mode === 'create') specs.push(/^[.~/\\]|^[^@][^/]*\//u.test(word.text) ? word.text : createPackage(word.text, tool.facts.createNames));
     return { specs, lines, rest: words.slice(index), events, overrides };
   }
   return { specs, lines, rest: [], events, overrides };
 }
-
-/**
- * A word npx may find as a program of node_modules/.bin (decision D-185): a plain file name, without a version, a scope,
- * a path or a drive, at most as long as an npm package name. Anything else is checked as a package.
- */
-const PROGRAM_NAME = /^[A-Za-z0-9_][A-Za-z0-9._+~-]{0,213}$/u;
 
 /** A package without the /<binary> after it (deno x npm:typescript/tsc); scoped names keep their own slash. */
 function withoutBinary(spec: string): string {
@@ -2019,7 +1997,7 @@ function finish(
   const prefix = tool.ecosystem === 'pypi' ? PYPI_PREFIX : '';
   const events = [...before, ...outcome.events];
   const requests = outcome.specs.map((spec): InstallRequest => {
-    const request: InstallRequest = { tool: tool.tool, command: line, spec: `${prefix}${spec}`, ...(outcome.binary === spec ? { binary: true as const } : {}) };
+    const request: InstallRequest = { tool: tool.tool, command: line, spec: `${prefix}${spec}` };
     PENDING.set(request, { events, variables: [], switches: context?.switches, tagVariable: tool.versionSelection?.tagVariable });
     return request;
   });
@@ -4445,8 +4423,6 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
   const add = (found: CommandScan) => {
     const requests = scan.requests.length;
     const overrides = scan.overrides?.length ?? 0;
-    // A program of node_modules/.bin may be gone, or put there, by a command before it (decision D-185).
-    if (walk.mayChangeFiles()) for (const request of found.requests) delete request.binary;
     merge(scan, found);
     if (found.requests.length === 0 && (found.overrides?.length ?? 0) === 0) return;
     walk.placed([...scan.requests.slice(requests), ...(scan.overrides ?? []).slice(overrides)], (entry) => TRAPPED.has(entry));
@@ -4583,7 +4559,7 @@ function settle(request: InstallRequest): InstallRequest {
     return { ...rest, ...place };
   }
   const events = [...pending.variables.flatMap(({ name, value }) => variableEvents(pending.switches, pending.tagVariable, name, value)), ...pending.events];
-  const result: InstallRequest = { tool: request.tool, command: request.command, spec: request.spec, ...(request.linked === true ? { linked: true } : {}), ...(request.binary === true ? { binary: true } : {}) };
+  const result: InstallRequest = { tool: request.tool, command: request.command, spec: request.spec, ...(request.linked === true ? { linked: true } : {}) };
   const tag = events.findLast((event) => event.setting === 'tag');
   if (tag !== undefined && tag.setting === 'tag') result.tag = tag.value;
   if (pending.switches !== undefined) {

@@ -38,6 +38,16 @@ describe('defaultPopularNames (decision D-182)', () => {
     expect(popularPython.has('typing-extensions')).toBe(true);
   });
 
+  it('cannot be changed by a caller: the shared instances are frozen (decision D-190)', () => {
+    const { popular, popularPython } = defaultPopularNames();
+    expect(Object.isFrozen(popular)).toBe(true);
+    expect(Object.isFrozen(popularPython)).toBe(true);
+    expect(() => {
+      (popular as { similar: unknown }).similar = () => undefined;
+    }).toThrow(TypeError);
+    expect(defaultPopularNames().popular.similar('lodahs')).toEqual({ match: 'lodash', reason: 'edit' });
+  });
+
   it('builds the lists once', () => {
     const first = defaultPopularNames();
     const second = defaultPopularNames();

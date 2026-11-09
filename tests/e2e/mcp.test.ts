@@ -60,6 +60,7 @@ describe('built depcurfew mcp', () => {
     const answered = new Promise<void>((resolve) => child.stdout.once('data', () => resolve()));
     child.stdin.write(lines(initialize));
     await answered;
+    // The time on the clock, not CPU time (tests/support/cpu-time.ts): what counts is how soon the server process ends.
     const started = Date.now();
     child.kill(signal);
     const code = await new Promise<number | null>((resolve) => child.on('close', resolve));

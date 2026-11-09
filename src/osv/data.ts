@@ -12,13 +12,13 @@
 //
 // What osv update keeps and what the lookups read is limited (OSV_DATA_LIMITS, decision D-156), so that a small but
 // crafted export cannot make a data file that takes the hook seconds to read.
-import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord, values } from '../apply/facts.ts';
 import { osvEcosystem, type OsvPackage } from '../check/osv.ts';
 import { osv as facts } from '../knowledge/osv.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
-import { cacheWriteProblem, currentUser, type CacheWriteProblem, type PosixUser } from '../user/cache-path.ts';
+import { readLimited } from '../read-limited.ts';
+import { cacheWriteProblem, currentUser, fileWriteProblem, type CacheWriteProblem, type PosixUser } from '../user/cache-path.ts';
 import { affectedFields, affects } from './match.ts';
 import { sizeText } from './zip.ts';
 
@@ -261,11 +261,14 @@ export class LocalOsvData {
   }
 
   /**
-   * A directory of the data that other users can write (decision D-156), checked once; undefined when there is none.
-   * The lookups still use the data then: without it they would find nothing at all, and the warning says what to do.
+   * A directory (decision D-156) or a data file (decision D-190) of the data that other users can write, checked once;
+   * undefined when there is none. The lookups still use the data then: without it they would find nothing at all, and
+   * the warning says what to do.
    */
   writeProblem(): CacheWriteProblem | undefined {
-    this.#problem ??= { found: cacheWriteProblem(this.#guarded, this.#user) };
+    const directory = this.directory;
+    const files = directory === undefined ? [] : OSV_DATA_ECOSYSTEMS.map((ecosystem) => osvDataFile(directory, ecosystem));
+    this.#problem ??= { found: cacheWriteProblem(this.#guarded, this.#user) ?? fileWriteProblem(files, this.#user) };
     return this.#problem.found;
   }
 
@@ -351,22 +354,22 @@ function findLine(bytes: Buffer, body: number, name: string): unknown {
 function readDataFile(directory: string | undefined, ecosystem: string): Loaded {
   if (directory === undefined) return { state: { status: 'missing', file: '' } };
   const file = osvDataFile(directory, ecosystem);
-  let size: number;
-  try {
-    const stats = statSync(file, { throwIfNoEntry: false });
-    if (stats === undefined) return { state: { status: 'missing', file } };
-    if (!stats.isFile()) return { state: { status: 'unreadable', file, reason: 'it is not a regular file' } };
-    size = stats.size;
-  } catch (error) {
-    return { state: { status: 'unreadable', file, reason: reasonOf(error) } };
+  // One open of the file itself, never through a symbolic link in its place and without a stat before it, so that it
+  // cannot be swapped for a link or a FIFO in between (decision D-190).
+  const read = readLimited(file, OSV_DATA_LIMITS.fileBytes, { noFollow: true });
+  if (!read.ok) {
+    if (read.problem === 'missing') return { state: { status: 'missing', file } };
+    const reason =
+      read.problem === 'unreadable'
+        ? reasonOf(read.error)
+        : read.problem === 'too-large'
+          ? `it is larger than ${sizeText(OSV_DATA_LIMITS.fileBytes)}`
+          : read.problem === 'symlink'
+            ? 'it is a symbolic link'
+            : 'it is not a regular file';
+    return { state: { status: 'unreadable', file, reason } };
   }
-  if (size > OSV_DATA_LIMITS.fileBytes) return { state: { status: 'unreadable', file, reason: `it is larger than ${sizeText(OSV_DATA_LIMITS.fileBytes)}` } };
-  let bytes: Buffer;
-  try {
-    bytes = readFileSync(file);
-  } catch (error) {
-    return { state: { status: 'unreadable', file, reason: reasonOf(error) } };
-  }
+  const bytes = read.bytes;
   const notOurs: Loaded = { state: { status: 'unreadable', file, reason: `it is not a file that depcurfew osv update writes for ${osvEcosystem(ecosystem) ?? ecosystem}` } };
   const newline = bytes.indexOf(NEWLINE);
   if (newline === -1 || newline > MAX_HEADER_BYTES || bytes[bytes.length - 1] !== NEWLINE) return notOurs;

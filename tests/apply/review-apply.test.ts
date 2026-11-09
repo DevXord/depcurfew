@@ -2,6 +2,7 @@
 // scripts, Renovate's security exceptions stay in pnpm-workspace.yaml, files ignored by git are reported, project
 // manifests are never created and tools seen only in CI are not configured.
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -208,9 +209,9 @@ describe('files ignored by git', () => {
 
   it('matches hostile patterns in linear time', () => {
     const root = repo({ '.gitignore': `${'*a'.repeat(5000)}b\n${'**/'.repeat(2000)}x\n` });
-    const started = Date.now();
+    const started = cpuNow();
     expect(ignoredByGit(new Repository(root), `${'a'.repeat(200)}/${'a'.repeat(200)}.toml`).ignored).toBe(false);
-    expect(Date.now() - started).toBeLessThan(2000);
+    expect(cpuNow() - started).toBeLessThan(2000);
   });
 
   it('leaves out files git already tracks, read from the index', () => {

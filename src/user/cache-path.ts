@@ -8,7 +8,7 @@
 // Other users who can write one of these directories can change the data that check, the hook, depcurfew mcp and
 // doctor look versions up in (decision D-156): cacheWriteProblem finds such a directory on POSIX systems, so that osv
 // update and the lookups can warn.
-import { statSync } from 'node:fs';
+import { lstatSync, statSync, type Stats } from 'node:fs';
 import { posix, win32 } from 'node:path';
 
 export interface CacheEnvironment {
@@ -77,6 +77,7 @@ export function currentUser(): PosixUser | undefined {
  * `own` says whether it belongs to the user, who can then take the access away; `id` is the group or the owner.
  */
 export interface CacheWriteProblem {
+  /** The directory, or the data file (decision D-190), that other users can write. */
   directory: string;
   kind: 'everyone' | 'group' | 'owner';
   own: boolean;
@@ -101,10 +102,37 @@ export function cacheWriteProblem(directories: readonly string[], user: PosixUse
       continue;
     }
     if (stats === undefined || !stats.isDirectory()) continue;
-    const own = stats.uid === user.uid;
-    if (!own && stats.uid !== 0) return { directory, kind: 'owner', own, id: stats.uid };
-    if ((stats.mode & OTHERS_WRITE) !== 0) return { directory, kind: 'everyone', own };
-    if ((stats.mode & GROUP_WRITE) !== 0 && stats.gid !== user.gid) return { directory, kind: 'group', own, id: stats.gid };
+    const problem = writableByOthers(directory, stats, user);
+    if (problem !== undefined) return problem;
+  }
+  return undefined;
+}
+
+/** Whether other users can write `path`, by the owner and mode in `stats`, as CacheWriteProblem says. */
+function writableByOthers(path: string, stats: Stats, user: PosixUser): CacheWriteProblem | undefined {
+  const own = stats.uid === user.uid;
+  if (!own && stats.uid !== 0) return { directory: path, kind: 'owner', own, id: stats.uid };
+  if ((stats.mode & OTHERS_WRITE) !== 0) return { directory: path, kind: 'everyone', own };
+  if ((stats.mode & GROUP_WRITE) !== 0 && stats.gid !== user.gid) return { directory: path, kind: 'group', own, id: stats.gid };
+  return undefined;
+}
+
+/**
+ * The first of `files` (data files of the local OSV.dev data) that other users can write or own (decision D-190);
+ * undefined when none, on Windows, and for a file that does not exist or is not a regular file, which is not read.
+ */
+export function fileWriteProblem(files: readonly string[], user: PosixUser | undefined = currentUser()): CacheWriteProblem | undefined {
+  if (user === undefined) return undefined;
+  for (const file of files) {
+    let stats: ReturnType<typeof lstatSync>;
+    try {
+      stats = lstatSync(file, { throwIfNoEntry: false });
+    } catch {
+      continue;
+    }
+    if (stats === undefined || !stats.isFile()) continue;
+    const problem = writableByOthers(file, stats, user);
+    if (problem !== undefined) return problem;
   }
   return undefined;
 }

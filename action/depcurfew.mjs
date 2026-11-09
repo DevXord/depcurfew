@@ -2541,22 +2541,6 @@ const npm$1 = {
 			commands: EXEC_COMMANDS,
 			readsExclude: false
 		}, `${LIBNPMEXEC_V11}/index.js`, "getManifest in libnpmexec asks pacote.manifest for the package with the flat options of npm, which carry before (min-release-age turned into a date by its flatten in definitions.js) and minReleaseAgeExclude, which neither libnpmexec nor pacote reads: the registry fetcher of pacote passes before to npm-pick-manifest (lib/registry.js of npm/pacote at v21.5.1, the version npm 11.21.1 ships). Only Arborist reads min-release-age-exclude (isReleaseAgeExcluded in workspaces/arborist/lib/release-age-exclude.js, used by build-ideal-tree.js, audit-report.js and query-selector-all.js), and so do npm outdated and npm pack. So npx, npm exec and npm x pick the newest version older than the delay, also for a package the list exempts, and fail with ETARGET for an exact version younger than it. The same in npm 11.21.2 (libnpmexec 10.3.5, pacote 21.5.2) and 12.2.2 (libnpmexec 11.0.5, pacote 22.0.1), read in the packages on the registry."),
-		localBinaries: d184.verified({
-			commands: EXEC_COMMANDS,
-			directory: "node_modules/.bin",
-			bypassOptions: [
-				"--package",
-				"-p",
-				"--workspace",
-				"-w",
-				"--workspaces",
-				"--ws",
-				"-ws",
-				"--include-workspace-root",
-				"--iwr",
-				"-iwr"
-			]
-		}, `${LIBNPMEXEC_V11}/index.js`, "Without --package, exec in libnpmexec looks for the first argument, before it asks any registry: as a bin of the package.json of npm's local prefix and of the workspace the command runs in (hasPkgBin; it then installs that package into the npx cache), then as a file in node_modules/.bin of the local prefix, or of that workspace, and of every directory above it (localFileExists in lib/file-exists.js: walkUp, stat, isFile), which it runs as it is, then in the global bin directory. Only then does it fetch the package of that name. npm takes a directory that a root package.json lists as a workspace for the default workspace, and exec does not ignore it (ignoreImplicitWorkspace = false and runPath in lib/commands/exec.js), so a command run in a workspace looks from there; --prefix sets the local prefix. --workspace (-w), --workspaces (--ws) and --include-workspace-root (--iwr) run it once per workspace; nopt takes the shorthands with one dash too (-ws, -iwr). The same code in npm 12.2.2."),
 		runnerOptions: runners$2.verified({
 			beforeCommand: [{
 				command: ["npm", "exec"],
@@ -30799,8 +30783,9 @@ function sameList(a, b) {
 	return JSON.stringify(a) === JSON.stringify(b);
 }
 const isExecReleaseAge = (value) => isRecord(value) && typeof value["readsExclude"] === "boolean" && Array.isArray(value["commands"]) && value["commands"].every((command) => Array.isArray(command) && command.every((word) => typeof word === "string"));
-/** How many patterns a message names before it counts the rest. */
+/** How many patterns a message names before it counts the rest, and how long each may be in it (decision D-190). */
 const NAMED_PATTERNS = 3;
+const SHOWN_PATTERN_LENGTH = 60;
 /**
 * npx, npm exec and npm x pick the version of a package they download with the release-age delay alone and do not read
 * the exceptions (extra.execReleaseAge of npm, decision D-184), so the exceptions apply writes do not reach them.
@@ -30809,7 +30794,8 @@ function execExclusionWarning(context, setting, patterns) {
 	const fact = context.tool.extra?.["execReleaseAge"];
 	const value = fact === void 0 ? void 0 : values$1(fact)[0];
 	if (patterns.length === 0 || !isExecReleaseAge(value) || value.readsExclude) return;
-	const named = patterns.length > NAMED_PATTERNS ? `${patterns.slice(0, NAMED_PATTERNS).join(", ")} and ${patterns.length - NAMED_PATTERNS} more` : listing$1(patterns);
+	const shown = patterns.map((pattern) => pattern.length > SHOWN_PATTERN_LENGTH ? `${pattern.slice(0, 57)}...` : pattern);
+	const named = shown.length > NAMED_PATTERNS ? `${shown.slice(0, NAMED_PATTERNS).join(", ")} and ${shown.length - NAMED_PATTERNS} more` : listing$1(shown);
 	context.warn({
 		code: "exclude-ignored-by-exec",
 		message: `${context.name}: ${listing$1(value.commands.map((command) => command.join(" ")))} pick the version of a package they download with the release-age delay alone and do not read ${setting}, so they still hold new versions of ${named} back for cooldown.minimum`,

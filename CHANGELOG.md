@@ -4,13 +4,13 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 
 ## 1.6.0
 
-### Claude Code hook
-
-- `npx`, `npm exec` and `npm x` without `--package` run a program of the project when `node_modules/.bin` of npm's local prefix (or of the workspace the command runs in) or of a directory above it has a file of that name and no `package.json` there or above declares a bin of that name. npm then downloads nothing, so the hook no longer looks the package up in the registry: `npx vitest run` in a project that installed vitest is not blocked because the newest vitest on the registry is younger than the release-age delay, and `npx tsc` no longer warns about the deprecated package `tsc`. With a version (`npx vitest@4`), `--package`, a workspace option, in a loop or a function, or after a command on the same line that may write files (`rm -rf node_modules && npx vitest`), the package is checked as before.
-
 ### apply
 
 - The new warning `exclude-ignored-by-exec`: npx, npm exec and npm x pick the version of a package they download with the release-age delay alone and do not read `min-release-age-exclude` (npm 11.21.1, 11.21.2 and 12.2.2), so the packages of `cooldown.exclude` still wait when they run through them. The fix says to install such a package with `npm install`, which reads the exceptions, and run it from `node_modules/.bin`, where npx finds it without downloading it.
+
+### Local OSV.dev data
+
+- The warning `osv-cache-shared` also covers the data files themselves: a data file that other users can write, or that belongs to another user, gets the same warning as such a directory. A data file is read in one step, without following a symbolic link in its place, so it cannot be swapped for a link or a FIFO between a check and the read; a link there makes the data of that ecosystem unreadable, with a note.
 
 ### Library
 

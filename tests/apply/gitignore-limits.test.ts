@@ -2,6 +2,7 @@
 // segments overflowed the stack (recursion per segment), and an index of version 4 whose entries keep a long
 // previous name copied it for every entry. Both must finish quickly without an exception (decision D-079).
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpuNow } from '../support/cpu-time.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -65,9 +66,9 @@ describe('.gitignore patterns with many segments', () => {
 describe('the index of version 4', () => {
   it('is not read when its names add up to far more than the file holds', () => {
     const root = repo({ '.git/index': amplifyingIndex(1024 * 1024, 2000) });
-    const started = Date.now();
+    const started = cpuNow();
     expect(trackedFiles(new Repository(root))).toBeUndefined();
-    expect(Date.now() - started).toBeLessThan(5000);
+    expect(cpuNow() - started).toBeLessThan(5000);
   });
 
   it('still reads an ordinary one', () => {
