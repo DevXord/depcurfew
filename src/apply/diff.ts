@@ -213,8 +213,42 @@ export function unifiedDiff(file: string, before: string | null, after: string, 
  * hiding (decision D-091).
  */
 const SECRET_KEY = /^(?:_auth|npmauthident|key|[a-z0-9_-]*(?:token|password|passwd|secret))$/iu;
-/** key = value: the key is everything before the first `=`, as in .npmrc, where it may hold colons (//host:443/:_auth). */
-const EQUALS = /^(\s*(?:-\s+)?["']?)([^="'\s][^="']*?)(["']?\s*=\s*)(.*)$/u;
+/** Line terminators, which end a line for `.` and `$` of the patterns below; \n and a lone \r are split before. */
+const TERMINATORS = /[\n\r\u2028\u2029]/u;
+const QUOTES = new Set(['"', "'"]);
+const BLANK = /\s/u;
+
+/**
+ * key = value, as in .npmrc and pip.conf: the key is everything before the first `=`, as in .npmrc, where it may hold
+ * colons (//host:443/:_auth), after blanks, a dash of a YAML list and a quote, and before a closing quote and blanks;
+ * the value follows the blanks after `=`. This is what /^(\s*(?:-\s+)?["']?)([^="'\s][^="']*?)(["']?\s*=\s*)(.*)$/u
+ * matches, read without it: that pattern backtracks quadratically on a long run of blanks with no `=` after it (a
+ * line of 80,000 tabs took 6 s), and a configuration file may be 1 MiB (decision D-192).
+ */
+function equalsPair(line: string): { key: string; value: string } | undefined {
+  const at = line.indexOf('=');
+  if (at === -1) return undefined;
+  const value = line.slice(at + 1).trimStart();
+  if (TERMINATORS.test(value)) return undefined;
+  const before = line.slice(0, at);
+  let start = 0;
+  while (start < before.length && BLANK.test(before[start] ?? '')) start += 1;
+  // With the dash of a YAML list and the blanks after it, or without them (then the key starts with the dash).
+  const starts = [start];
+  if (before[start] === '-') {
+    let after = start + 1;
+    while (after < before.length && BLANK.test(before[after] ?? '')) after += 1;
+    if (after > start + 1) starts.unshift(after);
+  }
+  for (const first of starts) {
+    const from = QUOTES.has(before[first] ?? '') ? first + 1 : first;
+    const region = before.slice(from).trimEnd();
+    const key = QUOTES.has(region.at(-1) ?? '') ? region.slice(0, -1) : region;
+    if (key === '' || BLANK.test(key[0] ?? '') || [...key].some((character) => QUOTES.has(character))) continue;
+    return { key, value };
+  }
+  return undefined;
+}
 /**
  * A key as YAML, TOML and JSON write it: in double quotes (with escapes), in single quotes, or bare. A quoted key may
  * hold any character, as "//registry.npmjs.org/:_authToken" does; a bare one may hold a colon that no space follows.
@@ -244,8 +278,8 @@ export function redactSecrets(line: string): string {
 }
 
 function redactLine(line: string): string {
-  const equals = EQUALS.exec(line);
-  if (equals !== null && isSecret(equals[2] ?? '', equals[4] ?? '')) return `${equals[1] ?? ''}${equals[2] ?? ''}${equals[3] ?? ''}${REDACTED}`;
+  const equals = equalsPair(line);
+  if (equals !== undefined && isSecret(equals.key, equals.value)) return `${line.slice(0, line.length - equals.value.length)}${REDACTED}`;
   const colon = COLON.exec(line);
   const value = colon?.[4] ?? '';
   if (colon !== null && isSecret(colon[1] ?? colon[2] ?? colon[3] ?? '', value)) return `${line.slice(0, line.length - value.length)}${REDACTED}`;

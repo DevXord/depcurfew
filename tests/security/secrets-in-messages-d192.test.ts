@@ -137,6 +137,17 @@ describe('redactText (decision D-192)', () => {
     expect(redactText('.npmrc', 'a=1\r//r/:_authToken=LEAKY\nfund=false\n')).toBe('a=1\r//r/:_authToken=<redacted>\nfund=false\n');
   });
 
+  it('reads a long run of blanks with no = after it in linear time (key = value read without backtracking)', () => {
+    const start = cpuNow();
+    for (const line of [`!${'\t'.repeat(200_000)}`, `a${'\t'.repeat(200_000)}b`, `a${' '.repeat(200_000)}"`, `- ${'- '.repeat(100_000)}`]) {
+      expect(redactText('.npmrc', line)).toBe(line);
+    }
+    expect(cpuNow() - start).toBeLessThan(2000);
+    // What the pattern read before, as before.
+    expect(redactText('.npmrc', '- "_authToken"  = npm_LEAKY')).toBe('- "_authToken"  = <redacted>');
+    expect(redactText('pip.conf', '  password\t=\tLEAKY')).toBe('  password\t=\t<redacted>');
+  });
+
   it('reads deeply nested JSON in linear time', () => {
     const text = `${'['.repeat(50_000)}"x"${']'.repeat(50_000)}`;
     const start = cpuNow();
