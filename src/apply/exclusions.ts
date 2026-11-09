@@ -8,10 +8,13 @@ import { yamlOptionsFor, extraOf, isRecord, settingOf, values } from './facts.ts
 import { managedValue, PlannedRepository } from './delays.ts';
 import { botOnlyEntries, isActionsEcosystem } from './generators/dependabot.ts';
 import { listing } from './requirements.ts';
+import { pinnedVersion } from './version.ts';
 import { pythonSettingPaths, readPythonSetting } from '../doctor/python.ts';
-import { readSetting, rejectsYamlAliases, yamlAliasLine, yamlSetting } from '../doctor/settings.ts';
+import { rejectsYamlAliases, yamlAliasLine, yamlSetting } from '../doctor/settings.ts';
 import { Repository } from '../detect/repository.ts';
-import type { Detection } from '../detect/types.ts';
+import type { Detection, PackageManagerInfo } from '../detect/types.ts';
+import { latestVersion } from '../doctor/effective.ts';
+import { readToolSetting, settingOwner } from '../doctor/pnpm-config.ts';
 import type { Ecosystem, ToolId, ToolKnowledge } from '../knowledge/types.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
@@ -52,7 +55,8 @@ function namesOf(tool: ToolKnowledge, value: unknown): string[] | undefined {
   return exempt === undefined ? undefined : Object.keys(value).filter((key) => value[key] === exempt);
 }
 
-function managerExclusion(repository: Repository, tool: ToolKnowledge, configFiles: readonly string[]): ConfiguredExclusion | undefined {
+function managerExclusion(repository: Repository, tool: ToolKnowledge, manager: PackageManagerInfo): ConfiguredExclusion | undefined {
+  const { configFiles } = manager;
   const setting = settingOf(tool.cooldown.exclude.setting);
   const ecosystem = ecosystemOfTool(tool);
   if (setting === null || ecosystem === 'packagist' || ecosystem === 'rubygems') return undefined;
@@ -66,7 +70,11 @@ function managerExclusion(repository: Repository, tool: ToolKnowledge, configFil
     // deno.json or deno.jsonc, as the generator picks it; the first configuration file of the others.
     const manifests = tool.id === 'deno' && tool.project !== undefined ? (values(tool.project.manifests)[0] ?? []) : [];
     const file = tool.id === 'deno' ? (manifests.find((name) => repository.isFile(name)) ?? configFiles.find((name) => /^deno\.jsonc?$/u.test(name))) : values(tool.cooldown.configFiles)[0]?.[0];
-    found = file === undefined || !mentions(file) ? undefined : readSetting(repository, file, setting);
+    // pnpm 12.15+ takes the list from the file include in pnpm-workspace.yaml gives it to, as the generator writes it
+    // there (decision D-194); a config dependency or a file outside the directory holds none depcurfew reads.
+    const version = pinnedVersion(manager) ?? latestVersion(tool);
+    const owner = file === undefined ? undefined : settingOwner(repository, tool, version, file, setting);
+    found = owner?.kind !== 'file' || file === undefined || !mentions(owner.file) ? undefined : readToolSetting(repository, tool, version, file, setting);
   }
   if (found === undefined) return undefined;
   const names = namesOf(tool, found.value);
@@ -138,7 +146,7 @@ export function configuredExclusions(repository: Repository, detection: Detectio
   for (const manager of detection.packageManagers) {
     const tool = tools.find((entry) => entry.id === manager.id);
     if (!manager.supported || tool === undefined || (only !== undefined && !only.has(tool.id))) continue;
-    const exclusion = read(() => managerExclusion(repository, tool, manager.configFiles), undefined);
+    const exclusion = read(() => managerExclusion(repository, tool, manager), undefined);
     if (exclusion !== undefined) found.push(exclusion);
   }
   for (const detected of detection.bots) {

@@ -23,6 +23,7 @@ const release13 = verifiedOn('2026-11-01');
 const final = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
 const d167 = verifiedOn('2026-11-03');
+const d195 = verifiedOn('2026-11-09');
 /** The values clap's BoolishValueParser reads as true, compared without regard to case (user.variables). */
 const TRUE_VALUES = ['1', 'true', 't', 'yes', 'y', 'on'];
 
@@ -83,10 +84,10 @@ export const uv: ToolKnowledge = {
     ),
     default: verified([{ since: '0.9.17', value: null }], SETTINGS, 'No default: without a value every upload time is accepted.'),
     exclude: {
-      setting: verified(
+      setting: d195.verified(
         'exclude-newer-package',
         `${RESOLUTION}`,
-        'A table mapping package names to false (exempt), a date or a duration; package values take precedence over the global and index values.',
+        'A table mapping package names to false (exempt), a date or a duration: "Values may also be specified for specific packages", "The package option also accepts <package>=false to opt a package out of the restriction", and exclude-newer-package = { setuptools = "30 days" } next to exclude-newer = "1 week". "Package-specific values will take precedence over both global and index-specific values." So an entry with a longer delay than exclude-newer holds its package back longer, and apply keeps it; a shorter one exempts the package in part (decision D-195).',
       ),
       availableSince: verified(
         '0.9.25',
