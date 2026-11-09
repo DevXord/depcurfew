@@ -660,6 +660,9 @@ export interface CommandNamesKnowledge {
   hidden?: readonly string[];
 }
 
+/** Other names a tool's program is installed under, each with the program it is (pnpm's pn; decision D-193). */
+export type ExecutableAliasesKnowledge = Record<string, string>;
+
 /**
  * Where Composer reads credentials (decision D-192): the methods, each a key whose value holds the credentials by host,
  * at the top of auth.json or under `config` in composer.json (and in the global config.json), and the path of the list

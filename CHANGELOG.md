@@ -28,6 +28,7 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 - The lines that `config-drift` and `doctor --user` quote show secrets as `<redacted>`, as the diffs of `apply` do (also in 1.5.2). Before, the text, JSON and SARIF of `doctor`, the log and job summary of the GitHub Action and `doctor --user` showed a token when its line differed from what `apply` writes: `npmAuthToken` in a `.yarnrc.yml` in flow style, a token in a `.npmrc` line that a lone carriage return joins to a managed setting, or a token in a minified `composer.json`.
 - Diffs of `apply` and the lines `doctor` quotes also hide Composer's credentials, which Composer keys by host (`"github-oauth": {"github.com": "…"}`, `bearer`, `http-basic`, `gitlab-token` and the other authentication methods, and the HTTP headers of a repository), by their place in the JSON document, and a token under a quoted key such as `"//registry.npmjs.org/:_authToken"` in `pnpm-workspace.yaml`.
 - Hiding secrets in `key = value` lines takes linear time (also in 1.5.2). A long run of blanks with no `=` after it, such as a line of 80,000 tabs in `.npmrc`, took seconds in `apply --dry-run`, and with the change above it would have in `doctor` too.
+- The Claude Code hook reads `pn`, the program that the package pnpm installs next to `pnpm` since 11.0.0-beta.3, as pnpm (also in 1.5.2). Before, `pn add`, `pn dlx`, `pn create` and `pn install --config.minimumReleaseAge=0` went through unchecked; now they are checked as with `pnpm`, also as `pn.cmd` and `pn.ps1` in PowerShell.
 
 ### Tests
 

@@ -32,6 +32,7 @@ import type {
   DownloadCommand,
   Ecosystem,
   EnvironmentNameRule,
+  ExecutableAliasesKnowledge,
   InstallOverridesKnowledge,
   NpmVersionSelectionKnowledge,
   OverrideSwitch,
@@ -816,6 +817,8 @@ interface Commands {
   add: ReadonlySet<string>;
   /** Executables of every package manager command. */
   executables: ReadonlySet<string>;
+  /** Other names of the package managers' programs, each with the program it is: pnpm's pn (decision D-193). */
+  executableAliases: ReadonlyMap<string, string>;
   /** Executables of the npm package managers, which npm installs on Windows as .cmd shims. */
   npmExecutables: ReadonlySet<string>;
   /** Last words of every install, run and create command, to spot them behind an executable the shell expands. */
@@ -969,6 +972,7 @@ function commands(): Commands {
     tools,
     add: new Set(npmTools.flatMap(({ facts }) => facts.add.map((entry) => entry.at(-1) ?? ''))),
     executables,
+    executableAliases: new Map(knowledgeBase.flatMap((tool) => Object.entries(factOf<ExecutableAliasesKnowledge>(tool, 'executableAliases') ?? {}))),
     npmExecutables: new Set(npmTools.flatMap(({ facts }) => [...facts.add, ...[...facts.create, ...facts.run].map((entry) => entry.command)].map((entry) => entry[0] ?? ''))),
     installWords: new Set(all.map((entry) => entry.at(-1) ?? '')),
     runners: new Set([
@@ -3189,8 +3193,11 @@ function unwrapAnywhere(words: readonly Word[], wrapper: Wrapper): { words: Word
 function executableOf(text: string): string {
   const base = basename(text);
   const name = base.includes('@') || base.includes('==') ? base.replace(/@[^/]*$/u, '').replace(/==.*$/u, '') : base;
-  const { executables } = commands();
+  const { executables, executableAliases } = commands();
   if (executables.has(name)) return name;
+  // pn is pnpm (decision D-193).
+  const aliased = executableAliases.get(name);
+  if (aliased !== undefined) return aliased;
   // A PHP archive runs as the program it packs when it has a shebang (./composer.phar).
   const archive = name.endsWith('.phar') ? name.slice(0, -'.phar'.length).replace(/-v?\d[\w.+-]*$/u, '') : undefined;
   if (archive !== undefined && executables.has(archive)) return archive;

@@ -11,7 +11,7 @@ import type { Rule } from '../doctor/types.ts';
 import { USER_RULES } from '../user/doctor.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import { SOURCE_KINDS } from '../knowledge/schema.ts';
-import type { CommandLineKnowledge, CommandNamesKnowledge, EnvironmentKnowledge, Fact, ToolKnowledge, UserConfigKnowledge, UserDirectory, UserFile, UserPlatform } from '../knowledge/types.ts';
+import type { CommandLineKnowledge, CommandNamesKnowledge, EnvironmentKnowledge, ExecutableAliasesKnowledge, Fact, ToolKnowledge, UserConfigKnowledge, UserDirectory, UserFile, UserPlatform } from '../knowledge/types.ts';
 import { DEFAULT_POLICY, renderPolicy } from '../policy/defaults.ts';
 import { policyJsonSchema } from '../policy/json-schema.ts';
 import { INSTALLED_CLI, TOOLS_DIRECTORY } from '../self-version.ts';
@@ -363,9 +363,14 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
         // npm link installs the names the global space lacks before it links them (decision D-172).
         const linksFact = key === 'commandLine' ? tool.extra?.['linkCommands'] : undefined;
         const links = linksFact === undefined ? [] : ((values(linksFact)[0] as readonly (readonly string[])[] | undefined) ?? []);
-        const add = commandList(withAliases([...commandLine.add, ...links]));
-        const run = commandList(withAliases(commandLine.run.map((entry) => entry.command)));
-        const create = commandList(withAliases(commandLine.create.map((entry) => entry.command)));
+        // The other names of the program, which the guard reads as the program (pn for pnpm; decision D-193).
+        const programsFact = key === 'commandLine' ? tool.extra?.['executableAliases'] : undefined;
+        const programs = Object.entries(programsFact === undefined ? {} : ((values(programsFact)[0] as ExecutableAliasesKnowledge | undefined) ?? {}));
+        const withPrograms = (entries: readonly (readonly string[])[]) =>
+          entries.flatMap((entry) => [entry, ...programs.filter(([, program]) => program === entry[0] && entry.length > 1).map(([alias]) => [alias, ...entry.slice(1)])]);
+        const add = commandList(withPrograms(withAliases([...commandLine.add, ...links])));
+        const run = commandList(withPrograms(withAliases(commandLine.run.map((entry) => entry.command))));
+        const create = commandList(withPrograms(withAliases(commandLine.create.map((entry) => entry.command))));
         const name = key === 'commandLine' ? tool.name : (commandLine.add[0]?.[0] ?? commandLine.run[0]?.command[0] ?? key);
         return [`| ${name} | ${add === '' ? 'none' : add} | ${run === '' ? 'none' : run} | ${create === '' ? 'none' : create} |`];
       }),

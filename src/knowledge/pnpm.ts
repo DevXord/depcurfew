@@ -2,6 +2,7 @@ import { verifiedOn } from './define.ts';
 import type {
   DirectoryOptionsKnowledge,
   EnvironmentNameRule,
+  ExecutableAliasesKnowledge,
   PnpmfilesKnowledge,
   PnpmIncludesKnowledge,
   PnpmKnownPlugin,
@@ -24,6 +25,7 @@ const runtimes = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
 const runners = verifiedOn('2026-11-03');
 const includes = verifiedOn('2026-11-03');
+const d193 = verifiedOn('2026-11-09');
 const PNPM_V12 = 'https://github.com/pnpm/pnpm/blob/v12.16.1';
 const PNPM_V12_17 = 'https://github.com/pnpm/pnpm/blob/v12.17.0';
 const PNPM_V11_CODE = 'https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/config/reader/src';
@@ -302,6 +304,11 @@ export const pnpm: ToolKnowledge = {
       },
       'https://github.com/pnpm/pnpm.io/tree/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/cli',
       'From cli/add.md, cli/pnx.md, cli/create.md and pnpm-cli.md at that commit. pnx (pnpm 12) has the aliases pnpm dlx and pnpx; pnpm 10 documents pnpm dlx with the alias pnpx (versioned_docs/version-10.x/cli/dlx.md). --shell-mode (-c) runs the command inside a shell, e.g. pnx --package cowsay -c \'echo hi | cowsay\'. pnpm create maps foo and create-foo to create-foo, @scope to @scope/create and @scope/foo to @scope/create-foo, and runs it with pnx. --registry and --allow-build are shown with =, the other value options with a separate value. --package belongs to pnx (pnpm dlx) only and is listed there; before dlx it counts too (runnerOptions). -F is the short form of --filter (filtering.md). --reporter takes the name of a reporter (cli/install.md) and --loglevel a level (the loglevel setting in settings/cli.md, given as a flag); both take a separate value too.',
+    ),
+    executableAliases: d193.verified<ExecutableAliasesKnowledge>(
+      { pn: 'pnpm' },
+      'https://github.com/pnpm/pnpm/blob/v12.18.0/pnpm/npm/pnpm/pn',
+      '"`pn` is `pnpm`. The pnpm it hands over to is the one installed alongside it." The package pnpm publishes the program pn since 11.0.0-beta.3: the bin field of that version and of 11.28.10 maps pn to bin/pnpm.mjs, the same file as pnpm (https://registry.npmjs.org/pnpm/11.0.0-beta.3), and 12.18.0 lists pn next to pnpm, pnpx and pnx (pnpm/npm/pnpm/package.json at v12.18.0). 11.0.0-beta.2 has no pn. So pn add, pn dlx, pn create and pn install read as the same commands of pnpm (decision D-193).',
     ),
     runnerOptions: runners.verified<RunnerOptionsKnowledge>(
       { beforeCommand: [{ command: ['pnpm', 'dlx'], values: 'separate' }] },
