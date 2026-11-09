@@ -1,5 +1,16 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, EnvironmentNameRule, NpmGlobalConfigKnowledge, NpmRegistryHostKnowledge, OmitOptionalKnowledge, RootLifecycleScriptsKnowledge, RunnerOptionsKnowledge, ToolKnowledge } from './types.ts';
+import type {
+  DirectoryOptionsKnowledge,
+  EnvironmentNameRule,
+  ExecReleaseAgeKnowledge,
+  LocalBinariesKnowledge,
+  NpmGlobalConfigKnowledge,
+  NpmRegistryHostKnowledge,
+  OmitOptionalKnowledge,
+  RootLifecycleScriptsKnowledge,
+  RunnerOptionsKnowledge,
+  ToolKnowledge,
+} from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 // Facts whose sources D-170 pinned to a release tag or commit, checked again on 2026-11-03.
@@ -15,6 +26,10 @@ const secrets = verifiedOn('2026-11-03');
 // The npm that npm install -g npm@<range> installs (decision D-173).
 const d173 = verifiedOn('2026-11-03');
 const d172 = verifiedOn('2026-11-03');
+// npx, npm exec and npm x (decisions D-184 and D-185), read in the published npm 11.21.1, 11.21.2 and 12.2.2.
+const d184 = verifiedOn('2026-11-09');
+const LIBNPMEXEC_V11 = 'https://github.com/npm/cli/blob/v11.21.1/workspaces/libnpmexec/lib';
+const EXEC_COMMANDS = [['npx'], ['npm', 'exec'], ['npm', 'x']];
 
 const CONFIG = 'https://docs.npmjs.com/cli/v12/using-npm/config';
 const CONFIG_V11 = 'https://docs.npmjs.com/cli/v11/using-npm/config';
@@ -380,6 +395,20 @@ export const npm: ToolKnowledge = {
       },
       CMD_LIST,
       'Aliases of install (add, i and the typo aliases in, ins, inst, insta, instal, isnt, isnta, isntal, isntall), install-test (it), exec (x) and init (create, innit), the same in 11.19.1. install-test takes the same arguments as install (docs/lib/content/commands/npm-install-test.md). npm exec and npx take the packages to download from --package; -p means --package only in npx (in npm it is --parseable); without --package the first positional argument names the package, and -c/--call takes a command string that runs with the packages, shell operators included (npm-exec.md). npm init <initializer> runs npm exec create-<initializer>: foo → create-foo, @usr → @usr/create, @usr/foo@2.0.0 → @usr/create-foo@2.0.0 (npm-init.md).',
+    ),
+    execReleaseAge: d184.verified<ExecReleaseAgeKnowledge>(
+      { commands: EXEC_COMMANDS, readsExclude: false },
+      `${LIBNPMEXEC_V11}/index.js`,
+      'getManifest in libnpmexec asks pacote.manifest for the package with the flat options of npm, which carry before (min-release-age turned into a date by its flatten in definitions.js) and minReleaseAgeExclude, which neither libnpmexec nor pacote reads: the registry fetcher of pacote passes before to npm-pick-manifest (lib/registry.js of npm/pacote at v21.5.1, the version npm 11.21.1 ships). Only Arborist reads min-release-age-exclude (isReleaseAgeExcluded in workspaces/arborist/lib/release-age-exclude.js, used by build-ideal-tree.js, audit-report.js and query-selector-all.js), and so do npm outdated and npm pack. So npx, npm exec and npm x pick the newest version older than the delay, also for a package the list exempts, and fail with ETARGET for an exact version younger than it. The same in npm 11.21.2 (libnpmexec 10.3.5, pacote 21.5.2) and 12.2.2 (libnpmexec 11.0.5, pacote 22.0.1), read in the packages on the registry.',
+    ),
+    localBinaries: d184.verified<LocalBinariesKnowledge>(
+      {
+        commands: EXEC_COMMANDS,
+        directory: 'node_modules/.bin',
+        bypassOptions: ['--package', '-p', '--workspace', '-w', '--workspaces', '--ws', '-ws', '--include-workspace-root', '--iwr', '-iwr'],
+      },
+      `${LIBNPMEXEC_V11}/index.js`,
+      'Without --package, exec in libnpmexec looks for the first argument, before it asks any registry: as a bin of the package.json of npm\'s local prefix and of the workspace the command runs in (hasPkgBin; it then installs that package into the npx cache), then as a file in node_modules/.bin of the local prefix, or of that workspace, and of every directory above it (localFileExists in lib/file-exists.js: walkUp, stat, isFile), which it runs as it is, then in the global bin directory. Only then does it fetch the package of that name. npm takes a directory that a root package.json lists as a workspace for the default workspace, and exec does not ignore it (ignoreImplicitWorkspace = false and runPath in lib/commands/exec.js), so a command run in a workspace looks from there; --prefix sets the local prefix. --workspace (-w), --workspaces (--ws) and --include-workspace-root (--iwr) run it once per workspace; nopt takes the shorthands with one dash too (-ws, -iwr). The same code in npm 12.2.2.',
     ),
     runnerOptions: runners.verified<RunnerOptionsKnowledge>(
       {

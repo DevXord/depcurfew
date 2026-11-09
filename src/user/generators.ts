@@ -9,7 +9,7 @@ import { BLOCK_END, blockLines, blockStart, commentedOut, insertBlock, isBlockSt
 import { policyDuration, settingText } from '../apply/delays.ts';
 import { buildAllowList, buildSwitchScopeWarning, compactDuration, forcedBuildWarning, pythonNames, tomlValue } from '../apply/generators/python.ts';
 import { convertCooldown } from '../policy/convert.ts';
-import { allowedNames, cooldownValue, denyList, eachSource, exclusions, sameList, scriptsDefault, type SourceKind } from '../apply/generators/common.ts';
+import { allowedNames, cooldownValue, denyList, eachSource, exclusions, execExclusionWarning, sameList, scriptsDefault, type SourceKind } from '../apply/generators/common.ts';
 import type { Context } from '../apply/generators/context.ts';
 import { dashedKey } from './ini-keys.ts';
 import { userFileFor } from './locate.ts';
@@ -262,6 +262,7 @@ function npmrc(targets: readonly UserTarget[]): void {
       if (excludeKey !== undefined && patterns !== undefined) {
         const suffix = extraOf(context.tool, 'npmrcListSyntax', isString);
         add(excludeKey, patterns.map((pattern) => `${excludeKey}${suffix}=${pattern}`));
+        execExclusionWarning(context, excludeKey, patterns);
       }
     }
     if (context.tool.id !== 'npm') {

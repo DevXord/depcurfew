@@ -354,6 +354,26 @@ export interface RunnerOptionsKnowledge {
   amongArguments?: readonly (readonly string[])[];
 }
 
+/**
+ * Download commands that run a program of the project instead of downloading a package (npx; decision D-185), in a
+ * fact of its own (`localBinaries`) next to the command-line fact.
+ */
+export interface LocalBinariesKnowledge {
+  /** The download commands that look for the program first, when no package option names the package. */
+  commands: readonly (readonly string[])[];
+  /** Where they look: this directory of npm's local prefix (or of the workspace the command runs in) and of every directory above it. */
+  directory: string;
+  /** Options that name the package, or make the command run in workspaces, so that the first argument is checked as a package. */
+  bypassOptions: readonly string[];
+}
+
+/** Whether the download commands of a tool read its list of packages exempt from the release-age delay (decision D-184). */
+export interface ExecReleaseAgeKnowledge {
+  commands: readonly (readonly string[])[];
+  /** false: they pick the version with the delay alone, for the packages of the list too. */
+  readsExclude: boolean;
+}
+
 /** How a tool reads its options. A fact of its own (`parsing`) next to the command-line fact adds to these. */
 export interface CommandLineParsing {
   /**

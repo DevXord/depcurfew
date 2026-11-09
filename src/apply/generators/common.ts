@@ -15,7 +15,7 @@ import { YAML_MARKER } from '../yaml-edit.ts';
 import type { Duration } from '../../policy/duration.ts';
 import { ecosystemOfTool } from '../../policy/ecosystem.ts';
 import { SOURCE_KINDS } from '../../knowledge/schema.ts';
-import type { Ecosystem } from '../../knowledge/types.ts';
+import type { Ecosystem, ExecReleaseAgeKnowledge } from '../../knowledge/types.ts';
 import { extraOf, isRecord, isWildcards, settingOf, sinceOf, values } from '../facts.ts';
 import type { Context } from './context.ts';
 
@@ -335,4 +335,26 @@ export function splitDotted(setting: string): { table: string; key: string } {
 
 export function sameList(a: unknown, b: readonly unknown[]): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+const isExecReleaseAge = (value: unknown): value is ExecReleaseAgeKnowledge =>
+  isRecord(value) && typeof value['readsExclude'] === 'boolean' && Array.isArray(value['commands']) && value['commands'].every((command) => Array.isArray(command) && command.every((word) => typeof word === 'string'));
+
+/** How many patterns a message names before it counts the rest. */
+const NAMED_PATTERNS = 3;
+
+/**
+ * npx, npm exec and npm x pick the version of a package they download with the release-age delay alone and do not read
+ * the exceptions (extra.execReleaseAge of npm, decision D-184), so the exceptions apply writes do not reach them.
+ */
+export function execExclusionWarning(context: Context, setting: string, patterns: readonly string[]): void {
+  const fact = context.tool.extra?.['execReleaseAge'];
+  const value = fact === undefined ? undefined : values(fact)[0];
+  if (patterns.length === 0 || !isExecReleaseAge(value) || value.readsExclude) return;
+  const named = patterns.length > NAMED_PATTERNS ? `${patterns.slice(0, NAMED_PATTERNS).join(', ')} and ${patterns.length - NAMED_PATTERNS} more` : listing(patterns);
+  context.warn({
+    code: 'exclude-ignored-by-exec',
+    message: `${context.name}: ${listing(value.commands.map((command) => command.join(' ')))} pick the version of a package they download with the release-age delay alone and do not read ${setting}, so they still hold new versions of ${named} back for cooldown.minimum`,
+    fix: `Install such a package with npm install, which reads ${setting}, and run it from node_modules/.bin: npx runs it from there without downloading it`,
+  });
 }

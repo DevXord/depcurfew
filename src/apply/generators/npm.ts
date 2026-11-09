@@ -8,7 +8,7 @@ import { hasManagedLines } from '../block.ts';
 import { describeRequirements, listing, type Requirement } from '../requirements.ts';
 import { extraOf, firstFile, isRecord, isSwitch, settingOf, sinceOf, values } from '../facts.ts';
 import { compareVersions, formatVersion, parseVersion, type Version } from '../version.ts';
-import { allowedNames, cooldownValue, eachSource, exclusions, scriptsDefault, sourceLabel, sourceLoosened, writeDenyList, wrongListType } from './common.ts';
+import { allowedNames, cooldownValue, eachSource, exclusions, execExclusionWarning, scriptsDefault, sourceLabel, sourceLoosened, writeDenyList, wrongListType } from './common.ts';
 import type { Context, ManagerGenerator } from './context.ts';
 
 const isString = (value: unknown): value is string => typeof value === 'string';
@@ -242,6 +242,7 @@ export const npm: ManagerGenerator = (context) => {
         for (const pattern of patterns) entries.push(`${excludeSetting}${suffix}=${pattern}`);
         managed.push(excludeSetting);
         if (patterns.length > 0) requirement(excludeSetting, tool.cooldown.exclude.availableSince, 'cooldown');
+        execExclusionWarning(context, excludeSetting, patterns);
       }
     }
   }

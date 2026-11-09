@@ -11,6 +11,8 @@ export type { CheckFinding, CheckOptions, FindingCode, PackageReport } from './c
 export { scanCommandLine } from './check/command.ts';
 export type { CommandDirectory, CommandScan, InstallRequest, KnownDirectory, ScanOptions } from './check/command.ts';
 export { PopularNames } from './check/similar.ts';
+export { defaultPopularNames } from './check/popular.ts';
+export type { DefaultPopularNames } from './check/popular.ts';
 export { detectProject } from './detect/index.ts';
 export type { DetectOptions } from './detect/index.ts';
 export { countLevels, renderText, RULES, runDoctor, toSarif } from './doctor/index.ts';
@@ -19,6 +21,7 @@ export { runDoctorWithLocalOsv, runDoctorWithOsv } from './doctor/osv.ts';
 export { queryOsv } from './check/osv.ts';
 export type { OsvOptions, OsvPackage, OsvSource, OsvVerdict } from './check/osv.ts';
 export { LocalOsvData } from './osv/data.ts';
+export { defaultOsvData } from './osv/default.ts';
 export type { LocalOsvDataOptions, OsvDataLimits, OsvDataState } from './osv/data.ts';
 export { updateOsvData } from './osv/update.ts';
 export type { OsvUpdateOptions, OsvUpdateResult } from './osv/update.ts';

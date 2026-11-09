@@ -303,6 +303,8 @@ export interface PlacedRequest {
   directory?: CommandDirectory;
   /** The command that installs it, for messages. */
   command: string;
+  /** npx without a package option, which runs a program of node_modules/.bin when there is one (decision D-185). */
+  binary?: true;
 }
 
 /** Why the specs of a command past the most depcurfew looks up in the local OSV.dev data were not looked up (decision D-160). */
@@ -351,7 +353,7 @@ export function requestedSpecs(
     }
     return found;
   };
-  for (const { tool, spec, tag, prereleases, buildFromSource, directory, command: written, readsManifest, fromManifest, composerCommand, linked } of scan.requests) {
+  for (const { tool, spec, tag, prereleases, buildFromSource, directory, command: written, readsManifest, fromManifest, composerCommand, linked, binary } of scan.requests) {
     const request: CheckRequest = {
       spec,
       // The tool decides which of its own registry settings apply (decision D-113).
@@ -369,8 +371,11 @@ export function requestedSpecs(
       // npm link installs from the registry only what the global space lacks (decision D-172).
       ...(linked === true ? { linked } : {}),
     };
+    // The same package once as a program of the project and once as a download is checked as a download (decision D-185).
     const key = `${JSON.stringify(request)}\n${keyOf(directory)}`;
-    if (!unique.has(key)) unique.set(key, { request, ...(directory === undefined ? {} : { directory }), command: written });
+    const found = unique.get(key);
+    if (found === undefined) unique.set(key, { request, ...(directory === undefined ? {} : { directory }), command: written, ...(binary === true ? { binary } : {}) });
+    else if (binary !== true) delete found.binary;
   }
   const specs = [...unique.values()];
   const overrides = scan.overrides ?? [];
