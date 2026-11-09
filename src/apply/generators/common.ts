@@ -340,8 +340,9 @@ export function sameList(a: unknown, b: readonly unknown[]): boolean {
 const isExecReleaseAge = (value: unknown): value is ExecReleaseAgeKnowledge =>
   isRecord(value) && typeof value['readsExclude'] === 'boolean' && Array.isArray(value['commands']) && value['commands'].every((command) => Array.isArray(command) && command.every((word) => typeof word === 'string'));
 
-/** How many patterns a message names before it counts the rest. */
+/** How many patterns a message names before it counts the rest, and how long each may be in it (decision D-190). */
 const NAMED_PATTERNS = 3;
+const SHOWN_PATTERN_LENGTH = 60;
 
 /**
  * npx, npm exec and npm x pick the version of a package they download with the release-age delay alone and do not read
@@ -351,7 +352,8 @@ export function execExclusionWarning(context: Context, setting: string, patterns
   const fact = context.tool.extra?.['execReleaseAge'];
   const value = fact === undefined ? undefined : values(fact)[0];
   if (patterns.length === 0 || !isExecReleaseAge(value) || value.readsExclude) return;
-  const named = patterns.length > NAMED_PATTERNS ? `${patterns.slice(0, NAMED_PATTERNS).join(', ')} and ${patterns.length - NAMED_PATTERNS} more` : listing(patterns);
+  const shown = patterns.map((pattern) => (pattern.length > SHOWN_PATTERN_LENGTH ? `${pattern.slice(0, SHOWN_PATTERN_LENGTH - 3)}...` : pattern));
+  const named = shown.length > NAMED_PATTERNS ? `${shown.slice(0, NAMED_PATTERNS).join(', ')} and ${shown.length - NAMED_PATTERNS} more` : listing(shown);
   context.warn({
     code: 'exclude-ignored-by-exec',
     message: `${context.name}: ${listing(value.commands.map((command) => command.join(' ')))} pick the version of a package they download with the release-age delay alone and do not read ${setting}, so they still hold new versions of ${named} back for cooldown.minimum`,

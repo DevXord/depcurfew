@@ -18,11 +18,19 @@ export interface DefaultPopularNames {
 
 let built: DefaultPopularNames | undefined;
 
+/** Freezes `value` and keeps its type (Object.freeze types it Readonly, which drops the private fields of a class). */
+function frozen<T extends object>(value: T): T {
+  Object.freeze(value);
+  return value;
+}
+
 /** The popular names depcurfew's own commands use, built once: checkSpecs(specs, { ...defaultPopularNames(), policy, … }). */
 export function defaultPopularNames(): DefaultPopularNames {
-  built ??= Object.freeze({
-    popular: new PopularNames(values(popularPackages)[0] ?? []),
-    popularPython: new PopularNames((values(popularPythonPackages)[0] ?? []).map(normalizePythonName)),
+  // The instances are shared by every caller in the process, the CLI included: frozen, so that no caller can replace a
+  // method and turn the look-alike check off for the others (decision D-190).
+  built ??= frozen({
+    popular: frozen(new PopularNames(values(popularPackages)[0] ?? [])),
+    popularPython: frozen(new PopularNames((values(popularPythonPackages)[0] ?? []).map(normalizePythonName))),
   });
   return built;
 }

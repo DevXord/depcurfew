@@ -48,7 +48,6 @@ import {
 } from '../check/registry-settings.ts';
 import { lookupOptionPlaces, quoted } from '../check/findings.ts';
 import { defaultPopularNames } from '../check/popular.ts';
-import { runsLocalBinary } from '../check/local-binaries.ts';
 import { values } from '../apply/facts.ts';
 import type { CommandNamesKnowledge, ToolId } from '../knowledge/types.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
@@ -1024,14 +1023,6 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
     const notes: string[] = [];
     const skipped: SkippedFile[] = [];
     const placed = hookGroups(cwd, specs, overrides, project);
-    // npx of a program of the project downloads nothing, so there is nothing to check (decision D-185).
-    for (const group of placed.groups) {
-      if (group.kind === 'unknown') continue;
-      const directory = group.directory ?? cwd;
-      group.requests = group.requests.filter(
-        (entry) => entry.binary !== true || entry.request.tool !== 'npm' || (entry.directory !== undefined && 'unknown' in entry.directory) || !runsLocalBinary(directory, entry.request.spec, { prefix: group.localPrefix }),
-      );
-    }
     let doubt: string | undefined = placed.tooMany;
     const cannotCheck = (result: Extract<AppliedPolicyResult, { ok: false }>) => {
       // A nearer policy is named, so that the user is not pointed at the project's policy, which is fine (decision D-110).

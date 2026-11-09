@@ -49,6 +49,13 @@ describe('apply and min-release-age-exclude under npx (decision D-184)', () => {
     expect(found?.message).toContain('so they still hold new versions of a, b, c and 2 more back for cooldown.minimum');
   });
 
+  it('shortens a long pattern in the message (decision D-190)', () => {
+    const long = `@acme/${'a'.repeat(200)}*`;
+    const [found] = warnings(repo(npmProject('11.21.1', [long])));
+    expect(found?.message.length).toBeLessThan(400);
+    expect(found?.message).toContain('@acme/aaaa');
+  });
+
   it('says nothing without exceptions, without npm, or for an npm that has no exception list', () => {
     expect(warnings(repo(npmProject('11.21.1', [])))).toEqual([]);
     expect(warnings(repo(npmProject('11.16.0', ['depcurfew'])))).toEqual([]);
