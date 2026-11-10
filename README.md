@@ -107,12 +107,12 @@ The package contains nothing but the build of that commit, and anyone can check 
 
 <!-- BEGIN GENERATED: verify-release -->
 ```bash
-git clone --branch v1.5.1 https://github.com/DevXord/depcurfew.git
+git clone --branch v1.6.0 https://github.com/DevXord/depcurfew.git
 cd depcurfew
 npm ci --ignore-scripts
 npm run build
 npm pack --dry-run --json | grep shasum
-npm view depcurfew@1.5.1 dist.shasum
+npm view depcurfew@1.6.0 dist.shasum
 ```
 <!-- END GENERATED: verify-release -->
 
@@ -745,7 +745,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: DevXord/depcurfew@8607ccd41a2a306d90a631b037e6d3d5f344584f # v1.5.1
+      - uses: DevXord/depcurfew@cc7f3752f959bf831a11c7365de9dd307029d458 # v1.6.0
 ```
 <!-- END GENERATED: action-workflow -->
 
