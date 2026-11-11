@@ -7797,9 +7797,11 @@ const osv = {
 
 // src/knowledge/bot-ecosystems.ts
 const { verified: verified$1, uncertain } = verifiedOn("2026-11-03");
+const dotnet11 = verifiedOn("2026-11-11");
 const CARGO = "https://github.com/rust-lang/cargo/blob";
 const GRADLE_DOCS = "https://github.com/gradle/gradle/blob/v9.8.2/platforms/documentation/docs/src/docs";
 const NUGET_DOCS = "https://github.com/NuGet/docs.microsoft.com-nuget/blob/main/docs";
+const NUGET_DOCS_D205 = "https://github.com/NuGet/docs.microsoft.com-nuget/blob/2f8406a736ab57c51caffa4701fc21fb7f141c1b/docs";
 const botOnlyEcosystems = {
 	cargo: {
 		project: verified$1({
@@ -7870,13 +7872,13 @@ const botOnlyEcosystems = {
 				".vbproj"
 			]
 		}, `${NUGET_DOCS}/consume-packages/Package-References-in-Project-Files.md`, "PackageReference items \"specify NuGet package dependencies directly within project files, as opposed to having a separate packages.config file\" (packages.config: reference/packages-config.md); Central Package Management keeps the versions in a Directory.Packages.props \"at the root of your repository\" (consume-packages/Central-Package-Management.md). Project files have extensions \"like .csproj for C# projects and .fsproj for F# projects\", and dependencies are referenced in \"the project file (.csproj or .vbproj)\" (docs/core/project-sdk/overview.md and docs/core/tools/dotnet-restore.md in dotnet/docs). NuGet reads nuget.config, NuGet.config and NuGet.Config, in this order (OrderedSettingsFileNames in src/nuget-client/src/NuGet.Core/NuGet.Configuration/Settings/Settings.cs at the v10.0.403 tag of dotnet/dotnet)."),
-		releaseAge: uncertain({
+		releaseAge: dotnet11.verified({
 			setting: "minPublishAgeHours",
 			since: "11.0.100",
 			product: ".NET SDK",
-			updatesOnly: true,
+			selectedBy: ["dotnet package add", "dotnet package update"],
 			file: "nuget.config"
-		}, "https://github.com/NuGet/Home/blob/dev/accepted/2026/package-update-cooldown.md", "The accepted design \"Package update cooldown V1\" adds a minPublishAgeHours attribute to the package sources of nuget.config (whole hours; none means 0) and a <minPublishAgeExceptions> section; Visual Studio, dotnet package update and dotnet package list --outdated pick or report only versions published at least that long ago, while restore does no cooldown checks (it only fails for floating versions when cooldown is on). NuGet.Client merged it into dev in August and September 2026 (pull requests 7622 and 7713), and MinPublishAgeExceptions.cs is in the v11.0.100-rc.3.26522.148 tag of dotnet/dotnet but not in v10.0.403, the latest released SDK on 2026-11-03; the .NET 11 release on 2026-10-25 is 11.0.0-rc.3 (release-notes/11.0/releases.json in dotnet/core), and the nuget.config reference on learn.microsoft.com (reference/nuget-config-file.md) does not list minPublishAgeHours. Uncertain because .NET SDK 11.0.100 is not released.")
+		}, `${NUGET_DOCS_D205}/consume-packages/minimum-package-publish-age.md`, "Minimum package publish age \"is available starting with NuGet 8.0, .NET SDK 11.0.100, and Visual Studio 18.12\" and is set with the minPublishAgeHours attribute of a source in packageSources of nuget.config, in whole hours (reference/nuget-config-file.md: whole numbers from 0 through 256204778, default 0). It covers only the automatic version choice: \"When dotnet package add and dotnet package update select the latest version for you, they exclude versions that haven't reached the source's minimum publish age\"; \"Explicitly requesting a version bypasses automatic age filtering\"; \"Ordinary package restore doesn't check minimum publish age\", which \"also applies to transitive dependencies\"; and restore fails with NU1020 for a floating version, such as 1.2.*, when an applicable source has a nonzero age and the package is not excepted (reference/errors-and-warnings/nu1020.md). The page names no other command that filters versions. Still open in NuGet/Home are the issues for dotnet package list (https://github.com/NuGet/Home/issues/15029), dotnet package search (https://github.com/NuGet/Home/issues/15030), the Package Manager Console of Visual Studio (https://github.com/NuGet/Home/issues/15033) and its Package Manager UI (https://github.com/NuGet/Home/issues/15034); dotnet tool, dnx and dotnet new install are not documented as covered. The pages were read at commit 2f8406a736ab57c51caffa4701fc21fb7f141c1b of main; the live branch, from which learn.microsoft.com is published, has the same minimum-package-publish-age.md and nu1020.md at e62116dc63c026b36434e1d28d9557e4c0e91912 (2026-11-11; learn.microsoft.com itself was not reachable from this session). .NET 11.0.0 was released on 2026-11-10 with SDK 11.0.100 and Visual Studio 18.12.0 (release-notes/11.0/releases.json at https://github.com/dotnet/core/blob/ff6107d71eb826353b4e577cfd0c88fe703aa5b5/release-notes/11.0/releases.json). The v11.0.100 tag of dotnet/dotnet builds NuGet 8.0.0 (https://github.com/dotnet/dotnet/blob/v11.0.100/src/nuget-client/build/config.props) from nuget-client commit f1c3fba23859095e1b9261e935c8c7b1e1642a85 (src/source-manifest.json), whose ConfigurationContants.cs names minPublishAgeHours; at v10.0.404, the latest 10.0 SDK, NuGet is 7.9.0 and its configuration code has no such name, so it keeps the attribute without reading it (AddItem.cs stores unknown attributes).")
 	}
 };
 
@@ -23596,6 +23598,12 @@ function ownDelayText(ecosystem, details) {
 	if (delay.setting === null || delay.since === null) return `${client} has no release-age delay of its own`;
 	const version = `${delay.product === void 0 ? "" : `${delay.product} `}${delay.since}`;
 	const where = delay.file === void 0 ? delay.setting : `${delay.setting} in ${delay.file}`;
+	const commands = delay.selectedBy ?? [];
+	if (commands.length > 0) {
+		const named = commands.length === 1 ? commands[0] ?? "" : `${commands.slice(0, -1).join(", ")} and ${commands.at(-1) ?? ""}`;
+		const short = `${client} has no release-age delay for what a restore takes`;
+		return details ? `${short} (${where} holds back only the versions that ${named} choose when no version is given; ${version} is the first to read it, earlier ones ignore it, and depcurfew does not configure it)` : `${short} (${delay.setting} holds back only the versions that ${named} choose, from ${version} on)`;
+	}
 	if (delay.updatesOnly === true) {
 		const short = `${client} has no release-age delay for what an install or restore takes`;
 		return details ? `${short} (${where}, from ${version} on, holds back only the versions an update picks, and depcurfew does not configure it)` : short;
@@ -38917,7 +38925,7 @@ function unprotectedEcosystems(context) {
 		context.report({
 			level: "note",
 			location: { file },
-			message: `No update bot delays new versions of ${ecosystem.client} dependencies: the repository configures neither Dependabot nor Renovate, and ${ownDelayText(ecosystem, true)}, so nothing holds back the versions the dependencies in ${listing$1(found.files)} are updated to`,
+			message: `No update bot delays new versions of ${ecosystem.client} dependencies: the repository configures neither Dependabot nor Renovate, and ${ownDelayText(ecosystem, true)}, so ${(ecosystem.delay.selectedBy ?? []).length > 0 ? "no bot and no setting depcurfew configures holds" : "nothing holds"} back the versions the dependencies in ${listing$1(found.files)} are updated to`,
 			fix: `Update these dependencies with ${bots.length === 0 ? "an update bot" : bots.join(" or ")}, ${then}; depcurfew delays ${ecosystem.client} dependencies only through these bots`
 		});
 	}

@@ -488,7 +488,9 @@ function unprotectedEcosystems(context: RuleContext): void {
     context.report({
       level: 'note',
       location: { file },
-      message: `No update bot delays new versions of ${ecosystem.client} dependencies: the repository configures neither Dependabot nor Renovate, and ${ownDelayText(ecosystem, true)}, so nothing holds back the versions the dependencies in ${listing(found.files)} are updated to`,
+      // A package manager whose setting holds back the versions of some commands (NuGet, decision D-205) is not said to
+      // hold back nothing: only what depcurfew configures is meant.
+      message: `No update bot delays new versions of ${ecosystem.client} dependencies: the repository configures neither Dependabot nor Renovate, and ${ownDelayText(ecosystem, true)}, so ${(ecosystem.delay.selectedBy ?? []).length > 0 ? 'no bot and no setting depcurfew configures holds' : 'nothing holds'} back the versions the dependencies in ${listing(found.files)} are updated to`,
       fix: `Update these dependencies with ${bots.length === 0 ? 'an update bot' : bots.join(' or ')}, ${then}; depcurfew delays ${ecosystem.client} dependencies only through these bots`,
     });
   }
