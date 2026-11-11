@@ -660,7 +660,9 @@ export function detectProject(
   const searched = [...new Set(['.', ...repository.listDirectories('.', (name) => !name.startsWith('.')).sort(byPath), ...directories.slice(1), ...projects])];
   const botEcosystems = detectBotEcosystems(repository, botEcosystemFacts(environment), searched);
   if (manifest === undefined && packageManagers.length === 0 && botEcosystems.length === 0 && !repository.isFile('package.json') && !repository.isFile(facts.pythonProject)) {
-    repository.warn('nothing-detected', 'no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found', []);
+    // The manifests of every package manager of the knowledge base (decision D-207).
+    const manifests = [...new Set(facts.managers.flatMap((manager) => manager.manifests))];
+    repository.warn('nothing-detected', `no ${orList([...manifests, 'lockfile'])} found`, []);
   }
 
   return {

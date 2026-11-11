@@ -24291,7 +24291,10 @@ function detectProject(root, tools = knowledgeBase, environment$2 = environment,
 		...projects
 	])];
 	const botEcosystems = detectBotEcosystems(repository, botEcosystemFacts(environment$2), searched);
-	if (manifest === void 0 && packageManagers.length === 0 && botEcosystems.length === 0 && !repository.isFile("package.json") && !repository.isFile(facts.pythonProject)) repository.warn("nothing-detected", "no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found", []);
+	if (manifest === void 0 && packageManagers.length === 0 && botEcosystems.length === 0 && !repository.isFile("package.json") && !repository.isFile(facts.pythonProject)) {
+		const manifests = [...new Set(facts.managers.flatMap((manager) => manager.manifests))];
+		repository.warn("nothing-detected", `no ${orList([...manifests, "lockfile"])} found`, []);
+	}
 	return {
 		packageManagers,
 		...ciForProjects.length === 0 ? {} : { ciForProjects },

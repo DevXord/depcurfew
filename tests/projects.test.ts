@@ -353,7 +353,7 @@ describe('explain with projects', () => {
       {
         code: 'nothing-detected',
         level: 'warning',
-        message: 'no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found',
+        message: 'no package.json, package.json5, package.yaml, deno.json, deno.jsonc, pyproject.toml, requirements.txt, Pipfile, composer.json, Gemfile, gems.rb or lockfile found',
         files: [],
         fix: 'Run depcurfew explain in the directory of the project, or list the directories of the projects under projects in depcurfew.json',
       },
