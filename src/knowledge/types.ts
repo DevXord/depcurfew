@@ -703,6 +703,8 @@ export interface ComposerCredentialsKnowledge {
 export interface ComposerTransportCallablesKnowledge {
   lockField: string;
   repositoryField: string;
+  /** The kinds of extra.repositoryTypes whose `repositoryField` Composer passes to its downloads (registry, vcs). */
+  repositoryKinds: readonly string[];
   keys: readonly { key: string; from: string; to: string; argument: string; advisory?: string }[];
   dropped: string;
 }

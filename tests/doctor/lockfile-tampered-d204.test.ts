@@ -4,7 +4,10 @@
 // one to a repository or to a package a package repository defines. It is a fact of the files: an error with or without
 // depcurfew.json, once, and in the projects depcurfew init would list too. composerEntries sets the field only on the
 // entries that have such a key, and no other composer.lock of the fixtures gets the finding. The fixtures hold the
-// harmless value "strlen".
+// harmless value "strlen". Only the options of a Composer or VCS repository count, which Composer passes to its
+// downloads; a path or artifact repository gets none. Without depcurfew.json a composer.lock that does not parse stays
+// a note against the default policy, as another lockfile is, and the rule takes the Composer versions of its texts
+// from the knowledge base.
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
@@ -12,8 +15,9 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { FetchLike } from '../../src/check/registry.ts';
 import { EXIT_FAILURE, run } from '../../src/cli/run.ts';
-import { composerEntries } from '../../src/doctor/composer.ts';
+import { composerEntries, transportCallablesOf } from '../../src/doctor/composer.ts';
 import { RULES, runDoctor, type DoctorReport, type Finding } from '../../src/doctor/index.ts';
+import { lockfileTamperedTexts } from '../../src/doctor/rules/lockfile-tampered.ts';
 import { knowledgeBase } from '../../src/knowledge/index.ts';
 import type { ToolKnowledge } from '../../src/knowledge/types.ts';
 
@@ -97,6 +101,86 @@ describe('lockfile-tampered without depcurfew.json', () => {
       ['error', { file: 'shop/composer.lock', line: 59 }, undefined],
     ]);
     expect(report.checked?.rules.find((entry) => entry.rule === 'lockfile-tampered')).toMatchObject({ result: 'problems', errors: 2 });
+  });
+});
+
+describe('a composer.lock that does not parse', () => {
+  const broken = (name: string) => {
+    const root = copy(name);
+    writeFileSync(join(root, 'composer.lock'), '{\n    "packages": [\n');
+    return root;
+  };
+  const unreadable = (report: DoctorReport) => report.findings.filter((finding) => finding.rule === 'unreadable-config').map((finding) => [finding.level, finding.location.file, finding.policy]);
+
+  it('is a note against the default policy without depcurfew.json, as another lockfile is, and doctor passes', async () => {
+    const root = broken('passes-composer-lock-plain');
+    const result = await doctor('--json', root);
+    const report = JSON.parse(result.stdout) as DoctorReport;
+    expect(unreadable(report)).toEqual([['note', 'composer.lock', 'default']]);
+    expect(tampered(report)).toEqual([]);
+    expect(report.checked?.rules.find((entry) => entry.rule === 'lockfile-tampered')?.result).not.toBe('problems');
+    expect(result.code).toBe(0);
+  });
+
+  it('still lets the rule report the repositories of composer.json without depcurfew.json', async () => {
+    const root = broken('fires-composer-repositories-options-callable');
+    const result = await doctor('--json', root);
+    const report = JSON.parse(result.stdout) as DoctorReport;
+    expect(unreadable(report)).toEqual([['note', 'composer.lock', 'default']]);
+    expect(tampered(report).map((finding) => [finding.level, finding.location])).toEqual([
+      ['error', { file: 'composer.json', line: 11 }],
+      ['error', { file: 'composer.json', line: 24 }],
+    ]);
+    expect(result.code).toBe(EXIT_FAILURE);
+  });
+
+  it('is an error with depcurfew.json, as before', async () => {
+    const root = broken('passes-composer-lock-plain');
+    writeFileSync(join(root, 'depcurfew.json'), '{ "version": 1 }\n');
+    const result = await doctor('--json', root);
+    expect(unreadable(JSON.parse(result.stdout) as DoctorReport)).toEqual([['error', 'composer.lock', undefined]]);
+    expect(result.code).toBe(EXIT_FAILURE);
+  });
+});
+
+describe('the repositories whose options Composer passes to its downloads', () => {
+  it('are the Composer and VCS repositories, not a path or artifact repository', () => {
+    const root = copy('passes-composer-lock-plain');
+    const options = { prevent_url_access_callable: 'strlen' };
+    const repositories = [
+      { type: 'path', url: 'packages/*', options },
+      { type: 'artifact', url: 'artifacts/', options },
+      { type: 'vcs', url: 'https://git.example.org/acme/toolkit.git', options },
+    ];
+    writeFileSync(join(root, 'composer.json'), `${JSON.stringify({ name: 'acme/monorepo', repositories, require: { 'acme/toolkit': '^2.0' } }, null, 4)}\n`);
+    const findings = tampered(runDoctor(root, { policy: null }));
+    expect(findings.map((finding) => finding.location)).toEqual([{ file: 'composer.json', line: 22 }]);
+    expect(findings[0]?.message).toBe(
+      'composer.json gives the vcs repository https://git.example.org/acme/toolkit.git (repositories[2]) the transport option prevent_url_access_callable in its options, which Composer 2.10.0-RC2 to 2.11.1 call as a PHP function, when it names one, with the URL of each download from that repository',
+    );
+  });
+});
+
+describe('the texts of lockfile-tampered', () => {
+  const fact = transportCallablesOf(composer);
+
+  it('take the Composer versions and the advisory from the knowledge base', () => {
+    expect(fact).toBeDefined();
+    if (fact === undefined) return;
+    const moved = { ...fact, dropped: '9.8.7', keys: fact.keys.map((entry) => (entry.advisory === undefined ? entry : { ...entry, advisory: 'GHSA-aaaa-bbbb-cccc' })) };
+    const texts = lockfileTamperedTexts(moved);
+    expect(texts.summary).toContain('(GHSA-aaaa-bbbb-cccc, fixed in Composer 9.8.7)');
+    expect(texts.help).toMatch(/^Use Composer 9\.8\.7 or later /u);
+    expect(`${texts.summary} ${texts.help} ${texts.description}`).not.toContain('2.11.2');
+    expect(`${texts.summary} ${texts.help}`).not.toContain('jhfp');
+  });
+
+  it('name no version and no advisory without the fact', () => {
+    const texts = lockfileTamperedTexts(undefined);
+    for (const text of Object.values(texts)) {
+      expect(text).not.toMatch(/\d+\.\d+|GHSA|undefined/u);
+      expect(text.length).toBeGreaterThan(20);
+    }
   });
 });
 

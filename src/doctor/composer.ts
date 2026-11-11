@@ -310,6 +310,8 @@ const isCallables = (value: unknown): value is ComposerTransportCallablesKnowled
   isRecord(value) &&
   typeof value['lockField'] === 'string' &&
   typeof value['repositoryField'] === 'string' &&
+  Array.isArray(value['repositoryKinds']) &&
+  value['repositoryKinds'].every((kind) => typeof kind === 'string') &&
   typeof value['dropped'] === 'string' &&
   Array.isArray(value['keys']) &&
   value['keys'].every((entry) => isRecord(entry) && ['key', 'from', 'to', 'argument'].every((key) => typeof entry[key] === 'string'));
@@ -330,7 +332,7 @@ export function callableKeys(fact: ComposerTransportCallablesKnowledge, options:
 
 /**
  * A transport option of composer.json that Composer calls as a PHP function (decision D-204): in the options of a
- * repository, or in the transport-options of a package that a package repository defines (`package`, its name as
+ * Composer or VCS repository, or in the transport-options of a package that a package repository defines (`package`, its name as
  * written, when it has one).
  */
 export interface RepositoryCallable {
@@ -346,7 +348,9 @@ export interface RepositoryCallable {
 
 /**
  * The transport options of the repositories of the root composer.json that Composer calls as PHP functions, in the
- * order of the file: those of each repository's options, and those of the transport-options of each package a package
+ * order of the file: those of the options of each repository of a kind whose options Composer passes to its downloads
+ * (the fact's repositoryKinds: Composer and VCS repositories; a path repository copies only symlink and relative, an
+ * artifact repository reads none), and those of the transport-options of each package a package
  * repository defines (one object, or a list of them).
  */
 export function repositoryCallables(repository: Repository, tool: ToolKnowledge): RepositoryCallable[] {
@@ -356,16 +360,24 @@ export function repositoryCallables(repository: Repository, tool: ToolKnowledge)
   if (fact === undefined || text === undefined || manifest === undefined) return [];
   const list = manifest['repositories'];
   const entries: [string | number, unknown][] = Array.isArray(list) ? list.map((item, index): [number, unknown] => [index, item]) : isRecord(list) ? Object.entries(list) : [];
-  const inline = repositoryTypes(tool).inline;
+  const types = repositoryTypes(tool);
+  const passing = new Set(
+    fact.repositoryKinds.flatMap((kind) => {
+      const listed: unknown = Object.hasOwn(types, kind) ? types[kind as keyof RepositoryTypes] : undefined;
+      return isStrings(listed) ? listed : [];
+    }),
+  );
   const found: RepositoryCallable[] = [];
   for (const [key, entry] of entries) {
     if (!isRecord(entry)) continue;
     const type = typeof entry['type'] === 'string' ? entry['type'].toLowerCase() : '';
     const where = { repository: key, type, url: typeof entry['url'] === 'string' ? entry['url'] : undefined };
-    for (const option of callableKeys(fact, entry[fact.repositoryField])) {
-      found.push({ key: option, ...where, line: jsonSetting(text, ['repositories', key, fact.repositoryField, option])?.line });
+    if (passing.has(type)) {
+      for (const option of callableKeys(fact, entry[fact.repositoryField])) {
+        found.push({ key: option, ...where, line: jsonSetting(text, ['repositories', key, fact.repositoryField, option])?.line });
+      }
     }
-    if (!inline.includes(type)) continue;
+    if (!types.inline.includes(type)) continue;
     const packages = entry['package'];
     const definitions: [number | undefined, unknown][] = Array.isArray(packages) ? packages.map((item, index): [number, unknown] => [index, item]) : [[undefined, packages]];
     for (const [index, definition] of definitions) {

@@ -1774,6 +1774,7 @@ const composer$3 = {
 		transportCallables: d204.verified({
 			lockField: "transport-options",
 			repositoryField: "options",
+			repositoryKinds: ["registry", "vcs"],
 			keys: [{
 				key: "prevent_url_access_callable",
 				from: "2.10.0-RC2",
@@ -1787,7 +1788,7 @@ const composer$3 = {
 				argument: "the IP address of the server"
 			}],
 			dropped: "2.11.2"
-		}, `${COMPOSER_2_11_2}/src/Composer/Package/Loader/ArrayLoader.php`, "ArrayLoader at 2.11.2 (lines 320-326) removes prevent_url_access_callable and prevent_ip_access_callable from the transport-options it loads: \"these options are invoked as callables while downloading, so they must never be taken from externally provided package data such as the lock or installed.json\". At 2.11.1 it copies transport-options as they are (lines 320-321), and Locker reads composer.lock with new ArrayLoader(null, true), which loads them (Locker.php line 77). CurlDownloader at 2.11.1 calls $options['prevent_url_access_callable']($url) for each request when the value is_callable (lines 215-221) and prevent_ip_access_callable with the IP address of the server it connected to (lines 618-622); at 2.11.2 it stops with an error on any value that is not a Closure (lines 223-227), and no JSON file can hold a Closure. RemoteFilesystem at 2.11.1 refuses both (lines 254-260). CurlDownloader.php has prevent_url_access_callable from 2.10.0-RC2 (not at 2.9.8 and 2.10.0-RC1) and prevent_ip_access_callable from 2.7.3 (not at 2.7.2); 2.2.32 has neither. At 2.11.1 ComposerRepository::configurePackageTransportOptions gives the packages of a Composer repository the options of that repository in composer.json (ComposerRepository.php lines 1122-1127), VcsDriver::getContents sends the requests of a VCS repository with its options (Vcs/VcsDriver.php line 169), PackageRepository loads the packages a package repository defines with new ArrayLoader(null, true) (PackageRepository.php line 64), and ArrayDumper writes the transport options of a package into composer.lock (Dumper/ArrayDumper.php lines 146-147). CHANGELOG.md at 2.11.2: \"Security: Fixed arbitrary command execution via the prevent_url_access_callable transport option being loaded from composer.lock / vendor/composer/installed.json (GHSA-jhfp-4ppm-crmm)\". The text of the advisory could not be read when this was checked.")
+		}, `${COMPOSER_2_11_2}/src/Composer/Package/Loader/ArrayLoader.php`, "ArrayLoader at 2.11.2 (lines 320-326) removes prevent_url_access_callable and prevent_ip_access_callable from the transport-options it loads: \"these options are invoked as callables while downloading, so they must never be taken from externally provided package data such as the lock or installed.json\". At 2.11.1 it copies transport-options as they are (lines 320-321), and Locker reads composer.lock with new ArrayLoader(null, true), which loads them (Locker.php line 77). CurlDownloader at 2.11.1 calls $options['prevent_url_access_callable']($url) for each request when the value is_callable (lines 215-221) and prevent_ip_access_callable with the IP address of the server it connected to (lines 618-622); at 2.11.2 it stops with an error on any value that is not a Closure (lines 223-227), and no JSON file can hold a Closure. RemoteFilesystem at 2.11.1 refuses both (lines 254-260). CurlDownloader.php has prevent_url_access_callable from 2.10.0-RC2 (not at 2.9.8 and 2.10.0-RC1) and prevent_ip_access_callable from 2.7.3 (not at 2.7.2); 2.2.32 has neither. At 2.11.1 ComposerRepository::configurePackageTransportOptions gives the packages of a Composer repository the options of that repository in composer.json when one of their dist URLs starts with its base URL (configurePackageTransportOptions and isOwnDistUrl, ComposerRepository.php lines 1122-1143), VcsDriver::getContents sends the requests of a VCS repository with its options (Vcs/VcsDriver.php line 169), PathRepository copies only symlink and relative from its options into the transport options of its packages (PathRepository.php lines 189-190), ArtifactRepository reads no options, PackageRepository loads the packages a package repository defines with new ArrayLoader(null, true) (PackageRepository.php line 64), and ArrayDumper writes the transport options of a package into composer.lock (Dumper/ArrayDumper.php lines 146-147). CHANGELOG.md at 2.11.2: \"Security: Fixed arbitrary command execution via the prevent_url_access_callable transport option being loaded from composer.lock / vendor/composer/installed.json (GHSA-jhfp-4ppm-crmm)\". The text of the advisory could not be read when this was checked.")
 	}
 };
 
@@ -20673,7 +20674,7 @@ function blockStart(table, scope = "project") {
 	return table === void 0 ? marker : marker.replace(": ", ` [${table}]: `);
 }
 const PREFIX = "# >>> depcurfew managed block";
-const TEXTS = [BLOCK_START, USER_BLOCK_START].map((marker) => marker.slice(29));
+const TEXTS$1 = [BLOCK_START, USER_BLOCK_START].map((marker) => marker.slice(29));
 /** The table a start marker names ('' for none), whichever policy wrote it; undefined when the line starts no block. */
 function blockLabel(line) {
 	const trimmed = line.trim();
@@ -20681,7 +20682,7 @@ function blockLabel(line) {
 	let rest = trimmed.slice(29);
 	const labeled = /^ \[([^\]]*)\]/u.exec(rest);
 	if (labeled !== null) rest = rest.slice(labeled[0].length);
-	return TEXTS.includes(rest) ? labeled?.[1] ?? "" : void 0;
+	return TEXTS$1.includes(rest) ? labeled?.[1] ?? "" : void 0;
 }
 function isBlockStart(line) {
 	return blockLabel(line) !== void 0;
@@ -24745,7 +24746,7 @@ function isLocal(url) {
 }
 const isFormat = (value) => isRecord(value) && isStrings$6(value["sections"]) && typeof value["name"] === "string" && typeof value["version"] === "string" && typeof value["pluginType"] === "string" && isStrings$6(value["pluginTypes"]) && isStrings$6(value["optionalPlugin"]) && typeof value["pathType"] === "string";
 const isBranches = (value) => isRecord(value) && typeof value["prefix"] === "string" && typeof value["suffix"] === "string";
-function describe$3(location) {
+function describe$2(location) {
 	return isRecord(location) ? [location["type"], location["url"]].filter((part) => typeof part === "string").join(" ") : "";
 }
 /** The host of a URL (with its port), in lower case, as normalizedUrl gives it. */
@@ -24823,7 +24824,7 @@ function composerEntries(text, tool, repositories, manifest) {
 			const distUrl = typeof dist?.["url"] === "string" ? dist["url"] : void 0;
 			const sourceUrl = typeof source?.["url"] === "string" ? source["url"] : void 0;
 			let kind = "registry";
-			let spec = describe$3(dist) || describe$3(source);
+			let spec = describe$2(dist) || describe$2(source);
 			const fromInline = inline.find((entry) => entry.names.includes(name));
 			if (dist?.["type"] === format.pathType) kind = "directory";
 			else if (distUrl !== void 0 && isLocal(distUrl) && format.archiveTypes.includes(String(dist?.["type"]))) kind = "file";
@@ -24837,19 +24838,19 @@ function composerEntries(text, tool, repositories, manifest) {
 			let checkedOutRelease = false;
 			if (kind === "registry" && [sourceUrl, distUrl].some((url) => url !== void 0 && vcs.has(comparableUrl(tool, url)))) {
 				kind = "git";
-				spec = describe$3(source) || spec;
+				spec = describe$2(source) || spec;
 			} else if (kind === "registry" && sourceUrl !== void 0 && (distUrl === void 0 || !offered(dist))) {
 				kind = "git";
 				checkedOutRelease = true;
-				spec = describe$3(source);
+				spec = describe$2(source);
 				if (dist !== void 0) why = "its dist has no type, so Composer cannot download its archive";
 			} else if (kind === "registry" && sourceUrl !== void 0 && offered(source) && (preference = sourcePreference(manifest, tool, name, dev)) !== void 0) {
 				kind = "git";
 				checkedOutRelease = true;
-				spec = describe$3(source);
+				spec = describe$2(source);
 				why = preference.why;
 			} else if (kind === "registry" && distUrl !== void 0 && !isLocal(distUrl) && !hosts.has(hostOf(distUrl))) kind = "unknown";
-			else if (kind === "registry" && distUrl !== void 0 && sourceUrl !== void 0 && offered(source)) otherSource = sourceElsewhere(tool, distUrl, sourceUrl, describe$3(source));
+			else if (kind === "registry" && distUrl !== void 0 && sourceUrl !== void 0 && offered(source)) otherSource = sourceElsewhere(tool, distUrl, sourceUrl, describe$2(source));
 			const release = (kind === "registry" || checkedOutRelease || kind === "unknown" && fromInline === void 0) && typeof locked === "string" && locked !== "" && !locked.startsWith(branches.prefix) && !locked.endsWith(branches.suffix);
 			const type = item[format.installScripts];
 			const plugin = typeof type === "string" && pluginTypes.has(type.toLowerCase());
@@ -24871,7 +24872,7 @@ function composerEntries(text, tool, repositories, manifest) {
 	}
 	return entries;
 }
-const isCallables = (value) => isRecord(value) && typeof value["lockField"] === "string" && typeof value["repositoryField"] === "string" && typeof value["dropped"] === "string" && Array.isArray(value["keys"]) && value["keys"].every((entry) => isRecord(entry) && [
+const isCallables = (value) => isRecord(value) && typeof value["lockField"] === "string" && typeof value["repositoryField"] === "string" && Array.isArray(value["repositoryKinds"]) && value["repositoryKinds"].every((kind) => typeof kind === "string") && typeof value["dropped"] === "string" && Array.isArray(value["keys"]) && value["keys"].every((entry) => isRecord(entry) && [
 	"key",
 	"from",
 	"to",
@@ -24891,7 +24892,9 @@ function callableKeys(fact, options) {
 }
 /**
 * The transport options of the repositories of the root composer.json that Composer calls as PHP functions, in the
-* order of the file: those of each repository's options, and those of the transport-options of each package a package
+* order of the file: those of the options of each repository of a kind whose options Composer passes to its downloads
+* (the fact's repositoryKinds: Composer and VCS repositories; a path repository copies only symlink and relative, an
+* artifact repository reads none), and those of the transport-options of each package a package
 * repository defines (one object, or a list of them).
 */
 function repositoryCallables(repository, tool) {
@@ -24901,7 +24904,11 @@ function repositoryCallables(repository, tool) {
 	if (fact === void 0 || text === void 0 || manifest === void 0) return [];
 	const list = manifest["repositories"];
 	const entries = Array.isArray(list) ? list.map((item, index) => [index, item]) : isRecord(list) ? Object.entries(list) : [];
-	const inline = repositoryTypes(tool).inline;
+	const types = repositoryTypes(tool);
+	const passing = new Set(fact.repositoryKinds.flatMap((kind) => {
+		const listed = Object.hasOwn(types, kind) ? types[kind] : void 0;
+		return isStrings$6(listed) ? listed : [];
+	}));
 	const found = [];
 	for (const [key, entry] of entries) {
 		if (!isRecord(entry)) continue;
@@ -24911,7 +24918,7 @@ function repositoryCallables(repository, tool) {
 			type,
 			url: typeof entry["url"] === "string" ? entry["url"] : void 0
 		};
-		for (const option of callableKeys(fact, entry[fact.repositoryField])) found.push({
+		if (passing.has(type)) for (const option of callableKeys(fact, entry[fact.repositoryField])) found.push({
 			key: option,
 			...where,
 			line: jsonSetting(text, [
@@ -24921,7 +24928,7 @@ function repositoryCallables(repository, tool) {
 				option
 			])?.line
 		});
-		if (!inline.includes(type)) continue;
+		if (!types.inline.includes(type)) continue;
 		const packages = entry["package"];
 		const definitions = Array.isArray(packages) ? packages.map((item, index) => [index, item]) : [[void 0, packages]];
 		for (const [index, definition] of definitions) {
@@ -38494,7 +38501,7 @@ const unreadableConfig = {
 const isEcosystems = (value) => isRecord(value) && Object.values(value).every((list) => Array.isArray(list) && list.every((item) => typeof item === "string"));
 const isCooldownKeys = (value) => isRecord(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string" && Array.isArray(value["semverDays"]);
 const isPackageJsonConfig$1 = (value) => isRecord(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
-function describe$2(minutes) {
+function describe$1(minutes) {
 	return minutes === 0 ? "no delay" : formatMinutes(minutes);
 }
 function dependabotDelays(context, bot, file) {
@@ -38531,7 +38538,7 @@ function dependabotDelays(context, bot, file) {
 			], yaml)?.written;
 			return asWritten === void 0 || asWritten === String(days) ? `${key}: ${days} in ${file}` : `${key}: ${asWritten} in ${file}, which Dependabot reads as ${days}`;
 		};
-		const origin = cooldown === void 0 ? `Dependabot's default (${describe$2(days * 1440)})` : shortest !== void 0 && days < base ? written(shortest) : typeof cooldown[keys.days] === "number" ? written(keys.days) : `Dependabot's default (${describe$2(days * 1440)})`;
+		const origin = cooldown === void 0 ? `Dependabot's default (${describe$1(days * 1440)})` : shortest !== void 0 && days < base ? written(shortest) : typeof cooldown[keys.days] === "number" ? written(keys.days) : `Dependabot's default (${describe$1(days * 1440)})`;
 		const line = yamlSetting(text, [
 			"updates",
 			String(index),
@@ -38858,8 +38865,8 @@ function missingDependabotEntries(context, views) {
 function managerReference(tool, own) {
 	return {
 		minutes: own.minutes,
-		asLongAs: `${tool.name} (${describe$2(own.minutes)}, ${own.origin})`,
-		waits: `${tool.name} waits ${describe$2(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
+		asLongAs: `${tool.name} (${describe$1(own.minutes)}, ${own.origin})`,
+		waits: `${tool.name} waits ${describe$1(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
 		things: "packages"
 	};
 }
@@ -38868,8 +38875,8 @@ function actionsReference(context) {
 	if (minimum === void 0) return void 0;
 	return {
 		minutes: minimum.minutes,
-		asLongAs: `cooldown.minimum in ${POLICY_FILE} (${describe$2(minimum.minutes)}) for the actions the workflows run`,
-		waits: `cooldown.minimum in ${POLICY_FILE} is ${describe$2(minimum.minutes)}, which covers the actions the workflows run; its pull requests bring in versions of actions younger than that`,
+		asLongAs: `cooldown.minimum in ${POLICY_FILE} (${describe$1(minimum.minutes)}) for the actions the workflows run`,
+		waits: `cooldown.minimum in ${POLICY_FILE} is ${describe$1(minimum.minutes)}, which covers the actions the workflows run; its pull requests bring in versions of actions younger than that`,
 		things: "actions"
 	};
 }
@@ -38884,8 +38891,8 @@ function ecosystemReference(context, id) {
 	const dependencies = `${ecosystem.client} dependencies`;
 	return {
 		minutes: minimum.minutes,
-		asLongAs: `cooldown.minimum in ${POLICY_FILE} (${describe$2(minimum.minutes)}) for ${dependencies}`,
-		waits: `cooldown.minimum in ${POLICY_FILE} is ${describe$2(minimum.minutes)}, which covers ${dependencies}, and ${ownDelayText(ecosystem, false)}; its pull requests bring in versions younger than that`,
+		asLongAs: `cooldown.minimum in ${POLICY_FILE} (${describe$1(minimum.minutes)}) for ${dependencies}`,
+		waits: `cooldown.minimum in ${POLICY_FILE} is ${describe$1(minimum.minutes)}, which covers ${dependencies}, and ${ownDelayText(ecosystem, false)}; its pull requests bring in versions younger than that`,
 		things: "packages"
 	};
 }
@@ -38940,7 +38947,7 @@ function compare(context, delay, reference) {
 				level: "note",
 				location: delay.location,
 				message: `${delay.bot.name} reads ${file}, which depcurfew ${cannot}, so it cannot tell whether ${delay.bot.name} waits as long as ${reference.asLongAs}`,
-				fix: reason === "parse" ? `Fix the syntax error in ${file} (unreadable-config says what it is), then run depcurfew doctor again` : reason === "read" ? `Make ${file} a file depcurfew can read (unreadable-config says what is wrong), then run depcurfew doctor again` : `Make sure minimumReleaseAge in ${file} is at least ${describe$2(reference.minutes)}, or move the configuration to renovate.json, which depcurfew reads`
+				fix: reason === "parse" ? `Fix the syntax error in ${file} (unreadable-config says what it is), then run depcurfew doctor again` : reason === "read" ? `Make ${file} a file depcurfew can read (unreadable-config says what is wrong), then run depcurfew doctor again` : `Make sure minimumReleaseAge in ${file} is at least ${describe$1(reference.minutes)}, or move the configuration to renovate.json, which depcurfew reads`
 			});
 		}
 		return true;
@@ -38950,7 +38957,7 @@ function compare(context, delay, reference) {
 			level: "note",
 			location: delay.location,
 			message: `${delay.bot.name} extends ${delay.unreadablePreset}, which depcurfew cannot read, so it cannot tell whether ${delay.bot.name} waits as long as ${reference.asLongAs}`,
-			fix: `Make sure the preset sets minimumReleaseAge to at least ${describe$2(reference.minutes)} for these ${reference.things}, or set it in ${delay.location.file}${delay.applies === false ? "" : " (depcurfew apply does this)"}`
+			fix: `Make sure the preset sets minimumReleaseAge to at least ${describe$1(reference.minutes)} for these ${reference.things}, or set it in ${delay.location.file}${delay.applies === false ? "" : " (depcurfew apply does this)"}`
 		});
 		return true;
 	}
@@ -38964,15 +38971,15 @@ function compare(context, delay, reference) {
 				line: rule.line
 			},
 			message: `${delay.bot.name} packageRules[${rule.index}] in ${delay.location.file} sets minimumReleaseAge: ${JSON.stringify(rule.value)} for ${rule.matcher} ${JSON.stringify(rule.patterns)}, which depcurfew cannot read, so it cannot tell whether ${delay.bot.name} waits as long as ${reference.asLongAs}`,
-			fix: rule.unmodelled === true ? `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe$2(reference.minutes)}; depcurfew does not evaluate ${rule.matcher}, so this note stays while the rule sets a shorter delay` : rule.regex !== void 0 ? `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe$2(reference.minutes)}, or rewrite the pattern with names, globs or a /regex/ that depcurfew runs; ${refusedRegexAdvice(rule.regex)}` : `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe$2(reference.minutes)}, or write its ${rule.matcher} with names, * or /regex/ patterns, which depcurfew reads`
+			fix: rule.unmodelled === true ? `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe$1(reference.minutes)}; depcurfew does not evaluate ${rule.matcher}, so this note stays while the rule sets a shorter delay` : rule.regex !== void 0 ? `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe$1(reference.minutes)}, or rewrite the pattern with names, globs or a /regex/ that depcurfew runs; ${refusedRegexAdvice(rule.regex)}` : `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe$1(reference.minutes)}, or write its ${rule.matcher} with names, * or /regex/ patterns, which depcurfew reads`
 		});
 	}
 	if (delay.rule !== void 0 && delay.minutes === 0) return true;
 	if (delay.minutes >= reference.minutes) return false;
 	context.report({
 		location: delay.location,
-		message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? "without waiting" : `after ${describe$2(delay.minutes)}`} (${delay.origin}), but ${reference.waits}`,
-		fix: delay.fix ?? (delay.preset !== void 0 ? presetFix(context, delay, delay.preset, reference) : delay.rule !== void 0 && delay.ownRule !== true ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe$2(reference.minutes)}, or limit the rule to the ${reference.things} that need a shorter delay${delay.regex === void 0 ? "" : `; ${countedRegexFix(delay.regex)}`}` : delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$2(reference.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$2(reference.minutes)}, or run depcurfew apply`)
+		message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? "without waiting" : `after ${describe$1(delay.minutes)}`} (${delay.origin}), but ${reference.waits}`,
+		fix: delay.fix ?? (delay.preset !== void 0 ? presetFix(context, delay, delay.preset, reference) : delay.rule !== void 0 && delay.ownRule !== true ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe$1(reference.minutes)}, or limit the rule to the ${reference.things} that need a shorter delay${delay.regex === void 0 ? "" : `; ${countedRegexFix(delay.regex)}`}` : delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(reference.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(reference.minutes)}, or run depcurfew apply`)
 	});
 	return true;
 }
@@ -38984,7 +38991,7 @@ function compare(context, delay, reference) {
 */
 function presetFix(context, delay, preset, reference) {
 	const file = delay.location?.file ?? "";
-	const entry = `a packageRules entry with matchDatasources ${JSON.stringify([preset.datasource])} and a minimumReleaseAge of at least ${describe$2(reference.minutes)}`;
+	const entry = `a packageRules entry with matchDatasources ${JSON.stringify([preset.datasource])} and a minimumReleaseAge of at least ${describe$1(reference.minutes)}`;
 	if (delay.applies === false) return `Add ${entry} to ${file} (depcurfew apply does not edit it); ${delay.bot.name} applies it after the rules of the preset ${preset.name}`;
 	const minimum = context.policy?.cooldown?.minimum.minutes;
 	const presetDelay = delayMinutes(delay.bot, preset.value, latestVersion$1(delay.bot));
@@ -39067,7 +39074,7 @@ const botCooldownMismatch = {
 				if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager) && !exemptsSecurityFixes(delay.bot, tool.id, found.location?.file)) context.report({
 					level: "warning",
 					location: delay.location,
-					message: `${delay.bot.name} security updates skip its delay, but ${tool.name} re-checks the lockfile and waits ${describe$2(own.minutes)} (${own.origin}); a security fix younger than that fails to install`,
+					message: `${delay.bot.name} security updates skip its delay, but ${tool.name} re-checks the lockfile and waits ${describe$1(own.minutes)} (${own.origin}); a security fix younger than that fails to install`,
 					fix: `When a security update fails, exempt the fixed package in ${source.project === void 0 ? `the ${tool.name} exclusion list` : `the exclusion list of ${tool.name}`} until the delay has passed`
 				});
 				timeNote();
@@ -41113,7 +41120,7 @@ function keyOf$1(line) {
 	return /^\s*(?:-\s+)?["']?([^=:"'\s]+)["']?\s*[=:]/u.exec(line)?.[1];
 }
 /** What is wrong, in words: a value to change, a line to add or remove, or a hand-written line to comment out. */
-function describe$1(file, original, before, after) {
+function describe(file, original, before, after) {
 	const kept = /\.ya?ml$/u.test(file) ? original.added.filter((text) => !isCommentedOut(text)) : original.added;
 	const difference = kept.length > 0 ? {
 		...original,
@@ -41377,7 +41384,7 @@ const configDrift = {
 						file: change.file,
 						line: findingLine(change.file, difference, before)
 					},
-					message: `${change.file} does not match ${POLICY_FILE}: ${describe$1(change.file, difference, before, after)}${more}`,
+					message: `${change.file} does not match ${POLICY_FILE}: ${describe(change.file, difference, before, after)}${more}`,
 					fix: `Run depcurfew apply to bring ${change.file} back in line with ${POLICY_FILE} (depcurfew apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`
 				});
 			}
@@ -43370,22 +43377,44 @@ function keyOf(fact, key) {
 		argument: "a value"
 	};
 }
-/** What Composer does with a key: "which Composer 2.7.3 to 2.11.1 call as a PHP function with … of each download …". */
-function calledWith(entry, verb, what) {
-	const advisory = entry.advisory === void 0 ? "" : `, and a function such as system there runs a command (${entry.advisory})`;
-	return `which Composer ${entry.from} to ${entry.to} ${verb} as a PHP function with ${entry.argument} of each download ${what}${advisory}`;
+/**
+* What Composer does with a key: "which Composer 2.7.3 to 2.11.1 call as a PHP function, when it names one, with … of
+* each download …". Composer calls the value only when it is callable (CurlDownloader), while the rule reports any
+* value but null. `advisory`: name the advisory of the key, which concerns the copy in composer.lock.
+*/
+function calledWith(entry, verb, what, advisory) {
+	const runs = !advisory || entry.advisory === void 0 ? "" : `, and a function such as system there runs a command (${entry.advisory})`;
+	return `which Composer ${entry.from} to ${entry.to} ${verb} as a PHP function, when it names one, with ${entry.argument} of each download ${what}${runs}`;
 }
-/** The description, from the fact: which keys, from which Composer, and what Composer 2.11.2 changed. */
-function describe(fact) {
+/** The texts of the rule, from the fact: which keys, from which Composer, and which Composer no longer takes them. */
+function lockfileTamperedTexts(fact) {
 	const [url, ip] = fact?.keys ?? [];
-	if (fact === void 0 || url === void 0 || ip === void 0) return "composer.lock gives a package a transport option that Composer calls as a PHP function while downloading.";
-	return [
-		`Composer ${url.from} to ${url.to} take ${url.key} from the ${fact.lockField} of a package in composer.lock and call it as a PHP function with ${url.argument} of each download of the package, so an edited composer.lock with a function such as system there runs a command during composer install (${url.advisory ?? ""}).`,
-		`Composer ${ip.from} to ${ip.to} do the same with ${ip.key} and ${ip.argument}.`,
-		`Composer ${fact.dropped} no longer takes them from composer.lock.`,
-		`A repository of composer.json can set them too: Composer calls those in the ${fact.repositoryField} of a repository for its downloads, and copies those of a Composer repository and those in the ${fact.lockField} of a package a package repository defines into composer.lock. So the rule checks the packages and packages-dev of composer.lock and the repositories of composer.json.`,
-		"It reports them whatever the Composer version, which depcurfew cannot tell, and leaves other transport options, such as relative and symlink of a path repository, alone."
-	].join(" ");
+	const remove = "remove the transport option from composer.lock and composer.json, or restore them from before the change, and find out who added it.";
+	if (fact === void 0 || url === void 0 || ip === void 0) return {
+		summary: "A package of composer.lock, or a repository of composer.json, has a transport option that Composer calls as a PHP function while downloading.",
+		description: "composer.lock gives a package a transport option that Composer calls as a PHP function while downloading.",
+		help: `Before any composer install or update, ${remove}`
+	};
+	return {
+		summary: `A package of composer.lock, or a repository of composer.json, has a transport option that Composer calls as a PHP function while downloading (${url.advisory === void 0 ? "" : `${url.advisory}, `}fixed in Composer ${fact.dropped}).`,
+		description: [
+			`Composer ${url.from} to ${url.to} take ${url.key} from the ${fact.lockField} of a package in composer.lock and, when it names a PHP function, call it with ${url.argument} of each download of the package, so an edited composer.lock can run a command during composer install${url.advisory === void 0 ? "" : ` (${url.advisory})`}.`,
+			`Composer ${ip.from} to ${ip.to} do the same with ${ip.key} and ${ip.argument}.`,
+			`Composer ${fact.dropped} no longer takes them from composer.lock.`,
+			`composer.json can set them too: in the ${fact.repositoryField} of a Composer or VCS repository, which Composer uses for its downloads and copies into composer.lock for the packages a Composer repository serves from its own URL, and in the ${fact.lockField} of a package a package repository defines, which it copies there too.`,
+			"The rule checks the packages and packages-dev of composer.lock and the repositories of composer.json whatever the Composer version, which depcurfew cannot tell, and leaves other transport options, such as symlink of a path repository, alone."
+		].join(" "),
+		help: `Use Composer ${fact.dropped} or later before any composer install or update, then ${remove}`
+	};
+}
+const TEXTS = lockfileTamperedTexts(transportCallablesOf(composer$3));
+/**
+* Forgets the warnings that reading `file` added to the repository since `since`. Without a policy unreadable-config
+* would make them errors, while a lockfile that does not parse is a note against the default policy, as the other
+* lockfiles are, which only the rules that need a policy read.
+*/
+function forgetWarnings(repository, since, file) {
+	for (let index = repository.warnings.length - 1; index >= since; index -= 1) if (repository.warnings[index]?.files.includes(file) === true) repository.warnings.splice(index, 1);
 }
 /** Composer is found with a composer.lock. */
 function hasComposerLock(scope) {
@@ -43404,7 +43433,7 @@ function reportLockfile(context, fact, lockfile) {
 				file: lockfile.file,
 				line
 			},
-			message: `${lockfile.file} gives ${entry.name} the transport option ${key}, ${calledWith(keyOf(fact, key), `take from ${lockfile.file} and call`, "of the package")}; Composer ${fact.dropped} no longer takes it from ${lockfile.file}`,
+			message: `${lockfile.file} gives ${entry.name} the transport option ${key}, ${calledWith(keyOf(fact, key), `take from ${lockfile.file} and call`, "of the package", true)}; Composer ${fact.dropped} no longer takes it from ${lockfile.file}`,
 			fix: `Use Composer ${fact.dropped} or later before any composer install or update on this lockfile; then remove ${key} from the ${fact.lockField} of ${packageInFix(lockfile, entry, line)} in ${lockfile.file}, or restore ${lockfile.file} from before the change, and find out who changed it`
 		});
 	}
@@ -43422,25 +43451,25 @@ function reportManifest(context, tool, fact, found) {
 		const named = isComposerName(found.package.toLowerCase()) ? found.package : "the package";
 		context.report({
 			location,
-			message: `${COMPOSER_MANIFEST} gives ${name}, a package that the package repository ${repository} defines, the transport option ${found.key}, ${calledWith(entry, "call", "of the package")}; Composer copies the ${fact.lockField} of such a package into composer.lock`,
+			message: `${COMPOSER_MANIFEST} gives ${name}, a package that the package repository ${repository} defines, the transport option ${found.key}, ${calledWith(entry, "call", "of the package", false)}; Composer copies the ${fact.lockField} of such a package into composer.lock`,
 			fix: fix(`the ${fact.lockField} of ${named} in ${repository}`)
 		});
 		return;
 	}
 	const what = found.url === void 0 ? `a ${found.type} repository` : `the ${found.type} repository ${found.url}`;
-	const copied = repositoryTypes(tool).registry.includes(found.type) ? `; Composer copies the ${fact.repositoryField} of a Composer repository into composer.lock for its packages` : "";
+	const copied = repositoryTypes(tool).registry.includes(found.type) ? `; Composer copies the ${fact.repositoryField} of a Composer repository into composer.lock for the packages it serves from its own URL` : "";
 	context.report({
 		location,
-		message: `${COMPOSER_MANIFEST} gives ${what} (${repository}) the transport option ${found.key} in its ${fact.repositoryField}, ${calledWith(entry, "call", "from that repository")}${copied}`,
+		message: `${COMPOSER_MANIFEST} gives ${what} (${repository}) the transport option ${found.key} in its ${fact.repositoryField}, ${calledWith(entry, "call", "from that repository", false)}${copied}`,
 		fix: fix(`the ${fact.repositoryField} of ${repository}`)
 	});
 }
 const lockfileTampered = {
 	id: RULE$1,
 	checks: "No package of composer.lock and no repository of composer.json has a transport option that Composer calls as a PHP function",
-	summary: "A package of composer.lock, or a repository of composer.json, has a transport option that Composer calls as a PHP function while downloading (GHSA-jhfp-4ppm-crmm, fixed in Composer 2.11.2).",
-	description: describe(transportCallablesOf(composer$3)),
-	help: "Use Composer 2.11.2 or later before any composer install or update, then remove the transport option from composer.lock and composer.json, or restore them from before the change, and find out who added it.",
+	summary: TEXTS.summary,
+	description: TEXTS.description,
+	help: TEXTS.help,
 	level: "error",
 	requiresPolicy: false,
 	alsoInComparedProjects: true,
@@ -43452,8 +43481,13 @@ const lockfileTampered = {
 			const fact = tool === void 0 ? void 0 : transportCallablesOf(tool);
 			if (tool === void 0 || fact === void 0) continue;
 			for (const found of repositoryCallables(context.repository, tool)) reportManifest(context, tool, fact, found);
+			const quiet = context.policy === void 0;
+			const known = context.repository.warnings.length;
 			for (const result of readLockfiles(context.repository, manager, tool, workspaces, context.tools)) if (result.ok) reportLockfile(context, fact, result.lockfile);
-			else if (!result.unreadable) context.notice(`${RULE$1} could not check ${result.file}: ${result.reason}`, result.file);
+			else {
+				if (quiet && result.unreadable) forgetWarnings(context.repository, known, result.file);
+				if (quiet || !result.unreadable) context.notice(`${RULE$1} could not check ${result.file}: ${result.reason}`, result.file);
+			}
 		}
 	}
 };
