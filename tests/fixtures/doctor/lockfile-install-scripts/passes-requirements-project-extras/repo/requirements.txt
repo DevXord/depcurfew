@@ -1,0 +1,11 @@
+# The project itself, with extras, in every form pip reads as the current directory (decision D-203).
+
+# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead
+--only-binary=:all:
+# <<< depcurfew managed block
+-e .[cli]
+.[docs,tests]
+-e ./[dev]
+-e .\[windows]
+-e .
+mkdocs==1.6.1

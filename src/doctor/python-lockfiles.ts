@@ -276,7 +276,15 @@ export function requirementsFormatOf(tool: ToolKnowledge): Format {
     const value = fact === undefined ? undefined : values(fact)[0];
     return isRecord(value) ? value : {};
   };
-  return { ...record('requirementsFormat'), includes: record('requirementsIncludes'), paths: record('requirementsPaths'), parser: record('requirementsParser') };
+  const extras = tool.extra?.['pathExtras'];
+  const pathExtras = extras === undefined ? undefined : values(extras)[0];
+  return {
+    ...record('requirementsFormat'),
+    includes: record('requirementsIncludes'),
+    paths: record('requirementsPaths'),
+    parser: record('requirementsParser'),
+    ...(isRecord(pathExtras) ? { pathExtras } : {}),
+  };
 }
 
 function escapeRegExp(text: string): string {
@@ -321,6 +329,20 @@ export interface RequirementSource {
 }
 
 /**
+ * A path without the one group of extras pip takes off its end (strip_extras, decision D-203): the last opening bracket
+ * whose group, of at least one character without a closing bracket, ends the path, and the spaces before it. Read in
+ * one pass, without a regular expression, so a long line of brackets takes linear time.
+ */
+function withoutExtras(path: string, open: string, close: string): string {
+  if (open === '' || close === '' || !path.endsWith(close)) return path;
+  const end = path.length - close.length;
+  // At least one character between the brackets, and at least one before the group.
+  const start = path.lastIndexOf(open, end - open.length - 1);
+  if (start < 1 || path.slice(start + open.length, end).includes(close)) return path;
+  return path.slice(0, start).trimEnd();
+}
+
+/**
  * Classifies one requirement (without options or environment markers): a VCS URL, a URL, a local archive or
  * directory, the project itself, or a registry package. `editable` is set for the value of -e, which is always a path
  * or a VCS URL.
@@ -341,6 +363,12 @@ export function requirementSource(requirement: string, format: Format, editable:
   // pip takes anything with a path separator, or starting with ., for a path, and an archive name for a file.
   const looksLikePath = (text: string) => separators.some((separator) => text.includes(separator)) || text.startsWith(currentDirectory);
   const isArchive = (text: string) => archives.some((extension) => text.toLowerCase().endsWith(extension));
+  const extras = isRecord(format['pathExtras']) ? format['pathExtras'] : undefined;
+  /** The current directory, as ., ./ or .\, with or without one group of extras: the project itself. */
+  const isProject = (path: string) => {
+    const bare = extras === undefined ? path : withoutExtras(path, String(extras['open']), String(extras['close']));
+    return bare === currentDirectory || separators.some((separator) => bare === `${currentDirectory}${separator}`);
+  };
   const named = reference.exec(requirement);
   const target = named?.[2] ?? requirement;
   // The name comes from "name @" or #egg=; a guess from a file or directory name could match the allow-list for
@@ -357,8 +385,8 @@ export function requirementSource(requirement: string, format: Format, editable:
   if (urlSchemes.test(target)) return located('remoteTarball', target, !isWheel(target));
   if (fileScheme.test(target) || looksLikePath(target) || isArchive(target) || editable) {
     const path = target.replace(fileScheme, '');
-    // The project itself (-e . or .) is built as part of the work on it, not as a dependency.
-    if (/^\.\/?$/u.test(path)) return { source: 'workspace', target, name: '.', builds: false };
+    // The project itself (-e ., . or .[extras]) is built as part of the work on it, not as a dependency.
+    if (isProject(path)) return { source: 'workspace', target, name: '.', builds: false };
     const archive = isArchive(path);
     return located(archive ? 'file' : 'directory', path, archive ? !isWheel(path) : true);
   }

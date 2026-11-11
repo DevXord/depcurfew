@@ -260,7 +260,12 @@ export interface AppliedPolicy {
   /** The depcurfew.json used, relative to the directory paths are shown from; null for the default policy of depcurfew init. */
   file: string | null;
   /** A different depcurfew.json nearer the directory, applied too: the stricter answer counts. */
-  nearer?: { policy: ResolvedPolicy; file: string };
+  nearer?: { policy: ResolvedPolicy; file: string; roots: readonly string[] };
+  /**
+   * The roots of the projects of `policy`, real paths: its directory and the directories its projects list (without a
+   * policy, the project directory, else `start`), in which "." and ".[extras]" name the project itself (decision D-203).
+   */
+  roots: readonly string[];
   /** The npm registry packages are looked up in, and where it comes from (undefined for the public registry). */
   registry: UsedRegistry;
   /** The Python package index pypi: packages are looked up in. */
@@ -345,7 +350,7 @@ export function appliedPolicy(start: string, settings: PolicySettings): AppliedP
     const nearerFile = shownPath(base, join(root.also, POLICY_FILE));
     try {
       const own = loadPolicyIfPresent(root.also);
-      if (own !== undefined) nearer = { policy: own, file: nearerFile };
+      if (own !== undefined) nearer = { policy: own, file: nearerFile, roots: projectRoots(root.also, own) };
     } catch (error) {
       if (!(error instanceof PolicyError)) throw error;
       failure = { cause: error, file: nearerFile, nearer: true };
@@ -354,8 +359,22 @@ export function appliedPolicy(start: string, settings: PolicySettings): AppliedP
   if (failure !== undefined) return { ok: false, file: failure.file, error: policyInputError(failure.cause, failure.file), cause: failure.cause, nearer: failure.nearer, lookups };
   return {
     ok: true,
-    applied: { policy: policy ?? defaultPolicy(), file: file ?? null, ...(nearer === undefined ? {} : { nearer }), ...lookups, start: resolve(start), top, machine: { environment: machine, home: settings.home } },
+    applied: {
+      policy: policy ?? defaultPolicy(),
+      file: file ?? null,
+      ...(nearer === undefined ? {} : { nearer }),
+      roots: trusted.map(realPathOf),
+      ...lookups,
+      start: resolve(start),
+      top,
+      machine: { environment: machine, home: settings.home },
+    },
   };
+}
+
+/** The directory of a policy and the directories its projects list, real paths (decision D-203). */
+function projectRoots(directory: string, policy: ResolvedPolicy): string[] {
+  return [directory, ...policy.projects.map((project) => join(directory, project))].map(realPathOf);
 }
 
 /** How serious a finding is, for comparing the findings of two policies. */
@@ -654,6 +673,8 @@ export interface RunSettings {
    * answers only for the versions api.osv.dev did not answer for.
    */
   local?: OsvLocalLookup;
+  /** The hook: the directory the installs run in cannot be told (decision D-118), so "." names no project (decision D-203). */
+  unknownDirectory?: boolean;
 }
 
 /**
@@ -675,8 +696,12 @@ export async function checkApplied(given: readonly CheckRequest[], applied: Appl
   // packages of a scope that has one (pickRegistry in npm-registry-fetch; decision D-168).
   const scoped = new Set([...applied.scopes.keys(), ...unread.flatMap((setting) => (setting.applies === 'scope' && setting.scope !== undefined ? [setting.scope] : []))]);
   const ownRegistry = (name: string) => scopeOf(name) !== '' && scoped.has(scopeOf(name));
-  const options = (policy: ResolvedPolicy) => ({
+  // "." names the project only where the packages are installed in a root of the projects of the policy that checks
+  // them (decision D-203), so a nearer policy judges it by its own roots, and the stricter answer counts.
+  const here = settings.unknownDirectory === true ? undefined : realPathOf(applied.start);
+  const options = (policy: ResolvedPolicy, roots: readonly string[]) => ({
     policy,
+    projectRoot: here !== undefined && roots.includes(here),
     fetch: settings.fetch,
     now: settings.now,
     registry: applied.registry.url,
@@ -708,8 +733,8 @@ export async function checkApplied(given: readonly CheckRequest[], applied: Appl
     ...(settings.scriptBodies === undefined ? {} : { scriptBodies: settings.scriptBodies }),
     ...(settings.signal === undefined ? {} : { signal: settings.signal }),
   });
-  const policies = applied.nearer === undefined ? [applied.policy] : [applied.policy, applied.nearer.policy];
-  const [own = [], other] = await Promise.all(policies.map((policy) => checkSpecs(requests, options(policy))));
+  const policies = applied.nearer === undefined ? [applied] : [applied, applied.nearer];
+  const [own = [], other] = await Promise.all(policies.map((entry) => checkSpecs(requests, options(entry.policy, entry.roots))));
   const reports = mergedReports(own, other, applied.nearer?.file ?? POLICY_FILE, { own: delayOf([applied.policy]), other: delayOf(applied.nearer === undefined ? [] : [applied.nearer.policy]) });
   for (const [index, report] of reports.entries()) {
     const request = requests[index] ?? { spec: report.spec };
@@ -784,8 +809,9 @@ function workingPolicies(applied: AppliedPolicy, here: AppliedPolicy): { applied
   const own = new Set([applied.file, applied.nearer?.file]);
   const files = [here.file, ...(here.nearer === undefined ? [] : [here.nearer.file])].filter((file) => !own.has(file));
   if (files.length === 0) return undefined;
-  const { nearer: _nearer, ...lookups } = applied;
-  return { applied: { ...lookups, policy: here.policy, file: here.file, ...(here.nearer === undefined ? {} : { nearer: here.nearer }) }, files };
+  const { nearer: _nearer, roots: _roots, ...lookups } = applied;
+  // Each policy judges "." by the roots of its own projects (decision D-203).
+  return { applied: { ...lookups, policy: here.policy, file: here.file, roots: here.roots, ...(here.nearer === undefined ? {} : { nearer: here.nearer }) }, files };
 }
 
 /** The note that the policies of the working directory apply to an install elsewhere; `where` undefined: a directory depcurfew cannot tell. */
@@ -1052,7 +1078,7 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
       if (group.kind === 'here' || group.requests.length > 0) {
         const requests = group.requests.map((entry) => entry.request);
         // OSV.dev is asked once for the whole command, after every directory is checked (decision D-129).
-        const settings: RunSettings = { fetch: dependencies.fetch, now: dependencies.now(), scriptBodies: false, index: flags.index, lookups };
+        const settings: RunSettings = { fetch: dependencies.fetch, now: dependencies.now(), scriptBodies: false, index: flags.index, lookups, ...(group.kind === 'unknown' ? { unknownDirectory: true } : {}) };
         const checked = await checkApplied(requests, applied, settings);
         // The lookups are shared, so the packages are looked up once; the stricter answer counts.
         const also = working === undefined ? undefined : await checkApplied(requests, working.applied, settings);

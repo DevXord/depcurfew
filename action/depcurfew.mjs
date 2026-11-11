@@ -2187,7 +2187,7 @@ const runtimes$2 = verifiedOn("2026-11-01");
 const finalReview$3 = verifiedOn("2026-11-01");
 const release14$5 = verifiedOn("2026-11-02");
 const runners$2 = verifiedOn("2026-11-03");
-const secrets$3 = verifiedOn("2026-11-03");
+const secrets$2 = verifiedOn("2026-11-03");
 const d173$4 = verifiedOn("2026-11-03");
 const d172$1 = verifiedOn("2026-11-03");
 const d184 = verifiedOn("2026-11-09");
@@ -3001,7 +3001,7 @@ const npm$1 = {
 			key: "registry",
 			scopeKeySuffix: ":registry"
 		}, NPM_DEFINITIONS, "userconfig, the location of user-level settings, defaults to ~/.npmrc; registry is the base URL of the npm registry (default https://registry.npmjs.org/); a per-project .npmrc can set it like any config key (docs/lib/content/using-npm/config.md). npm config set @myco:registry=http://reg.example.com associates a scope with a registry, and any npm install of a package with that scope then requests it from there (https://docs.npmjs.com/cli/v12/using-npm/scope#associating-a-scope-with-a-registry)."),
-		globalConfig: secrets$3.verified({
+		globalConfig: secrets$2.verified({
 			userKey: "userconfig",
 			globalKey: "globalconfig",
 			prefixKey: "prefix",
@@ -3021,7 +3021,7 @@ const npm$1 = {
 				"builtin"
 			]
 		}, `${NPM_CONFIG_LIB}/index.js`, "load() reads the builtin config, the command line, the environment (loadEnv), the project .npmrc, the user file (#get(\"userconfig\")) and the global file (#get(\"globalconfig\")), and a key of an earlier source in the order above wins. loadGlobalPrefix: the default prefix is PREFIX of the environment, else on Windows the directory of the Node.js executable (\"c:\\node\\node.exe --> prefix=c:\\node\\\") and elsewhere the directory above it (\"/usr/local/bin/node --> prefix=/usr/local\"), with DESTDIR joined in front on POSIX only; the default of globalconfig is a getter, resolve(prefix, \"etc/npmrc\"), of the prefix the command line, the environment or the user file sets (loadDefaults). userconfig, globalconfig and prefix are of type path (definitions.js), which parseField (parse-field.js at the same tag) trims, expands ${VAR} in and resolves: ~/ against the home directory, anything else against the current directory."),
-		registryHostTarballs: secrets$3.verified({
+		registryHostTarballs: secrets$2.verified({
 			dependencies: "registry specs",
 			match: "origin and path"
 		}, "https://github.com/npm/cli/blob/v12.2.1/workspaces/arborist/lib/arborist/reify.js", "#isRegistryResolvedTarball: a node whose every dependency edge has a registry spec (node.isRegistryDependency, workspaces/arborist/lib/node.js: npa(edge.spec).registry) and whose resolved URL, after replace-registry-host, has the origin of pickRegistry(npa(node.name)), the registry of its scope or else registry, and a path that starts with that registry's path, is extracted with allowRemote \"all\": \"pacote's npa re-parses our name@URL spec as type=remote, so allowRemote would mis-fire on registry tarballs\". The allow-remote definition says so for users: \"Tarballs that share a hostname with the configured registry (the typical case for the npm registry, GitHub Packages, and most private registries) are still installed normally\" (workspaces/config/lib/definitions/definitions.js)."),
@@ -3415,9 +3415,10 @@ const user$6 = verifiedOn("2026-10-31");
 const finalReview$2 = verifiedOn("2026-11-01");
 const release14$4 = verifiedOn("2026-11-02");
 const d170$5 = verifiedOn("2026-11-03");
-const secrets$2 = verifiedOn("2026-11-03");
 const d167$3 = verifiedOn("2026-11-03");
 const CONFIGPARSER = "https://github.com/python/cpython/blob/v3.14.0/Lib/configparser.py";
+const PIP_26_3 = "https://github.com/pypa/pip/blob/26.3";
+const d203 = verifiedOn("2026-11-11");
 const noSetting$5 = (kind) => ({ setting: uncertain$8(null, `${PIP}/src/pip/_internal/cli/cmdoptions.py`, `No option allows or forbids ${kind} requirements (concluded from the list of options). Hash-checking mode (--require-hashes, or any --hash) rejects VCS and local directory requirements, unless --no-require-hashes (26.2) turns the automatic mode off.`) });
 const pip$1 = {
 	id: "pip",
@@ -3438,10 +3439,10 @@ const pip$1 = {
 		securityUpdates: uncertain$8("applies", `${USER_GUIDE}#filtering-by-upload-time`, "pip does not know which versions fix vulnerabilities; the cutoff holds back every new upload.")
 	},
 	installScripts: {
-		defaultPolicy: verified$10([{
+		defaultPolicy: d203.verified([{
 			since: "0.0.0",
 			value: "run"
-		}], SECURE_INSTALLS, "pip builds a source distribution when no wheel fits, which runs its build backend; the secure-installs guide recommends --only-binary :all:. Installing a wheel runs no package code."),
+		}], `${PIP_26_3}/docs/html/topics/secure-installs.md`, "pip builds a source distribution when no wheel fits, which runs its build backend; the secure-installs guide (the same in 26.2.2 and 26.3) recommends --only-binary :all:. Installing a wheel runs no build step, but pip's security policy says that \"because Python's import system is dynamic, pip cannot guarantee that installing a wheel will not execute third-party code\" (SECURITY.md at 26.3, lines 26-27, a sentence new in 26.3)."),
 		allowList: {
 			setting: verified$10("--no-binary", FORMAT_CONTROL, "After --only-binary=:all:, a package named in --no-binary may only be installed from source: a name wins over :all:, so its wheels are not used. --only-binary=:all: given after it clears the exception."),
 			file: verified$10("requirements.txt", REQ_FILE, "--only-binary and --no-binary are among the options a requirements file may contain."),
@@ -3678,7 +3679,7 @@ const pip$1 = {
 			}
 		], NEWS, "depcurfew writes them in [global], which reaches every command that has the option (install, download, wheel, lock, index, list) and the resolver of pipenv lock; [install] reaches only pip install. \"Accept --no-binary and --only-binary via pip.conf\" (7.1.0); uploaded-prior-to is read from pip.conf like every long option (\"To override a duration set in configuration, pass P0D on the command line\", user_guide.rst). 26.1.0 because depcurfew writes a PnD duration: pip 26.0 takes dates only and aborts on P7D, and 25.x ignores the key. uv does not read pip.conf."),
 		unknownKeys: user$6.verified("ignore", PARSER, "\"Ignore options not present in this parser\": a key that is not an option of the command is skipped without a word (same code in 25.0), so pip before 26.0 ignores uploaded-prior-to."),
-		invalidValueFails: user$6.verified(true, PARSER, "A pip.conf that is not valid INI stops pip (ConfigurationFileCouldNotBeLoaded, configuration.py), and a value an option rejects ends the command with a usage error: pip 26.0 aborts on uploaded-prior-to = P7D in every command that has the option, as it rejected PIP_UPLOADED_PRIOR_TO=P100000D in a test on 2026-10-30 (configuration values and PIP_* variables go through the same parsing). Commands without the option ignore the key."),
+		invalidValueFails: d203.verified(true, `${PIP_26_3}/src/pip/_internal/cli/parser.py`, "A pip.conf that is not valid INI stops pip (ConfigurationFileCouldNotBeLoaded, _construct_parser in configuration.py), and a value an option rejects ends the command: for an option with a callback, such as uploaded-prior-to, with a usage error (_update_defaults calls the callback, whose raise_option_error goes to error()), for any other with exit status 3 (check_default, which from 26.3 logs \"An error occurred during configuration: ... Check your pip configuration files or environment variables for this value\", #8671 in NEWS.rst). pip 26.0 aborts on uploaded-prior-to = P7D in every command that has the option, as it rejected PIP_UPLOADED_PRIOR_TO=P100000D in a test on 2026-10-30 (configuration values and PIP_* variables go through the same parsing). Commands without the option ignore the key."),
 		weakening: user$6.verified([
 			{
 				key: "no-binary",
@@ -3725,7 +3726,7 @@ const pip$1 = {
 		], CONFIGURATION$4, "\"Note that if a file exists at the location that this is set to, the user config file will not be loaded.\" PIP_<NAME> variables are applied after the [global] and command sections of all files, and the command line beats them (cli/parser.py, override_order). --isolated, a flag, ignores environment variables and user configuration. XDG_CONFIG_HOME (Linux) and XDG_DATA_HOME (macOS, 26.2) move the user directory, from 26.3 only when they are absolute paths (see files).")
 	},
 	extra: {
-		machineSettings: secrets$2.verified({
+		machineSettings: d203.verified({
 			variables: [
 				{
 					name: "PIP_INDEX_URL",
@@ -3774,7 +3775,7 @@ const pip$1 = {
 				posix: ".pip/pip.conf",
 				win32: "pip/pip.ini"
 			}
-		}, `${PIP}/src/pip/_internal/configuration.py`, "iter_config_files: the global files, then the user files unless PIP_CONFIG_FILE names a file that exists (\"per-user config is not loaded when env_config_file exists\"), the legacy ~/.pip/pip.conf (~/pip/pip.ini on Windows, get_configuration_files) before the user file of user.files, the site file of the environment, and the file PIP_CONFIG_FILE names; each is read with configparser.RawConfigParser (= or : between key and value, full-line comments with # or ;, indented lines continue a value, keys in lower case) and _normalize_name writes _ as -. ConfigOptionParser (src/pip/_internal/cli/parser.py) takes the sections global, the name of the command (install for pip install) and :env: (the PIP_ variables, which win), matches a key to the long option of that name, so pypi-url sets --index-url too (-i, --index-url and --pypi-url are one option in cli/cmdoptions.py), and splits the value of an append option (--extra-index-url, --find-links) at whitespace. --index-url replaces the index, --extra-index-url adds indexes and --find-links adds pages or directories of archives (cmdoptions.py)."),
+		}, `${PIP_26_3}/src/pip/_internal/configuration.py`, "iter_config_files: the global files, then the user files unless PIP_CONFIG_FILE names a file that exists (\"per-user config is not loaded when env_config_file exists\"), the legacy ~/.pip/pip.conf (~/pip/pip.ini on Windows, get_configuration_files) before the user file of user.files, the site file of the environment, and the file PIP_CONFIG_FILE names; each is read with a configparser.RawConfigParser (= or : between key and value, full-line comments with # or ;, indented lines continue a value), whose keys _normalize_name writes in lower case with _ as - (from 26.3 the parser itself, _RawConfigParser.optionxform; before, the default optionxform lowercased them and _normalized_keys did the rest). ConfigOptionParser (src/pip/_internal/cli/parser.py) takes the sections global, the name of the command (install for pip install) and :env: (the PIP_ variables, which win), matches a key to the long option of that name, so pypi-url sets --index-url too (-i, --index-url and --pypi-url are one option in cli/cmdoptions.py), and splits the value of an append option (--extra-index-url, --find-links) at whitespace. --index-url replaces the index, --extra-index-url adds indexes and --find-links adds pages or directories of archives (cmdoptions.py)."),
 		environmentNames: release14$4.verified([{
 			prefix: "PIP_",
 			match: "prefix-then-any-case"
@@ -3932,8 +3933,12 @@ const pip$1 = {
 			],
 			fileScheme: "file:"
 		}, `${PIP}/src/pip/_internal/req/constructors.py`, "A requirement that contains a path separator (/, and \\ on Windows) or starts with . looks like a path (_looks_like_path): a directory there is a project built from source. A name with an archive extension (utils/filetypes.py) is a local archive, even when the file does not exist. http, https, ftp and file URLs are links (utils/urls.py, is_url)."),
+		pathExtras: d203.verified({
+			open: "[",
+			close: "]"
+		}, `${PIP_26_3}/src/pip/_internal/utils/urls.py`, "strip_extras (lines 69-78, re.match(r\"^(.+)(\\[[^\\]]+\\])$\", path)): a path may end with one group of extras in brackets, with at least one character between them and no closing bracket inside; pip takes that group off (with the spaces before it, rstrip) before it looks at the path, for the value of -e (_parse_pip_syntax_editable in req/constructors.py) and for a plain path (parse_req_from_line, on the absolute path). So .[dev] and ./[dev] are the project in the current directory with its extra dev, as docs/html/cli/pip_install.rst shows (\"'.[PDF]'  # project in current directory\", lines 396 and 406), while .[] keeps its brackets and names no project, and in .[a[b] the path is .[a. In 26.2.2 the same function is in req/constructors.py."),
 		lockfilePattern: verified$10("^pylock\\.([^.]+)\\.toml$", `${PYLOCK}#file-name`, "A named lock file, next to or instead of pylock.toml; pip lock -o writes any name."),
-		commandLine: verified$10({
+		commandLine: d203.verified({
 			add: [["pip", "install"], ["pip3", "install"]],
 			run: [],
 			create: [],
@@ -4047,7 +4052,7 @@ const pip$1 = {
 				groupedShortOptions: true
 			},
 			editableOptions: ["-e", "--editable"]
-		}, `${PIP}/src/pip/_internal/commands/install.py`, "pip and pip3 are the console scripts of the package (pyproject.toml). The options of pip install (install.py) and the general options of every command (cmdoptions.py, general_group), which may also come before install. pip reads them with optparse: --opt value and --opt=value, -rFILE and -r FILE, grouped short flags, and a long option shortened to any prefix that names one option (cli/parser.py keeps optparse's matching), so --extra means --extra-index-url. -e takes a local project path or a VCS URL to install in editable mode. -r, -c, --requirements-from-script and --group read requirements from files of the project."),
+		}, `${PIP_26_3}/src/pip/_internal/commands/install.py`, "pip and pip3 are the console scripts of the package (pyproject.toml). The options of pip install (add_options in install.py, the same in 26.2.2; --group and --no-clean come from cli/req_command.py) and the general options of every command (cmdoptions.py, general_group), which may also come before install. -V and --version were general options too until 26.2.2; from 26.3 only the main parser takes them (cli/main_parser.py; \"Keep --version available only for pip and prevent its use in subcommands\", #9456 in NEWS.rst), so pip install rejects them, and they stay listed for the older versions. pip reads them with optparse: --opt value and --opt=value, -rFILE and -r FILE, grouped short flags, and a long option shortened to any prefix that names one option (cli/parser.py keeps optparse's matching), so --extra means --extra-index-url. -e takes a local project path or a VCS URL to install in editable mode. -r, -c, --requirements-from-script and --group read requirements from files of the project."),
 		registryOverrides: verified$10({
 			registryOptions: [
 				"-i",
@@ -4176,7 +4181,7 @@ const pip$1 = {
 			configOptions: ["--pip-args"],
 			configVariables: []
 		}, `${PIPX}/src/pipx/main.py`, "--index-url is the base URL of the index; --pip-args is split and handed to pip, so it may carry --extra-index-url, --find-links or --no-index. With the pip backend pipx passes the PIP_* variables on to pip; with the uv backend it ignores them and uv reads its own (docs/how-to/use-uv-backend.rst); both kinds are registry variables of pip and uv."),
-		latestVersion: verified$10("26.2.2", NEWS, "Released on 2026-10-20."),
+		latestVersion: d203.verified("26.3", `${PIP_26_3}/NEWS.rst`, "Released on 2026-11-02 (\"26.3 (2026-11-02)\"); still the newest release on pypi.org on 2026-11-11."),
 		configCommands: d170$5.verified([{
 			command: ["pip", "config"],
 			writes: [
@@ -4192,7 +4197,7 @@ const pip$1 = {
 				"edit"
 			]
 		}], `${PIP}/src/pip/_internal/commands/configuration.py`, "pip config list, edit, get, set, unset and debug: set and unset change a value and save the file, edit opens it in an editor, list, get and debug only read. Without --user, --global or --site the site file is used if one exists, else the user file."),
-		installOverrides: d170$5.verified({
+		installOverrides: d203.verified({
 			options: [{
 				name: "--uploaded-prior-to",
 				weakens: "delay",
@@ -4203,7 +4208,7 @@ const pip$1 = {
 				weakens: "delay",
 				values: "delay"
 			}]
-		}, CMDOPTIONS, "--uploaded-prior-to (metavar datetime_or_duration): \"Only consider packages uploaded prior to the given value\", an ISO 8601 datetime or a duration of whole days P<n>D. PIP_UPLOADED_PRIOR_TO is its environment variable (environmentVariable). A datetime is not compared with the policy, so it is asked about.")
+		}, `${PIP_26_3}/src/pip/_internal/cli/cmdoptions.py`, "--uploaded-prior-to (metavar datetime_or_duration): \"Only consider packages uploaded prior to the given value. Accepts an ISO 8601 datetime ... or duration in integer days with syntax `P<n>D`\" (the help of 26.3; 26.2.2 said \"a duration in days\"), parsed by _handle_uploaded_prior_to, the same in both. PIP_UPLOADED_PRIOR_TO is its environment variable (environmentVariable). A datetime is not compared with the policy, so it is asked about.")
 	}
 };
 
@@ -4337,7 +4342,7 @@ const pdm$1 = {
 		defaultPolicy: verified$9([{
 			since: "0.0.0",
 			value: "run"
-		}], `${LOCKFILE}#set-acceptable-format-for-locking-or-installing`, "Without only-binary, PDM locks and installs source distributions when they fit, which builds them and runs their build backend. Installing a wheel runs no package code."),
+		}], `${LOCKFILE}#set-acceptable-format-for-locking-or-installing`, "Without only-binary, PDM locks and installs source distributions when they fit, which builds them and runs their build backend. Installing a wheel runs no build step: the wheel format installs it by unpacking and spreading its files (binary-distribution-format.rst in pypa/packaging.python.org at 6fa4790c, \"Installing a wheel\")"),
 		allowList: {
 			setting: verified$9("no-binary", `${LOCKFILE}#set-acceptable-format-for-locking-or-installing`, "The packages in no-binary are locked and installed from source distributions only. A name in no-binary wins over only-binary = \":all:\" (FormatControl of unearth, which PDM uses), so with both the named packages are the only ones built, and always from source."),
 			file: verified$9("pyproject.toml", `${LOCKFILE}#set-acceptable-format-for-locking-or-installing`, "The [tool.pdm.resolution] table."),
@@ -5868,7 +5873,7 @@ const poetry$1 = {
 		defaultPolicy: verified$6([{
 			since: "0.0.0",
 			value: "run"
-		}], `${CONFIGURATION$2}#installeronly-binary`, "Without installer.only-binary, packages are built from source distributions when no wheel fits, which runs their build backend. Git and directory dependencies are always built. Installing a wheel runs no package code."),
+		}], `${CONFIGURATION$2}#installeronly-binary`, "Without installer.only-binary, packages are built from source distributions when no wheel fits, which runs their build backend. Git and directory dependencies are always built. Installing a wheel runs no build step: the wheel format installs it by unpacking and spreading its files (binary-distribution-format.rst in pypa/packaging.python.org at 6fa4790c, \"Installing a wheel\")"),
 		allowList: {
 			setting: verified$6("installer.no-binary", CHOOSER, "With installer.only-binary = [\":all:\"], the packages named in installer.no-binary are the only ones built from source; explicit names take precedence over :all: since 2.2.0. Their wheels are rejected, so they are always built."),
 			file: verified$6("poetry.toml", `${CONFIGURATION$2}#installerno-binary`, "The docs recommend configuring it with --local for a project."),
@@ -6519,7 +6524,7 @@ const uv$1 = {
 		defaultPolicy: verified$4([{
 			since: "0.0.0",
 			value: "run"
-		}], SETTINGS, "no-build defaults to false: source distributions, git and directory dependencies are built, which runs their build backend. Installing a wheel runs no package code."),
+		}], SETTINGS, "no-build defaults to false: source distributions, git and directory dependencies are built, which runs their build backend. Installing a wheel runs no build step: the wheel format installs it by unpacking and spreading its files (binary-distribution-format.rst in pypa/packaging.python.org at 6fa4790c, \"Installing a wheel\")"),
 		allowList: {
 			setting: verified$4("no-binary-package", BUILD_OPTIONS, "With no-build = true, the packages in no-binary-package are the only ones built from source (\"Allow `all` to be overridden by specific binary exclusions\"). Their wheels are not used, so they are always built."),
 			file: verified$4("pyproject.toml", CONFIGURATION$1, "Or uv.toml; the same table as exclude-newer."),
@@ -25371,11 +25376,14 @@ function requirementsFormatOf(tool) {
 		const value = fact === void 0 ? void 0 : values$1(fact)[0];
 		return isRecord(value) ? value : {};
 	};
+	const extras = tool.extra?.["pathExtras"];
+	const pathExtras = extras === void 0 ? void 0 : values$1(extras)[0];
 	return {
 		...record("requirementsFormat"),
 		includes: record("requirementsIncludes"),
 		paths: record("requirementsPaths"),
-		parser: record("requirementsParser")
+		parser: record("requirementsParser"),
+		...isRecord(pathExtras) ? { pathExtras } : {}
 	};
 }
 function escapeRegExp$1(text) {
@@ -25411,6 +25419,18 @@ function includedFile(includer, path) {
 	};
 }
 /**
+* A path without the one group of extras pip takes off its end (strip_extras, decision D-203): the last opening bracket
+* whose group, of at least one character without a closing bracket, ends the path, and the spaces before it. Read in
+* one pass, without a regular expression, so a long line of brackets takes linear time.
+*/
+function withoutExtras(path, open, close) {
+	if (open === "" || close === "" || !path.endsWith(close)) return path;
+	const end = path.length - close.length;
+	const start = path.lastIndexOf(open, end - open.length - 1);
+	if (start < 1 || path.slice(start + open.length, end).includes(close)) return path;
+	return path.slice(0, start).trimEnd();
+}
+/**
 * Classifies one requirement (without options or environment markers): a VCS URL, a URL, a local archive or
 * directory, the project itself, or a registry package. `editable` is set for the value of -e, which is always a path
 * or a VCS URL.
@@ -25429,6 +25449,12 @@ function requirementSource(requirement, format, editable) {
 	const reference = new RegExp(`^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\\[[^\\]]*\\])?\\s*${escapeRegExp$1(String(format["direct"]).trim())}\\s*(.+)$`, "u");
 	const looksLikePath = (text) => separators.some((separator) => text.includes(separator)) || text.startsWith(currentDirectory);
 	const isArchive = (text) => archives.some((extension) => text.toLowerCase().endsWith(extension));
+	const extras = isRecord(format["pathExtras"]) ? format["pathExtras"] : void 0;
+	/** The current directory, as ., ./ or .\, with or without one group of extras: the project itself. */
+	const isProject = (path) => {
+		const bare = extras === void 0 ? path : withoutExtras(path, String(extras["open"]), String(extras["close"]));
+		return bare === currentDirectory || separators.some((separator) => bare === `${currentDirectory}${separator}`);
+	};
 	const named = reference.exec(requirement);
 	const target = named?.[2] ?? requirement;
 	const name = named?.[1] ?? egg.exec(target)?.[1];
@@ -25443,7 +25469,7 @@ function requirementSource(requirement, format, editable) {
 	if (urlSchemes.test(target)) return located("remoteTarball", target, !isWheel(target));
 	if (fileScheme.test(target) || looksLikePath(target) || isArchive(target) || editable) {
 		const path = target.replace(fileScheme, "");
-		if (/^\.\/?$/u.test(path)) return {
+		if (isProject(path)) return {
 			source: "workspace",
 			target,
 			name: ".",

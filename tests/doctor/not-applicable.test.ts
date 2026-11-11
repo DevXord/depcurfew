@@ -112,6 +112,7 @@ describe('rules that do not concern the project', () => {
     'lockfile-install-scripts/fires-pipenv-denied-but-built',
     'lockfile-install-scripts/fires-pipenv-local-and-git',
     'lockfile-install-scripts/fires-requirements-include',
+    'lockfile-install-scripts/fires-requirements-local-extras',
     'lockfile-install-scripts/fires-requirements-unnamed',
   ]);
   it.each(fires.map(([rule, name]) => [rule.id, name, rule] as const))('%s applies to %s', (_id, name, rule) => {

@@ -232,6 +232,23 @@ async function checkIndexPackage(report: PackageReport, name: string, clauses: r
   });
 }
 
+/**
+ * "." outside the root of a project (decision D-203): the local directory the packages are installed in, which
+ * sources.directory decides, as for any other local directory.
+ */
+function outsideProject(policy: CheckOptions['policy']): CheckFinding {
+  const where = '"." is the directory the packages are installed in, which is not the directory of depcurfew.json or of one of its projects';
+  if (policy.sources?.directory === 'deny') {
+    return {
+      level: 'error',
+      code: 'forbidden-source',
+      message: `it installs from a local directory: ${where}, and depcurfew.json denies local directories (sources.directory)`,
+      fix: `Install the project from its own directory (the directory of depcurfew.json or one listed in projects), or set sources.directory to "allow" in depcurfew.json if this directory is intended`,
+    };
+  }
+  return { level: 'warning', code: 'unchecked-source', message: `it installs from a local directory: ${where}; depcurfew looks up index packages only`, fix: CHECK_BY_HAND };
+}
+
 export async function checkPythonSpec(raw: string, options: CheckOptions, chosen: Chosen = {}): Promise<PackageReport> {
   const spec = parsePythonSpec(raw.trim().slice(PYPI_PREFIX.length));
   if (spec === undefined) {
@@ -243,15 +260,20 @@ export async function checkPythonSpec(raw: string, options: CheckOptions, chosen
     };
     return { spec: raw, kind: 'invalid', findings: [finding] };
   }
+  // "." and ".[extras]" name the project only where the packages are installed in the root of a project (decision D-203);
+  // elsewhere, as after cd vendor/x, they are the local directory the install runs in.
+  const outside = spec.kind === 'workspace' && options.projectRoot === false;
   const report: PackageReport = {
     spec: raw,
-    kind: spec.kind,
+    kind: outside ? 'directory' : spec.kind,
     ...(chosen.prereleases === undefined ? {} : { prereleases: chosen.prereleases }),
     ...(chosen.buildFromSource === undefined ? {} : { buildFromSource: chosen.buildFromSource }),
     findings: [],
   };
   if (spec.name !== undefined) report.name = `${PYPI_PREFIX}${spec.name}`;
-  if (spec.kind === 'workspace') {
+  if (outside) {
+    report.findings.push(outsideProject(options.policy));
+  } else if (spec.kind === 'workspace') {
     report.findings.push({
       level: 'warning',
       code: 'unchecked-source',

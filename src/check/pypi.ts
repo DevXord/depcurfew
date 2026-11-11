@@ -27,7 +27,7 @@ function equalityKey(version: Pep440): string {
 
 export interface PypiFile {
   filename: string;
-  /** wheel: installs without running package code; sdist: built when installed. */
+  /** wheel: installs without a build step; sdist: built when installed. */
   kind: 'wheel' | 'sdist';
   uploadedAt?: string;
   /** false, or the reason given for yanking it ('' when none was given). */

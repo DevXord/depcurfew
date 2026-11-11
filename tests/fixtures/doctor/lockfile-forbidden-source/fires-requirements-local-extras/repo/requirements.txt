@@ -1,0 +1,4 @@
+-e ./packages/client[cli]
+..[dev]
+.[]
+-e .[cli]

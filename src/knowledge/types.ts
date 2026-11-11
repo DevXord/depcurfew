@@ -1902,7 +1902,7 @@ export interface EnvironmentKnowledge {
     namePattern: Fact<string>;
     /** The project file of a Python project, whose [tool.<name>] tables hold tool settings. */
     projectFile: Fact<string>;
-    /** The file extension of a wheel, a built distribution that installs without running package code. */
+    /** The file extension of a wheel, a built distribution that installs without a build step. */
     wheelExtension: Fact<string>;
     /** File extensions of source distributions on an index, which are built when installed. */
     sourceDistributionExtensions: Fact<readonly string[]>;

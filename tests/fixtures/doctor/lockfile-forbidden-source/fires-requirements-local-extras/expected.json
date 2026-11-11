@@ -1,0 +1,29 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "requirements.txt",
+      "line": 1
+    },
+    "message": "requirements.txt installs a package from a local directory (./packages/client[cli]), which depcurfew.json denies",
+    "fix": "Use a registry version instead, or set sources.directory to \"allow\" in depcurfew.json"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "requirements.txt",
+      "line": 2
+    },
+    "message": "requirements.txt installs a package from a local directory (..[dev]), which depcurfew.json denies",
+    "fix": "Use a registry version instead, or set sources.directory to \"allow\" in depcurfew.json"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "requirements.txt",
+      "line": 3
+    },
+    "message": "requirements.txt installs a package from a local directory (.[]), which depcurfew.json denies",
+    "fix": "Use a registry version instead, or set sources.directory to \"allow\" in depcurfew.json"
+  }
+]
