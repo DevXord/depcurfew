@@ -51,3 +51,20 @@ describe('package.json', () => {
     expect(readFileSync(license, 'utf8')).toMatch(/^MIT License/);
   });
 });
+
+// Decision D-199: the version in package-lock.json is the one of package.json, and CHANGELOG.md starts with the section
+// of that version or with "## Unreleased", where changes wait for the next release; the Release workflow then requires
+// the section of the tag itself.
+describe('the version', () => {
+  it('is the same in package.json and in both fields of package-lock.json', () => {
+    const lock = JSON.parse(readFileSync(new URL('package-lock.json', root), 'utf8')) as { version?: string; packages?: Record<string, { version?: string }> };
+    expect({ version: lock.version, root: lock.packages?.['']?.version }).toEqual({ version: pkg['version'], root: pkg['version'] });
+  });
+
+  it('names the first section of CHANGELOG.md, unless that section is "## Unreleased"', () => {
+    const first = readFileSync(new URL('CHANGELOG.md', root), 'utf8')
+      .split(/\r?\n/u)
+      .find((line) => line.startsWith('## '));
+    expect(['## Unreleased', `## ${String(pkg['version'])}`]).toContain(first);
+  });
+});

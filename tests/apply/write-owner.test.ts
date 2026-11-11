@@ -6,13 +6,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { writeChanges } from '../../src/apply/workspace.ts';
+import { asRoot } from '../support/platform.ts';
 
 const temporary: string[] = [];
 afterAll(() => {
   for (const directory of temporary) rmSync(directory, { recursive: true, force: true });
 });
-
-const asRoot = process.platform !== 'win32' && process.getuid?.() === 0;
 
 describe.skipIf(!asRoot)('writeChanges as root', () => {
   it('gives a replaced file back to its owner and group, with its mode', () => {

@@ -76,3 +76,41 @@ jobs:
           node-version: ${{ matrix.node }}
           package-manager-cache: false
       - run: node tests/runtime/smoke.mjs
+
+  root:
+    # The tests of what depcurfew does as root in the home directory of another user (sudo with HOME kept) need root,
+    # and the runner user is not root, so the test job skips them (decision D-199). This job runs just their files
+    # with sudo, and fails when one of them ran no test or a test in them did not pass. Not the whole suite: as root,
+    # depcurfew rightly does not trust the directories of the checkout, which belong to the runner user.
+    name: Root-only tests on Linux, Node.js 24
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Every test file that imports asRoot from tests/support/platform.ts, which tests/meta/ci.test.ts checks.
+      ROOT_TESTS: >-
+        tests/apply/write-owner.test.ts
+        tests/cli/policy-search.test.ts
+        tests/osv/data-file-guard-d190.test.ts
+        tests/osv/update-owner-d168.test.ts
+        tests/user/write-outside-home-d196.test.ts
+        tests/user/write-owner.test.ts
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      # The npm of packageManager, which knows the settings of .npmrc (decision D-099).
+      - run: npm install -g npm@11.19.1
+      # The project .npmrc sets ignore-scripts, so no dependency script runs.
+      - run: npm ci
+      - name: The root-only tests, as root
+        run: |
+          test "$(sudo id -u)" = 0
+          # node by its absolute path: sudo gives the command a PATH of its own (secure_path), without the node of setup-node.
+          sudo "$(command -v node)" node_modules/vitest/vitest.mjs run $ROOT_TESTS --reporter=default --reporter=json --outputFile.json="$RUNNER_TEMP/root-tests.json"
+      # The last step: the tests leave files of root in the checkout (the cache of Vitest).
+      - name: Every root-only test ran as root and passed
+        run: node tests/support/root-report.ts "$RUNNER_TEMP/root-tests.json" $ROOT_TESTS

@@ -39,7 +39,7 @@ To try a change by hand: `node dist/cli.js explain tests/fixtures/repos/<name>`,
 - **Units** are converted towards the longer delay.
 - **Editing other tools' files.** `apply` keeps comments and formatting, marks the parts it manages, never removes a setting it does not manage, and a second `apply` without a change of the policy changes no file.
 - **Code.** ESM only, no top-level await.
-- **Tests.** Write the test first (a fixture and the expected result), then the change. Tests use no network; recorded registry answers and repository fixtures live in `tests/fixtures`. Tests remove what they create, also when run with `-t`.
+- **Tests.** Write the test first (a fixture and the expected result), then the change. Tests use no network; recorded registry answers and repository fixtures live in `tests/fixtures`. Tests remove what they create, also when run with `-t`. A test that needs root (to give files to another user, or to work in the home directory of another user) is gated on `asRoot` from `tests/support/platform.ts` and on nothing else: CI runs every file that imports it as root, in the job `root` of `.github/workflows/ci.yml`, whose list a test keeps complete.
 
 ## Messages and output
 
