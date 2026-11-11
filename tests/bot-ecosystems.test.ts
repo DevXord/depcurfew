@@ -86,7 +86,7 @@ describe('detection', () => {
       gomod: 'Go has no release-age delay of its own',
       maven: 'Maven has no release-age delay of its own',
       gradle: 'Gradle has no release-age delay of its own',
-      nuget: 'NuGet has no release-age delay for what a restore takes (minPublishAgeHours in nuget.config holds back only the versions that dotnet package add and dotnet package update choose when no version is given; .NET SDK 11.0.100 is the first to read it, earlier ones ignore it, and depcurfew does not configure it)',
+      nuget: 'NuGet has no release-age delay for what a restore takes (minPublishAgeHours in nuget.config holds back only the versions that dotnet package add and dotnet package update choose when no version is given; .NET SDK 11.0.100 reads it, the 10.0 SDKs and earlier ignore it, and depcurfew does not configure it)',
     });
   });
 });

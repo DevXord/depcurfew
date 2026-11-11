@@ -1731,6 +1731,11 @@ export interface ClientDelayKnowledge {
    */
   selectedBy?: readonly string[];
   /**
+   * The versions that keep the setting without reading it, for messages: "the 10.0 SDKs and earlier" for NuGet. Named
+   * only where checked, since prereleases of the first version may read it already (decision D-205).
+   */
+  ignoredBy?: string;
+  /**
    * @deprecated Since 1.6.1; use selectedBy. The setting holds back only the versions an update picks. Read only when
    * selectedBy is missing, and removed in a minor release.
    */

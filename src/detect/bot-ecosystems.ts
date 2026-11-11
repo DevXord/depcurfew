@@ -84,8 +84,11 @@ export function ownDelayText(ecosystem: BotEcosystemFacts, details: boolean): st
   if (commands.length > 0) {
     const named = commands.length === 1 ? (commands[0] ?? '') : `${commands.slice(0, -1).join(', ')} and ${commands.at(-1) ?? ''}`;
     const short = `${client} has no release-age delay for what a restore takes`;
+    // Only the versions the knowledge base names as ignoring the setting are named: prereleases of the first version
+    // may read it already.
+    const ignored = delay.ignoredBy === undefined ? '' : `, ${delay.ignoredBy} ignore it`;
     return details
-      ? `${short} (${where} holds back only the versions that ${named} choose when no version is given; ${version} is the first to read it, earlier ones ignore it, and depcurfew does not configure it)`
+      ? `${short} (${where} holds back only the versions that ${named} choose when no version is given; ${version} reads it${ignored}, and depcurfew does not configure it)`
       : `${short} (${delay.setting} holds back only the versions that ${named} choose, from ${version} on)`;
   }
   if (delay.updatesOnly === true) {
