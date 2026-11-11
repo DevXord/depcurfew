@@ -14,6 +14,8 @@ const python = verifiedOn('2026-10-30');
 const gitFacts = verifiedOn('2026-10-30');
 const audited = verifiedOn('2026-10-31');
 const release13 = verifiedOn('2026-11-01');
+// The shell of a shell-form hook on Windows (decision D-206).
+const d206 = verifiedOn('2026-11-11');
 const mcpFacts = verifiedOn('2026-11-01');
 const actionChecks = verifiedOn('2026-11-01');
 const leftovers = verifiedOn('2026-11-01');
@@ -697,6 +699,11 @@ export const environment: EnvironmentKnowledge = {
       },
       'https://code.claude.com/docs/en/hooks#sessionstart',
       'SessionStart runs when a session starts or resumes; its matcher startup fires for a new session (also resume, clear, compact and fork). Hooks run in the background, but "Claude\'s first response still waits for the hooks to finish", and a prompt sent meanwhile does not reach Claude until they finish. A command hook may be shell form (command with $CLAUDE_PROJECT_DIR, the repository root). With onFailure set to "block" (#block-the-action-when-a-hook-fails), a PreToolUse hook whose script is missing blocks the call ("failed; blocking because onFailure is \"block\"" followed by node\'s error output, in the example "PreToolUse:Bash hook error: [node ${CLAUDE_PROJECT_DIR}/.claude/hooks/check-command.js]: failed; blocking because onFailure is \"block\"" and "Error: Cannot find module \'/path/to/project/.claude/hooks/check-command.js\'", re-read 2026-11-01): node starts, cannot load the script and exits with 1, which counts as a failure; without it, the same missing script is a non-blocking error and the command runs. In cloud sessions (https://code.claude.com/docs/en/cloud-environments#setup-scripts) a setup script is a Bash script that runs as root before Claude Code launches and is skipped when a cached environment exists; SessionStart hooks of the repository\'s .claude/settings.json run in local and cloud sessions (in a session with one repository, outside a project thread), user-level ~/.claude/settings.json hooks do not reach the cloud. The docs recommend a SessionStart hook for project setup such as npm install.',
+    ),
+    hookShell: d206.verified(
+      { field: 'shell', default: 'bash', withoutGitBash: 'powershell', ignoredWithArgs: true },
+      'https://code.claude.com/docs/en/hooks#exec-form-and-shell-form',
+      'Shell form runs when args is absent: "The command string is passed to a shell: sh -c on macOS and Linux, Git Bash on Windows, or PowerShell when Git Bash isn\'t installed. Set the shell field to choose explicitly." The command hook field shell "Accepts \"bash\" or \"powershell\". Defaults to \"bash\", or to \"powershell\" on Windows when Git Bash isn\'t installed ... Ignored when args is set." Failed hooks on Windows without Git Bash: "without Git Bash, a shell-form hook with no shell set runs in PowerShell, where it can fail"; the fix is to install Git for Windows (or set CLAUDE_CODE_GIT_BASH_PATH) and start a new session.',
     ),
     shellTools: audited.verified(
       [

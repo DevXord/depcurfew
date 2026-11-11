@@ -97,14 +97,16 @@ export function outdatedText(copy: ProjectCopy, command: 'apply' | 'doctor', lin
   const knows = command === 'apply' ? 'settings that version writes' : 'settings that version writes or checks';
   const runner = command === 'apply' ? 'apply' : 'this check';
   const update = `update the depcurfew you run to ${copy.version} or later`;
-  // The tools directory has no npx of its own: its copy runs by path, as the hook of the README runs it.
+  // The tools directory has no npx of its own: its copy runs by path, as the hook of the README runs it. The install
+  // uses --prefix instead of cd, so the path of the next command stays relative to the repository root and the fix
+  // works in every shell, also where && does not join commands (decision D-206).
   const tools = copy.directory === undefined ? undefined : `node ${copy.directory}/${INSTALLED_CLI} ${command}`;
   return {
     message: `depcurfew ${copy.version} ${where}, but the depcurfew running ${runner} is older, so it may not know ${knows}`,
     fix:
       tools !== undefined
         ? pinned
-          ? `Install it in ${copy.directory} (cd ${copy.directory} && npm ci --ignore-scripts), then run that copy (${tools}), or ${update}`
+          ? `Install it in ${copy.directory} (npm ci --ignore-scripts --prefix ${copy.directory}), then run that copy (${tools}), or ${update}`
           : `Run that copy (${tools}), or ${update}`
         : pinned
           ? `Install the project's dependencies (npm ci), then run its copy (npx depcurfew ${command}), or ${update}`

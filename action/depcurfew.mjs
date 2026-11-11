@@ -2218,6 +2218,8 @@ const EXEC_COMMANDS = [
 	["npm", "exec"],
 	["npm", "x"]
 ];
+const d206$1 = verifiedOn("2026-11-11");
+const NPM_V12_DOCS = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/commands";
 const CONFIG$2 = "https://docs.npmjs.com/cli/v12/using-npm/config";
 const NPMRC$1 = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
 const release$4 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
@@ -2733,8 +2735,40 @@ const npm$1 = {
 		}, CMD_LIST, "Aliases of install (add, i and the typo aliases in, ins, inst, insta, instal, isnt, isnta, isntal, isntall), install-test (it), exec (x) and init (create, innit), the same in 11.19.1. install-test takes the same arguments as install (docs/lib/content/commands/npm-install-test.md). npm exec and npx take the packages to download from --package; -p means --package only in npx (in npm it is --parseable); without --package the first positional argument names the package, and -c/--call takes a command string that runs with the packages, shell operators included (npm-exec.md). npm init <initializer> runs npm exec create-<initializer>: foo → create-foo, @usr → @usr/create, @usr/foo@2.0.0 → @usr/create-foo@2.0.0 (npm-init.md)."),
 		execReleaseAge: d184.verified({
 			commands: EXEC_COMMANDS,
-			readsExclude: false
+			readsExclude: false,
+			exactTooYoung: "ETARGET"
 		}, `${LIBNPMEXEC_V11}/index.js`, "getManifest in libnpmexec asks pacote.manifest for the package with the flat options of npm, which carry before (min-release-age turned into a date by its flatten in definitions.js) and minReleaseAgeExclude, which neither libnpmexec nor pacote reads: the registry fetcher of pacote passes before to npm-pick-manifest (lib/registry.js of npm/pacote at v21.5.1, the version npm 11.21.1 ships). Only Arborist reads min-release-age-exclude (isReleaseAgeExcluded in workspaces/arborist/lib/release-age-exclude.js, used by build-ideal-tree.js, audit-report.js and query-selector-all.js), and so do npm outdated and npm pack. So npx, npm exec and npm x pick the newest version older than the delay, also for a package the list exempts, and fail with ETARGET for an exact version younger than it. The same in npm 11.21.2 (libnpmexec 10.3.5, pacote 21.5.2) and 12.2.2 (libnpmexec 11.0.5, pacote 22.0.1), read in the packages on the registry."),
+		execPrompt: d206$1.verified({
+			commands: EXEC_COMMANDS,
+			confirm: "--yes",
+			refuse: "--no",
+			yesAssumed: ["no TTY", "CI"],
+			localBinsFirst: true
+		}, `${NPM_V12_DOCS}/npm-exec.md`, "npm-exec.md: \"If any requested packages are not present in the local project dependencies, then a prompt is printed, which can be suppressed by providing either --yes or --no. When standard input is not a TTY or a CI environment is detected, --yes is assumed.\" npx.md says the same, and \"Package names with a specifier will only be considered a match if they have the exact same name and version as the local dependency\". workspaces/libnpmexec/lib/index.js at v12.2.1: a command name without --package is first looked up as a bin of the local packages and the local tree, then of the global prefix, and run from there when found; otherwise the package of that name is installed into the npx cache (packages.push(args[0])). Before that install, yes === false throws \"npx canceled due to missing packages and no YES option\", and without --yes or --no it only logs a warning and installs when there is no TTY or ciInfo.isCI. So npx --no <name> runs a local or global program and never installs one, and npx <name> in CI installs the registry package of that name when nothing local has the program. The yes definition (workspaces/config/lib/definitions/definitions.js): type [null, Boolean], short -y."),
+		ciLockfile: d206$1.verified({
+			command: ["npm", "ci"],
+			needs: "package-lock.json"
+		}, `${NPM_V12_DOCS}/npm-ci.md`, "npm-ci.md: \"The project must have an existing package-lock.json\"; npm ci exits with an error when the lockfile does not match package.json, installs entire projects only, removes an existing node_modules first and never writes package.json or package-lock.json."),
+		prefixOption: d206$1.verified({
+			option: "--prefix",
+			short: "-C",
+			forcesNonGlobalCommands: true
+		}, NPM_DEFINITIONS, "The prefix definition: type path, short C, \"The location to install global items. If set on the command line, then it forces non-global commands to run in the specified folder.\" Default: in global mode the folder of the node executable, otherwise \"the nearest parent folder containing either a package.json file or a node_modules folder\" (see extra.localPrefix). So npm ci --prefix <dir> installs the project of <dir> from the current directory, without cd."),
+		packChecksum: d206$1.verified({
+			command: [
+				"npm",
+				"pack",
+				"--dry-run",
+				"--json"
+			],
+			field: "shasum",
+			algorithm: "sha1"
+		}, `${NPM_GITHUB_V12}/lib/utils/tar.js`, "getContents in lib/utils/tar.js returns, for the packed tarball, id, name, version, size, unpackedSize, shasum (integrity.sha1[0].hexDigest(), the SHA-1 of the tarball in hex), integrity (SHA-512), filename, files, entryCount and bundled; with --json, logTar prints that object (output.buffer) instead of the notices. lib/commands/pack.js takes dry-run and json as parameters, and workspaces/libnpmpack/lib/index.js writes the tarball to disk only when dryRun is false; the dry-run definition names pack among the commands it applies to."),
+		viewChecksum: d206$1.verified({
+			command: ["npm", "view"],
+			field: "dist.shasum",
+			algorithm: "sha1"
+		}, `${NPM_V12_DOCS}/npm-view.md`, "npm-view.md: npm view <package-spec> [<field>[.subfield]...] shows the registry data of a package version (\"npm view ronn@0.3.5 dependencies\"), and \"You can view child fields by separating them with a period\". dist.shasum of a version is the SHA-1 of its tarball in hex, the same value npm pack computes for the tarball it builds (the version document of https://registry.npmjs.org/depcurfew/1.6.0 has dist.shasum next to dist.integrity and dist.tarball)."),
 		runnerOptions: runners$2.verified({
 			beforeCommand: [{
 				command: ["npm", "exec"],
@@ -7891,6 +7925,7 @@ const python = verifiedOn("2026-10-30");
 const gitFacts = verifiedOn("2026-10-30");
 const audited = verifiedOn("2026-10-31");
 const release13 = verifiedOn("2026-11-01");
+const d206 = verifiedOn("2026-11-11");
 const mcpFacts = verifiedOn("2026-11-01");
 const actionChecks = verifiedOn("2026-11-01");
 const leftovers = verifiedOn("2026-11-01");
@@ -9292,6 +9327,12 @@ const environment = {
 			blockedNotice: "failed; blocking because onFailure is \"block\"",
 			cloudSetupScriptRunsBeforeClaudeCode: true
 		}, "https://code.claude.com/docs/en/hooks#sessionstart", "SessionStart runs when a session starts or resumes; its matcher startup fires for a new session (also resume, clear, compact and fork). Hooks run in the background, but \"Claude's first response still waits for the hooks to finish\", and a prompt sent meanwhile does not reach Claude until they finish. A command hook may be shell form (command with $CLAUDE_PROJECT_DIR, the repository root). With onFailure set to \"block\" (#block-the-action-when-a-hook-fails), a PreToolUse hook whose script is missing blocks the call (\"failed; blocking because onFailure is \"block\"\" followed by node's error output, in the example \"PreToolUse:Bash hook error: [node ${CLAUDE_PROJECT_DIR}/.claude/hooks/check-command.js]: failed; blocking because onFailure is \"block\"\" and \"Error: Cannot find module '/path/to/project/.claude/hooks/check-command.js'\", re-read 2026-11-01): node starts, cannot load the script and exits with 1, which counts as a failure; without it, the same missing script is a non-blocking error and the command runs. In cloud sessions (https://code.claude.com/docs/en/cloud-environments#setup-scripts) a setup script is a Bash script that runs as root before Claude Code launches and is skipped when a cached environment exists; SessionStart hooks of the repository's .claude/settings.json run in local and cloud sessions (in a session with one repository, outside a project thread), user-level ~/.claude/settings.json hooks do not reach the cloud. The docs recommend a SessionStart hook for project setup such as npm install."),
+		hookShell: d206.verified({
+			field: "shell",
+			default: "bash",
+			withoutGitBash: "powershell",
+			ignoredWithArgs: true
+		}, "https://code.claude.com/docs/en/hooks#exec-form-and-shell-form", "Shell form runs when args is absent: \"The command string is passed to a shell: sh -c on macOS and Linux, Git Bash on Windows, or PowerShell when Git Bash isn't installed. Set the shell field to choose explicitly.\" The command hook field shell \"Accepts \"bash\" or \"powershell\". Defaults to \"bash\", or to \"powershell\" on Windows when Git Bash isn't installed ... Ignored when args is set.\" Failed hooks on Windows without Git Bash: \"without Git Bash, a shell-form hook with no shell set runs in PowerShell, where it can fail\"; the fix is to install Git for Windows (or set CLAUDE_CODE_GIT_BASH_PATH) and start a new session."),
 		shellTools: audited.verified([
 			{
 				tool: "Bash",
@@ -30408,7 +30449,7 @@ function outdatedText(copy, command, line = false) {
 	const tools = copy.directory === void 0 ? void 0 : `node ${copy.directory}/${INSTALLED_CLI} ${command}`;
 	return {
 		message: `depcurfew ${copy.version} ${where}, but the depcurfew running ${runner} is older, so it may not know ${knows}`,
-		fix: tools !== void 0 ? pinned ? `Install it in ${copy.directory} (cd ${copy.directory} && npm ci --ignore-scripts), then run that copy (${tools}), or ${update}` : `Run that copy (${tools}), or ${update}` : pinned ? `Install the project's dependencies (npm ci), then run its copy (npx depcurfew ${command}), or ${update}` : `Run the project's copy (npx depcurfew ${command}), or ${update}`
+		fix: tools !== void 0 ? pinned ? `Install it in ${copy.directory} (npm ci --ignore-scripts --prefix ${copy.directory}), then run that copy (${tools}), or ${update}` : `Run that copy (${tools}), or ${update}` : pinned ? `Install the project's dependencies (npm ci), then run its copy (npx depcurfew ${command}), or ${update}` : `Run the project's copy (npx depcurfew ${command}), or ${update}`
 	};
 }
 /** Whether the project's copy is newer than the depcurfew that runs. */

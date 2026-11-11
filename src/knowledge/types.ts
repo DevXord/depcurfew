@@ -359,6 +359,40 @@ export interface ExecReleaseAgeKnowledge {
   commands: readonly (readonly string[])[];
   /** false: they pick the version with the delay alone, for the packages of the list too. */
   readsExclude: boolean;
+  /** The error code they fail with when an exact version is younger than the delay. */
+  exactTooYoung?: string;
+}
+
+/** What the download commands do with a package the project does not have (decision D-206). */
+export interface ExecPromptKnowledge {
+  commands: readonly (readonly string[])[];
+  /** The option that installs it without asking, and the one that refuses instead of asking. */
+  confirm: string;
+  refuse: string;
+  /** When the confirming option is assumed: standard input is not a TTY, or a CI environment is detected. */
+  yesAssumed: readonly ('no TTY' | 'CI')[];
+  /** A command name without a package first runs a local or global program of that name, else installs the package of that name. */
+  localBinsFirst: boolean;
+}
+
+/** A command and the file it needs (decision D-206). */
+export interface CommandNeedsKnowledge {
+  command: readonly string[];
+  needs: string;
+}
+
+/** The option that makes a non-global command run in another folder (decision D-206). */
+export interface PrefixOptionKnowledge {
+  option: string;
+  short: string;
+  forcesNonGlobalCommands: boolean;
+}
+
+/** A command that prints the checksum of a package, and the field it is in (decision D-206). */
+export interface ChecksumCommandKnowledge {
+  command: readonly string[];
+  field: string;
+  algorithm: 'sha1';
 }
 
 /** How a tool reads its options. A fact of its own (`parsing`) next to the command-line fact adds to these. */
@@ -1319,6 +1353,18 @@ export interface ClaudeCodeSessionStartKnowledge {
   cloudSetupScriptRunsBeforeClaudeCode: boolean;
 }
 
+/** The shell a shell-form command hook runs in (decision D-206). */
+export interface ClaudeCodeHookShellKnowledge {
+  /** The field of a command hook that picks the shell. */
+  field: string;
+  /** The shell without that field: sh -c on macOS and Linux, Git Bash on Windows. */
+  default: 'bash';
+  /** The shell without that field on Windows when Git Bash is not installed. */
+  withoutGitBash: 'powershell';
+  /** Whether the field is ignored for an exec-form hook (command with args), which runs without a shell. */
+  ignoredWithArgs: boolean;
+}
+
 /** A Claude Code tool that runs shell commands, by the name a matcher and the event use, and the shell it runs them in. */
 export interface ClaudeCodeShellTool {
   tool: string;
@@ -1890,6 +1936,8 @@ export interface EnvironmentKnowledge {
     /** The tools whose PreToolUse events carry a shell command in the hooks fact's input.command. */
     shellTools: Fact<readonly ClaudeCodeShellTool[]>;
     sessionStart: Fact<ClaudeCodeSessionStartKnowledge>;
+    /** The shell a shell-form command hook runs in, such as the SessionStart example of the README. */
+    hookShell: Fact<ClaudeCodeHookShellKnowledge>;
     /** The field of a PreToolUse hook's output that adds text to Claude's context, with or without a decision. */
     hookContext: Fact<ClaudeCodeHookContextKnowledge>;
     /** Shell tool calls without a command: a Monitor WebSocket watch. */
