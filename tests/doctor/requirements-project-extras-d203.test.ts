@@ -54,7 +54,12 @@ describe('the project itself with extras in a requirements file (decision D-203)
 });
 
 describe('pip\'s strip_extras, read the same way (decision D-203)', () => {
-  /** pip 26.3, src/pip/_internal/utils/urls.py lines 69-78: the path without its extras, then the current directory test. */
+  /**
+   * pip 26.3, src/pip/_internal/utils/urls.py lines 69-78: the path without its extras, then the current directory test.
+   * .\ (and .\[x]) is the current directory as pip on Windows reads it, where \ is a path separator; on POSIX pip looks
+   * for a directory named .\, which does not exist, so the install fails. doctor reads a requirements file for every
+   * platform, so it takes the Windows reading, as requirementsPaths lists \ among the separators; no file gets through.
+   */
   const pip263 = (path: string) => (/^(.+)(\[[^\]]+\])$/u.exec(path)?.[1]?.trimEnd() ?? path).replace(/^\.[\/\\]?$/u, '.') === '.';
   const project = (path: string) => requirementsEntries(path, requirementsFormatOf(pip))[0]?.source === 'workspace';
 

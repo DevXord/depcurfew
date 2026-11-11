@@ -236,8 +236,8 @@ async function checkIndexPackage(report: PackageReport, name: string, clauses: r
  * "." outside the root of a project (decision D-203): the local directory the packages are installed in, which
  * sources.directory decides, as for any other local directory.
  */
-function outsideProject(policy: CheckOptions['policy']): CheckFinding {
-  const where = '"." is the directory the packages are installed in, which is not the directory of depcurfew.json or of one of its projects';
+function outsideProject(policy: CheckOptions['policy'], shown: CheckOptions['installDirectory']): CheckFinding {
+  const where = outsideWhere(shown);
   if (policy.sources?.directory === 'deny') {
     return {
       level: 'error',
@@ -247,6 +247,15 @@ function outsideProject(policy: CheckOptions['policy']): CheckFinding {
     };
   }
   return { level: 'warning', code: 'unchecked-source', message: `it installs from a local directory: ${where}; depcurfew looks up index packages only`, fix: CHECK_BY_HAND };
+}
+
+/** Which directory "." is and which directories would make it the project, as far as they are known. */
+function outsideWhere(shown: CheckOptions['installDirectory']): string {
+  if (shown === undefined) return '"." is the directory the packages are installed in, which is not the directory of depcurfew.json or of one of its projects';
+  const roots = shown.policyFile === null ? `the project directory (${shown.root})` : `the directory of ${shown.policyFile} (${shown.root}) or of one of its projects`;
+  if (shown.directory === undefined) return `"." is a directory depcurfew cannot tell, so it is not taken for ${roots}`;
+  const directory = shown.directory === '.' ? 'the directory the packages are installed in' : shown.directory;
+  return `"." is ${directory}, which is not ${roots}`;
 }
 
 export async function checkPythonSpec(raw: string, options: CheckOptions, chosen: Chosen = {}): Promise<PackageReport> {
@@ -272,7 +281,7 @@ export async function checkPythonSpec(raw: string, options: CheckOptions, chosen
   };
   if (spec.name !== undefined) report.name = `${PYPI_PREFIX}${spec.name}`;
   if (outside) {
-    report.findings.push(outsideProject(options.policy));
+    report.findings.push(outsideProject(options.policy, options.installDirectory));
   } else if (spec.kind === 'workspace') {
     report.findings.push({
       level: 'warning',

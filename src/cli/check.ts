@@ -10,7 +10,7 @@ import { accessSync, constants, existsSync, realpathSync, statSync } from 'node:
 import { homedir } from 'node:os';
 import type { UserEnvironment } from '../user/locate.ts';
 import type { McpProcess } from './mcp.ts';
-import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, parse, posix, relative, resolve, sep } from 'node:path';
 import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
 import { checkSpecs, type CheckFinding, type CheckRequest, type PackageReport } from '../check/index.ts';
 import { parseRange, parseSemver } from '../check/semver.ts';
@@ -266,6 +266,8 @@ export interface AppliedPolicy {
    * policy, the project directory, else `start`), in which "." and ".[extras]" name the project itself (decision D-203).
    */
   roots: readonly string[];
+  /** The directory paths are shown from (decision D-203: the message about "." outside a project names directories). */
+  base: string;
   /** The npm registry packages are looked up in, and where it comes from (undefined for the public registry). */
   registry: UsedRegistry;
   /** The Python package index pypi: packages are looked up in. */
@@ -364,6 +366,7 @@ export function appliedPolicy(start: string, settings: PolicySettings): AppliedP
       file: file ?? null,
       ...(nearer === undefined ? {} : { nearer }),
       roots: trusted.map(realPathOf),
+      base: resolve(base),
       ...lookups,
       start: resolve(start),
       top,
@@ -699,9 +702,16 @@ export async function checkApplied(given: readonly CheckRequest[], applied: Appl
   // "." names the project only where the packages are installed in a root of the projects of the policy that checks
   // them (decision D-203), so a nearer policy judges it by its own roots, and the stricter answer counts.
   const here = settings.unknownDirectory === true ? undefined : realPathOf(applied.start);
-  const options = (policy: ResolvedPolicy, roots: readonly string[]) => ({
+  const shownFrom = realPathOf(applied.base);
+  const shown = (path: string) => shownPath(shownFrom, path) || '.';
+  const options = (policy: ResolvedPolicy, roots: readonly string[], file: string | null) => ({
     policy,
     projectRoot: here !== undefined && roots.includes(here),
+    installDirectory: {
+      directory: here === undefined ? undefined : shown(here),
+      policyFile: file,
+      root: file === null ? shown(roots[0] ?? shownFrom) : posix.dirname(file),
+    },
     fetch: settings.fetch,
     now: settings.now,
     registry: applied.registry.url,
@@ -734,7 +744,7 @@ export async function checkApplied(given: readonly CheckRequest[], applied: Appl
     ...(settings.signal === undefined ? {} : { signal: settings.signal }),
   });
   const policies = applied.nearer === undefined ? [applied] : [applied, applied.nearer];
-  const [own = [], other] = await Promise.all(policies.map((entry) => checkSpecs(requests, options(entry.policy, entry.roots))));
+  const [own = [], other] = await Promise.all(policies.map((entry) => checkSpecs(requests, options(entry.policy, entry.roots, entry.file))));
   const reports = mergedReports(own, other, applied.nearer?.file ?? POLICY_FILE, { own: delayOf([applied.policy]), other: delayOf(applied.nearer === undefined ? [] : [applied.nearer.policy]) });
   for (const [index, report] of reports.entries()) {
     const request = requests[index] ?? { spec: report.spec };

@@ -4342,7 +4342,7 @@ const pdm$1 = {
 		defaultPolicy: verified$9([{
 			since: "0.0.0",
 			value: "run"
-		}], `${LOCKFILE}#set-acceptable-format-for-locking-or-installing`, "Without only-binary, PDM locks and installs source distributions when they fit, which builds them and runs their build backend. Installing a wheel runs no build step: the wheel format installs it by unpacking and spreading its files (binary-distribution-format.rst in pypa/packaging.python.org at 6fa4790c, \"Installing a wheel\")"),
+		}], `${LOCKFILE}#set-acceptable-format-for-locking-or-installing`, "Without only-binary, PDM locks and installs source distributions when they fit, which builds them and runs their build backend. Installing a wheel runs no build step: the wheel format installs it by unpacking and spreading its files (binary-distribution-format.rst in pypa/packaging.python.org at 6fa4790c, \"Installing a wheel\")."),
 		allowList: {
 			setting: verified$9("no-binary", `${LOCKFILE}#set-acceptable-format-for-locking-or-installing`, "The packages in no-binary are locked and installed from source distributions only. A name in no-binary wins over only-binary = \":all:\" (FormatControl of unearth, which PDM uses), so with both the named packages are the only ones built, and always from source."),
 			file: verified$9("pyproject.toml", `${LOCKFILE}#set-acceptable-format-for-locking-or-installing`, "The [tool.pdm.resolution] table."),
@@ -5873,7 +5873,7 @@ const poetry$1 = {
 		defaultPolicy: verified$6([{
 			since: "0.0.0",
 			value: "run"
-		}], `${CONFIGURATION$2}#installeronly-binary`, "Without installer.only-binary, packages are built from source distributions when no wheel fits, which runs their build backend. Git and directory dependencies are always built. Installing a wheel runs no build step: the wheel format installs it by unpacking and spreading its files (binary-distribution-format.rst in pypa/packaging.python.org at 6fa4790c, \"Installing a wheel\")"),
+		}], `${CONFIGURATION$2}#installeronly-binary`, "Without installer.only-binary, packages are built from source distributions when no wheel fits, which runs their build backend. Git and directory dependencies are always built. Installing a wheel runs no build step: the wheel format installs it by unpacking and spreading its files (binary-distribution-format.rst in pypa/packaging.python.org at 6fa4790c, \"Installing a wheel\")."),
 		allowList: {
 			setting: verified$6("installer.no-binary", CHOOSER, "With installer.only-binary = [\":all:\"], the packages named in installer.no-binary are the only ones built from source; explicit names take precedence over :all: since 2.2.0. Their wheels are rejected, so they are always built."),
 			file: verified$6("poetry.toml", `${CONFIGURATION$2}#installerno-binary`, "The docs recommend configuring it with --local for a project."),
@@ -6524,7 +6524,7 @@ const uv$1 = {
 		defaultPolicy: verified$4([{
 			since: "0.0.0",
 			value: "run"
-		}], SETTINGS, "no-build defaults to false: source distributions, git and directory dependencies are built, which runs their build backend. Installing a wheel runs no build step: the wheel format installs it by unpacking and spreading its files (binary-distribution-format.rst in pypa/packaging.python.org at 6fa4790c, \"Installing a wheel\")"),
+		}], SETTINGS, "no-build defaults to false: source distributions, git and directory dependencies are built, which runs their build backend. Installing a wheel runs no build step: the wheel format installs it by unpacking and spreading its files (binary-distribution-format.rst in pypa/packaging.python.org at 6fa4790c, \"Installing a wheel\")."),
 		allowList: {
 			setting: verified$4("no-binary-package", BUILD_OPTIONS, "With no-build = true, the packages in no-binary-package are the only ones built from source (\"Allow `all` to be overridden by specific binary exclusions\"). Their wheels are not used, so they are always built."),
 			file: verified$4("pyproject.toml", CONFIGURATION$1, "Or uv.toml; the same table as exclude-newer."),
@@ -25450,7 +25450,10 @@ function requirementSource(requirement, format, editable) {
 	const looksLikePath = (text) => separators.some((separator) => text.includes(separator)) || text.startsWith(currentDirectory);
 	const isArchive = (text) => archives.some((extension) => text.toLowerCase().endsWith(extension));
 	const extras = isRecord(format["pathExtras"]) ? format["pathExtras"] : void 0;
-	/** The current directory, as ., ./ or .\, with or without one group of extras: the project itself. */
+	/**
+	* The current directory, as ., ./ or .\, with or without one group of extras: the project itself. .\ is the reading
+	* of pip on Windows; on POSIX pip finds no directory named .\ and fails, so taking it for the project lets nothing in.
+	*/
 	const isProject = (path) => {
 		const bare = extras === void 0 ? path : withoutExtras(path, String(extras["open"]), String(extras["close"]));
 		return bare === currentDirectory || separators.some((separator) => bare === `${currentDirectory}${separator}`);

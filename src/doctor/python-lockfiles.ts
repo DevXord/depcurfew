@@ -364,7 +364,10 @@ export function requirementSource(requirement: string, format: Format, editable:
   const looksLikePath = (text: string) => separators.some((separator) => text.includes(separator)) || text.startsWith(currentDirectory);
   const isArchive = (text: string) => archives.some((extension) => text.toLowerCase().endsWith(extension));
   const extras = isRecord(format['pathExtras']) ? format['pathExtras'] : undefined;
-  /** The current directory, as ., ./ or .\, with or without one group of extras: the project itself. */
+  /**
+   * The current directory, as ., ./ or .\, with or without one group of extras: the project itself. .\ is the reading
+   * of pip on Windows; on POSIX pip finds no directory named .\ and fails, so taking it for the project lets nothing in.
+   */
   const isProject = (path: string) => {
     const bare = extras === undefined ? path : withoutExtras(path, String(extras['open']), String(extras['close']));
     return bare === currentDirectory || separators.some((separator) => bare === `${currentDirectory}${separator}`);

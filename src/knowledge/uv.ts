@@ -110,7 +110,7 @@ export const uv: ToolKnowledge = {
     defaultPolicy: verified(
       [{ since: '0.0.0', value: 'run' }],
       SETTINGS,
-      'no-build defaults to false: source distributions, git and directory dependencies are built, which runs their build backend. Installing a wheel runs no build step: the wheel format installs it by unpacking and spreading its files (binary-distribution-format.rst in pypa/packaging.python.org at 6fa4790c, "Installing a wheel")',
+      'no-build defaults to false: source distributions, git and directory dependencies are built, which runs their build backend. Installing a wheel runs no build step: the wheel format installs it by unpacking and spreading its files (binary-distribution-format.rst in pypa/packaging.python.org at 6fa4790c, "Installing a wheel").',
     ),
     allowList: {
       setting: verified(

@@ -150,6 +150,12 @@ export interface CheckOptions {
    * which sources.directory decides. The root of a project when left out.
    */
   projectRoot?: boolean;
+  /**
+   * Python (decision D-203), for the message about "." outside the root of a project: the directory the packages are
+   * installed in (undefined: one depcurfew cannot tell) and where the roots are, as shown to the person: the directory
+   * of the policy file, or without one the project directory. Left out, the message names neither.
+   */
+  installDirectory?: { directory: string | undefined; policyFile: string | null; root: string };
   /** Popular Python projects, by normalized name, for look-alike names. */
   popularPython?: PopularNames;
   /** npm: the dist-tag npm prefers when a request names none (tag in .npmrc); the registry's default when left out. */

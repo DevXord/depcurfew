@@ -37,11 +37,11 @@ const DENY_DIRECTORIES = { cooldown: { minimum: '1d' }, installScripts: { defaul
 const project = (name: string) => `[project]\nname = "${name}"\nversion = "1.0"\n`;
 
 /** A git repository with a policy at the root, a listed project packages/api and a vendored package vendor/evil. */
-function repository(document: object | undefined = DENY_DIRECTORIES): string {
+function repository(document: object | null = DENY_DIRECTORIES): string {
   const root = directory();
   mkdirSync(join(root, '.git'));
   write(root, {
-    ...(document === undefined ? {} : { 'depcurfew.json': JSON.stringify({ version: 1, ...document }) }),
+    ...(document === null ? {} : { 'depcurfew.json': JSON.stringify({ version: 1, ...document }) }),
     'pyproject.toml': project('app'),
     'packages/api/pyproject.toml': project('api'),
     'vendor/evil/pyproject.toml': project('evil'),
@@ -140,6 +140,24 @@ describe('the hook: "." in any other directory is a local directory (decision D-
     expect((await hook('cd "$DIR" && pip install -e .', root)).permissionDecision).toBe('deny');
   });
 
+  it('names the directory "." is and the directory of depcurfew.json', async () => {
+    const root = repository();
+    const reason = (await hook('cd vendor/evil && pip install -e .', root)).permissionDecisionReason;
+    expect(reason).toContain('"." is vendor/evil, which is not the directory of depcurfew.json (.) or of one of its projects');
+    mkdirSync(join(root, 'packages', 'api', 'sub'));
+    const nested = (await hook('pip install -e .', root, { cwd: join(root, 'packages', 'api', 'sub') })).permissionDecisionReason;
+    expect(nested).toContain('"." is packages/api/sub, which is not');
+    const unknown = (await hook('cd "$DIR" && pip install -e .', root)).permissionDecisionReason;
+    expect(unknown).toContain('"." is a directory depcurfew cannot tell');
+  });
+
+  it('names the project directory without a depcurfew.json', async () => {
+    const answer = await hook('cd vendor/evil && pip install -e .', repository(null));
+    // The default policy allows local directories, so the hook only warns.
+    expect(answer.permissionDecision).toBeUndefined();
+    expect(answer.additionalContext).toContain('"." is vendor/evil, which is not the project directory (.)');
+  });
+
   it('only warns where the policy allows local directories', async () => {
     const answer = await hook('cd vendor/evil && pip install -e .', repository({ cooldown: { minimum: '1d' } }));
     expect(answer.permissionDecision).toBeUndefined();
@@ -166,6 +184,8 @@ describe('depcurfew check and depcurfew mcp (decision D-203)', () => {
     expect(vendored.code).toBe(EXIT_FAILURE);
     expect(vendored.document.packages[0]).toMatchObject({ spec: 'pypi:.', kind: 'directory', findings: [{ level: 'error', code: 'forbidden-source' }] });
     expect(vendored.document.packages[0]?.findings[0]?.message).toContain('sources.directory');
+    // Paths are shown from --dir, as in the rest of the output of check.
+    expect(vendored.document.packages[0]?.findings[0]?.message).toContain('"." is the directory the packages are installed in, which is not the directory of ../../depcurfew.json (../..) or of one of its projects');
     expect((await checkJson(root, '--dir', join(root, 'packages', 'api'), 'pypi:.')).document.packages[0]?.kind).toBe('workspace');
   });
 
@@ -176,6 +196,7 @@ describe('depcurfew check and depcurfew mcp (decision D-203)', () => {
     expect(await at(undefined)).toMatchObject({ kind: 'workspace' });
     expect(await at('packages/api')).toMatchObject({ kind: 'workspace' });
     expect(await at('vendor/evil')).toMatchObject({ kind: 'directory', findings: [{ level: 'error', code: 'forbidden-source' }] });
+    expect((await at('vendor/evil'))?.findings[0]?.message).toContain('"." is vendor/evil, which is not the directory of depcurfew.json (.) or of one of its projects');
   });
 });
 
