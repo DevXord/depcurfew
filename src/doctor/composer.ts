@@ -5,7 +5,7 @@ import { extraOf, isRecord } from '../apply/facts.ts';
 import { compareVersions, parseVersion } from '../apply/version.ts';
 import type { Repository } from '../detect/repository.ts';
 import { matchSegment, wildcardMatch } from '../detect/wildcard.ts';
-import type { ComposerInstallPreferenceKnowledge, ToolKnowledge } from '../knowledge/types.ts';
+import type { ComposerInstallPreferenceKnowledge, ComposerTransportCallablesKnowledge, ToolKnowledge } from '../knowledge/types.ts';
 import { COMPOSER_PREFIX, validatePackagePattern } from '../policy/package-pattern.ts';
 import { jsonSetting } from './settings.ts';
 import type { LockEntry, Source } from './lockfiles.ts';
@@ -228,6 +228,7 @@ export function composerEntries(text: string, tool: ToolKnowledge, repositories:
   const inline = repositories.filter((entry) => entry.names.length > 0);
   const hosts = registryHosts(tool, repositories);
   const pluginTypes = new Set(format.pluginTypes.map((type) => type.toLowerCase()));
+  const callables = transportCallablesOf(tool);
   const entries: LockEntry[] = [];
   for (const section of format.sections) {
     const packages = document[section];
@@ -286,6 +287,7 @@ export function composerEntries(text: string, tool: ToolKnowledge, repositories:
         !locked.endsWith(branches.suffix);
       const type = item[format.installScripts];
       const plugin = typeof type === 'string' && pluginTypes.has(type.toLowerCase());
+      const called = callables === undefined ? [] : callableKeys(callables, item[callables.lockField]);
       entries.push({
         name,
         spec,
@@ -297,10 +299,83 @@ export function composerEntries(text: string, tool: ToolKnowledge, repositories:
         ...(kind === 'git' && why !== undefined ? { why } : {}),
         ...(kind === 'git' && preference !== undefined ? { preferredInstall: preference } : {}),
         ...(otherSource === undefined ? {} : { otherSource }),
+        ...(called.length === 0 ? {} : { transportCallables: called }),
       });
     }
   }
   return entries;
+}
+
+const isCallables = (value: unknown): value is ComposerTransportCallablesKnowledge =>
+  isRecord(value) &&
+  typeof value['lockField'] === 'string' &&
+  typeof value['repositoryField'] === 'string' &&
+  typeof value['dropped'] === 'string' &&
+  Array.isArray(value['keys']) &&
+  value['keys'].every((entry) => isRecord(entry) && ['key', 'from', 'to', 'argument'].every((key) => typeof entry[key] === 'string'));
+
+/** The transport options Composer calls as PHP functions (extra.transportCallables, decision D-204); undefined without the fact. */
+export function transportCallablesOf(tool: ToolKnowledge): ComposerTransportCallablesKnowledge | undefined {
+  return tool.extra?.['transportCallables'] === undefined ? undefined : extraOf(tool, 'transportCallables', isCallables);
+}
+
+/**
+ * The keys of the fact that an object of transport options sets to anything but null, in the order of the fact: PHP's
+ * isset, with which Composer reads them, takes every other value, and a key is matched as written.
+ */
+export function callableKeys(fact: ComposerTransportCallablesKnowledge, options: unknown): string[] {
+  if (!isRecord(options)) return [];
+  return fact.keys.map((entry) => entry.key).filter((key) => Object.hasOwn(options, key) && options[key] !== null);
+}
+
+/**
+ * A transport option of composer.json that Composer calls as a PHP function (decision D-204): in the options of a
+ * repository, or in the transport-options of a package that a package repository defines (`package`, its name as
+ * written, when it has one).
+ */
+export interface RepositoryCallable {
+  key: string;
+  /** The index of the repository, or its key in the deprecated object form. */
+  repository: string | number;
+  type: string;
+  url: string | undefined;
+  /** Set for a package of a package repository: its name, or "" when it has none. */
+  package?: string;
+  line: number | undefined;
+}
+
+/**
+ * The transport options of the repositories of the root composer.json that Composer calls as PHP functions, in the
+ * order of the file: those of each repository's options, and those of the transport-options of each package a package
+ * repository defines (one object, or a list of them).
+ */
+export function repositoryCallables(repository: Repository, tool: ToolKnowledge): RepositoryCallable[] {
+  const fact = transportCallablesOf(tool);
+  const text = repository.readText(COMPOSER_MANIFEST);
+  const manifest = composerManifest(repository);
+  if (fact === undefined || text === undefined || manifest === undefined) return [];
+  const list = manifest['repositories'];
+  const entries: [string | number, unknown][] = Array.isArray(list) ? list.map((item, index): [number, unknown] => [index, item]) : isRecord(list) ? Object.entries(list) : [];
+  const inline = repositoryTypes(tool).inline;
+  const found: RepositoryCallable[] = [];
+  for (const [key, entry] of entries) {
+    if (!isRecord(entry)) continue;
+    const type = typeof entry['type'] === 'string' ? entry['type'].toLowerCase() : '';
+    const where = { repository: key, type, url: typeof entry['url'] === 'string' ? entry['url'] : undefined };
+    for (const option of callableKeys(fact, entry[fact.repositoryField])) {
+      found.push({ key: option, ...where, line: jsonSetting(text, ['repositories', key, fact.repositoryField, option])?.line });
+    }
+    if (!inline.includes(type)) continue;
+    const packages = entry['package'];
+    const definitions: [number | undefined, unknown][] = Array.isArray(packages) ? packages.map((item, index): [number, unknown] => [index, item]) : [[undefined, packages]];
+    for (const [index, definition] of definitions) {
+      if (!isRecord(definition)) continue;
+      const name = typeof definition['name'] === 'string' ? definition['name'] : '';
+      const path = ['repositories', key, 'package', ...(index === undefined ? [] : [index]), fact.lockField];
+      for (const option of callableKeys(fact, definition[fact.lockField])) found.push({ key: option, ...where, package: name, line: jsonSetting(text, [...path, option])?.line });
+    }
+  }
+  return found;
 }
 
 const isPreference = (value: unknown): value is ComposerInstallPreferenceKnowledge =>

@@ -1,0 +1,38 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.json",
+      "line": 11
+    },
+    "message": "composer.json gives the composer repository https://repo.example.org (repositories[0]) the transport option prevent_url_access_callable in its options, which Composer 2.10.0-RC2 to 2.11.1 call as a PHP function with the URL of each download from that repository, and a function such as system there runs a command (GHSA-jhfp-4ppm-crmm); Composer copies the options of a Composer repository into composer.lock for its packages",
+    "fix": "Use Composer 2.11.2 or later before any composer install or update in this project; then remove prevent_url_access_callable from the options of repositories[0] in composer.json and from every entry of composer.lock that has it, and find out who added it"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.json",
+      "line": 24
+    },
+    "message": "composer.json gives legacy/widgets, a package that the package repository repositories[1] defines, the transport option prevent_ip_access_callable, which Composer 2.7.3 to 2.11.1 call as a PHP function with the IP address of the server of each download of the package; Composer copies the transport-options of such a package into composer.lock",
+    "fix": "Use Composer 2.11.2 or later before any composer install or update in this project; then remove prevent_ip_access_callable from the transport-options of legacy/widgets in repositories[1] in composer.json and from every entry of composer.lock that has it, and find out who added it"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.lock",
+      "line": 10
+    },
+    "message": "composer.lock gives acme/toolkit the transport option prevent_url_access_callable, which Composer 2.10.0-RC2 to 2.11.1 take from composer.lock and call as a PHP function with the URL of each download of the package, and a function such as system there runs a command (GHSA-jhfp-4ppm-crmm); Composer 2.11.2 no longer takes it from composer.lock",
+    "fix": "Use Composer 2.11.2 or later before any composer install or update on this lockfile; then remove prevent_url_access_callable from the transport-options of acme/toolkit in composer.lock, or restore composer.lock from before the change, and find out who changed it"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.lock",
+      "line": 29
+    },
+    "message": "composer.lock gives legacy/widgets the transport option prevent_ip_access_callable, which Composer 2.7.3 to 2.11.1 take from composer.lock and call as a PHP function with the IP address of the server of each download of the package; Composer 2.11.2 no longer takes it from composer.lock",
+    "fix": "Use Composer 2.11.2 or later before any composer install or update on this lockfile; then remove prevent_ip_access_callable from the transport-options of legacy/widgets in composer.lock, or restore composer.lock from before the change, and find out who changed it"
+  }
+]

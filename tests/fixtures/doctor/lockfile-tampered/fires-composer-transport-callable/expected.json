@@ -1,0 +1,20 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.lock",
+      "line": 10
+    },
+    "message": "composer.lock gives monolog/monolog the transport option prevent_url_access_callable, which Composer 2.10.0-RC2 to 2.11.1 take from composer.lock and call as a PHP function with the URL of each download of the package, and a function such as system there runs a command (GHSA-jhfp-4ppm-crmm); Composer 2.11.2 no longer takes it from composer.lock",
+    "fix": "Use Composer 2.11.2 or later before any composer install or update on this lockfile; then remove prevent_url_access_callable from the transport-options of monolog/monolog in composer.lock, or restore composer.lock from before the change, and find out who changed it"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.lock",
+      "line": 59
+    },
+    "message": "composer.lock gives phpunit/php-timer the transport option prevent_ip_access_callable, which Composer 2.7.3 to 2.11.1 take from composer.lock and call as a PHP function with the IP address of the server of each download of the package; Composer 2.11.2 no longer takes it from composer.lock",
+    "fix": "Use Composer 2.11.2 or later before any composer install or update on this lockfile; then remove prevent_ip_access_callable from the transport-options of phpunit/php-timer in composer.lock, or restore composer.lock from before the change, and find out who changed it"
+  }
+]

@@ -1,0 +1,26 @@
+{
+    "name": "acme/monorepo",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "packages/*",
+            "options": {
+                "symlink": false
+            }
+        },
+        {
+            "type": "composer",
+            "url": "https://repo.example.org",
+            "options": {
+                "http": {
+                    "timeout": 60
+                }
+            }
+        }
+    ],
+    "require": {
+        "acme/local": "*",
+        "acme/toolkit": "^2.0",
+        "psr/log": "^3.0"
+    }
+}

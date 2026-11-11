@@ -694,6 +694,20 @@ export interface ComposerCredentialsKnowledge {
 }
 
 /**
+ * Transport options that Composer calls as PHP functions while it downloads (decision D-204). composer.lock gives them
+ * to a package under `lockField`, and composer.json to a repository under `repositoryField` or to a package that a
+ * package repository defines under `lockField`. Each key is called from Composer `from` to `to` with what `argument`
+ * names; `advisory` is the advisory the CHANGELOG names for it. `dropped` is the first Composer that no longer takes
+ * them from composer.lock.
+ */
+export interface ComposerTransportCallablesKnowledge {
+  lockField: string;
+  repositoryField: string;
+  keys: readonly { key: string; from: string; to: string; argument: string; advisory?: string }[];
+  dropped: string;
+}
+
+/**
  * How Composer's commands name the packages they install (decision D-133): the commands by name, the arguments of
  * composer require (name and constraint in one word, separated by one of `pairSeparators`, or in two words), the
  * names that are platform packages and the options that name packages or a stability.

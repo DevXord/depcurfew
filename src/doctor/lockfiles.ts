@@ -81,6 +81,11 @@ export interface LockEntry {
    * that archive (decision D-136), which Packagist.org never writes: the source Composer falls back to in some cases.
    */
   otherSource?: { spec: string; distHost: string; sourceHost: string };
+  /**
+   * Composer: the keys of the entry's transport-options that Composer calls as PHP functions while it downloads the
+   * package (extra.transportCallables, decision D-204), in the order of the fact; absent when it has none.
+   */
+  transportCallables?: readonly string[];
 }
 
 export interface Lockfile {

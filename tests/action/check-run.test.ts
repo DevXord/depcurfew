@@ -340,9 +340,10 @@ describe('the Action and the check', () => {
   it('passes a clean result with every check in the summary, and counts the checks that do not apply', () => {
     const [content] = collect({ FIXTURE: 'bot-cooldown-mismatch/passes-consistent' });
     expect(content).toMatchObject({ name: 'depcurfew doctor', conclusion: 'success', annotations: [] });
-    // 22 checks since pnpm-config-unverifiable (decision D-164), which passes in this pnpm project, and ci-weakens-policy
-    // (decision D-166), which does not apply without CI.
-    expect(content?.title).toBe('No problems found (22 checks: 8 passed, 10 not applicable, 4 skipped)');
+    // 23 checks since pnpm-config-unverifiable (decision D-164), which passes in this pnpm project, ci-weakens-policy
+    // (decision D-166), which does not apply without CI, and lockfile-tampered (decision D-204), which does not apply
+    // without composer.lock.
+    expect(content?.title).toBe('No problems found (23 checks: 8 passed, 11 not applicable, 4 skipped)');
     expect(content?.summary).toContain('| Result | Check | Rule |');
     expect(content?.summary).toContain('| not applicable | Python tools read their settings where they are written | `python-config-ignored` |');
   });

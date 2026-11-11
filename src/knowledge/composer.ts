@@ -7,6 +7,7 @@ import type {
   ComposerScriptCommandsKnowledge,
   ComposerConstraintsKnowledge,
   ComposerCredentialsKnowledge,
+  ComposerTransportCallablesKnowledge,
   ComposerStabilitiesKnowledge,
   CommandLineKnowledge,
   CommandNamesKnowledge,
@@ -24,6 +25,7 @@ import type {
 const { verified, uncertain } = verifiedOn('2026-11-02');
 const ciOverrides = verifiedOn('2026-11-03');
 const d192 = verifiedOn('2026-11-09');
+const d204 = verifiedOn('2026-11-11');
 
 // getcomposer.org/doc is built from doc/ in the repository; the code is read at the same tag.
 const COMPOSER = 'https://github.com/composer/composer/blob/2.11.1';
@@ -35,6 +37,9 @@ const CHANGELOG = `${COMPOSER}/CHANGELOG.md`;
 const SRC = `${COMPOSER}/src/Composer`;
 const VERSIONS = `${COMPOSER}/doc/articles/versions.md`;
 const AUTHENTICATION = `${COMPOSER}/doc/articles/authentication-for-private-packages.md`;
+// The code before and after the fix of GHSA-jhfp-4ppm-crmm (decision D-204), pinned to these tags whatever tag the
+// other facts are read at.
+const COMPOSER_2_11_2 = 'https://github.com/composer/composer/blob/2.11.2';
 // composer/semver and composer/metadata-minifier at the versions composer.lock of Composer 2.11.1 locks.
 const SEMVER = 'https://github.com/composer/semver/blob/3.6.0/src/VersionParser.php';
 const MINIFIER = 'https://github.com/composer/metadata-minifier/blob/1.0.1/src/MetadataMinifier.php';
@@ -585,6 +590,19 @@ export const composer: ToolKnowledge = {
       },
       AUTHENTICATION,
       '"Credentials can be stored on 4 different places; in an auth.json for the project, a global auth.json, in the composer.json itself or in the COMPOSER_AUTH environment variable"; in composer.json "in the config section or directly in the repository definition". Each method is a key with the host under it: "http-basic": {"example.org": {"username": …, "password": …}}, "bearer": {"example.org": "TOKEN"}, "custom-headers": {"repo.example.org": ["API-TOKEN: YOUR-API-TOKEN", …]}, "gitlab-oauth" and "gitlab-token": {"example.org": "token"}, "github-oauth": {"github.com": "token"}, "bitbucket-oauth": {"bitbucket.org": {"consumer-key": "key", "consumer-secret": "secret"}}, "client-certificate": {"repo.example.org": {"local_cert": …, "local_pk": …, "passphrase": "MySecretPassword"}} and "forgejo-token": {"forgejo.example.org": {"username": "forgejo-user", "token": "access-token"}}; inline custom headers sit in the repository as "options": {"http": {"header": ["API-TOKEN: YOUR-API-TOKEN", …]}}. The token is the value under the host, so a diff that reads a line alone does not see that it is one (decision D-192).',
+    ),
+    transportCallables: d204.verified<ComposerTransportCallablesKnowledge>(
+      {
+        lockField: 'transport-options',
+        repositoryField: 'options',
+        keys: [
+          { key: 'prevent_url_access_callable', from: '2.10.0-RC2', to: '2.11.1', argument: 'the URL', advisory: 'GHSA-jhfp-4ppm-crmm' },
+          { key: 'prevent_ip_access_callable', from: '2.7.3', to: '2.11.1', argument: 'the IP address of the server' },
+        ],
+        dropped: '2.11.2',
+      },
+      `${COMPOSER_2_11_2}/src/Composer/Package/Loader/ArrayLoader.php`,
+      'ArrayLoader at 2.11.2 (lines 320-326) removes prevent_url_access_callable and prevent_ip_access_callable from the transport-options it loads: "these options are invoked as callables while downloading, so they must never be taken from externally provided package data such as the lock or installed.json". At 2.11.1 it copies transport-options as they are (lines 320-321), and Locker reads composer.lock with new ArrayLoader(null, true), which loads them (Locker.php line 77). CurlDownloader at 2.11.1 calls $options[\'prevent_url_access_callable\']($url) for each request when the value is_callable (lines 215-221) and prevent_ip_access_callable with the IP address of the server it connected to (lines 618-622); at 2.11.2 it stops with an error on any value that is not a Closure (lines 223-227), and no JSON file can hold a Closure. RemoteFilesystem at 2.11.1 refuses both (lines 254-260). CurlDownloader.php has prevent_url_access_callable from 2.10.0-RC2 (not at 2.9.8 and 2.10.0-RC1) and prevent_ip_access_callable from 2.7.3 (not at 2.7.2); 2.2.32 has neither. At 2.11.1 ComposerRepository::configurePackageTransportOptions gives the packages of a Composer repository the options of that repository in composer.json (ComposerRepository.php lines 1122-1127), VcsDriver::getContents sends the requests of a VCS repository with its options (Vcs/VcsDriver.php line 169), PackageRepository loads the packages a package repository defines with new ArrayLoader(null, true) (PackageRepository.php line 64), and ArrayDumper writes the transport options of a package into composer.lock (Dumper/ArrayDumper.php lines 146-147). CHANGELOG.md at 2.11.2: "Security: Fixed arbitrary command execution via the prevent_url_access_callable transport option being loaded from composer.lock / vendor/composer/installed.json (GHSA-jhfp-4ppm-crmm)". The text of the advisory could not be read when this was checked.',
     ),
   },
 };

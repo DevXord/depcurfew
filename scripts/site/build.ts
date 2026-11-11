@@ -121,7 +121,7 @@ type EcosystemPage = Pick<StartPage, 'file' | 'nav' | 'guide' | 'rules'>;
 const ECOSYSTEM_PAGES: Partial<Record<Ecosystem, EcosystemPage>> = {
   npm: { file: 'npm.html', nav: 'JavaScript', guide: [], rules: ['npmrc-overrides-policy', 'pnpm-shared-workspace-lockfile', 'pnpm-config-unverifiable'] },
   pypi: { file: 'python.html', nav: 'Python', guide: ['python-projects'], rules: ['python-config-ignored', 'lockfile-out-of-date'] },
-  packagist: { file: 'php.html', nav: 'PHP', guide: ['composer-projects'], rules: ['composer-config-weakens'] },
+  packagist: { file: 'php.html', nav: 'PHP', guide: ['composer-projects'], rules: ['composer-config-weakens', 'lockfile-tampered'] },
   rubygems: { file: 'ruby.html', nav: 'Ruby', guide: ['ruby-projects'], rules: ['bundler-config-weakens'] },
 };
 // The bots' section of the README says what they do for each ecosystem, also for those only they delay (D-151).
