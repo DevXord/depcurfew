@@ -146,7 +146,7 @@ describe('workspace patterns made to take long (H3)', () => {
     const patterns = Array.from({ length: MAX_WORKSPACE_PATTERNS }, () => `${'**/d/'.repeat(MAX_WORKSPACE_PATTERN_LENGTH / 5 - 1)}zzzz`);
     writeFileSync(join(root, 'package.json'), JSON.stringify({ workspaces: patterns }));
     expect(elapsed(() => expect(npmLocalPrefix(deep).workspace).toBeUndefined())).toBeLessThan(1000);
-  }, 60_000);
+  });
 
   it('keeps the nearer directory beyond the limits, says so, and reports a registry the .npmrc of the workspace root sets', async () => {
     const patterns = [...Array.from({ length: MAX_WORKSPACE_PATTERNS }, (_, index) => `other/p${index}`), 'app'];

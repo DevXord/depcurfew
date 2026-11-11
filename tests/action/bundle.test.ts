@@ -23,7 +23,7 @@ describe('action bundle', () => {
     } finally {
       rmSync(out, { recursive: true, force: true });
     }
-  }, 60_000);
+  });
 
   it('imports only Node built-ins', () => {
     const bundle = readFileSync(join(ROOT, 'action/depcurfew.mjs'), 'utf8');

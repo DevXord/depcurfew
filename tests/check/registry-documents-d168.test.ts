@@ -59,7 +59,7 @@ describe('the package document of the npm registry', () => {
         versions: { '1.0.0': { version: '1.0.0', scripts: { postinstall: 'node x.js' }, deprecated: 'use small' } },
       },
     });
-  }, 60_000);
+  });
 
   it('reads every recorded document as JSON.parse reads it', async () => {
     const directory = new URL('../fixtures/registry/', import.meta.url);

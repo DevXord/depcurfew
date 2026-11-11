@@ -64,7 +64,7 @@ describe('a Gemfile of 1 MiB', () => {
     start = cpuNow();
     readGemfile(text);
     expect(cpuNow() - start).toBeLessThan(2000);
-  }, 60_000);
+  });
 
   it('compares a URL of a million slashes in linear time', () => {
     const start = cpuNow();

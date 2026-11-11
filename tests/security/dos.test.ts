@@ -208,7 +208,9 @@ describe('aliases that expand themselves (decision D-119)', () => {
     ['a chain of aliases', `alias d='${'true;'.repeat(40)}'; alias c='${'d;'.repeat(40)}'; alias b='${'c;'.repeat(40)}'; alias a='${'b;'.repeat(40)}'; a; a`],
     ['an alias through eval', `alias a='eval "${'a;'.repeat(40)}"'; a`],
     ['many uses of a long alias', `alias a='${'true; '.repeat(20_000)}'; ${'a;'.repeat(20_000)}`],
-  ])('reads %s in under a second', (_label, line) => {
-    expect(elapsed(() => scanCommandLine(line))).toBeLessThan(1000);
+  ])('reads %s quickly', (_label, line) => {
+    // 5 s of CPU time, as in the other blocks of this file (decision D-198): an alias that keeps expanding itself takes
+    // far longer, while the 1 s of D-119 failed on Windows, where the CPU time of the process counts V8's helper threads.
+    expect(elapsed(() => scanCommandLine(line))).toBeLessThan(5000);
   });
 });

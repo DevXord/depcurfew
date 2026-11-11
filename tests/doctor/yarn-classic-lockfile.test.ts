@@ -217,7 +217,7 @@ describe('the reader of the Yarn Classic yarn.lock runs in linear time', () => {
     ['one key line with a million patterns', `${'a@^1, '.repeat(1024 * 1024)}a@^1:\n  version "1.0.0"\n`],
     ['a million blank lines inside an entry', `a@^1:\n${'  \n'.repeat(1024 * 1024)}  version "1.0.0"\n`],
     ['nesting deeper than any lockfile', Array.from({ length: 2000 }, (_, depth) => `${'  '.repeat(depth)}k:`).join('\n')],
-  ])('%s', { timeout: 60_000 }, (_case, text) => {
+  ])('%s', (_case, text) => {
     expect(timed(text).seconds).toBeLessThan(5);
   });
 });

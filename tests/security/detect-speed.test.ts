@@ -140,7 +140,7 @@ describe('names that cannot match (decision D-157)', () => {
 });
 
 describe('the files of the bot-only ecosystems among many others (decision D-157)', () => {
-  it('are found by name in a directory of 30,000 files, in seconds', { timeout: 60_000 }, () => {
+  it('are found by name in a directory of 30,000 files, in seconds', () => {
     const root = scratch();
     writeFileSync(join(root, 'package.json'), '{}\n');
     files(join(root, 'assets'), 30_000, '.csproj.txt');
