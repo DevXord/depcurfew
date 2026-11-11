@@ -290,8 +290,26 @@ export function jsonSetting(text: string, path: readonly (string | number)[]): {
   return { value, line: offset === undefined ? 1 : lineAt(text, offset) };
 }
 
+const BLANK = /\s/u;
+const LINE_TERMINATORS = ['\n', '\r', '\u2028', '\u2029'];
+
+/**
+ * `raw` without a comment at its end, as replace(/\s+#.*$/u, '') removes it: from the blanks before the first # that
+ * follows a blank and has no line terminator after it. Read with indexOf and a loop (decision D-200): the pattern read
+ * the rest of a long run of blanks from each of its positions, which took seconds on a bunfig.toml value of 80,000.
+ */
+export function withoutTomlComment(raw: string): string {
+  const last = Math.max(...LINE_TERMINATORS.map((terminator) => raw.lastIndexOf(terminator)));
+  let hash = raw.indexOf('#', last + 1);
+  while (hash !== -1 && !(hash > 0 && BLANK.test(raw[hash - 1] ?? ''))) hash = raw.indexOf('#', hash + 1);
+  if (hash === -1) return raw;
+  let start = hash - 1;
+  while (start > 0 && BLANK.test(raw[start - 1] ?? '')) start -= 1;
+  return raw.slice(0, start);
+}
+
 function tomlScalar(raw: string): unknown {
-  const text = raw.replace(/\s+#.*$/u, '').trim();
+  const text = withoutTomlComment(raw).trim();
   if (text === 'true') return true;
   if (text === 'false') return false;
   if (/^[+-]?\d[\d_]*(\.\d+)?$/u.test(text)) return Number(text.replaceAll('_', ''));

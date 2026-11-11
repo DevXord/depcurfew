@@ -53,3 +53,66 @@ export function wildcardMatch(text: string, pattern: string): boolean {
   const patternParts = pattern.split('/');
   return parts.length === patternParts.length && parts.every((part, index) => matchSegment(part, patternParts[index] ?? ''));
 }
+
+/** Code points a run of the glob cannot hold: * stops at /, ** at the line terminators (as . of a regular expression). */
+const STOPS_STAR = new Set(['/']);
+const STOPS_ANY = new Set(['\n', '\r', '\u2028', '\u2029']);
+
+/**
+ * A glob of directories in which `*` stands for any run without `/` and `**` for any run without a line terminator,
+ * as a function of the text it matches: what the regular expression ^…$ (flag u) that the glob used to be built into
+ * matched, code point by code point (decision D-200). The pattern comes from a repository file, so it is never built
+ * into a regular expression, which backtracks exponentially on `*a*a*a…`. A run of stars was .* and [^/]* as often
+ * as ** and * fit into it (*** was .*[^/]*): two equal runs in a row match what one does, so each run is at most **
+ * then *. The text is walked once for each part of the pattern, and a part that matches no prefix ends the walk;
+ * each literal reads a character, so at most about 3 × (length(text) + 1) parts are walked.
+ */
+export function directoryGlob(pattern: string): (text: string) => boolean {
+  const tokens: (string | Set<string>)[] = [];
+  const push = (token: string | Set<string>) => {
+    if (typeof token === 'string' || tokens[tokens.length - 1] !== token) tokens.push(token);
+  };
+  pattern.split('**').forEach((part, partIndex) => {
+    if (partIndex > 0) push(STOPS_ANY);
+    part.split('*').forEach((piece, pieceIndex) => {
+      if (pieceIndex > 0) push(STOPS_STAR);
+      for (const character of piece) push(character);
+    });
+  });
+  return (text) => {
+    const input = [...text];
+    // reach[j]: the tokens read so far match the first j code points of the text.
+    let reach = new Uint8Array(input.length + 1);
+    let next = new Uint8Array(input.length + 1);
+    reach[0] = 1;
+    for (const token of tokens) {
+      next.fill(0);
+      let any = false;
+      if (typeof token === 'string') {
+        for (let at = 0; at < input.length; at++) {
+          if (reach[at] === 1 && input[at] === token) {
+            next[at + 1] = 1;
+            any = true;
+          }
+        }
+      } else {
+        let open = false;
+        for (let at = 0; at <= input.length; at++) {
+          open = reach[at] === 1 || (open && !token.has(input[at - 1] ?? ''));
+          if (open) {
+            next[at] = 1;
+            any = true;
+          }
+        }
+      }
+      if (!any) return false;
+      [reach, next] = [next, reach];
+    }
+    return reach[input.length] === 1;
+  };
+}
+
+/** Whether `text` matches the glob of directories `pattern` (directoryGlob). */
+export function directoryGlobMatch(text: string, pattern: string): boolean {
+  return directoryGlob(pattern)(text);
+}

@@ -15,14 +15,18 @@ import { latestVersion } from '../effective.ts';
 import {
   actionsTarget,
   botEcosystemTargets,
+  countedRegex,
+  countedRegexFix,
   managerTargets,
   matchesEveryName,
   matchesName,
   namePatterns,
   readRenovateConfig,
+  ruleCoverage,
   ruleReaches,
-  ruleScope,
+  ruleReachesCounting,
   ruleUpdateTypes,
+  type RefusedRegex,
   type RenovateConfig,
   type RenovateTarget,
   type RuleScope,
@@ -247,23 +251,27 @@ function checkRenovate(context: RuleContext, file: string): void {
     if (!('minimumReleaseAge' in rule)) continue;
     const delay = delayMinutes(bot, rule['minimumReleaseAge'], latestVersion(bot));
     if (!delay.ok || delay.minutes !== 0) continue;
+    // A /regex/ depcurfew does not run counts as matching here, the direction that reports (decision D-200).
     const covered = targets.flatMap((target) => {
-      const scope = ruleScope(bot, rule, target);
-      return scope === undefined ? [] : [{ scope, target }];
+      const coverage = ruleCoverage(bot, rule, target);
+      const scope = coverage.assumed ?? (coverage.kind === 'covers' ? coverage.scope : undefined);
+      return scope === undefined ? [] : [{ scope, target, regex: coverage.assumed?.regex }];
     });
     const first = covered[0];
     if (first === undefined) continue;
     const { scope } = first;
+    const regex = covered.find((item) => item.regex !== undefined)?.regex;
     reported.add(index);
+    const counting = regex === undefined ? '' : `, ${countedRegex(regex)}`;
     context.report({
       location: { file, line },
       message:
         scope.matchers.length === 0
           ? `packageRules[${index}] turns off minimumReleaseAge without matching any packages, so it applies to all of them`
           : scope.names.kind === 'pattern' && scope.matchers.every((key) => !narrowing.includes(key))
-            ? `packageRules[${index}] turns off minimumReleaseAge for "${scope.names.pattern}", which matches every package`
-            : `packageRules[${index}] turns off minimumReleaseAge for ${covers(scope, covered.map((item) => item.target), matching)}`,
-      fix: 'Match only the packages that need the exception, e.g. with matchPackageNames: ["@your-scope/*"]',
+            ? `packageRules[${index}] turns off minimumReleaseAge for "${scope.names.pattern}", which matches every package${counting}`
+            : `packageRules[${index}] turns off minimumReleaseAge for ${covers(scope, covered.map((item) => item.target), matching)}${counting}`,
+      fix: `Match only the packages that need the exception, e.g. with matchPackageNames: ["@your-scope/*"]${regex === undefined ? '' : `; ${countedRegexFix(regex)}`}`,
     });
   }
   const registries = managerTargets(bot, detected.length > 0 ? detected : context.tools).flatMap(({ target, tools }) => {
@@ -373,17 +381,21 @@ function exemptions(
     const patterns = namePatterns(bot, rule);
     const positive = (patterns ?? []).filter((pattern) => !pattern.startsWith(matching.negation));
     if (positive.length === 0 || positive.some(matchesEveryName)) continue;
-    // The delayed update types it applies to; none (pin, lockFileMaintenance only) is no exception.
-    const types = ruleUpdateTypes(bot, rule);
+    // The delayed update types it applies to; none (pin, lockFileMaintenance only) is no exception. A /regex/ depcurfew
+    // does not run counts as matching, here and for the registries it reaches (decision D-200).
+    const { types, regex: typesRegex } = ruleUpdateTypes(bot, rule);
     if (types === undefined || types.length === 0) continue;
-    const found = registries.flatMap(({ target, ecosystem }) => {
+    const found = registries.flatMap(({ target, ecosystem }): { label: string; names: string[]; prefix: string; regex?: RefusedRegex }[] => {
       const prefix = POLICY_PREFIXES[ecosystem];
-      if (prefix === undefined || ruleReaches(bot, rule, target) !== true) return [];
+      const reach = prefix === undefined ? undefined : ruleReachesCounting(bot, rule, target);
+      if (prefix === undefined || reach?.reaches !== true) return [];
       const policy = patternsFor(cooldown.exclude, ecosystem);
       const names = positive.filter((pattern) => !exempted(bot, pattern, policy));
-      return names.length === 0 ? [] : [{ label: REGISTRY_LABELS[ecosystem], names, prefix }];
+      return names.length === 0 ? [] : [{ label: REGISTRY_LABELS[ecosystem], names, prefix, ...(reach.regex === undefined ? {} : { regex: reach.regex }) }];
     });
     if (found.length === 0) continue;
+    const regex = typesRegex ?? found.find((entry) => entry.regex !== undefined)?.regex;
+    const counting = regex === undefined ? '' : `, ${countedRegex(regex)}`;
     const names = [...new Set(found.flatMap((entry) => entry.names))];
     const quoted = listing(names.map((name) => JSON.stringify(name)));
     const labels = [...new Set(found.map((entry) => entry.label))];
@@ -398,15 +410,15 @@ function exemptions(
       location: { file, line },
       message:
         delay.minutes === 0
-          ? `packageRules[${index}] in ${file} turns off minimumReleaseAge for ${scope} (${where}), which cooldown.exclude in ${POLICY_FILE} does not exempt`
-          : `packageRules[${index}] in ${file} sets minimumReleaseAge: ${JSON.stringify(rule['minimumReleaseAge'])} for ${scope} (${where}), shorter than cooldown.minimum "${cooldown.minimum.text}" in ${POLICY_FILE}, which cooldown.exclude does not exempt them from`,
-      fix: own
+          ? `packageRules[${index}] in ${file} turns off minimumReleaseAge for ${scope} (${where}${counting}), which cooldown.exclude in ${POLICY_FILE} does not exempt`
+          : `packageRules[${index}] in ${file} sets minimumReleaseAge: ${JSON.stringify(rule['minimumReleaseAge'])} for ${scope} (${where}${counting}), shorter than cooldown.minimum "${cooldown.minimum.text}" in ${POLICY_FILE}, which cooldown.exclude does not exempt them from`,
+      fix: `${(own
         ? edits
           ? `Run depcurfew apply, which writes the rule from cooldown.exclude in ${POLICY_FILE}`
           : `Write packageRules[${index}] of ${file} as the snippet of depcurfew apply shows it, from cooldown.exclude in ${POLICY_FILE} (depcurfew apply does not edit ${file})`
         : labels.length === 1
           ? `${add} if these packages need no delay (${then('rule')}), or remove the exception from packageRules[${index}] of ${file}`
-          : `${add} if these packages need no delay (${then('rules')}), limit packageRules[${index}] of ${file} with ${matching.datasourceMatcher} to the registry it is meant for, or remove the exception from it`,
+          : `${add} if these packages need no delay (${then('rules')}), limit packageRules[${index}] of ${file} with ${matching.datasourceMatcher} to the registry it is meant for, or remove the exception from it`)}${regex === undefined ? '' : `; ${countedRegexFix(regex)}`}`,
     });
   }
 }

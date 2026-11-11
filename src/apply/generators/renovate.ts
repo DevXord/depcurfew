@@ -9,7 +9,20 @@
 // datasource at the front of packageRules gives it the policy's delay again (decision D-171).
 import { delayMinutes, formatMinutes } from '../../doctor/durations.ts';
 import { latestVersion } from '../../doctor/effective.ts';
-import { actionsTarget, botEcosystemTargets, managerTargets, presetDelays, presetIn, readRenovateConfig, renovateDelay, type RenovateConfig, type RenovateTarget } from '../../doctor/renovate.ts';
+import {
+  actionsTarget,
+  botEcosystemTargets,
+  countedRegex,
+  countedRegexFix,
+  managerTargets,
+  presetDelays,
+  presetIn,
+  readRenovateConfig,
+  renovateDelay,
+  type RefusedRegex,
+  type RenovateConfig,
+  type RenovateTarget,
+} from '../../doctor/renovate.ts';
 import { botEcosystemFacts } from '../../detect/bot-ecosystems.ts';
 import type { Ecosystem } from '../../knowledge/types.ts';
 import { convertCooldown } from '../../policy/convert.ts';
@@ -247,7 +260,7 @@ function shorterRules(context: Context, file: string, written: unknown, list: st
   const wanted = delayMinutes(tool, written, latestVersion(tool));
   if (!wanted.ok) return;
   const botLabels = new Map(botEcosystemFacts().map((entry) => [entry.id, entry.client]));
-  const found = new Map<number, { line: number; value: unknown; types: Set<string>; labels: Set<string> }>();
+  const found = new Map<number, { line: number; value: unknown; types: Set<string>; labels: Set<string>; regex?: RefusedRegex }>();
   for (const { target, label } of targets) {
     const delay = renovateDelay(tool, planned, target);
     if (!delay.known) continue;
@@ -258,6 +271,8 @@ function shorterRules(context: Context, file: string, written: unknown, list: st
       const entry = found.get(source.rule) ?? { line: source.line, value: source.value, types: new Set<string>(), labels: new Set<string>() };
       entry.types.add(type);
       entry.labels.add(label);
+      // A /regex/ depcurfew does not run, counted as matching (decision D-200).
+      if (source.regex !== undefined) entry.regex ??= source.regex;
       found.set(source.rule, entry);
     }
   }
@@ -273,8 +288,8 @@ function shorterRules(context: Context, file: string, written: unknown, list: st
     context.warn({
       code: 'bot-rule-shortens-delay',
       location: { file, line: entry.line },
-      message: `${context.name}: ${list}[${index}] in ${file} (line ${entry.line}) sets minimumReleaseAge: ${JSON.stringify(entry.value)} for ${scope} of ${listing(covered)}, shorter than the ${describe(wanted.minutes)} depcurfew apply writes for ${context.name}; ${context.name} uses the rule, and depcurfew apply does not change entries it did not write`,
-      fix: `Make minimumReleaseAge in ${list}[${index}] of ${file} at least ${describe(wanted.minutes)}, or limit the rule to the ${what} that need a shorter delay`,
+      message: `${context.name}: ${list}[${index}] in ${file} (line ${entry.line}) sets minimumReleaseAge: ${JSON.stringify(entry.value)} for ${scope} of ${listing(covered)}, shorter than the ${describe(wanted.minutes)} depcurfew apply writes for ${context.name}${entry.regex === undefined ? '' : ` (${countedRegex(entry.regex)})`}; ${context.name} uses the rule, and depcurfew apply does not change entries it did not write`,
+      fix: `Make minimumReleaseAge in ${list}[${index}] of ${file} at least ${describe(wanted.minutes)}, or limit the rule to the ${what} that need a shorter delay${entry.regex === undefined ? '' : `; ${countedRegexFix(entry.regex)}`}`,
     });
   }
 }

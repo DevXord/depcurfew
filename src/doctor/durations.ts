@@ -25,23 +25,47 @@ function word(unit: string): number | undefined {
   return MINUTES[unit.toLowerCase().replace(/s$/u, '')];
 }
 
+/** One number and one unit word, with the blanks around them (decision D-200). */
+const WORD_PART = /\s*(\d+)\s*([a-z]+)\s*/iuy;
+
+/**
+ * The numbers and unit words of a text made only of them and blanks ("1 day 12h", "3days"), in order; undefined for
+ * any other text. The parts are read one after the other from where the last one ended, so a long text that is not
+ * one (40,000 digits and "!") is read once; a search for (\d+)\s*([a-z]+) anywhere in it took seconds (decision D-200).
+ */
+export function durationWords(text: string): [string, string][] | undefined {
+  const parts: [string, string][] = [];
+  let at = 0;
+  while (at < text.length) {
+    WORD_PART.lastIndex = at;
+    const match = WORD_PART.exec(text);
+    if (match === null) return undefined;
+    parts.push([match[1] ?? '', match[2] ?? '']);
+    at = WORD_PART.lastIndex;
+  }
+  return parts.length === 0 ? undefined : parts;
+}
+
+/** A delay in the 'words' syntax ("1 day 12h"), in minutes; undefined for any other text. */
+export function wordsMinutes(text: string): number | undefined {
+  const parts = durationWords(text);
+  if (parts === undefined) return undefined;
+  let total = 0;
+  for (const [number, unit] of parts) {
+    const minutes = word(unit);
+    if (minutes === undefined) return undefined;
+    total += Number(number) * minutes;
+  }
+  return total;
+}
+
 const SYNTAX: Record<string, (text: string) => number | undefined> = {
   compact: (text) => {
     const match = /^(\d+)(ms|s|m|h|d|w)$/u.exec(text);
     return match === null ? undefined : Number(match[1]) * (MINUTES[match[2] ?? ''] ?? Number.NaN);
   },
   'compact-or-words': (text) => SYNTAX['compact']?.(text) ?? SYNTAX['words']?.(text),
-  words: (text) => {
-    const parts = [...text.matchAll(/(\d+)\s*([a-z]+)/giu)];
-    if (parts.length === 0 || parts.map((part) => part[0]).join(' ').replaceAll(/\s+/gu, '') !== text.replaceAll(/\s+/gu, '')) return undefined;
-    let total = 0;
-    for (const part of parts) {
-      const unit = word(part[2] ?? '');
-      if (unit === undefined) return undefined;
-      total += Number(part[1]) * unit;
-    }
-    return total;
-  },
+  words: (text) => wordsMinutes(text),
   // One number and one lowercase unit word, singular or plural (Composer's policy.cooldown.period).
   'unit-word': (text) => {
     const match = /^(\d+)\s*(second|minute|hour|day|week)s?$/u.exec(text);

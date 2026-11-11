@@ -14,11 +14,25 @@ import { coversActions, coversBotEcosystems } from '../../apply/targets.ts';
 import { isOwnRule } from '../../apply/generators/renovate.ts';
 import { pinnedVersion } from '../../apply/version.ts';
 import { botEcosystemFact, ownDelayText } from '../../detect/bot-ecosystems.ts';
+import { directoryGlob } from '../../detect/wildcard.ts';
+import { trimTrailing } from '../../trim.ts';
 import type { BotEcosystemInfo, PackageManagerId, PackageManagerInfo } from '../../detect/types.ts';
 import type { BotOnlyEcosystemId, ToolKnowledge } from '../../knowledge/types.ts';
 import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion, managerDelay, versionedValue, type Delay } from '../effective.ts';
-import { actionsTarget, botEcosystemTargets, managerTargets, readRenovateConfig, renovateDelay, type RenovateTarget, type UnreadableRule, type UpdateType } from '../renovate.ts';
+import {
+  actionsTarget,
+  botEcosystemTargets,
+  countedRegexFix,
+  managerTargets,
+  readRenovateConfig,
+  refusedRegexAdvice,
+  renovateDelay,
+  type RefusedRegex,
+  type RenovateTarget,
+  type UnreadableRule,
+  type UpdateType,
+} from '../renovate.ts';
 import { jsonSetting, rejectsYamlAliases, yamlAliasLine, yamlSetting } from '../settings.ts';
 import { inProject } from '../../apply/projects.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
@@ -46,6 +60,8 @@ interface BotDelay extends Delay {
   rule?: number;
   /** That entry is one depcurfew apply writes (Renovate, decision D-171). */
   ownRule?: true;
+  /** That entry sets the delay only when a /regex/ depcurfew does not run matches, which it counts as matching (D-200). */
+  regex?: RefusedRegex;
   /** The built-in preset of extends that sets this delay, with the datasource of its rule (Renovate, decision D-171). */
   preset?: { name: string; datasource: string; value: unknown };
   /** A preset depcurfew cannot read may set the delay; the repository itself sets none (Renovate). */
@@ -212,6 +228,7 @@ function renovateDelays(context: RuleContext, bot: ToolKnowledge, file: string):
         scope: types.length === updateTypes.length ? scopeOf(target, 'updates') : `${listing(types)} ${scopeOf(target, 'updates')}`,
         applies,
         ...(source?.rule === undefined ? {} : { rule: source.rule }),
+        ...(source?.regex === undefined ? {} : { regex: source.regex }),
         ...(source?.rule !== undefined && isOwnRule(config.rules.find((entry) => entry.index === source.rule)?.rule['description']) ? { ownRule: true as const } : {}),
         ...(source?.preset === undefined ? {} : { preset: { ...source.preset, value: source.value } }),
         ...(index === 0 && delay.unreadable.length > 0 ? { unreadableRules: delay.unreadable } : {}),
@@ -326,16 +343,24 @@ function projectBotNotes(context: RuleContext, views: readonly ProjectView[]): v
 }
 
 /** Whether a directory of a Dependabot updates entry names the project: the same path, or a glob of directories that matches it. */
-function namesDirectory(entry: string, project: string, globs: boolean): boolean {
-  const trimmed = entry.replace(/^\/+/u, '').replace(/\/+$/u, '');
-  if (!globs || !trimmed.includes('*')) return trimmed === project;
+export function namesDirectory(entry: string, project: string, globs: boolean): boolean {
+  return directoryMatcher(entry, globs)(project);
+}
+
+/** The matchers of the directories read last, so that a long glob is read once for all projects (decision D-200). */
+const directoryMatchers = new Map<string, (project: string) => boolean>();
+
+function directoryMatcher(entry: string, globs: boolean): (project: string) => boolean {
+  const key = `${globs ? 'g' : 'p'}${entry}`;
+  const known = directoryMatchers.get(key);
+  if (known !== undefined) return known;
+  const trimmed = trimTrailing(entry.replace(/^\/+/u, ''), '/');
   // How Dependabot matches a glob is not documented: ** for any depth, * within one directory (a guess that errs
   // towards a match, so that no warning is given for a directory Dependabot may well update).
-  const pattern = trimmed
-    .split('**')
-    .map((part) => part.split('*').map((piece) => piece.replace(/[.+?^${}()|[\]\\]/gu, '\\$&')).join('[^/]*'))
-    .join('.*');
-  return new RegExp(`^${pattern}$`, 'u').test(project);
+  const matcher = !globs || !trimmed.includes('*') ? (project: string) => trimmed === project : directoryGlob(trimmed);
+  if (directoryMatchers.size >= 256) directoryMatchers.clear();
+  directoryMatchers.set(key, matcher);
+  return matcher;
 }
 
 /**
@@ -526,7 +551,9 @@ function compare(context: RuleContext, delay: BotDelay, reference: Reference): b
       fix:
         rule.unmodelled === true
           ? `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe(reference.minutes)}; depcurfew does not evaluate ${rule.matcher}, so this note stays while the rule sets a shorter delay`
-          : `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe(reference.minutes)}, or write its ${rule.matcher} with names, * or /regex/ patterns, which depcurfew reads`,
+          : rule.regex !== undefined
+            ? `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe(reference.minutes)}, or rewrite the pattern with names, globs or a /regex/ that depcurfew runs; ${refusedRegexAdvice(rule.regex)}`
+            : `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe(reference.minutes)}, or write its ${rule.matcher} with names, * or /regex/ patterns, which depcurfew reads`,
     });
   }
   // A packageRules entry that turns the delay off for every package is reported by broad-exclusion.
@@ -540,7 +567,7 @@ function compare(context: RuleContext, delay: BotDelay, reference: Reference): b
       (delay.preset !== undefined
         ? presetFix(context, delay, delay.preset, reference)
         : delay.rule !== undefined && delay.ownRule !== true
-          ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe(reference.minutes)}, or limit the rule to the ${reference.things} that need a shorter delay`
+          ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe(reference.minutes)}, or limit the rule to the ${reference.things} that need a shorter delay${delay.regex === undefined ? '' : `; ${countedRegexFix(delay.regex)}`}`
           : delay.applies === false
             ? `Make the ${delay.bot.name} delay at least ${describe(reference.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)`
             : `Make the ${delay.bot.name} delay at least ${describe(reference.minutes)}, or run depcurfew apply`),
