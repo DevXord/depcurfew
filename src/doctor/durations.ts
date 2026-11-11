@@ -25,23 +25,37 @@ function word(unit: string): number | undefined {
   return MINUTES[unit.toLowerCase().replace(/s$/u, '')];
 }
 
-/** One number and one unit word, with the blanks around them (decision D-200). */
-const WORD_PART = /\s*(\d+)\s*([a-z]+)\s*/iuy;
+// The characters of one number and one unit word, as \s, \d and [a-z] with the flags i and u read them: case folding
+// lets [a-z] match the Kelvin sign and the long s too (decision D-200).
+const BLANK = /^\s$/u;
+const DIGIT = /^\d$/u;
+const LETTER = /^[a-z]$/iu;
+
+/** Where the run of characters that `kind` accepts ends, from `at`. */
+function runEnd(text: string, at: number, kind: RegExp): number {
+  let end = at;
+  while (end < text.length && kind.test(text[end] ?? '')) end++;
+  return end;
+}
 
 /**
  * The numbers and unit words of a text made only of them and blanks ("1 day 12h", "3days"), in order; undefined for
- * any other text. The parts are read one after the other from where the last one ended, so a long text that is not
- * one (40,000 digits and "!") is read once; a search for (\d+)\s*([a-z]+) anywhere in it took seconds (decision D-200).
+ * any other text. The text is read once, one character at a time: blanks, digits, blanks, letters, blanks, again and
+ * again, as the pattern \s*(\d+)\s*([a-z]+)\s* read from where the last part ended; a search for (\d+)\s*([a-z]+)
+ * anywhere in it took seconds on 40,000 digits and "!" (decision D-200).
  */
 export function durationWords(text: string): [string, string][] | undefined {
   const parts: [string, string][] = [];
   let at = 0;
   while (at < text.length) {
-    WORD_PART.lastIndex = at;
-    const match = WORD_PART.exec(text);
-    if (match === null) return undefined;
-    parts.push([match[1] ?? '', match[2] ?? '']);
-    at = WORD_PART.lastIndex;
+    const numberStart = runEnd(text, at, BLANK);
+    const numberEnd = runEnd(text, numberStart, DIGIT);
+    if (numberEnd === numberStart) return undefined;
+    const unitStart = runEnd(text, numberEnd, BLANK);
+    const unitEnd = runEnd(text, unitStart, LETTER);
+    if (unitEnd === unitStart) return undefined;
+    parts.push([text.slice(numberStart, numberEnd), text.slice(unitStart, unitEnd)]);
+    at = runEnd(text, unitEnd, BLANK);
   }
   return parts.length === 0 ? undefined : parts;
 }

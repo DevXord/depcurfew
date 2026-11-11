@@ -22782,7 +22782,7 @@ function jsonSetting(text, path) {
 		line: offset === void 0 ? 1 : lineAt$1(text, offset)
 	};
 }
-const BLANK$1 = /\s/u;
+const BLANK$2 = /\s/u;
 const LINE_TERMINATORS = [
 	"\n",
 	"\r",
@@ -22797,10 +22797,10 @@ const LINE_TERMINATORS = [
 function withoutTomlComment(raw) {
 	const last = Math.max(...LINE_TERMINATORS.map((terminator) => raw.lastIndexOf(terminator)));
 	let hash = raw.indexOf("#", last + 1);
-	while (hash !== -1 && !(hash > 0 && BLANK$1.test(raw[hash - 1] ?? ""))) hash = raw.indexOf("#", hash + 1);
+	while (hash !== -1 && !(hash > 0 && BLANK$2.test(raw[hash - 1] ?? ""))) hash = raw.indexOf("#", hash + 1);
 	if (hash === -1) return raw;
 	let start = hash - 1;
-	while (start > 0 && BLANK$1.test(raw[start - 1] ?? "")) start -= 1;
+	while (start > 0 && BLANK$2.test(raw[start - 1] ?? "")) start -= 1;
 	return raw.slice(0, start);
 }
 function tomlScalar(raw) {
@@ -27463,22 +27463,33 @@ const UNIT_MINUTES = {
 function word(unit) {
 	return MINUTES$2[unit.toLowerCase().replace(/s$/u, "")];
 }
-/** One number and one unit word, with the blanks around them (decision D-200). */
-const WORD_PART = /\s*(\d+)\s*([a-z]+)\s*/iuy;
+const BLANK$1 = /^\s$/u;
+const DIGIT = /^\d$/u;
+const LETTER = /^[a-z]$/iu;
+/** Where the run of characters that `kind` accepts ends, from `at`. */
+function runEnd(text, at, kind) {
+	let end = at;
+	while (end < text.length && kind.test(text[end] ?? "")) end++;
+	return end;
+}
 /**
 * The numbers and unit words of a text made only of them and blanks ("1 day 12h", "3days"), in order; undefined for
-* any other text. The parts are read one after the other from where the last one ended, so a long text that is not
-* one (40,000 digits and "!") is read once; a search for (\d+)\s*([a-z]+) anywhere in it took seconds (decision D-200).
+* any other text. The text is read once, one character at a time: blanks, digits, blanks, letters, blanks, again and
+* again, as the pattern \s*(\d+)\s*([a-z]+)\s* read from where the last part ended; a search for (\d+)\s*([a-z]+)
+* anywhere in it took seconds on 40,000 digits and "!" (decision D-200).
 */
 function durationWords(text) {
 	const parts = [];
 	let at = 0;
 	while (at < text.length) {
-		WORD_PART.lastIndex = at;
-		const match = WORD_PART.exec(text);
-		if (match === null) return void 0;
-		parts.push([match[1] ?? "", match[2] ?? ""]);
-		at = WORD_PART.lastIndex;
+		const numberStart = runEnd(text, at, BLANK$1);
+		const numberEnd = runEnd(text, numberStart, DIGIT);
+		if (numberEnd === numberStart) return void 0;
+		const unitStart = runEnd(text, numberEnd, BLANK$1);
+		const unitEnd = runEnd(text, unitStart, LETTER);
+		if (unitEnd === unitStart) return void 0;
+		parts.push([text.slice(numberStart, numberEnd), text.slice(unitStart, unitEnd)]);
+		at = runEnd(text, unitEnd, BLANK$1);
 	}
 	return parts.length === 0 ? void 0 : parts;
 }
