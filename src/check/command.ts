@@ -43,6 +43,7 @@ import type {
   PythonSelectionKnowledge,
   RegistryOverridesKnowledge,
   RunnerOptionsKnowledge,
+  SharedRunKnowledge,
   SelectionSwitches,
   ToolId,
 } from '../knowledge/types.ts';
@@ -825,6 +826,8 @@ interface ToolCommands {
   links: readonly (readonly string[])[];
   /** Options that take a value only in the add commands or only in the download commands, or only from a version on (decision D-201). */
   optionValues: { add: ReadonlyMap<string, OptionValues>; run: ReadonlyMap<string, OptionValues> };
+  /** Run commands under a program name another tool installs too, read only with a prefixed first argument (dnx; decision D-208). */
+  sharedRuns: readonly SharedRunKnowledge[];
 }
 
 interface Commands {
@@ -835,6 +838,8 @@ interface Commands {
   executables: ReadonlySet<string>;
   /** Other names of the package managers' programs, each with the program it is: pnpm's pn (decision D-193). */
   executableAliases: ReadonlyMap<string, string>;
+  /** Programs that only shared run commands name (dnx), with those commands (decision D-208). */
+  sharedPrograms: ReadonlyMap<string, readonly SharedRunKnowledge[]>;
   /** Executables of the npm package managers, which npm installs on Windows as .cmd shims. */
   npmExecutables: ReadonlySet<string>;
   /** Last words of every install, run and create command, to spot them behind an executable the shell expands. */
@@ -970,6 +975,7 @@ function commands(): Commands {
             runnerOptions: factOf<RunnerOptionsKnowledge>(tool, sibling(key, 'runnerOptions')),
             links: factOf<string[][]>(tool, sibling(key, 'linkCommands')) ?? [],
             optionValues: optionValueTables(optionValues),
+            sharedRuns: factOf<SharedRunKnowledge[]>(tool, sibling(key, 'sharedRuns')) ?? [],
           },
         ];
       }),
@@ -983,7 +989,13 @@ function commands(): Commands {
   }
   // npm link and pipx runpip install packages as well (decision D-172).
   const all = tools.flatMap(({ facts, links }) => [...facts.add, ...links, ...(facts.passOn ?? []).map((entry) => entry.command), ...[...facts.create, ...facts.run].map((entry) => entry.command)]);
-  const executables = new Set(all.map((entry) => entry[0] ?? ''));
+  const ownExecutables = new Set(all.map((entry) => entry[0] ?? ''));
+  const sharedPrograms = new Map<string, SharedRunKnowledge[]>();
+  for (const entry of tools.flatMap((tool) => tool.sharedRuns)) {
+    const program = entry.command[0] ?? '';
+    if (!ownExecutables.has(program)) sharedPrograms.set(program, [...(sharedPrograms.get(program) ?? []), entry]);
+  }
+  const executables = new Set([...ownExecutables, ...sharedPrograms.keys()]);
   const overrides = tools.flatMap((tool) => {
     const source = knowledgeBase.find((entry) => entry.id === tool.tool);
     return source === undefined
@@ -1001,6 +1013,7 @@ function commands(): Commands {
     tools,
     add: new Set(npmTools.flatMap(({ facts }) => facts.add.map((entry) => entry.at(-1) ?? ''))),
     executables,
+    sharedPrograms,
     executableAliases: new Map(knowledgeBase.flatMap((tool) => Object.entries(factOf<ExecutableAliasesKnowledge>(tool, 'executableAliases') ?? {}))),
     npmExecutables: new Set(npmTools.flatMap(({ facts }) => [...facts.add, ...[...facts.create, ...facts.run].map((entry) => entry.command)].map((entry) => entry[0] ?? ''))),
     installWords: new Set(all.map((entry) => entry.at(-1) ?? '')),
@@ -2070,7 +2083,11 @@ function finish(
 /** A package manager, shell or wrapper further along the words, run by a command depcurfew does not know (strace, find -exec). */
 function laterCommand(words: readonly Word[], depth: number): CommandScan {
   const { runners } = commands();
-  const index = words.findIndex((word) => !word.dynamic && runners.has(executableOf(word.text)));
+  const index = words.findIndex((word, at) => {
+    if (word.dynamic) return false;
+    const name = executableOf(word.text);
+    return runners.has(name) && !sharedRunDeclines(name, words[at + 1]);
+  });
   if (index === -1) return NOTHING;
   let later = words.slice(index);
   const action = words.slice(0, index).findLast((word) => !word.dynamic && FIND_EXEC.has(word.text));
@@ -2087,6 +2104,20 @@ function laterCommand(words: readonly Word[], depth: number): CommandScan {
     for (const entry of [...scan.requests, ...(scan.overrides ?? [])]) entry.directory = { unknown: reason };
   }
   return scan;
+}
+
+/** Whether a run command under a program name another tool installs too names a package of the tool: the next word has one of its prefixes (decision D-208). */
+function sharedRunApplies(entry: SharedRunKnowledge, next: Word | undefined): boolean {
+  return next !== undefined && entry.prefixes.some((prefix) => next.text.startsWith(prefix));
+}
+
+/**
+ * Whether `executable` is only a program name another tool installs too and the word after it does not make it a
+ * package manager's (grep dnx notes.txt; decision D-208).
+ */
+function sharedRunDeclines(executable: string, next: Word | undefined): boolean {
+  const shared = commands().sharedPrograms.get(executable);
+  return shared !== undefined && !shared.some((entry) => sharedRunApplies(entry, next));
 }
 
 /** The commands in the input of a command that runs it as commands: a here-document or here-string is known, a pipe or a file is not. */
@@ -3872,7 +3903,7 @@ function ownedBy(tool: ToolCommands): ReadonlySet<string> {
   let owned = OWNED.get(tool);
   if (owned === undefined) {
     const { facts } = tool;
-    owned = new Set([...facts.add, ...facts.run.map((entry) => entry.command), ...facts.create.map((entry) => entry.command)].map((entry) => entry[0] ?? ''));
+    owned = new Set([...facts.add, ...facts.run.map((entry) => entry.command), ...facts.create.map((entry) => entry.command), ...tool.sharedRuns.map((entry) => entry.command)].map((entry) => entry[0] ?? ''));
     OWNED.set(tool, owned);
   }
   return owned;
@@ -4022,6 +4053,14 @@ function directoryOfFile(path: string): string {
 function scanToolCommand(tool: ToolCommands, command: SimpleCommand, first: Word, executable: string, rest: readonly Word[], line: string, depth: number): CommandScan | undefined {
   const { add } = commands();
   const { facts } = tool;
+  // dnx is the .NET SDK's tool runner unless an npm: or jsr: spec follows it, which no NuGet ID can be (decision D-208).
+  const shared = tool.sharedRuns.find((entry) => entry.command.length === 1 && entry.command[0] === executable);
+  if (shared !== undefined) {
+    const entry = sharedRunApplies(shared, rest[0]) ? facts.run.find((item) => sameCommand(item.command, shared.runs)) : undefined;
+    if (entry === undefined) return undefined;
+    const context = contextOf(tool, entry.command);
+    return finish(tool, line, readArguments(rest, 'run', tool, entry, context), depth, [], context);
+  }
   const run = facts.run.find((entry) => entry.command.length === 1 && entry.command[0] === executable);
   if (run !== undefined) {
     const context = contextOf(tool, run.command);

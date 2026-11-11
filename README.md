@@ -366,7 +366,7 @@ What depcurfew configures and checks for each tool, from its [knowledge base](ht
 | pnpm | `minimumReleaseAge` in `pnpm-workspace.yaml` (minutes), since 10.16.0 | `minimumReleaseAgeExclude`, since 10.16.0 | `allowBuilds` in `pnpm-workspace.yaml` | git: `blockExoticSubdeps`<br>remote tarball: `blockExoticSubdeps` | 2026-10-28 – 2026-11-09 |
 | Yarn (Berry) | `npmMinimalAgeGate` in `.yarnrc.yml` (minutes), since 4.10.2 | `npmPreapprovedPackages`, since 4.10.0 | `dependenciesMeta.<package>.built` in `package.json` | git: `approvedGitRepositories` | 2026-10-28 – 2026-11-03 |
 | Bun | `install.minimumReleaseAge` in `bunfig.toml` (seconds), since 1.3.0 | `install.minimumReleaseAgeExcludes`, since 1.3.0 | `trustedDependencies` in `package.json` | none | 2026-10-28 – 2026-11-11 |
-| Deno | `minimumDependencyAge` in `deno.json` (minutes) or `min-release-age` in `.npmrc` (days), since 2.5.5 / 2.6.0 ⚠️ | `minimumDependencyAge.exclude`, since 2.5.5 | `allowScripts` in `deno.json` | none | 2026-10-28 – 2026-11-03 |
+| Deno | `minimumDependencyAge` in `deno.json` (minutes) or `min-release-age` in `.npmrc` (days), since 2.5.5 / 2.6.0 ⚠️ | `minimumDependencyAge.exclude`, since 2.5.5 | `allowScripts` in `deno.json` | none | 2026-10-28 – 2026-11-11 |
 | uv | `exclude-newer` in `uv.toml`, `pyproject.toml` (duration string), since 0.9.17 | `exclude-newer-package`, since 0.9.25 | `no-binary-package` in `pyproject.toml` | none | 2026-10-30 – 2026-11-09 |
 | pip | `uploaded-prior-to` (days) on the command line or in the environment, no project file, since 26.1.0 | none | `--no-binary` in `requirements.txt` | none | 2026-10-30 – 2026-11-11 |
 | Poetry | `solver.min-release-age` in `poetry.toml` (days), since 2.4.0 | `solver.min-release-age-exclude`, since 2.4.0 | `installer.no-binary` in `poetry.toml` | none | 2026-10-30 – 2026-11-03 |
@@ -1024,7 +1024,7 @@ Commands the guard reads (an add subcommand of any npm package manager, such as 
 | pnpm | `pnpm add`, `pn add` | `pnx`, `pnpx`, `pnpm dlx`, `pn dlx` | `pnpm create`, `pn create` |
 | Yarn (Berry) | `yarn add` | `yarn dlx` | `yarn create` |
 | Bun | `bun add`, `bun a` | `bunx`, `bun x` | `bun create`, `bun c` |
-| Deno | `deno add`, `deno install` | `deno x`, `dx`, `denox`, `dnx` | none |
+| Deno | `deno add`, `deno install` | `deno x`, `dx`, `denox` | none |
 | uv | `uv add`, `uv pip install`, `uv tool install` | `uvx`, `uv tool run`, `uv run` | none |
 | pip | `pip install`, `pip3 install` | none | none |
 | pipx | `pipx install`, `pipx inject` | `pipx run` | none |
@@ -1032,6 +1032,8 @@ Commands the guard reads (an add subcommand of any npm package manager, such as 
 | PDM | `pdm add` | none | none |
 | Pipenv | `pipenv install` | none | none |
 | Composer | `composer require`, `composer r`, `composer global require`, `composer global r` | none | `composer create-project` |
+
+`dnx` counts for Deno as `deno x` only when the word right after it is an `npm:` or `jsr:` spec (`dnx npm:cowsay`); any other `dnx` line is the tool runner of the .NET SDK (10.0.100 and later), which, like `dotnet dnx`, `dotnet tool exec` and `dotnet tool execute`, gets no decision, as depcurfew does not look NuGet tools up yet.
 <!-- END GENERATED: claude-code-hook -->
 
 The hook reads commands the way a shell splits them, but it is a safety net, not a sandbox: a command can install packages in ways it does not recognize (a script, another tool). Keep the package manager configuration from `depcurfew apply` in place; it is what enforces the policy for every install.

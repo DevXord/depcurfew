@@ -1801,6 +1801,7 @@ const leftovers$4 = verifiedOn("2026-11-01");
 const osvFacts$1 = verifiedOn("2026-11-02");
 const d170$8 = verifiedOn("2026-11-03");
 const d167$4 = verifiedOn("2026-11-03");
+const d208$1 = verifiedOn("2026-11-11");
 const DENO_V2_9_8 = "https://github.com/denoland/deno/blob/v2.9.8";
 const NPMRC_PARSER = `${DENO_V2_9_8}/libs/npmrc/lib.rs`;
 const X_VALUE_OPTIONS = [
@@ -1957,11 +1958,6 @@ const deno$1 = {
 					command: ["denox"],
 					packageOptions: ["--package", "-p"],
 					binaryPath: true
-				},
-				{
-					command: ["dnx"],
-					packageOptions: ["--package", "-p"],
-					binaryPath: true
 				}
 			],
 			create: [],
@@ -1988,13 +1984,14 @@ const deno$1 = {
 				{
 					command: ["denox"],
 					valueOptions: X_VALUE_OPTIONS
-				},
-				{
-					command: ["dnx"],
-					valueOptions: X_VALUE_OPTIONS
 				}
 			]
-		}, "https://github.com/denoland/docs/tree/74beb7585f7e798fe0bc8d867295bff23fc2e38e/runtime/reference/cli", "install.md: deno install [PACKAGES] installs packages and adds them to deno.json or package.json, deno add is its alias, deno install --global installs a package or script as a binary, and deno install --entrypoint (-e) [FILES] installs what the files use. -n/--name, --root, --os and --arch take a value; --allow-scripts and --node-modules-dir are shown with =. Since Deno 2.8 a name without a prefix is an npm package; JSR packages need jsr: (add.md). x.md: deno x runs a package from npm or JSR without installing it, like npx (deno x npm:create-vite my-app); --package (-p) names the package when the binary differs (deno x -p typescript tsc), and npm:<package>/<binary> picks one binary; deno x --install-alias creates the dx alias. In Deno 2.9.8 (github.com/denoland/deno, cli/args/flags.rs) an executable whose name ends in dx, denox or dnx runs as deno x, and libs/cli_parser/src/defs.rs (X_SUBCOMMAND with COMPILE_ARGS, PERMISSION_ARGS, RUNTIME_MISC_ARGS and INSPECT_ARGS) gives the options of deno x that take a separate value; the permission flags take theirs after =. -L/--log-level is a global option with a value."),
+		}, "https://github.com/denoland/docs/tree/74beb7585f7e798fe0bc8d867295bff23fc2e38e/runtime/reference/cli", "install.md: deno install [PACKAGES] installs packages and adds them to deno.json or package.json, deno add is its alias, deno install --global installs a package or script as a binary, and deno install --entrypoint (-e) [FILES] installs what the files use. -n/--name, --root, --os and --arch take a value; --allow-scripts and --node-modules-dir are shown with =. Since Deno 2.8 a name without a prefix is an npm package; JSR packages need jsr: (add.md). x.md: deno x runs a package from npm or JSR without installing it, like npx (deno x npm:create-vite my-app); --package (-p) names the package when the binary differs (deno x -p typescript tsc), and npm:<package>/<binary> picks one binary; deno x --install-alias creates the dx alias. In Deno 2.9.8 (github.com/denoland/deno, cli/args/flags.rs) an executable whose name ends in dx, denox or dnx runs as deno x; dnx is not listed here, as the .NET SDK installs its own dnx (sharedRuns; decision D-208). In 2.9.8 libs/cli_parser/src/defs.rs (X_SUBCOMMAND with COMPILE_ARGS, PERMISSION_ARGS, RUNTIME_MISC_ARGS and INSPECT_ARGS) gives the options of deno x that take a separate value; the permission flags take theirs after =. -L/--log-level is a global option with a value."),
+		sharedRuns: d208$1.verified([{
+			command: ["dnx"],
+			runs: ["deno", "x"],
+			prefixes: ["npm:", "jsr:"]
+		}], `${DENO_V2_9_8}/cli/args/flags.rs`, "Lines 705-710: \"dx/denox/dnx shim: rewrite the binary name into an explicit `x` subcommand\" when the name of the binary ends in dx, denox or dnx. Deno itself creates only the alias deno x --install-alias asks for, dx by default (\"Creates a dx alias so you can run dx <command> instead of deno x <command>\", install-alias with default_value(\"dx\") in libs/cli_parser/src/defs.rs at v2.9.8; runtime/reference/cli/x.md in denoland/docs at 74beb7585f7e798fe0bc8d867295bff23fc2e38e shows dx and --install-alias=denox), so a dnx of Deno is one a user made. The .NET SDK installs dnx next to dotnet since 10.0.100 (environment.botOnlyEcosystems.nuget.toolRunner). deno x runs npm:<package> and jsr:<package> specs (x.md), and a NuGet package ID holds no colon, so a dnx line whose first argument starts with npm: or jsr: is read as deno x and any other dnx line as no package manager's (decision D-208)."),
 		lockfileFormat: osvFacts$1.verified({
 			installScripts: "scripts",
 			installScriptsSinceLockfile: "5",
@@ -7832,6 +7829,7 @@ const osv = {
 // src/knowledge/bot-ecosystems.ts
 const { verified: verified$1, uncertain } = verifiedOn("2026-11-03");
 const dotnet11 = verifiedOn("2026-11-11");
+const d208 = verifiedOn("2026-11-11");
 const CARGO = "https://github.com/rust-lang/cargo/blob";
 const GRADLE_DOCS = "https://github.com/gradle/gradle/blob/v9.8.2/platforms/documentation/docs/src/docs";
 const NUGET_DOCS = "https://github.com/NuGet/docs.microsoft.com-nuget/blob/main/docs";
@@ -7913,7 +7911,26 @@ const botOnlyEcosystems = {
 			selectedBy: ["dotnet package add", "dotnet package update"],
 			ignoredBy: "the 10.0 SDKs and earlier",
 			file: "nuget.config"
-		}, `${NUGET_DOCS_D205}/consume-packages/minimum-package-publish-age.md`, "Minimum package publish age \"is available starting with NuGet 8.0, .NET SDK 11.0.100, and Visual Studio 18.12\" and is set with the minPublishAgeHours attribute of a source in packageSources of nuget.config, in whole hours (reference/nuget-config-file.md: whole numbers from 0 through 256204778, default 0). It covers only the automatic version choice: \"When dotnet package add and dotnet package update select the latest version for you, they exclude versions that haven't reached the source's minimum publish age\"; \"Explicitly requesting a version bypasses automatic age filtering\"; \"Ordinary package restore doesn't check minimum publish age\", which \"also applies to transitive dependencies\"; and restore fails with NU1020 for a floating version, such as 1.2.*, when an applicable source has a nonzero age and the package is not excepted (reference/errors-and-warnings/nu1020.md). The page names no other command that filters versions. Still open in NuGet/Home are the issues for dotnet package list (https://github.com/NuGet/Home/issues/15029), dotnet package search (https://github.com/NuGet/Home/issues/15030), the Package Manager Console of Visual Studio (https://github.com/NuGet/Home/issues/15033) and its Package Manager UI (https://github.com/NuGet/Home/issues/15034); dotnet tool, dnx and dotnet new install are not documented as covered. The pages were read at commit 2f8406a736ab57c51caffa4701fc21fb7f141c1b of main; the live branch, from which learn.microsoft.com is published, has the same minimum-package-publish-age.md and nu1020.md at e62116dc63c026b36434e1d28d9557e4c0e91912 (2026-11-11; learn.microsoft.com itself was not checked). .NET 11.0.0 was released on 2026-11-10 with SDK 11.0.100 and Visual Studio 18.12.0 (release-notes/11.0/releases.json at https://github.com/dotnet/core/blob/ff6107d71eb826353b4e577cfd0c88fe703aa5b5/release-notes/11.0/releases.json). The v11.0.100 tag of dotnet/dotnet builds NuGet 8.0.0 (https://github.com/dotnet/dotnet/blob/v11.0.100/src/nuget-client/build/config.props) from nuget-client commit f1c3fba23859095e1b9261e935c8c7b1e1642a85 (src/source-manifest.json), whose ConfigurationContants.cs names minPublishAgeHours; the prerelease tag v11.0.100-rc.3.26522.148 already builds NuGet 8.0.0 from nuget-client commit 684427012e25096073d04a7643a9d43dc1f2091d, which names it too, so only the 10.0 SDKs and earlier are named as ignoring it (ignoredBy); at v10.0.404, the latest 10.0 SDK, NuGet is 7.9.0 and its configuration code has no such name, so it keeps the attribute without reading it (AddItem.cs stores unknown attributes).")
+		}, `${NUGET_DOCS_D205}/consume-packages/minimum-package-publish-age.md`, "Minimum package publish age \"is available starting with NuGet 8.0, .NET SDK 11.0.100, and Visual Studio 18.12\" and is set with the minPublishAgeHours attribute of a source in packageSources of nuget.config, in whole hours (reference/nuget-config-file.md: whole numbers from 0 through 256204778, default 0). It covers only the automatic version choice: \"When dotnet package add and dotnet package update select the latest version for you, they exclude versions that haven't reached the source's minimum publish age\"; \"Explicitly requesting a version bypasses automatic age filtering\"; \"Ordinary package restore doesn't check minimum publish age\", which \"also applies to transitive dependencies\"; and restore fails with NU1020 for a floating version, such as 1.2.*, when an applicable source has a nonzero age and the package is not excepted (reference/errors-and-warnings/nu1020.md). The page names no other command that filters versions. Still open in NuGet/Home are the issues for dotnet package list (https://github.com/NuGet/Home/issues/15029), dotnet package search (https://github.com/NuGet/Home/issues/15030), the Package Manager Console of Visual Studio (https://github.com/NuGet/Home/issues/15033) and its Package Manager UI (https://github.com/NuGet/Home/issues/15034); dotnet tool, dnx and dotnet new install are not documented as covered. The pages were read at commit 2f8406a736ab57c51caffa4701fc21fb7f141c1b of main; the live branch, from which learn.microsoft.com is published, has the same minimum-package-publish-age.md and nu1020.md at e62116dc63c026b36434e1d28d9557e4c0e91912 (2026-11-11; learn.microsoft.com itself was not checked). .NET 11.0.0 was released on 2026-11-10 with SDK 11.0.100 and Visual Studio 18.12.0 (release-notes/11.0/releases.json at https://github.com/dotnet/core/blob/ff6107d71eb826353b4e577cfd0c88fe703aa5b5/release-notes/11.0/releases.json). The v11.0.100 tag of dotnet/dotnet builds NuGet 8.0.0 (https://github.com/dotnet/dotnet/blob/v11.0.100/src/nuget-client/build/config.props) from nuget-client commit f1c3fba23859095e1b9261e935c8c7b1e1642a85 (src/source-manifest.json), whose ConfigurationContants.cs names minPublishAgeHours; the prerelease tag v11.0.100-rc.3.26522.148 already builds NuGet 8.0.0 from nuget-client commit 684427012e25096073d04a7643a9d43dc1f2091d, which names it too, so only the 10.0 SDKs and earlier are named as ignoring it (ignoredBy); at v10.0.404, the latest 10.0 SDK, NuGet is 7.9.0 and its configuration code has no such name, so it keeps the attribute without reading it (AddItem.cs stores unknown attributes)."),
+		toolRunner: d208.verified({
+			executables: ["dnx"],
+			since: "10.0.100",
+			product: ".NET SDK",
+			runs: [
+				["dotnet", "dnx"],
+				[
+					"dotnet",
+					"tool",
+					"exec"
+				],
+				[
+					"dotnet",
+					"tool",
+					"execute"
+				]
+			],
+			packageId: "^\\w+([.-]\\w+)*$"
+		}, "https://github.com/dotnet/sdk/blob/v10.0.100/src/Layout/redist/dnx", "The script dnx runs \"$(dirname \"$0\")/dotnet\" dnx \"$@\", and dnx.cmd runs \"%~dp0dotnet.exe\" dnx %*, the same at v11.0.100; the LayoutDnxShim target of src/Layout/redist/targets/GenerateInstallerLayout.targets copies the one for the platform into the layout and into the root dotnet folder (\"which will map to DOTNETHOME\"), at v10.0.100 and v11.0.100; v9.0.100 and v9.0.300 have no dnx. dotnet dnx is a hidden command with the arguments and options of dotnet tool execute, whose alias is exec, and runs it (src/Cli/dotnet/Commands/Dnx/DnxCommandParser.cs and Tool/Execute/ToolExecuteCommandParser.cs at v10.0.100). dotnet/docs docs/core/tools/dotnet-tool-exec.md at commit cbcb05470e3f7ff6e144ac3d2d696d304cf73120, lines 44-45: \"dotnet dnx - A hidden alias for dotnet tool exec\" and \"dnx - A shell script that invokes dotnet dnx from the SDK. This script is provided by the installer and is available on PATH\"; the tool is a NuGet package ID, optionally with @<version>. Package IDs match ^\\w+([.-]\\w+)*$ (IdRegex in src/nuget-client/src/NuGet.Core/NuGet.Packaging/PackageCreation/Utility/PackageIdValidator.cs, lines 17-18, at v11.0.100 of dotnet/dotnet, the same at v10.0.100), so no ID holds a colon. depcurfew does not look NuGet packages up, so the hook gives these commands no decision (decision D-208).")
 	}
 };
 
