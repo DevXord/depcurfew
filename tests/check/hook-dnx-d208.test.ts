@@ -7,7 +7,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { scanCommandLine } from '../../src/check/command.ts';
 import type { FetchLike } from '../../src/check/registry.ts';
 import { run } from '../../src/cli/run.ts';
@@ -19,11 +19,20 @@ import type { CommandLineKnowledge, SharedRunKnowledge } from '../../src/knowled
 
 const NOW = new Date('2026-11-11T12:00:00Z');
 const temporary: string[] = [];
+// The directories are made in beforeAll, which vitest skips together with afterAll when -t matches no test here.
+let HOME = '';
+let DOTNET = '';
+let DENO = '';
+beforeAll(() => {
+  HOME = mkdtempSync(join(tmpdir(), 'depcurfew-d208-home-'));
+  temporary.push(HOME);
+  // A .NET repository and a Deno one: the reading must not depend on the files where the agent runs (D-189).
+  DOTNET = project({ 'depcurfew.json': POLICY, 'App.csproj': '<Project Sdk="Microsoft.NET.Sdk"></Project>\n', '.config/dotnet-tools.json': { version: 1, isRoot: true, tools: {} } });
+  DENO = project({ 'depcurfew.json': POLICY, 'deno.json': { imports: {} } });
+});
 afterAll(() => {
   for (const directory of temporary) rmSync(directory, { recursive: true, force: true });
 });
-const HOME = mkdtempSync(join(tmpdir(), 'depcurfew-d208-home-'));
-temporary.push(HOME);
 
 const POLICY = {
   version: 1,
@@ -42,10 +51,6 @@ function project(files: Record<string, string | object>): string {
   }
   return root;
 }
-
-// A .NET repository and a Deno one: the reading must not depend on the files where the agent runs (D-189).
-const DOTNET = project({ 'depcurfew.json': POLICY, 'App.csproj': '<Project Sdk="Microsoft.NET.Sdk"></Project>\n', '.config/dotnet-tools.json': { version: 1, isRoot: true, tools: {} } });
-const DENO = project({ 'depcurfew.json': POLICY, 'deno.json': { imports: {} } });
 
 /** The registry URLs the hook asks and its decision for `command`. */
 async function hook(command: string, root: string, tool = 'Bash'): Promise<{ urls: string[]; decision: unknown; reason: unknown }> {
@@ -69,6 +74,7 @@ const DOTNET_FORMS = [
   'dnx --source https://api.nuget.org/v3/index.json dotnetsay',
   'dnx --add-source ./local-feed Contoso.Internal.Tool',
   'dnx Contoso.Internal.Tool --source https://nuget.contoso.example/v3/index.json',
+  'dnx Contoso.Internal.Tool --add-source ./local-feed',
   'dnx -p dotnetsay dotnetsay',
   '/usr/share/dotnet/dnx dotnetsay',
   'dotnet tool exec dotnetsay',
@@ -87,6 +93,25 @@ describe('dnx of the .NET SDK in the Claude Code hook (decision D-208)', () => {
     for (const command of ['dnx.cmd dotnetsay', 'dnx dotnetsay', '& dnx.cmd Contoso.SampleMcpServer@0.0.1-beta --yes', 'C:\\Program Files\\dotnet\\dnx.cmd dotnetsay', 'dotnet.exe dnx dotnetsay']) {
       expect(await hook(command, DOTNET, 'PowerShell'), command).toEqual({ urls: [], decision: undefined, reason: undefined });
     }
+  });
+
+  it('also in PowerShell statements depcurfew does not read, and where dnx is only a word', async () => {
+    for (const command of [
+      'Start-Process dnx dotnetsay',
+      'Start-Process dnx -ArgumentList dotnetsay',
+      'dnx $tool',
+      '& "$env:ProgramFiles\\dotnet\\dnx.cmd" dotnetsay',
+      'Start-Process dotnet -ArgumentList "dnx dotnetsay"',
+      'Start-Process git -ArgumentList "log --grep dnx"',
+    ]) {
+      expect(await hook(command, DOTNET, 'PowerShell'), command).toEqual({ urls: [], decision: undefined, reason: undefined });
+    }
+  });
+
+  it('still looks up npm: after dnx in PowerShell', async () => {
+    expect((await hook('Start-Process dnx npm:evil-pkg', DENO, 'PowerShell')).urls).toEqual(['https://registry.npmjs.org/evil-pkg']);
+    expect((await hook('dnx npm:$pkg', DENO, 'PowerShell')).decision).toBe('ask');
+    expect((await hook('Start-Process dnx -ArgumentList npm:evil-pkg', DENO, 'PowerShell')).decision).toBe('ask');
   });
 
   it('still checks a package manager command after it', async () => {

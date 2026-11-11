@@ -4332,14 +4332,28 @@ function registryAssignment(items: readonly Item[], shell: Shell): string | unde
 /** Package managers, shells and Invoke-Expression, which a PowerShell statement naming them may run. */
 const RUNNER_NAMES = new Set(['corepack', ...SHELLS, ...POWERSHELLS, ...CMD, ...EXPRESSION_RUNNERS]);
 
-/** The first package manager, shell or Invoke-Expression that a text names anywhere, also inside strings and paths. */
+/**
+ * The first package manager, shell or Invoke-Expression that a text names anywhere, also inside strings and paths. A
+ * program name another tool installs too (dnx, sharedPrograms) counts only when a word after it starts with one of the
+ * prefixes of its entries (Start-Process dnx npm:x), so that the .NET SDK's dnx and a word dnx in a string do not
+ * (decision D-208).
+ */
 function namedRunner(text: string): string | undefined {
-  const { executables } = commands();
-  for (const piece of text.split(/[^A-Za-z0-9_.-]+/u)) {
-    const name = executableOf(piece.replace(/^\.+|\.+$/gu, ''));
-    if (name !== '' && (executables.has(name) || RUNNER_NAMES.has(name))) return name;
+  const { executables, sharedPrograms } = commands();
+  for (const match of text.matchAll(/[A-Za-z0-9_.-]+/gu)) {
+    const name = executableOf(match[0].replace(/^\.+|\.+$/gu, ''));
+    if (name === '' || !(executables.has(name) || RUNNER_NAMES.has(name))) continue;
+    const shared = sharedPrograms.get(name);
+    if (shared !== undefined && !namesSharedRun(shared, text.slice(match.index + match[0].length))) continue;
+    return name;
   }
   return undefined;
+}
+
+/** Whether a word of `rest`, the text after a program name another tool installs too, starts with one of the prefixes of its entries. */
+function namesSharedRun(entries: readonly SharedRunKnowledge[], rest: string): boolean {
+  const words = rest.replace(/`([\s\S])/gu, '$1').split(/[\s'"\u2018-\u201e()=,]+/u);
+  return entries.some((entry) => entry.prefixes.some((prefix) => words.some((word) => word.toLowerCase().startsWith(prefix))));
 }
 
 /**
