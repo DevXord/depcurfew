@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { LocalOsvData, osvDataFile } from '../../src/osv/data.ts';
 import { localData } from '../support/osv-data.ts';
+import { asRoot } from '../support/platform.ts';
 
 const NOW = new Date('2026-11-02T18:00:00Z');
 const temporary: string[] = [];
@@ -15,7 +16,6 @@ afterAll(() => {
   for (const directory of temporary) rmSync(directory, { recursive: true, force: true });
 });
 const posix = process.platform !== 'win32';
-const root = posix && process.getuid?.() === 0;
 
 describe('the files of the local OSV.dev data (decision D-190)', () => {
   it.skipIf(!posix)('reports a data file every user can write, and still reads it', async () => {
@@ -27,7 +27,7 @@ describe('the files of the local OSV.dev data (decision D-190)', () => {
     expect(local.lookup({ ecosystem: 'npm', name: 'left-pad', version: '9.9.9' })).toEqual(['MAL-2026-90001']);
   });
 
-  it.skipIf(!root)('reports a data file that belongs to another user', async () => {
+  it.skipIf(!asRoot)('reports a data file that belongs to another user', async () => {
     const directory = await localData(temporary, NOW);
     const file = osvDataFile(directory, 'npm');
     chownSync(file, 65534, 65534);

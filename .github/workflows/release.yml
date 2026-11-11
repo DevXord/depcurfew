@@ -1,9 +1,13 @@
 # Stages a release on npm with trusted publishing (OIDC) and provenance, without an npm token. The staged version
 # becomes public only after a maintainer approves it with 2FA. See docs/RELEASING.md.
 #
-# Two jobs (decision D-175): build installs the dependencies, runs every check and packs the package, without the
+# Build and stage are separate (decision D-175): build installs the dependencies, runs every check and packs the package, without the
 # right to ask for an OIDC token. Only stage has that right, and it runs no code of the repository or of its
 # dependencies: it takes the packed file from build, checks that it is the same file, and stages it.
+#
+# Before anything is staged (decision D-199): build checks that CHANGELOG.md starts with the section of the version;
+# rebuild builds the package again from a fresh checkout of the tag on another runner and must get the same file;
+# ci-passed waits until CI and the Action test have passed on the tagged commit. stage needs all three.
 name: Release
 
 on:
@@ -23,6 +27,7 @@ jobs:
     outputs:
       tarball: ${{ steps.pack.outputs.tarball }}
       integrity: ${{ steps.pack.outputs.integrity }}
+      shasum: ${{ steps.pack.outputs.shasum }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -42,6 +47,22 @@ jobs:
         run: test "v$(node -p 'require("./package.json").version')" = "$TAG"
       - name: The tagged commit is on main
         run: git merge-base --is-ancestor HEAD origin/main
+      # The notes of the release are its section of CHANGELOG.md (decision D-199).
+      - name: CHANGELOG.md starts with the section of the version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          heading="$(grep -n -m 1 '^## ' CHANGELOG.md || true)"
+          first="${heading#*:}"
+          if [ -z "$heading" ]; then
+            echo "::error file=CHANGELOG.md::depcurfew: CHANGELOG.md has no section (a line that starts with ## ), so the release ${TAG#v} has no notes: add \"## ${TAG#v}\" with its changes at the top in a pull request to main, then delete the tag and push it again on the merge commit"
+            exit 1
+          fi
+          if [ "$first" != "## ${TAG#v}" ]; then
+            echo "::error file=CHANGELOG.md,line=${heading%%:*}::depcurfew: the first section of CHANGELOG.md is \"$first\", not \"## ${TAG#v}\" of the tag $TAG: name the section of this release \"## ${TAG#v}\" in a pull request to main, then delete the tag and push it again on the merge commit"
+            exit 1
+          fi
+          echo "CHANGELOG.md starts with the section $first"
       # The project .npmrc sets ignore-scripts, so no dependency script runs.
       - run: npm ci
       - run: npm test
@@ -62,6 +83,7 @@ jobs:
           npm pack --json --pack-destination "$RUNNER_TEMP/package" > "$RUNNER_TEMP/pack.json"
           tarball="$(node -p 'require(process.argv[1])[0].filename' "$RUNNER_TEMP/pack.json")"
           integrity="$(node -p 'require(process.argv[1])[0].integrity' "$RUNNER_TEMP/pack.json")"
+          shasum="$(node -p 'require(process.argv[1])[0].shasum' "$RUNNER_TEMP/pack.json")"
           if [ "$tarball" != "depcurfew-${TAG#v}.tgz" ] || [ ! -f "$RUNNER_TEMP/package/$tarball" ]; then
             echo "::error::depcurfew: npm pack did not write depcurfew-${TAG#v}.tgz"
             exit 1
@@ -70,9 +92,10 @@ jobs:
             sha512-*) ;;
             *) echo "::error::depcurfew: npm pack gave no sha512 integrity for $tarball"; exit 1 ;;
           esac
-          echo "$tarball $integrity"
+          echo "$tarball $shasum $integrity"
           echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
           echo "integrity=$integrity" >> "$GITHUB_OUTPUT"
+          echo "shasum=$shasum" >> "$GITHUB_OUTPUT"
       # One file, uploaded as it is (archive: false): the artifact is named after the file.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -80,9 +103,150 @@ jobs:
           archive: false
           if-no-files-found: error
 
+  rebuild:
+    # The package again, from a fresh checkout of the tag on another runner with nothing but npm ci and the build, as
+    # the Verify release workflow builds it after publication (decision D-199). No step of the build job (the tests,
+    # publint, attw) can change the package unnoticed, and a build that does not give the same file every time stops
+    # the release before anything is staged, as 1.5.0 would have been (decision D-174).
+    name: Build the package again on a fresh runner
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      integrity: ${{ steps.pack.outputs.integrity }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      # The commands of the Verify release workflow, so that a package this job passes passes there too.
+      - run: npm install -g npm@11.19.1
+      # The project .npmrc sets ignore-scripts, so no dependency script runs.
+      - run: npm ci
+      - run: npm run build
+      - name: Pack the fresh build
+        id: pack
+        env:
+          TARBALL: ${{ needs.build.outputs.tarball }}
+          INTEGRITY: ${{ needs.build.outputs.integrity }}
+        run: |
+          if [ -z "$TARBALL" ] || [ -z "$INTEGRITY" ]; then
+            echo "::error::depcurfew: the rebuild job got no file name or integrity from the build job (its outputs tarball and integrity are empty), so nothing is staged: correct release.yml in a pull request to main, then delete the tag and push it again on the merge commit"
+            exit 1
+          fi
+          mkdir "$RUNNER_TEMP/rebuilt"
+          npm pack --json --pack-destination "$RUNNER_TEMP/rebuilt" > "$RUNNER_TEMP/rebuilt.json"
+          tarball="$(node -p 'require(process.argv[1])[0].filename' "$RUNNER_TEMP/rebuilt.json")"
+          integrity="$(node -p 'require(process.argv[1])[0].integrity' "$RUNNER_TEMP/rebuilt.json")"
+          if [ "$tarball" != "$TARBALL" ] || [ ! -f "$RUNNER_TEMP/rebuilt/$tarball" ]; then
+            echo "::error::depcurfew: the fresh build packs $tarball, not $TARBALL as the build job did, so nothing is staged: check that both jobs build the tag, correct release.yml in a pull request to main, then delete the tag and push it again on the merge commit"
+            exit 1
+          fi
+          echo "$tarball $integrity"
+          echo "integrity=$integrity" >> "$GITHUB_OUTPUT"
+          # Compared here, as GitHub expressions compare text without regard to case.
+          if [ "$integrity" = "$INTEGRITY" ]; then same=true; else same=false; fi
+          echo "same=$same" >> "$GITHUB_OUTPUT"
+      # Only when the two differ: the file of the build job, to name the files that differ.
+      - if: steps.pack.outputs.same != 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.build.outputs.tarball }}
+          path: ${{ runner.temp }}/built
+          digest-mismatch: error
+      - name: The fresh build is the package the build job packed
+        env:
+          TAG: ${{ github.ref_name }}
+          TARBALL: ${{ needs.build.outputs.tarball }}
+          INTEGRITY: ${{ needs.build.outputs.integrity }}
+          REBUILT: ${{ steps.pack.outputs.integrity }}
+        run: |
+          if [ -z "$INTEGRITY" ] || [ -z "$REBUILT" ]; then
+            echo "::error::depcurfew: the rebuild job got no integrity to compare (from the build job: '$INTEGRITY', from its own pack: '$REBUILT'), so nothing is staged: correct release.yml in a pull request to main, then delete the tag and push it again on the merge commit"
+            exit 1
+          fi
+          if [ "$REBUILT" = "$INTEGRITY" ]; then
+            echo "A fresh build of $TAG packs $TARBALL with the integrity of the build job: $REBUILT"
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/compare/built" "$RUNNER_TEMP/compare/rebuilt"
+          tar -xzf "$RUNNER_TEMP/built/$TARBALL" -C "$RUNNER_TEMP/compare/built"
+          tar -xzf "$RUNNER_TEMP/rebuilt/$TARBALL" -C "$RUNNER_TEMP/compare/rebuilt"
+          cd "$RUNNER_TEMP/compare"
+          diff -ru built rebuilt | head -n 200 || true
+          # The files that differ, as paths in the package.
+          names=''
+          while IFS= read -r line; do
+            case "$line" in
+              'Files built/package/'*) name="${line#Files built/package/}"; name="${name%% and rebuilt/package/*}" ;;
+              'Only in built/package'*) rest="${line#Only in built/package}"; dir="${rest%%: *}"; name="${dir#/}${dir:+/}${rest#*: } (only in the package of the build job)" ;;
+              'Only in rebuilt/package'*) rest="${line#Only in rebuilt/package}"; dir="${rest%%: *}"; name="${dir#/}${dir:+/}${rest#*: } (only in the fresh build)" ;;
+              *) name="$line" ;;
+            esac
+            names="${names:+$names, }$name"
+          done < <(diff -rq built rebuilt || true)
+          echo "::error::depcurfew: a fresh build of $TAG packs $TARBALL with $REBUILT, not with $INTEGRITY as the build job did, so nothing is staged (${names:+the files that differ: }${names:-the files in both packages are the same, the archives differ}): do not re-run the jobs; find what changes the build (a step of the build job, or a build that does not give the same file each time), fix it in a pull request to main, then delete the tag and push it again on the merge commit"
+          exit 1
+
+  ci-passed:
+    # The build job tests on Linux with Node.js 24 only. The tagged commit must also have passed CI (Linux and Windows,
+    # every Node.js line, the oldest Node.js the CLI supports) and the Action test (decision D-199). A tag pushed right
+    # after a merge comes before CI on that commit has finished, so this job waits for it; it can only read the runs
+    # of workflows, and runs no code of the repository.
+    name: CI passed on the tagged commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      actions: read
+    steps:
+      - name: CI and the Action test passed on the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # How often to ask, and for how long in all, in seconds.
+          INTERVAL: 30
+          LIMIT: 1200
+          # The runs of the commit that test the commit itself: those of a push (to main, and of the tag) and those
+          # run by hand. Runs of pull requests test a merge with the base branch instead.
+          VERDICT: >-
+            [.workflow_runs[] | select(.event == "push" or .event == "workflow_dispatch")]
+            | if any(.[]; .status == "completed" and .conclusion == "success") then "success"
+              elif length > 0 and all(.[]; .status == "completed") then "failure"
+              else "waiting" end
+        run: |
+          deadline=$((SECONDS + LIMIT))
+          for workflow in ci.yml action-test.yml; do
+            while :; do
+              if verdict="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs" -f head_sha="$GITHUB_SHA" -f per_page=100 --jq "$VERDICT")"; then
+                state="its runs: $verdict"
+              else
+                state="the last request for its runs failed"
+                verdict=''
+              fi
+              if [ "$verdict" = success ]; then
+                echo "$workflow passed on $GITHUB_SHA"
+                break
+              fi
+              if [ "$verdict" = failure ]; then
+                echo "::error::depcurfew: no run of $workflow on $GITHUB_SHA, the commit of $GITHUB_REF_NAME, has passed, so nothing is staged: re-run the failed jobs of its latest run (or run $workflow on $GITHUB_REF_NAME by hand in the Actions tab), wait until it passes, then re-run the failed jobs of this Release run"
+                exit 1
+              fi
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "::error::depcurfew: $workflow has not passed on $GITHUB_SHA, the commit of $GITHUB_REF_NAME, within $((LIMIT / 60)) minutes, so nothing is staged ($state): once a run of $workflow on that commit has passed, re-run the failed jobs of this Release run"
+                exit 1
+              fi
+              echo "Waiting for $workflow on $GITHUB_SHA ($state)"
+              sleep "$INTERVAL"
+            done
+          done
+
   stage:
     name: Stage the release on npm
-    needs: build
+    needs: [build, rebuild, ci-passed]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -115,11 +279,16 @@ jobs:
         env:
           TARBALL: ${{ needs.build.outputs.tarball }}
           INTEGRITY: ${{ needs.build.outputs.integrity }}
+          REBUILT: ${{ needs.rebuild.outputs.integrity }}
         run: |
           actual="sha512-$(node -e 'process.stdout.write(require("crypto").createHash("sha512").update(require("fs").readFileSync(process.argv[1])).digest("base64"))' "$RUNNER_TEMP/package/$TARBALL")"
           echo "$TARBALL $actual"
           if [ "$actual" != "$INTEGRITY" ]; then
             echo "::error::depcurfew: $TARBALL is not the file the build job packed ($INTEGRITY)"
+            exit 1
+          fi
+          if [ "$REBUILT" != "$INTEGRITY" ]; then
+            echo "::error::depcurfew: the rebuild job reports the integrity '$REBUILT', not $INTEGRITY of the build job, so nothing is staged: correct release.yml in a pull request to main, then delete the tag and push it again on the merge commit"
             exit 1
           fi
       # A packed file is staged as it is: npm runs no lifecycle script for it.
@@ -128,3 +297,23 @@ jobs:
         env:
           TARBALL: ${{ needs.build.outputs.tarball }}
         run: npm stage publish "./$TARBALL" --provenance
+      # What the approver compares before approving the staged version with 2FA (docs/RELEASING.md).
+      - name: What the approver compares
+        env:
+          TARBALL: ${{ needs.build.outputs.tarball }}
+          SHASUM: ${{ needs.build.outputs.shasum }}
+          INTEGRITY: ${{ needs.build.outputs.integrity }}
+        run: |
+          {
+            echo "### $TARBALL is staged"
+            echo
+            echo "| File | shasum (SHA-1) | integrity (SHA-512) |"
+            echo "| --- | --- | --- |"
+            echo "| \`$TARBALL\` | \`$SHASUM\` | \`$INTEGRITY\` |"
+            echo
+            echo "The same file was built again from a fresh checkout of the tag, and CI passed on the tagged commit."
+            echo "Before approving: \`npm stage list depcurfew\` gives the stage id (it is also in the log of the step above),"
+            echo "\`npm stage view <stage-id>\` shows the shasum of the staged file, and \`npm stage download <stage-id>\` prints"
+            echo "the shasum of the file it downloads (with \`--json\`, its whole integrity). Each must be the one above;"
+            echo "otherwise do not approve, and reject the stage with \`npm stage reject <stage-id>\`."
+          } >> "$GITHUB_STEP_SUMMARY"

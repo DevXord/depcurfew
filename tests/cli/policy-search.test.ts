@@ -7,7 +7,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { projectDirectory } from '../../src/cli/directory.ts';
 import { run } from '../../src/cli/run.ts';
 import { findPolicyDirectory } from '../../src/policy/file.ts';
-import { windows } from '../support/platform.ts';
+import { asRoot, windows } from '../support/platform.ts';
 
 const temporary: string[] = [];
 afterAll(() => {
@@ -75,7 +75,7 @@ describe('findPolicyDirectory and planted files (from the security review before
     expect(findPolicyDirectory(project)).toBe(shared);
   });
 
-  it.skipIf(windows || process.getuid?.() !== 0)('does not take depcurfew.json from a parent directory of another user', () => {
+  it.skipIf(!asRoot)('does not take depcurfew.json from a parent directory of another user', () => {
     const { shared, project } = planted();
     chownSync(shared, 65534, 65534);
     expect(findPolicyDirectory(project)).toBeUndefined();

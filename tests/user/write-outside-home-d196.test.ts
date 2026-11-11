@@ -9,6 +9,7 @@ import type { CheckDependencies } from '../../src/cli/check.ts';
 import { EXIT_OK, run } from '../../src/cli/run.ts';
 import type { UserEnvironment } from '../../src/user/locate.ts';
 import { userPolicyPath } from '../../src/user/policy-path.ts';
+import { asRoot } from '../support/platform.ts';
 import { fakeMachine, userFileOf } from '../support/user.ts';
 
 const temporary: string[] = [];
@@ -16,7 +17,6 @@ afterAll(() => {
   for (const directory of temporary) rmSync(directory, { recursive: true, force: true });
 });
 
-const asRoot = process.platform !== 'win32' && process.getuid?.() === 0;
 const NOBODY = 65534;
 
 async function exec(environment: UserEnvironment, ...argv: string[]): Promise<{ code: number; output: string }> {

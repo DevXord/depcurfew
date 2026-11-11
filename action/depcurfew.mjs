@@ -2049,6 +2049,7 @@ const secrets$3 = verifiedOn("2026-11-03");
 const d173$4 = verifiedOn("2026-11-03");
 const d172$1 = verifiedOn("2026-11-03");
 const d184 = verifiedOn("2026-11-09");
+const d199 = verifiedOn("2026-11-11");
 const LIBNPMEXEC_V11 = "https://github.com/npm/cli/blob/v11.21.1/workspaces/libnpmexec/lib";
 const EXEC_COMMANDS = [
 	["npx"],
@@ -2394,6 +2395,14 @@ const npm$1 = {
 			reject: "npm stage reject",
 			newPackagePlaceholder: "0.0.0-stage"
 		}, "https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/cli/v12/commands/npm-stage.mdx", "Staging needs no 2FA, so CI can do it; approving or rejecting needs 2FA (CLI or npmjs.com). Staging a package that does not exist yet creates it with the public placeholder version 0.0.0-stage. Pre-release versions need an explicit --tag. --provenance also applies to npm stage publish. Rejecting the only staged version of such a new package also unpublished the placeholder (observed 2026-10-29 with npm 11.21.1), and after a whole package is unpublished its name is blocked for 24 hours (https://github.com/npm/documentation/blob/main/content/policies/unpublish.mdx)."),
+		stageReview: d199.verified({
+			list: "npm stage list",
+			view: "npm stage view",
+			download: "npm stage download",
+			shown: "shasum",
+			downloadedFile: "<name>-<version>-<stage-id>.tgz",
+			fullIntegrity: "--json"
+		}, "https://github.com/npm/cli/blob/v11.19.1/lib/commands/stage/download.js", "npm stage download <stage-id> fetches the tarball of the staged version (/-/stage/<stage-id>/tarball), prints its details with the shasum (SHA-1) and integrity (SHA-512) computed from the downloaded bytes (getContents and logTar in lib/utils/tar.js; the text output shortens the integrity, --json prints it whole) and writes it as <name>-<version>-<stage-id>.tgz in the current directory, a scoped name without @ and with - for /. npm stage view <stage-id> and npm stage list [<package-spec>] print each staged version with id, package name, version, tag, date staged, staged by and the shasum the registry recorded (logStageItem in lib/utils/key-values.js, lib/commands/stage/view.js and list.js). npm stage publish prints \"+ <name>@<version> (staged with id <stage-id>)\" (lib/commands/publish.js)."),
 		trustCommand: checked$5.verified({
 			command: "npm trust github",
 			minimumNpm: "11.15.0",

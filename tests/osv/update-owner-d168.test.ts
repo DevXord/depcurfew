@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { run } from '../../src/cli/run.ts';
 import { exportFetch, standardExports } from '../support/osv-data.ts';
+import { asRoot } from '../support/platform.ts';
 
 const NOW = new Date('2026-11-03T12:00:00Z');
 const temporary: string[] = [];
@@ -31,10 +32,8 @@ async function update(home: string, env: Record<string, string> = {}): Promise<{
   return { code, stdout };
 }
 
-const root = process.platform !== 'win32' && process.getuid?.() === 0;
-
 describe('osv update as root in the home directory of another user', () => {
-  it.skipIf(!root)('gives the directories and the data file it creates to the owner of the home directory', async () => {
+  it.skipIf(!asRoot)('gives the directories and the data file it creates to the owner of the home directory', async () => {
     const home = directory('home');
     mkdirSync(join(home, '.cache'));
     chownSync(home, 65534, 65534);
@@ -54,7 +53,7 @@ describe('osv update as root in the home directory of another user', () => {
     expect(statSync(join(home, '.cache', 'depcurfew', 'osv', 'packagist.jsonl')).uid).toBe(65534);
   });
 
-  it.skipIf(!root)('leaves to root what it creates outside the home directory (an absolute XDG_CACHE_HOME elsewhere)', async () => {
+  it.skipIf(!asRoot)('leaves to root what it creates outside the home directory (an absolute XDG_CACHE_HOME elsewhere)', async () => {
     const home = directory('home');
     chownSync(home, 65534, 65534);
     const cache = directory('cache');

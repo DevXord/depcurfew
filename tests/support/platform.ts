@@ -7,6 +7,13 @@ import { join } from 'node:path';
 
 export const windows = process.platform === 'win32';
 
+/**
+ * Whether the tests run as root on a POSIX system: the gate of every test that needs root (giving files to another
+ * user, the home directory of another user). The CI user is not root, so the job root of .github/workflows/ci.yml runs
+ * every test file that imports this with sudo, and tests/meta/ci.test.ts keeps that list complete (decision D-199).
+ */
+export const asRoot = !windows && process.getuid?.() === 0;
+
 let symlinks: boolean | undefined;
 
 /** Whether this process may create a symlink to a file; tried once in a temporary directory, which is removed. */
