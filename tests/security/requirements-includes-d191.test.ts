@@ -100,7 +100,7 @@ describe('requirements files that include each other (decision D-191)', () => {
     }
   });
 
-  it('stops reading --only-binary when each file includes the next twice and the last one the first, and says so', { timeout: 60_000 }, async () => {
+  it('stops reading --only-binary when each file includes the next twice and the last one the first, and says so', async () => {
     // a20.txt includes requirements.txt, which is on the way, so what each file does depends on the way to it.
     const root = repository(doubled('-r requirements.txt\nidna==3.10\n'));
     expect(await seconds(() => runDoctor(root))).toBeLessThan(3);
@@ -109,7 +109,7 @@ describe('requirements files that include each other (decision D-191)', () => {
 
   // Writing 1,500 files takes seconds on a Windows runner, so the clock gets room; what is limited is the CPU time of
   // depcurfew (decision D-188).
-  it('stops after 1000 included files and says so, quickly', { timeout: 60_000 }, async () => {
+  it('stops after 1000 included files and says so, quickly', async () => {
     const files: Record<string, string> = { 'requirements.txt': 'requests==2.32.3\n-r a1.txt\n', 'depcurfew.json': POLICY };
     for (let level = 1; level < 1500; level++) files[`a${level}.txt`] = `-r a${level + 1}.txt\n`;
     files['a1500.txt'] = 'idna==3.10\n';

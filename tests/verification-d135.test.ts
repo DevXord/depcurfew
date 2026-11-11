@@ -53,7 +53,7 @@ describe('OSV.dev answers that are not batch results (finding 6)', () => {
     return { code, stdout, stderr };
   }
 
-  it('check --osv --json prints its JSON with the version unchecked, without a stack trace', { timeout: 60_000 }, async () => {
+  it('check --osv --json prints its JSON with the version unchecked, without a stack trace', async () => {
     const project = repository({ 'depcurfew.json': '{"version":1}\n' });
     const result = await exec(['check', '--osv', '--json', '--dir', project, 'cutekitten-test@1.0.1']);
     expect(result.code).toBe(EXIT_FAILURE);
@@ -65,7 +65,7 @@ describe('OSV.dev answers that are not batch results (finding 6)', () => {
     );
   });
 
-  it('doctor --osv --json prints its JSON with a warning for the lockfile', { timeout: 60_000 }, async () => {
+  it('doctor --osv --json prints its JSON with a warning for the lockfile', async () => {
     const root = repository({ 'package.json': '{"name":"app"}\n', 'package-lock.json': LOCK });
     const result = await exec(['doctor', '--osv', '--json', root]);
     expect(result.stderr).toBe('');
@@ -75,7 +75,7 @@ describe('OSV.dev answers that are not batch results (finding 6)', () => {
     ]);
   });
 
-  it('the hook asks, with the reason, instead of failing on the answer', { timeout: 60_000 }, async () => {
+  it('the hook asks, with the reason, instead of failing on the answer', async () => {
     const project = repository({ 'depcurfew.json': '{"version":1}\n' });
     const event = JSON.stringify({ session_id: 't', hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'npm install cutekitten-test@1.0.1' }, cwd: project });
     const result = await exec(['check', '--hook', 'claude-code', '--osv'], event);

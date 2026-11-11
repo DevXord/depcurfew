@@ -197,7 +197,7 @@ describe('queryOsv', () => {
     expect(verdict?.status === 'checked' ? verdict.malicious.length : verdict).toBe(2000);
   });
 
-  it('keeps each record once across pages, in linear time', { timeout: 60_000 }, async () => {
+  it('keeps each record once across pages, in linear time', async () => {
     // Every page has 2000 records: 1000 seen on the page before and 1000 new ones.
     const page = (round: number) => Array.from({ length: 2000 }, (_, index) => ({ id: `MAL-${round + Math.floor(index / 1000)}-${index % 1000}` }));
     const fetch = answering((queries, round) => json({ results: queries.map(() => ({ vulns: page(round), ...(round < MAX_OSV_PAGES ? { next_page_token: `t${round}` } : {}) })) }));

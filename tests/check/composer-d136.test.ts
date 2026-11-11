@@ -297,7 +297,7 @@ describe('limits for Packagist answers (finding 7)', () => {
     ]);
   });
 
-  it('reads the largest answer it accepts in time', { timeout: 60_000 }, async () => {
+  it('reads the largest answer it accepts in time', async () => {
     const root = project();
     const body = answer(10_000, '.1'.repeat(118));
     expect(body.length).toBeLessThan(16 * 1024 * 1024);

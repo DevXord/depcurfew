@@ -9,5 +9,5 @@ describe('runtime smoke test', () => {
     const result = spawnSync(process.execPath, [script], { encoding: 'utf8' });
     expect(result.stdout).toContain('every step passed');
     expect(result.status).toBe(0);
-  }, 60_000);
+  });
 });

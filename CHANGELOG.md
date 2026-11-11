@@ -2,6 +2,13 @@
 
 All notable changes for users of depcurfew. The project follows [semantic versioning](https://semver.org/): the policy file (`version: 1`), the command-line options, the exit codes and the JSON and SARIF output (`schemaVersion: 1`) only change in a backward-incompatible way in a new major version.
 
+## Unreleased
+
+### Tests
+
+- Every test has 60 s and every hook 120 s on the clock before Vitest stops it, far above the time limits on CPU time. Vitest's defaults of 5 s and 10 s, not the limits, failed tests and hooks on busy Windows runners.
+- The cases with aliases that expand themselves have a limit of 5 s of CPU time, as the other slow inputs have, instead of 1 s. Contrary to the 1.6.0 notes, measuring CPU time made the limits stricter for code that allocates much: the CPU time of the test process counts the helper threads of V8 too, and this case failed on Windows.
+
 ## 1.6.0
 
 ### apply

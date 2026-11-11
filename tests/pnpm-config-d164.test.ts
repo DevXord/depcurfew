@@ -136,7 +136,7 @@ describe('include in pnpm-workspace.yaml as pnpm reads it', () => {
     const found = includes(files);
     expect(cpuNow() - started).toBeLessThan(3_000);
     expect(found?.problems.length).toBe(MAX_PROBLEMS);
-  }, 60_000);
+  });
 });
 
 describe('pnpmfiles and plugins pnpm loads', () => {

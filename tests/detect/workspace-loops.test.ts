@@ -46,7 +46,7 @@ async function cli(...argv: string[]): Promise<{ code: number; stdout: string; s
 }
 
 describe.skipIf(!canSymlink())('workspace patterns over symlinks that loop (decision D-161)', () => {
-  it('** with two symlinks to the root: doctor --json and explain --json finish in well under 2 s', { timeout: 60_000 }, async () => {
+  it('** with two symlinks to the root: doctor --json and explain --json finish in well under 2 s', async () => {
     const root = repository(['**'], ['packages/a', 'packages/b/nested']);
     symlinkSync('.', join(root, 's0'), 'junction');
     symlinkSync('.', join(root, 's1'), 'junction');
