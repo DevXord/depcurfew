@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "Pipfile",
+      "line": 12
+    },
+    "message": "resolver = \"pure-python\" is the older name of resolver_backend: Pipenv reads resolver_backend first, but pipenv update, pipenv upgrade and pipenv uninstall of Pipenv before 2026.9.1 read only resolver, so there it still selects a resolver backend that locks without cool-down-period",
+    "fix": "Remove resolver from [pipenv] in Pipfile, and write resolver_backend = \"pip\" if the backend must be named, so that Pipenv locks with pip and applies cool-down-period"
+  }
+]

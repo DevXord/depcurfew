@@ -10,6 +10,12 @@ const PIPENV = 'https://github.com/pypa/pipenv/blob/v2026.10.4';
 const PIPFILE = `${PIPENV}/docs/pipfile.md`;
 const CHANGELOG = `${PIPENV}/CHANGELOG.md`;
 const CONFIGURATION = `${PIPENV}/docs/configuration.md`;
+// Pipenv 2026.11.0 (2026-11-08), which adds the uv resolver backend. Only the facts that cite it were read at this tag;
+// the others stay at PIPENV until the version refresh (decision D-202).
+const PIPENV_CURRENT = 'https://github.com/pypa/pipenv/blob/v2026.11.0';
+const d202 = verifiedOn('2026-11-11');
+// The resolver backends that lock without cool-down-period: Pipenv applies it only in the pip backend (decision D-202).
+const BYPASSING_BACKENDS: readonly string[] = ['pure-python', 'uv'];
 const user = verifiedOn('2026-10-31');
 const final = verifiedOn('2026-11-01');
 // The version key of Pipfile.lock, which doctor --osv reads (decision D-129).
@@ -81,15 +87,16 @@ export const pipenv: ToolKnowledge = {
     unknownKeys: user.verified('ignore', CONFIGURATION, 'No user file.'),
     invalidValueFails: user.verified(false, CONFIGURATION, 'No user file.'),
     weakening: user.verified([], CONFIGURATION, 'No user file; see variables.'),
-    variables: user.uncertain(
+    variables: d202.uncertain(
       [
-        { name: 'PIPENV_RESOLVER', values: ['pure-python'], effect: 'selects the pure-python resolver, which ignores cool-down-period' },
+        { name: 'PIPENV_RESOLVER', values: BYPASSING_BACKENDS, effect: 'selects a resolver backend that does not apply cool-down-period' },
+        { name: 'PIPENV_BACKEND', values: BYPASSING_BACKENDS, effect: 'selects the resolver backend of pipenv lock, one that does not apply cool-down-period' },
         { name: 'PIPENV_PYPI_MIRROR', values: 'any', effect: 'replaces PyPI; on a mirror without upload times cool-down-period has no effect' },
         { name: 'PIP_ONLY_BINARY', values: 'any', effect: 'sets only-binary of the pip Pipenv installs with, which no pip.conf reaches since 2026.3.0' },
         { name: 'PIP_NO_BINARY', values: 'any', effect: 'builds these packages from source when installing, and pipenv install records no_binary for a named package in the Pipfile' },
       ],
-      `${PIPENV}/pipenv/utils/resolver.py`,
-      'PIPENV_RESOLVER is not documented. The code ranks it above the resolver key of the Pipfile ("CLI/caller > env > current project\'s Pipfile > default"), and the pure-python backend locked the newest versions despite cool-down-period when chosen in the Pipfile (extra.resolverBypass, tested on 2026-10-30); the variable itself was not tested. PIPENV_PYPI_MIRROR: "When the index does not provide upload-time metadata (e.g. most private mirrors) the setting is accepted but has no filtering effect" (docs/pipfile.md). PIP_* variables are merged over the environment of the pip subprocess (pipenv/utils/processes.py), so they still reach it while pip.conf does not; pipenv/routines/install.py also reads PIP_NO_BINARY.',
+      `${PIPENV_CURRENT}/docs/resolver_backends.md`,
+      'PIPENV_RESOLVER selects the resolver backend after --backend and --resolver and before resolver_backend in [pipenv] ("Selecting a Backend"); the pure-python and uv backends lock without cool-down-period (extra.resolverBypass, read from the code). PIPENV_BACKEND is not documented: only pipenv lock has --backend (pipenv/cli/options.py, _add_lock_options), and apply_env_vars sets every option not given on the command line from PIPENV_<option name> (options.py lines 470-492), so PIPENV_BACKEND acts as --backend. Pipenv strips both values; neither variable was tested. PIPENV_PYPI_MIRROR: "When the index does not provide upload-time metadata (e.g. most private mirrors) the setting is accepted but has no filtering effect" (docs/pipfile.md). PIP_* variables are merged over the environment of the pip subprocess (pipenv/utils/processes.py), so they still reach it while pip.conf does not (pipenv/utils/pip.py sets PIP_CONFIG_FILE to os.devnull); pipenv/routines/install.py also reads PIP_NO_BINARY. All read at v2026.11.0.',
     ),
   },
   extra: {
@@ -119,10 +126,16 @@ export const pipenv: ToolKnowledge = {
       `${PIPFILE}#cool-down-period`,
       '"When the index does not provide upload-time metadata (e.g. most private mirrors) the setting is accepted but has no filtering effect."',
     ),
-    resolverBypass: uncertain(
-      { table: 'pipenv', keys: ['resolver_backend', 'resolver'], value: 'pure-python' },
-      `${PIPENV}/pipenv/routines/lock.py`,
-      'Not documented. Tested on 2026-10-30 with 2026.10.4: with resolver_backend = "pure-python" in [pipenv], pipenv lock locked the newest versions despite cool-down-period = "100000d"; resolver is the older name of the key.',
+    resolverBypass: d202.uncertain(
+      {
+        table: 'pipenv',
+        keys: ['resolver_backend', 'resolver'],
+        values: BYPASSING_BACKENDS,
+        delayBackend: 'pip',
+        olderKeyAlone: { until: '2026.9.1', commands: ['pipenv update', 'pipenv upgrade', 'pipenv uninstall'] },
+      },
+      `${PIPENV_CURRENT}/pipenv/utils/resolver.py`,
+      'Read from the code at v2026.11.0; Pipenv was not run with uv. Pipenv applies cool-down-period only in the pip backend, as pip\'s uploaded_prior_to (lines 607-613; no other file of the wheel outside the vendored code reads it), so the pure-python and uv backends lock the newest versions: the uv backend runs uv pip compile --no-config without a cutoff (pipenv/resolver/backends/uv.py lines 234-249). Tested on 2026-10-30 with 2026.10.4: with resolver_backend = "pure-python", pipenv lock locked the newest versions despite cool-down-period = "100000d". The backend comes from --backend or --resolver, then PIPENV_RESOLVER, then resolver_backend in [pipenv], then pip (docs/resolver_backends.md); resolver is the older name of the key, read when resolver_backend is not set, and Pipenv strips the value (_selected_backend_for_request, lines 1505-1530). Before 2026.9.1, pipenv update, upgrade and uninstall read only resolver (CHANGELOG.md, 2026.9.1; _selected_backend_for_request at v2026.9.0). A name that is not a backend, also in other letter case, stops the lock with an error (CHANGELOG.md, 2026.8.0; pipenv/resolver/backends/__init__.py). Pipenv leaves UV_EXCLUDE_NEWER in the environment of uv (uv.py lines 93-106).',
     ),
     lockfileFormat: osvFacts.verified(
       { meta: '_meta', git: 'git', file: 'file', path: 'path', editable: 'editable', hashes: 'hashes', version: 'version' },

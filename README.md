@@ -448,7 +448,7 @@ What depcurfew configures and checks for each tool, from its [knowledge base](ht
 | pip | `uploaded-prior-to` (days) on the command line or in the environment, no project file, since 26.1.0 | none | `--no-binary` in `requirements.txt` | none | 2026-10-30 – 2026-11-03 |
 | Poetry | `solver.min-release-age` in `poetry.toml` (days), since 2.4.0 | `solver.min-release-age-exclude`, since 2.4.0 | `installer.no-binary` in `poetry.toml` | none | 2026-10-30 – 2026-11-03 |
 | PDM | `exclude-newer` in `pyproject.toml` (duration string), since 2.26.9 | `exclude-newer-override`, since 2.29.1 | `no-binary` in `pyproject.toml` | none | 2026-10-30 – 2026-11-03 |
-| Pipenv | `cool-down-period` in `Pipfile` (duration string), since 2026.6.2 | none | none | none | 2026-10-30 – 2026-11-03 |
+| Pipenv | `cool-down-period` in `Pipfile` (duration string), since 2026.6.2 | none | none | none | 2026-10-30 – 2026-11-11 |
 | Composer | `config.policy.cooldown.period` in `composer.json` (duration string), since 2.11.0 | `config.policy.cooldown.ignore`, since 2.11.0 | `config.allow-plugins` in `composer.json` | none | 2026-11-02 – 2026-11-09 |
 | Bundler | `cooldown` in `Gemfile`, `gems.rb` (days), since 4.0.13 | none | none | none | 2026-11-03 |
 | Renovate | `minimumReleaseAge` in `renovate.json`, `renovate.jsonc` … (duration string), since 35.46.0 | `packageRules: matchPackageNames + minimumReleaseAge: null`, since 35.46.0 ❓ | none | n/a | 2026-10-28 – 2026-11-03 |
@@ -623,7 +623,7 @@ Fix: Read what the pnpmfile or plugin changes; set pnpmfile: [] when the project
 
 **error** · A Python tool ignores a setting where it is written.
 
-uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project (a pip.conf counts only where PIP_CONFIG_FILE names it) and rejects options it does not know in requirements files, so a CI job or a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = "pure-python" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.
+uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project (a pip.conf counts only where PIP_CONFIG_FILE names it) and rejects options it does not know in requirements files, so a CI job or a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend (or its older name resolver) set to "pure-python" or "uv" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.
 
 Fix: Move the setting to the file the tool reads.
 

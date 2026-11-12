@@ -1,10 +1,12 @@
 // python-config-ignored: Python settings written where the tool does not read them, or that another setting turns
 // off, which look effective but are not: [tool.uv] next to a uv.toml, uv settings in workspace members, pip.conf in
 // the project, options pip rejects in requirements files, an exclude-newer date that never moves (uv, PDM), PDM's uv
-// mode, which installs without the build settings, and Pipenv's pure-Python resolver, which ignores cool-down-period.
+// mode, which installs without the build settings, and Pipenv's pure-python and uv resolver backends, which lock without
+// cool-down-period (decision D-202).
 // And a pip install in a Dockerfile stage of the python image or in a CI job without the release-age delay the policy
 // asks for: pip takes it only from the environment or its command line there (decision D-115).
 import { extraOf, isRecord, isSwitch, settingOf, sinceOf } from '../../apply/facts.ts';
+import { listing } from '../../apply/requirements.ts';
 import { convertCooldown } from '../../policy/convert.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { joinPath } from '../../detect/repository.ts';
@@ -99,20 +101,46 @@ function checkPdm(context: RuleContext, tool: ToolKnowledge): void {
   });
 }
 
-/** Pipenv's pure-Python resolver (resolver_backend = "pure-python") locks without cool-down-period. */
+/** Whether Python takes a TOML value as true: Pipenv reads `settings.get("resolver_backend") or settings.get("resolver")`. */
+function pythonTrue(value: unknown): boolean {
+  if (typeof value === 'string' || Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'number' || typeof value === 'bigint') return Number(value) !== 0;
+  if (typeof value === 'boolean') return value;
+  return !isRecord(value) || Object.keys(value).length > 0;
+}
+
+/**
+ * Pipenv's resolver backends that lock without cool-down-period (extra.resolverBypass): resolver_backend, or the older
+ * key resolver, set in [pipenv] to one of them, compared stripped as Pipenv reads it (decision D-202). The older key is
+ * reported also next to resolver_backend, which Pipenv reads first: before olderKeyAlone.until some commands read
+ * only the older key, and removing it is right in every version.
+ */
 function checkPipenv(context: RuleContext, tool: ToolKnowledge): void {
   const bypass = tool.extra?.['resolverBypass'] === undefined ? undefined : extraOf(tool, 'resolverBypass', isRecord);
   const setting = settingOf(tool.cooldown.setting);
-  if (bypass === undefined || setting === null || !isStrings(bypass['keys']) || typeof bypass['table'] !== 'string') return;
+  if (bypass === undefined || setting === null) return;
+  const { table, keys, values, delayBackend, olderKeyAlone } = bypass;
+  if (typeof table !== 'string' || !isStrings(keys) || !isStrings(values) || typeof delayBackend !== 'string') return;
   const delay = readPythonSetting(context.repository, tool, setting);
   if (delay === undefined) return;
-  for (const key of bypass['keys']) {
-    const found = tomlSettingAt(context.repository, delay.file, [bypass['table'], key]);
-    if (found === undefined || found.value !== bypass['value']) continue;
+  const [first] = keys;
+  const older = isRecord(olderKeyAlone) && typeof olderKeyAlone['until'] === 'string' && isStrings(olderKeyAlone['commands']) ? { until: olderKeyAlone['until'], commands: olderKeyAlone['commands'] } : undefined;
+  const found = keys.map((key) => ({ key, entry: tomlSettingAt(context.repository, delay.file, [table, key]) }));
+  for (const [index, { key, entry }] of found.entries()) {
+    if (entry === undefined || typeof entry.value !== 'string' || !values.includes(entry.value.trim())) continue;
+    const written = `${key} = ${JSON.stringify(entry.value)}`;
+    // A key after one that is set is read only where the older key alone counts.
+    const shadowed = found.slice(0, index).some((earlier) => earlier.entry !== undefined && pythonTrue(earlier.entry.value));
     context.report({
-      location: { file: found.file, line: found.line },
-      message: `${key} = ${JSON.stringify(found.value)} makes ${tool.name} lock without ${setting}, so the release-age delay in ${delay.file} has no effect`,
-      fix: `Remove ${key} from [${bypass['table']}] in ${delay.file}, so that ${tool.name} locks with pip and applies ${setting}`,
+      location: { file: entry.file, line: entry.line },
+      message:
+        shadowed && older !== undefined && first !== undefined
+          ? `${written} is the older name of ${first}: ${tool.name} reads ${first} first, but ${listing(older.commands)} of ${tool.name} before ${older.until} read only ${key}, so there it still selects a resolver backend that locks without ${setting}`
+          : `${written} makes ${tool.name} lock without ${setting}, so the release-age delay in ${delay.file} has no effect`,
+      fix:
+        index === 0
+          ? `Remove ${key} from [${table}] in ${delay.file}, or write ${key} = "${delayBackend}", so that ${tool.name} locks with ${delayBackend} and applies ${setting}`
+          : `Remove ${key} from [${table}] in ${delay.file}, and write ${first ?? key} = "${delayBackend}" if the backend must be named, so that ${tool.name} locks with ${delayBackend} and applies ${setting}`,
     });
   }
 }
@@ -315,7 +343,7 @@ export const pythonConfigIgnored: Rule = {
   checks: 'Python tools read their settings where they are written',
   summary: 'A Python tool ignores a setting where it is written.',
   description:
-    'uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project (a pip.conf counts only where PIP_CONFIG_FILE names it) and rejects options it does not know in requirements files, so a CI job or a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = "pure-python" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.',
+    'uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project (a pip.conf counts only where PIP_CONFIG_FILE names it) and rejects options it does not know in requirements files, so a CI job or a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend (or its older name resolver) set to "pure-python" or "uv" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.',
   help: 'Move the setting to the file the tool reads.',
   level: 'error',
   requiresPolicy: false,
