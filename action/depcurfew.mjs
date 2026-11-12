@@ -7943,6 +7943,7 @@ const gitFacts = verifiedOn("2026-10-30");
 const audited = verifiedOn("2026-10-31");
 const release13 = verifiedOn("2026-11-01");
 const d206 = verifiedOn("2026-11-11");
+const e03 = verifiedOn("2026-11-12");
 const mcpFacts = verifiedOn("2026-11-01");
 const actionChecks = verifiedOn("2026-11-01");
 const leftovers = verifiedOn("2026-11-01");
@@ -9173,6 +9174,10 @@ const environment = {
 				}
 			}
 		}, "https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/integrate-with-existing-tools/upload-sarif-file", "The example workflow on this page needs security-events: write in every repository and actions: read with contents: read only in private ones. The inputs come from upload-sarif/action.yml in github/codeql-action (current major v4, v4.39.1 checked); category tells analyses of the same tool and commit apart."),
+		sarifRules: e03.verified({
+			descriptionLimit: 1024,
+			helpMarkdown: true
+		}, "https://github.com/github/docs/blob/dd7d394b2d2b43d3f4f51091026921d7f539f7e8/content/code-security/reference/code-scanning/sarif-files/sarif-support.md#L156-L160", "The reportingDescriptor table of \"SARIF support for code scanning\": shortDescription.text and fullDescription.text are each \"Limited to 1024 characters\"; help.text is required; help.markdown is optional and recommended, and \"When help.markdown is available, it is displayed instead of help.text\". The page does not say what code scanning does with a longer description."),
 		stopCommands: checked$2.verified({
 			stop: "::stop-commands::{token}",
 			resume: "::{token}::"
@@ -44360,6 +44365,31 @@ const RULES = [
 // src/doctor/sarif.ts
 const SARIF_SCHEMA = "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json";
 const INFORMATION_URI = "https://www.npmjs.com/package/depcurfew";
+/** GitHub's limit for shortDescription.text and fullDescription.text (environment.githubActions.sarifRules). */
+function descriptionLimit() {
+	return values$1(environment.githubActions.sarifRules)[0]?.descriptionLimit ?? 1024;
+}
+const isBlank = (character) => character === " " || character === "\n" || character === "	" || character === "\r";
+/**
+* `text` in at most `limit` characters (E03): as it is when it fits, else up to the end of the last sentence that fits
+* (a full stop, question or exclamation mark before a blank or the end, so not the dot of depcurfew.json), else up to
+* the last whole word, with "..." after it. A loop over the characters, without a regular expression (decision D-200).
+*/
+function withinLimit(text, limit) {
+	if (text.length <= limit) return text;
+	for (let end = limit; end > 0; end--) {
+		const character = text[end - 1];
+		if ((character === "." || character === "?" || character === "!") && (end === text.length || isBlank(text[end]))) return text.slice(0, end);
+	}
+	const room = Math.max(0, limit - 3);
+	let end = room;
+	if (!isBlank(text[room])) {
+		while (end > 0 && !isBlank(text[end - 1])) end--;
+		if (end === 0) end = room;
+	}
+	while (end > 0 && isBlank(text[end - 1])) end--;
+	return `${text.slice(0, end)}...`;
+}
 function ruleName(id) {
 	return id.replace(/(^|-)([a-z])/gu, (_match, _dash, letter) => letter.toUpperCase());
 }
@@ -44416,9 +44446,12 @@ function toSarif(report, rules, version, readLine = () => void 0, errors = []) {
 				rules: rules.map((rule) => ({
 					id: rule.id,
 					name: ruleName(rule.id),
-					shortDescription: { text: rule.summary },
-					fullDescription: { text: rule.description },
-					help: { text: rule.help },
+					shortDescription: { text: withinLimit(rule.summary, descriptionLimit()) },
+					fullDescription: { text: withinLimit(rule.description, descriptionLimit()) },
+					help: {
+						text: rule.help,
+						markdown: `${markdown(rule.description)}\n\n**Fix:** ${markdown(rule.help)}`
+					},
 					defaultConfiguration: { level: rule.level },
 					properties: { tags: ["security", "supply-chain"] }
 				}))
