@@ -5,6 +5,7 @@
 import { LineCounter, isMap, isScalar, type Node } from 'yaml';
 import { PolicyError } from '../apply/index.ts';
 import { BLOCK_END, isBlockStart } from '../apply/block.ts';
+import { tomlBlockLines } from '../apply/toml.ts';
 import { compareVersions, formatVersion, parseVersion, type Version } from '../apply/version.ts';
 import type { ApplyWarning } from '../apply/warnings.ts';
 import { YAML_MARKER } from '../apply/yaml-edit.ts';
@@ -183,7 +184,8 @@ const isTable = (value: unknown): value is TomlTable => typeof value === 'object
 
 function tomlRead(text: string): Entry[] {
   const document: TomlDocument = parseToml(text);
-  const managed = blockLines(text.split(/\r?\n/u));
+  // In TOML a marker counts only outside values (decision E04).
+  const managed = tomlBlockLines(text);
   const entries: Entry[] = [];
   const walk = (table: TomlTable, path: readonly string[]) => {
     for (const [key, value] of Object.entries(table)) {

@@ -13,12 +13,14 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 
 - `LocalOsvData` answers `missing` for an ecosystem that `depcurfew osv update` does not download, such as `crates` or `nuget`, without reading a file. Before, it read `<name>.jsonl` from the data directory for any name, and a name with a path in it (`../x`) read a file outside the directory.
 - In `doctor --sarif` and the SARIF report of the Action, each rule's `help.markdown` has the whole description, then `**Fix:**` and the help; GitHub code scanning shows it instead of `help.text`, which keeps the help. `shortDescription` and `fullDescription`, which code scanning limits to 1024 characters, are cut at the end of the last sentence that fits, so a rule can explain more than 1024 characters without GitHub cutting it.
+- In TOML files (`bunfig.toml`, `uv.toml`, `pyproject.toml`, `poetry.toml`, `Pipfile` and the user files of these tools), depcurfew's markers count only outside values. A marker line inside a multi-line string or a multi-line array is text of that value. Before, a managed block wrapped in a multi-line string was still taken for the block: `apply` rewrote it inside the string and changed nothing, so the tool did not get the settings and `doctor` reported nothing. `apply` also removed lines from the multi-line string of another key, and markers in the comments of a multi-line array made the edit fail. A marker in a string also made the hand-written settings after it count as written by depcurfew, in `apply`, `doctor --user` and `apply --user`. Now `apply` writes a real block (and `doctor` reports `config-drift` until it does) and leaves the value as it is. After each edit of a TOML block, the block has to lie once outside every value, in its table, or `apply` refuses the file with `cannot-edit`, the line and what to do.
 
 ### Tests
 
 - Contract tests of the library: the exports of `dist/index.js` and `dist/index.d.ts`; the signatures, options, result fields, levels, codes and kinds that semantic versioning covers; a copy of the code with which agentcurfew 1.2.0 calls depcurfew, compiled against the published types with agentcurfew's compiler options and run against the built library; and what `checkSpecs` answers without the network for each kind of spec, where `nuget:` and `cargo:` specs are kind `other` with the error `unverified` and no request.
 - CI runs the library, as agentcurfew calls it offline, on every Node.js version of the runtime smoke test, from 18.3.0 and 20.0.0 on.
 
+## 1.6.1
 
 ### Releases
 

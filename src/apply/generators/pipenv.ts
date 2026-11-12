@@ -1,6 +1,6 @@
 // Pipenv: cool-down-period in one managed block in [pipenv] of the Pipfile, in whole days. Pipenv has no project
 // setting for cooldown exceptions or for building from source, so apply says what it cannot write.
-import { hasManagedLines } from '../block.ts';
+import { hasManagedTomlLines } from '../toml.ts';
 import { extraOf, isRecord, settingOf } from '../facts.ts';
 import { cooldownValue, eachSource } from './common.ts';
 import type { ManagerGenerator } from './context.ts';
@@ -43,6 +43,6 @@ export const pipenv: ManagerGenerator = (context) => {
 
   eachSource(context, () => undefined);
 
-  if (entries.length > 0 || (context.exists(file) && hasManagedLines(context.read(file)))) context.toml(file, table, entries, managed);
+  if (entries.length > 0 || (context.exists(file) && hasManagedTomlLines(context.read(file)))) context.toml(file, table, entries, managed);
   return minutes;
 };

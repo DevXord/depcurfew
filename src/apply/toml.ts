@@ -5,7 +5,7 @@
 // line of the value, and come back as they were once the policy no longer manages them. Values are followed across
 // lines, so a line inside an array or a multi-line string is never taken for a key or a header. A file with blocks
 // in several tables names the table in each block's marker.
-import { blockLabel, blockStart, commentedOut, insertBlock, joinLines, removeBlock, removeBlockAt, splitLines, SUPERSEDED, TURNED_OFF, type BlockScope, type RemovedBlock } from './block.ts';
+import { BLOCK_END, BLOCK_PREFIX, blockLabel, blockStart, commentedOut, insertBlock, joinLines, removeBlockAt, splitLines, SUPERSEDED, TURNED_OFF, type BlockScope, type RemovedBlock } from './block.ts';
 
 const BARE_KEY = /^[A-Za-z0-9_-]+/u;
 const ESCAPES: Readonly<Record<string, string>> = { b: '\b', t: '\t', n: '\n', f: '\f', r: '\r', e: '\u001b', '"': '"', '\\': '\\' };
@@ -180,16 +180,178 @@ function tablesOf(lines: readonly string[]): (string | undefined)[] {
 }
 
 /**
+ * Whether each line starts outside every value: not inside a multi-line string, nor inside an array or inline table
+ * that goes on over several lines (decision E04). Only there can a line be a marker of depcurfew's managed block.
+ */
+function outsideValues(lines: readonly string[]): boolean[] {
+  const outside: boolean[] = [];
+  let state: ValueState = { depth: 0, string: '' };
+  for (const line of lines) {
+    outside.push(state.depth <= 0 && state.string === '');
+    state = scanLine(line, state);
+    // A header such as [table] opens and closes its brackets on the line; a value that is not closed carries on.
+    if (state.depth < 0) state = { ...state, depth: 0 };
+  }
+  return outside;
+}
+
+/** A managed block of a TOML file: the line of its start marker, its label ('' for none) and the line of its end marker. */
+export interface TomlBlock {
+  start: number;
+  label: string;
+  /** undefined when no end marker follows outside values: the block then runs to the end of the file. */
+  end: number | undefined;
+}
+
+/**
+ * The managed blocks of a TOML file, read as TOML reads the file (decision E04): a marker line inside a multi-line
+ * string or a multi-line array is text of that value, so a block wrapped in a string is no block, whatever its lines say.
+ * The one reader of markers in TOML files, for apply, apply --user, doctor and doctor --user.
+ */
+export function tomlBlocks(lines: readonly string[]): TomlBlock[] {
+  return readBlocks(lines).blocks;
+}
+
+/** The blocks, and whether each line starts outside values, worked out only when some line has a start marker's text. */
+function readBlocks(lines: readonly string[]): { blocks: TomlBlock[]; outside: boolean[] | undefined } {
+  if (!lines.some((line) => line.includes(BLOCK_PREFIX))) return { blocks: [], outside: undefined };
+  const outside = outsideValues(lines);
+  const blocks: TomlBlock[] = [];
+  for (let index = 0; index < lines.length; index++) {
+    if (outside[index] !== true) continue;
+    const label = blockLabel(lines[index] ?? '');
+    if (label === undefined) continue;
+    let end: number | undefined;
+    for (let next = index + 1; next < lines.length; next++) {
+      if (outside[next] === true && (lines[next] ?? '').trim() === BLOCK_END) {
+        end = next;
+        break;
+      }
+    }
+    blocks.push({ start: index, label, end });
+    if (end === undefined) break;
+    index = end;
+  }
+  return { blocks, outside };
+}
+
+/** The 1-based lines between the markers of the managed blocks of a TOML text, read by tomlBlocks. */
+export function tomlBlockLines(text: string): Set<number> {
+  const all = text.split(/\r?\n/u);
+  const inside = new Set<number>();
+  for (const block of tomlBlocks(all)) {
+    for (let line = block.start + 1; line < (block.end ?? all.length); line++) inside.add(line + 1);
+  }
+  return inside;
+}
+
+/** Whether apply wrote anything into a TOML text: a managed block outside values, or a line it commented out. */
+export function hasManagedTomlLines(body: string): boolean {
+  if (!body.includes(BLOCK_PREFIX) && !body.includes(SUPERSEDED.trim()) && !body.includes(TURNED_OFF.trim())) return false;
+  const all = splitLines(body);
+  if (tomlBlocks(all).length > 0) return true;
+  const outside = outsideValues(all);
+  return all.some((line, index) => outside[index] === true && commentedOut(line) !== undefined);
+}
+
+/**
+ * The lines without the managed block with this label, and without every copy of it, read by tomlBlocks: a marker in
+ * a value is text of the value and stays (decision E04).
+ */
+function removeTomlBlock(lines: readonly string[], label: string): RemovedBlock {
+  const blocks = tomlBlocks(lines).filter((block) => block.label === label);
+  const first = blocks[0];
+  if (first === undefined) return { lines: [...lines], at: undefined, separated: false };
+  // One pass for every copy, as removeBlockAt does for one: the block's lines, and the blank line before it.
+  const drop = new Set<number>();
+  let separated = false;
+  for (const block of blocks) {
+    const end = block.end ?? block.start;
+    const before = block.start - 1;
+    const blank = before >= 0 && !drop.has(before) && (lines[before] ?? '').trim() === '';
+    for (let index = block.start; index <= end; index++) drop.add(index);
+    if (blank) drop.add(before);
+    if (block === first) separated = blank;
+  }
+  const rest = lines.filter((_, index) => !drop.has(index));
+  let at = 0;
+  for (let index = 0; index < first.start; index++) if (!drop.has(index)) at += 1;
+  return { lines: rest, at: Math.min(at, rest.length), separated };
+}
+
+/**
  * Removes the block with this marker. A labeled block that is not there yet may have been written by an earlier
  * version without the label: an unlabeled block inside the same table is then taken for it.
  */
 function removeOwnBlock(lines: readonly string[], table: string, label: string | undefined): RemovedBlock {
-  const removed = removeBlock(lines, blockStart(label));
+  const removed = removeTomlBlock(lines, label ?? '');
   if (removed.at !== undefined || label === undefined) return removed;
   const tables = tablesOf(lines);
-  const legacy = lines.findIndex((line, index) => blockLabel(line) === '' && (tables[index] ?? '') === table);
-  return legacy === -1 ? removed : removeBlockAt(lines, legacy);
+  const legacy = tomlBlocks(lines).find((block) => block.label === '' && (tables[block.start] ?? '') === table);
+  return legacy === undefined ? removed : removeBlockAt(lines, legacy.start, legacy.end ?? legacy.start);
 }
+
+/** The line where the value around line `index` starts: the last line before it that starts outside values. */
+function valueStart(outside: readonly boolean[], index: number): number {
+  let start = index;
+  while (start > 0 && outside[start] !== true) start -= 1;
+  return start;
+}
+
+/**
+ * The check after each edit of a TOML block (decision E04): with entries, the file has the block with this label
+ * once, outside every value, in `table` (the top level for ''), and its end marker after it; without entries, no
+ * such block. Throws an error whose message names the line, with a fix, which apply reports as cannot-edit.
+ */
+export function checkTomlBlock(body: string, table: string, label: string | undefined, scope: BlockScope, written: boolean): void {
+  const all = splitLines(body);
+  const wanted = blockLabel(blockStart(label, scope)) ?? '';
+  const read = readBlocks(all);
+  const blocks = read.blocks.filter((block) => block.label === wanted);
+  const name = table === '' ? 'the top level' : `[${table}]`;
+  const refuse = (message: string, fix: string): never => {
+    throw Object.assign(new Error(message), { fix });
+  };
+  if (!written) {
+    const left = blocks[0];
+    if (left !== undefined) refuse(`the block depcurfew manages for ${name} is still there at line ${left.start + 1} after it was removed`, `Remove the lines from line ${left.start + 1} to the end of the block by hand, then run depcurfew apply again`);
+    return;
+  }
+  const outside = read.outside ?? outsideValues(all);
+  // A marker in a value is only a problem when the block apply wrote is not found outside values.
+  if (blocks.length !== 1) {
+    const hidden = all.findIndex((line, index) => outside[index] !== true && blockLabel(line) === wanted);
+    if (hidden !== -1) {
+      const start = valueStart(outside, hidden) + 1;
+      refuse(`the block depcurfew manages for ${name} would be inside the value that starts at line ${start}, where tools read it as text`, `Move the settings of ${name} out of the value that starts at line ${start}, then run depcurfew apply again`);
+    }
+  }
+  const block = blocks[0];
+  if (block === undefined) return refuse(`the block depcurfew manages for ${name} is missing after the edit`, `Add the settings by hand, then run depcurfew apply again`);
+  if (blocks.length > 1) refuse(`the block depcurfew manages for ${name} is there more than once, at lines ${blocks.map((item) => item.start + 1).join(', ')}`, `Keep one of the blocks, then run depcurfew apply again`);
+  if (block.end === undefined) refuse(`the block depcurfew manages for ${name} at line ${block.start + 1} has no end marker`, `Add the line "${BLOCK_END}" after its settings, then run depcurfew apply again`);
+  // The table of the block: the nearest header above it on a line outside values (a header cannot sit in a value).
+  let found = '';
+  for (let index = block.start - 1; index >= 0; index--) {
+    if (outside[index] !== true) continue;
+    const header = headerOf(all[index] ?? '');
+    if (header !== undefined) {
+      found = header.name;
+      break;
+    }
+  }
+  if (found !== table) {
+    const tool = table === '' ? 'the tool' : TABLE_TOOLS.find(([prefix]) => table === prefix || table.startsWith(`${prefix}.`))?.[1] ?? 'the tool';
+    refuse(`the block depcurfew manages for ${name} would be in ${found === '' ? 'the top level' : `[${found}]`} at line ${block.start + 1}, where ${tool} does not read it`, `Move the block under ${table === '' ? 'the top level, before the first table' : `the [${table}] header`}, then run depcurfew apply again`);
+  }
+}
+
+/** Which tool reads a table of pyproject.toml, for the message of checkTomlBlock. */
+const TABLE_TOOLS: readonly [string, string][] = [
+  ['tool.uv', 'uv'],
+  ['tool.poetry', 'Poetry'],
+  ['tool.pdm', 'PDM'],
+];
 
 /**
  * Lines apply commented out in this table (and the dotted keys and subtables of it) come back as they were, every
@@ -238,6 +400,12 @@ function restoreLines(lines: string[], table: string, isManaged: (key: string) =
 }
 
 export function writeTomlBlock(body: string, table: string, entries: readonly string[], managedKeys: readonly string[], label?: string, scope: BlockScope = 'project'): string {
+  const edited = editTomlBlock(body, table, entries, managedKeys, label, scope);
+  checkTomlBlock(edited, table, label, scope, entries.length > 0);
+  return edited;
+}
+
+function editTomlBlock(body: string, table: string, entries: readonly string[], managedKeys: readonly string[], label: string | undefined, scope: BlockScope): string {
   const managed = new Set(managedKeys);
   const marker = blockStart(label, scope);
   const removed = removeOwnBlock(splitLines(body), table, label);

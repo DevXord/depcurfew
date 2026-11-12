@@ -67,4 +67,13 @@ describe('the version', () => {
       .find((line) => line.startsWith('## '));
     expect(['## Unreleased', `## ${String(pkg['version'])}`]).toContain(first);
   });
+
+  it('keeps the section of the version of package.json under "## Unreleased", and every section with its heading', () => {
+    const text = readFileSync(new URL('CHANGELOG.md', root), 'utf8');
+    const headings = text.split(/\r?\n/u).filter((line) => line.startsWith('## '));
+    expect(headings).toContain(`## ${String(pkg['version'])}`);
+    // A section ends before the next "## ": subsections without a heading of their own would read as the section above.
+    expect(text).not.toMatch(/\n\n\n### /u);
+    expect(headings.filter((line) => line === '## Unreleased').length).toBeLessThanOrEqual(1);
+  });
 });

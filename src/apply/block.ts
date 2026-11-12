@@ -17,7 +17,9 @@ export function blockStart(table?: string, scope: BlockScope = 'project'): strin
   return table === undefined ? marker : marker.replace(': ', ` [${table}]: `);
 }
 
-const PREFIX = '# >>> depcurfew managed block';
+/** What every start marker begins with, whichever policy wrote it and whatever table it names. */
+export const BLOCK_PREFIX = '# >>> depcurfew managed block';
+const PREFIX = BLOCK_PREFIX;
 const TEXTS: readonly string[] = [BLOCK_START, USER_BLOCK_START].map((marker) => marker.slice(PREFIX.length));
 
 /** The table a start marker names ('' for none), whichever policy wrote it; undefined when the line starts no block. */
@@ -54,10 +56,13 @@ export interface RemovedBlock {
   separated: boolean;
 }
 
-/** The lines without the block that starts at line `start`. */
-export function removeBlockAt(lines: readonly string[], start: number): RemovedBlock {
-  const end = lines.findIndex((line, index) => index > start && line.trim() === BLOCK_END);
-  const stop = end === -1 ? start : end;
+/**
+ * The lines without the block that starts at line `start` and ends at line `end`; without `end`, at the next end marker
+ * (a TOML file passes the end its own reader found outside values, decision E04).
+ */
+export function removeBlockAt(lines: readonly string[], start: number, end?: number): RemovedBlock {
+  const found = end ?? lines.findIndex((line, index) => index > start && line.trim() === BLOCK_END);
+  const stop = found === -1 ? start : found;
   const rest = [...lines.slice(0, start), ...lines.slice(stop + 1)];
   // Drop the blank line that separated the block from the content before it; insertBlock adds one after any
   // non-blank line, also when a blank line follows the block (a block at the end of a table in the middle of a file).

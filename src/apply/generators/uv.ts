@@ -1,13 +1,12 @@
 // uv: exclude-newer and the build settings in a managed block: in uv.toml when the project has one (uv then ignores
 // [tool.uv] in pyproject.toml), otherwise in [tool.uv] of pyproject.toml. Only the root is configured, because in a
 // workspace uv reads the configuration of the root alone. A change to what uv.lock records means locking again.
-import { hasManagedLines } from '../block.ts';
 import { cutoffTime, delayMinutes, formatMinutes } from '../../doctor/durations.ts';
 import { parseToml, TomlDateTime, tomlValueAt } from '../../detect/toml.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { normalizePythonName } from '../../policy/python-names.ts';
 import { extraOf, isRecord, isSwitch, settingOf, sinceOf } from '../facts.ts';
-import { writeTomlBlock } from '../toml.ts';
+import { hasManagedTomlLines, writeTomlBlock } from '../toml.ts';
 import { cooldownValue, eachSource, exclusions, unreadableDelay } from './common.ts';
 import type { Context, ManagerGenerator } from './context.ts';
 import { buildAllowList, forcedBuildWarning, pythonNames, relockWarning, tomlCurrent, tomlValue } from './python.ts';
@@ -69,7 +68,7 @@ export const uv: ManagerGenerator = (context) => {
 
   // In pyproject.toml the marker names the table, because PDM may keep a block of its own in the same file.
   const label = table === '' ? undefined : table;
-  if (entries.length > 0 || (context.exists(file) && hasManagedLines(context.read(file)))) {
+  if (entries.length > 0 || (context.exists(file) && hasManagedTomlLines(context.read(file)))) {
     // Before the edit: the context reads a file as edited once its change is planned.
     relockWarning(context, file, table, (body) => writeTomlBlock(body, table, entries, managed, label));
     context.toml(file, table, entries, managed, label);
