@@ -78,6 +78,19 @@ export function ownDelayText(ecosystem: BotEcosystemFacts, details: boolean): st
   if (delay.setting === null || delay.since === null) return `${client} has no release-age delay of its own`;
   const version = `${delay.product === undefined ? '' : `${delay.product} `}${delay.since}`;
   const where = delay.file === undefined ? delay.setting : `${delay.setting} in ${delay.file}`;
+  // The commands that apply the setting come from the knowledge base (decision D-205); the deprecated updatesOnly is
+  // read only without them, for knowledge objects passed in by library callers.
+  const commands = delay.selectedBy ?? [];
+  if (commands.length > 0) {
+    const named = commands.length === 1 ? (commands[0] ?? '') : `${commands.slice(0, -1).join(', ')} and ${commands.at(-1) ?? ''}`;
+    const short = `${client} has no release-age delay for what a restore takes`;
+    // Only the versions the knowledge base names as ignoring the setting are named: prereleases of the first version
+    // may read it already.
+    const ignored = delay.ignoredBy === undefined ? '' : `, ${delay.ignoredBy} ignore it`;
+    return details
+      ? `${short} (${where} holds back only the versions that ${named} choose when no version is given; ${version} reads it${ignored}, and depcurfew does not configure it)`
+      : `${short} (${delay.setting} holds back only the versions that ${named} choose, from ${version} on)`;
+  }
   if (delay.updatesOnly === true) {
     const short = `${client} has no release-age delay for what an install or restore takes`;
     return details ? `${short} (${where}, from ${version} on, holds back only the versions an update picks, and depcurfew does not configure it)` : short;

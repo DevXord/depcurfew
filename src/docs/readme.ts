@@ -99,7 +99,11 @@ function botEcosystemRows(tools: readonly ToolKnowledge[], environment: Environm
       if (!isRecord(value) || typeof value['setting'] !== 'string' || typeof value['since'] !== 'string') return 'none';
       const file = typeof value['file'] === 'string' ? ` in ${code(value['file'])}` : '';
       const product = typeof value['product'] === 'string' ? `${value['product']} ` : '';
-      return `${code(value['setting'])}${file}, since ${product}${value['since']}${value['updatesOnly'] === true ? ', for updates only' : ''} (depcurfew does not write it)`;
+      // The commands that apply the setting (decision D-205); the deprecated updatesOnly only without them.
+      const commands = Array.isArray(value['selectedBy']) ? (value['selectedBy'] as unknown[]).map(String) : [];
+      const named = commands.length <= 1 ? commands.map(code).join('') : `${commands.slice(0, -1).map(code).join(', ')} and ${code(commands.at(-1) ?? '')}`;
+      const scope = commands.length > 0 ? `, only for the versions ${named} choose` : value['updatesOnly'] === true ? ', for updates only' : '';
+      return `${code(value['setting'])}${file}, since ${product}${value['since']}${scope} (depcurfew does not write it)`;
     });
     const through = [
       ...(dependabot === undefined || names(dependabot, 'ecosystem')[id] === undefined ? [] : [`Dependabot ${code(names(dependabot, 'ecosystem')[id])}`]),
