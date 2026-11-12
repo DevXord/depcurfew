@@ -16,6 +16,7 @@ import { runDoctor } from '../../src/doctor/index.ts';
 import { environment } from '../../src/knowledge/environment.ts';
 import { knowledgeBase } from '../../src/knowledge/index.ts';
 import type { CommandLineKnowledge, SharedRunKnowledge } from '../../src/knowledge/types.ts';
+import { cpuNow } from '../support/cpu-time.ts';
 
 const NOW = new Date('2026-11-11T12:00:00Z');
 const temporary: string[] = [];
@@ -156,6 +157,16 @@ describe('scanCommandLine for dnx (decision D-208)', () => {
     expect(scanCommandLine('grep dnx notes.txt')).toEqual({ requests: [] });
     expect(scanCommandLine('grep dnx npm install lodahs').requests.map((request) => request.spec)).toEqual(['lodahs']);
     expect(scanCommandLine('strace dnx npm:evil-pkg').requests.map((request) => request.spec)).toEqual(['npm:evil-pkg']);
+  });
+  // The words of a PowerShell statement depcurfew does not read lose their dots at both ends in one pass, not with a
+  // regular expression that tries every dot as a start: \.+$ took 8 s of CPU time on a word of 80,000 dots between
+  // two letters (CodeQL js/polynomial-redos; decisions D-200 and D-208).
+  it('reads a PowerShell statement with a word of many dots in linear time', () => {
+    const line = `Start-Process a${'.'.repeat(50_000)}a npm:x`;
+    const start = cpuNow();
+    const scan = scanCommandLine(line, { shell: 'powershell' });
+    expect((cpuNow() - start) / 1000).toBeLessThan(1);
+    expect(scan.requests).toEqual([]);
   });
 });
 

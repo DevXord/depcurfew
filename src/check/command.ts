@@ -4341,13 +4341,25 @@ const RUNNER_NAMES = new Set(['corepack', ...SHELLS, ...POWERSHELLS, ...CMD, ...
 function namedRunner(text: string): string | undefined {
   const { executables, sharedPrograms } = commands();
   for (const match of text.matchAll(/[A-Za-z0-9_.-]+/gu)) {
-    const name = executableOf(match[0].replace(/^\.+|\.+$/gu, ''));
+    const name = executableOf(withoutOuterDots(match[0]));
     if (name === '' || !(executables.has(name) || RUNNER_NAMES.has(name))) continue;
     const shared = sharedPrograms.get(name);
     if (shared !== undefined && !namesSharedRun(shared, text.slice(match.index + match[0].length))) continue;
     return name;
   }
   return undefined;
+}
+
+/**
+ * `word` without the dots at its start and end, found by walking in from both ends: the pattern ^\.+|\.+$ tried every
+ * dot of the word as a start and took seconds on a long run of dots between two letters (decision D-200).
+ */
+function withoutOuterDots(word: string): string {
+  let start = 0;
+  let end = word.length;
+  while (start < end && word[start] === '.') start++;
+  while (end > start && word[end - 1] === '.') end--;
+  return word.slice(start, end);
 }
 
 /** Whether a word of `rest`, the text after a program name another tool installs too, starts with one of the prefixes of its entries. */
