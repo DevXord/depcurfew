@@ -79,6 +79,8 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'github.com', pathPrefix: '/volta-cli/' },
   { host: 'github.com', pathPrefix: '/asdf-vm/' },
   { host: 'docs.github.com' },
+  // docs.github.com is built from content/ in github/docs, which can be pinned to a commit (E03).
+  { host: 'github.com', pathPrefix: '/github/docs/' },
   { host: 'github.com', pathPrefix: '/actions/' },
   // GitLab's npm registry (decision D-168): docs.gitlab.com is built from doc/ in gitlab-org/gitlab.
   { host: 'gitlab.com', pathPrefix: '/gitlab-org/gitlab/' },

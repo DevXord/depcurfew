@@ -1,12 +1,43 @@
 // SARIF 2.1.0 output for GitHub code scanning. Every rule is listed in the driver, every finding has a location
 // relative to the repository root, and notices become tool execution notifications. When doctor could not run at
 // all (a directory that does not exist), the run is marked as not successful and the error is a notification too.
+import { values } from '../apply/facts.ts';
 import { Repository } from '../detect/repository.ts';
+import { environment } from '../knowledge/environment.ts';
+import { markdown } from './github.ts';
 import type { DoctorReport, Rule } from './types.ts';
 
 export const SARIF_SCHEMA = 'https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json';
 // The npm page: it names only the product, so nothing in a user's code scanning results points to the author's account.
 const INFORMATION_URI = 'https://www.npmjs.com/package/depcurfew';
+
+/** GitHub's limit for shortDescription.text and fullDescription.text (environment.githubActions.sarifRules). */
+function descriptionLimit(): number {
+  return values(environment.githubActions.sarifRules)[0]?.descriptionLimit ?? 1024;
+}
+
+const isBlank = (character: string | undefined): boolean => character === ' ' || character === '\n' || character === '\t' || character === '\r';
+
+/**
+ * `text` in at most `limit` characters (E03): as it is when it fits, else up to the end of the last sentence that fits
+ * (a full stop, question or exclamation mark before a blank or the end, so not the dot of depcurfew.json), else up to
+ * the last whole word, with "..." after it. A loop over the characters, without a regular expression (decision D-200).
+ */
+export function withinLimit(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  for (let end = limit; end > 0; end--) {
+    const character = text[end - 1];
+    if ((character === '.' || character === '?' || character === '!') && (end === text.length || isBlank(text[end]))) return text.slice(0, end);
+  }
+  const room = Math.max(0, limit - 3);
+  let end = room;
+  if (!isBlank(text[room])) {
+    while (end > 0 && !isBlank(text[end - 1])) end--;
+    if (end === 0) end = room;
+  }
+  while (end > 0 && isBlank(text[end - 1])) end--;
+  return `${text.slice(0, end)}...`;
+}
 
 function ruleName(id: string): string {
   return id.replace(/(^|-)([a-z])/gu, (_match, _dash: string, letter: string) => letter.toUpperCase());
@@ -81,9 +112,10 @@ export function toSarif(report: DoctorReport, rules: readonly Rule[], version: s
             rules: rules.map((rule) => ({
               id: rule.id,
               name: ruleName(rule.id),
-              shortDescription: { text: rule.summary },
-              fullDescription: { text: rule.description },
-              help: { text: rule.help },
+              shortDescription: { text: withinLimit(rule.summary, descriptionLimit()) },
+              fullDescription: { text: withinLimit(rule.description, descriptionLimit()) },
+              // Code scanning shows help.markdown instead of help.text (E03): the whole description, then how to fix it.
+              help: { text: rule.help, markdown: `${markdown(rule.description)}\n\n**Fix:** ${markdown(rule.help)}` },
               defaultConfiguration: { level: rule.level },
               properties: { tags: ['security', 'supply-chain'] },
             })),
