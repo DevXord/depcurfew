@@ -351,13 +351,15 @@ describe('broad-exclusion and config-drift: Dependabot exclude of every Composer
   });
 });
 
-describe('policy patterns: the hint for an unknown prefix (A8)', () => {
-  it('suggests composer: for a vendor/name, and an npm name only when it is one', async () => {
+describe('policy patterns: the hint for an unknown prefix (A8, changed by E33)', () => {
+  it('suggests composer: for php:, an npm name only for an npm prefix, and nothing else for another prefix', async () => {
     const { validatePackagePattern } = await import('../src/policy/package-pattern.ts');
-    expect(validatePackagePattern('php:monolog/monolog')).toBe('the ecosystem prefixes are pypi: and composer:; write Composer packages as "composer:monolog/monolog"');
-    expect(validatePackagePattern('node:left-pad')).toBe('the ecosystem prefixes are pypi: and composer:; write npm packages without a prefix, e.g. "left-pad"');
+    expect(validatePackagePattern('php:monolog/monolog')).toBe('the ecosystem prefixes are pypi: and composer:, and npm packages have none; write Composer packages as "composer:monolog/monolog"');
+    expect(validatePackagePattern('node:left-pad')).toBe('the ecosystem prefixes are pypi: and composer:, and npm packages have none; write npm packages without a prefix, e.g. "left-pad"');
     expect(validatePackagePattern('x:Not A Name')).toBe('must not contain spaces');
-    expect(validatePackagePattern('x:@@bad')).toBe('the ecosystem prefixes are pypi: and composer:; write npm packages without a prefix, e.g. "esbuild" or "@scope/name"');
+    expect(validatePackagePattern('npm:@@bad')).toBe('the ecosystem prefixes are pypi: and composer:, and npm packages have none; write npm packages without a prefix, e.g. "esbuild" or "@scope/name"');
+    // E33: a vendor/name after another prefix (github:owner/repo) is not taken for a Composer package.
+    expect(validatePackagePattern('x:monolog/monolog')).toBe('the ecosystem prefixes are pypi: and composer:, and npm packages have none; remove the entry or fix the spelling of its prefix');
   });
 });
 
