@@ -34,5 +34,23 @@
     },
     "message": "the stage at line 1 in Dockerfile (line 3) runs Deno with --allow-scripts, which lets dependency install scripts run that depcurfew.json denies for Deno",
     "fix": "Remove --allow-scripts from that command in Dockerfile; to let a package run its install scripts, add it to installScripts.allow in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "Dockerfile",
+      "line": 4
+    },
+    "message": "the stage at line 1 in Dockerfile (line 4) runs Bun with --minimum-release-age-excludes, which weakens the release-age delay of Bun (3d in depcurfew.json)",
+    "fix": "Remove --minimum-release-age-excludes from that command in Dockerfile; for a package that cannot wait, add it to cooldown.exclude in depcurfew.json and run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "Dockerfile",
+      "line": 5
+    },
+    "message": "the stage at line 1 in Dockerfile (line 5) runs Bun with --minimum-release-age-excludes=left-pad, which weakens the release-age delay of Bun (3d in depcurfew.json)",
+    "fix": "Remove --minimum-release-age-excludes=left-pad from that command in Dockerfile; for a package that cannot wait, add it to cooldown.exclude in depcurfew.json and run depcurfew apply"
   }
 ]

@@ -73,8 +73,93 @@ const runtimes$3 = verifiedOn("2026-11-01");
 const release14$6 = verifiedOn("2026-11-02");
 const runners$3 = verifiedOn("2026-11-03");
 const d170$9 = verifiedOn("2026-11-03");
+const d201 = verifiedOn("2026-11-11");
 const BUN_V1_4_4 = "https://github.com/oven-sh/bun/blob/bun-v1.4.4";
 const BUNFIG_PARSER = `${BUN_V1_4_4}/src/bunfig/bunfig.rs`;
+const COMMAND_LINE_ARGUMENTS = `${BUN_V1_4_4}/src/install/PackageManager/CommandLineArguments.rs`;
+/** IGNORED_FOREIGN_FLAGS.options of CommandLineArguments.rs at bun-v1.4.4: options of npm, pnpm and Yarn that Bun skips with their value. */
+const FOREIGN_VALUE_OPTIONS = [
+	"--allow-build",
+	"--allow-directory",
+	"--allow-file",
+	"--allow-git",
+	"--allow-remote",
+	"--allow-scripts",
+	"--also",
+	"--before",
+	"--cache",
+	"--cache-folder",
+	"--cache-max",
+	"--cache-min",
+	"--cert",
+	"--changed-files-ignore-pattern",
+	"--child-concurrency",
+	"--dir",
+	"--enjoy-by",
+	"--fetch-min-speed-ki-bps",
+	"--fetch-retries",
+	"--fetch-retry-factor",
+	"--fetch-retry-maxtimeout",
+	"--fetch-retry-mintimeout",
+	"--fetch-timeout",
+	"--fetch-warn-timeout-ms",
+	"--filter-prod",
+	"--global-folder",
+	"--global-pnpmfile",
+	"--globalconfig",
+	"--hoist-pattern",
+	"--http-proxy",
+	"--https-proxy",
+	"--include",
+	"--install-strategy",
+	"--key",
+	"--link-folder",
+	"--local-address",
+	"--location",
+	"--lockfile-dir",
+	"--lockfile-version",
+	"--loglevel",
+	"--logs-dir",
+	"--logs-max",
+	"--maxsockets",
+	"--merge-git-branch-lockfiles-branch-pattern",
+	"--min-release-age",
+	"--mode",
+	"--mutex",
+	"--network-timeout",
+	"--node-gyp",
+	"--node-linker",
+	"--node-options",
+	"--noproxy",
+	"--npmrc-auth-file",
+	"--only",
+	"--otp",
+	"--package-import-method",
+	"--pnpmfile",
+	"--pnpr-server",
+	"--preferred-cache-folder",
+	"--prefix",
+	"--proxy",
+	"--public-hoist-pattern",
+	"--replace-registry-host",
+	"--reporter",
+	"--save-catalog-name",
+	"--save-prefix",
+	"--scope",
+	"--script-shell",
+	"--state-dir",
+	"--store-dir",
+	"--tag",
+	"--test-pattern",
+	"--umask",
+	"--use-yarnrc",
+	"--user-agent",
+	"--userconfig",
+	"--virtual-store-dir",
+	"--workspace",
+	"--workspace-concurrency",
+	"--workspace-packages"
+];
 const BUNFIG = "https://bun.com/docs/runtime/bunfig";
 const INSTALL$2 = "https://bun.com/docs/pm/cli/install";
 const LIFECYCLE = "https://bun.com/docs/pm/lifecycle";
@@ -344,6 +429,55 @@ const bun$1 = {
 			configOptions: ["--config", "-c"],
 			configVariables: []
 		}, "https://github.com/oven-sh/bun/tree/da867c60bf0bcbf9d6d36994f8ca0efa42075115/docs", "bun add takes --registry and --config (-c), a configuration file (snippets/cli/add.mdx). BUN_CONFIG_REGISTRY sets the npm registry and environment variables take priority over bunfig.toml (pm/cli/install.mdx)."),
+		optionValues: d201.verified([
+			{
+				commands: ["add"],
+				value: "always",
+				options: [
+					"--linker",
+					"--cpu",
+					"--os"
+				]
+			},
+			{
+				commands: ["add"],
+				value: "always",
+				since: "1.4.4",
+				options: ["--libc"]
+			},
+			{
+				commands: ["add"],
+				value: "always",
+				since: "1.4.4",
+				separator: ",",
+				options: ["--minimum-release-age-excludes"]
+			},
+			{
+				commands: ["add", "run"],
+				value: "unless-dash",
+				since: "1.4.4",
+				options: FOREIGN_VALUE_OPTIONS
+			},
+			{
+				commands: ["run"],
+				value: "unless-dash",
+				since: "1.4.4",
+				options: [
+					"--npm",
+					"--shell",
+					"--cpu",
+					"--libc",
+					"--omit",
+					"--os"
+				]
+			},
+			{
+				commands: ["run"],
+				value: "always",
+				since: "1.4.4",
+				options: ["--node-arg"]
+			}
+		], COMMAND_LINE_ARGUMENTS, "bun install, add, update and remove share SHARED_TAIL_PARAMS, where --linker <STR>, --cpu <STR>..., --os <STR>..., --libc <STR>... and --minimum-release-age-excludes <STR>... (\"comma-separated or repeated; replaces the bunfig.toml list\") take a value, which clap takes from the next word whatever it is (src/clap/streaming.rs); an invalid --linker, --cpu, --os or --libc value ends the command. --linker, --cpu and --os take it in every Bun since 1.3.0 (CommandLineArguments.zig at bun-v1.3.0); older Bun skipped them alone and installed the next word (no --linker, --cpu or --os in CommandLineArguments.zig at bun-v1.2.18, --linker only at bun-v1.2.19, all three at bun-v1.2.23), and depcurfew does not check that word for them; --libc and --minimum-release-age-excludes are new in 1.4.4 (absent at bun-v1.4.3), and PackageManagerOptions.rs splits the exceptions at commas, trims them and drops empty ones. IGNORED_FOREIGN_FLAGS lists the \"Flags of npm, yarn and pnpm that Bun has no equivalent for\", which \"bun install, add, remove, update and bunx skip\"; its options take the next word for their value \"unless value starts with a dash\" (IgnoredLongFlags in src/clap/lib.rs), though bunx stops on userconfig, globalconfig, npmrc-auth-file, use-yarnrc, replace-registry-host and pnpr-server. \"Only bunx skips\" IGNORED_NPX_FLAGS, whose options are node-arg, npm, shell, cpu, libc, omit and os; bunx_skips_flag takes the next word after --node-arg whatever it is (\"Its value is a flag for node\"). The short options of FOREIGN_SHORT_OPTIONS are skipped only as -m=value, so none is listed. bunx 1.4.4 stops on any other option it does not know (\"bunx has no ... flag\", src/runtime/cli/bunx_command.rs), --linker and --minimum-release-age-excludes among them. Before 1.4.4 these options took no value: clap skipped a long option it did not know alone (\"continue parsing after unrecognized flag\", src/clap/streaming.rs at bun-v1.4.3 and src/deps/zig-clap/clap/streaming.zig at bun-v1.3.0), and bunx skipped every word that starts with - except --package and -p (Options::parse in bunx_command.rs at bun-v1.4.3, the same in bunx_command.zig at bun-v1.3.14), so bun add installed the word after them and bunx ran it; that word is checked as a package too, and one the registry does not have is a warning, since Bun 1.4.4 reads it as the value and older Bun fails on it. Not read: a flag of these lists that takes true or false from the next word (--yes false), and --no-<option> true or false. Decision D-201."),
 		lockfileFormat: checked$6.verified({
 			installScripts: "hasInstallScript",
 			installScriptsSince: "1.4.4",
@@ -371,18 +505,26 @@ const bun$1 = {
 			}],
 			variables: []
 		}, `${BUN_V1_4_4}/docs/snippets/cli/add.mdx`, "bun add: <ParamField path=\"--cwd\" type=\"string\"> \"Set a specific current working directory\" (Global Configuration & Context); bun install has the same option, \"Set a specific cwd\" (docs/snippets/cli/install.mdx at the same tag, General Configuration)."),
-		installOverrides: d170$9.verified({
-			options: [{
-				name: "--minimum-release-age",
-				weakens: "delay",
-				values: "delay"
-			}, {
-				name: "--trust",
-				weakens: "scripts",
-				values: "any"
-			}],
+		installOverrides: d201.verified({
+			options: [
+				{
+					name: "--minimum-release-age",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "--minimum-release-age-excludes",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "--trust",
+					weakens: "scripts",
+					values: "any"
+				}
+			],
 			variables: []
-		}, `${BUN_V1_4_4}/docs/pm/cli/install.mdx`, "bun add @types/bun --minimum-release-age 259200 # seconds: \"A number is in seconds\", or a number with a unit such as 90m, 12 hours, 3d or 2 weeks (durationStrings). The page lists no environment variable for it. bun add --trust \"adds the package to trustedDependencies in the project's package.json and installs it\", so its lifecycle scripts run (docs/snippets/cli/add.mdx and docs/pm/lifecycle.mdx at bun-v1.4.4); lifecycle.mdx names no variable that turns scripts on, and ignore-scripts read from the environment \"only turns scripts off\".")
+		}, `${BUN_V1_4_4}/docs/pm/cli/install.mdx`, "bun add @types/bun --minimum-release-age 259200 # seconds: \"A number is in seconds\", or a number with a unit such as 90m, 12 hours, 3d or 2 weeks (durationStrings). The page lists no environment variable for it. Since 1.4.4 \"--minimum-release-age-excludes takes the same entries as minimumReleaseAgeExcludes below and replaces that list\" (bun install --minimum-release-age 259200 --minimum-release-age-excludes @types/node,typescript@5.4.5), comma-separated or repeated, in bun install, add, update and remove, not in bunx (optionValues); any value exempts packages from the delay for that command, and one that only narrows the list of bunfig.toml is reported too (fail closed). bun add --trust: \"Add to trustedDependencies in the project's package.json and install the package(s)\", so its lifecycle scripts run (docs/snippets/cli/add.mdx and docs/pm/lifecycle.mdx at bun-v1.4.4); lifecycle.mdx names no variable that turns scripts on, and ignore-scripts read from the environment \"only turns scripts off\".")
 	}
 };
 

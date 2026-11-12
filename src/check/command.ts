@@ -35,6 +35,7 @@ import type {
   ExecutableAliasesKnowledge,
   InstallOverridesKnowledge,
   NpmVersionSelectionKnowledge,
+  OptionValues,
   OverrideSwitch,
   OverrideValues,
   PassOnCommand,
@@ -120,6 +121,19 @@ export interface InstallRequest {
    * space has no package of that name (decision D-172).
    */
   linked?: true;
+  /**
+   * Bun (decision D-201): the word is the value of an option that only Bun `since` reads with a value (--libc musl,
+   * bunx --before 2026-01-01); older Bun installed or ran it, so it is checked as a package too. `written` is the
+   * option with its value in one word, which every Bun reads as the value.
+   */
+  optionValue?: OptionValueOf;
+}
+
+/** The option whose separate value word a request is (decision D-201). */
+export interface OptionValueOf {
+  option: string;
+  since: string;
+  written: string;
 }
 
 export type { CommandDirectory, KnownDirectory } from './directories.ts';
@@ -809,6 +823,8 @@ interface ToolCommands {
   runnerOptions: RunnerOptionsKnowledge | undefined;
   /** Commands that link the packages they name and install those the global space lacks (npm link; decision D-172). */
   links: readonly (readonly string[])[];
+  /** Options that take a value only in the add commands or only in the download commands, or only from a version on (decision D-201). */
+  optionValues: { add: ReadonlyMap<string, OptionValues>; run: ReadonlyMap<string, OptionValues> };
 }
 
 interface Commands {
@@ -889,6 +905,16 @@ function sibling(key: string, name: string): string {
   return key.replace(/(?:^c|C)ommandLine$/u, (found) => (found.startsWith('c') ? name : `${name[0]?.toUpperCase() ?? ''}${name.slice(1)}`));
 }
 
+/** The options of `groups` for the add commands and for the download commands, the first group of a name winning. */
+function optionValueTables(groups: readonly OptionValues[]): ToolCommands['optionValues'] {
+  const table = (commands: 'add' | 'run') => {
+    const map = new Map<string, OptionValues>();
+    for (const group of groups.filter((entry) => entry.commands.includes(commands))) for (const option of group.options) if (!map.has(option)) map.set(option, group);
+    return map;
+  };
+  return { add: table('add'), run: table('run') };
+}
+
 function commands(): Commands {
   if (cached !== undefined) return cached;
   // A tool may have several command-line facts (pip has pipx's too); each has its registry overrides next to it.
@@ -909,8 +935,10 @@ function commands(): Commands {
         const ecosystem = ecosystemOfTool(tool);
         const download = [...facts.run, ...facts.create];
         const valueOptions = new Set([...facts.valueOptions, ...more]);
+        const optionValues = factOf<OptionValues[]>(tool, sibling(key, 'optionValues')) ?? [];
         const all = [
           ...valueOptions,
+          ...optionValues.flatMap((group) => group.options),
           ...flags,
           ...download.flatMap((entry) => [...entry.packageOptions, ...(entry.extraPackageOptions ?? []), ...(entry.lineOptions ?? []), ...(entry.shellOptions ?? [])]),
           ...(facts.commandOptions ?? []).flatMap((entry) => entry.valueOptions),
@@ -941,6 +969,7 @@ function commands(): Commands {
             applicationOptions: factOf<ApplicationOption[]>(tool, sibling(key, 'applicationOptions')),
             runnerOptions: factOf<RunnerOptionsKnowledge>(tool, sibling(key, 'runnerOptions')),
             links: factOf<string[][]>(tool, sibling(key, 'linkCommands')) ?? [],
+            optionValues: optionValueTables(optionValues),
           },
         ];
       }),
@@ -1747,7 +1776,7 @@ function noptOption(tool: ToolCommands, bare: string): { name: string; fixed: bo
  * -Uq as two flags and -ivalue as -i with a value. npm and pnpm (nopt) take any number of dashes, shorthands such as
  * --reg for --registry, and prefixes of option names.
  */
-function readOption(words: readonly Word[], index: number, tool: ToolCommands, takes: (name: string) => boolean): ReadOption {
+function readOption(words: readonly Word[], index: number, tool: ToolCommands, takes: (name: string) => boolean, dashEnds?: (name: string) => boolean): ReadOption {
   const text = (words[index] as Word).text;
   const parsing = tool.parsing;
   let [name, attached] = splitOption(text);
@@ -1776,6 +1805,8 @@ function readOption(words: readonly Word[], index: number, tool: ToolCommands, t
     name = abbreviated(tool, name) ?? overrideAbbreviation(tool, name) ?? name;
   }
   if (attached !== undefined || !takes(name)) return { name, value: attached, next: undefined };
+  // An option that stands alone before a word that starts with a dash, which is then read as an option (decision D-201).
+  if (words[index + 1]?.text.startsWith('-') === true && dashEnds?.(name) === true) return { name, value: undefined, next: undefined };
   return { name, value: words[index + 1]?.text, next: words[index + 1] };
 }
 
@@ -1857,7 +1888,13 @@ function readArguments(given: readonly Word[], mode: 'add' | 'run' | 'create', t
   const packageOptions = entry?.packageOptions ?? [];
   const extraOptions = mode === 'add' ? (tool.facts.addPackageOptions ?? []) : (entry?.extraPackageOptions ?? []);
   const lineOptions = entry?.lineOptions ?? [];
-  const takes = (name: string) => context.values.has(name) || packageOptions.includes(name) || extraOptions.includes(name) || lineOptions.includes(name);
+  // Options that take a value only in this kind of command, or only from a version on (decision D-201).
+  const later = mode === 'create' ? undefined : tool.optionValues[mode];
+  const takes = (name: string) => context.values.has(name) || packageOptions.includes(name) || extraOptions.includes(name) || lineOptions.includes(name) || later?.has(name) === true;
+  const dashEnds = (name: string) => {
+    const group = later?.get(name);
+    return group !== undefined && (group.value === 'unless-dash' || group.since !== undefined);
+  };
   let words = given;
   if (mode === 'run' && entry !== undefined && tool.runnerOptions?.amongArguments?.some((command) => sameCommand(command, entry.command)) === true) {
     const ordered = optionsFirst(given, tool, takes, entry.command.join(' '));
@@ -1868,6 +1905,9 @@ function readArguments(given: readonly Word[], mode: 'add' | 'run' | 'create', t
   const lines: string[] = [];
   const events: SelectionEvent[] = [];
   const overrides: Found[] = [];
+  /** The specs that are the value of an option only later versions read with one, by their index (decision D-201). */
+  const valueOf = new Map<number, OptionValueOf>();
+  OPTION_VALUE_SPECS.set(specs, valueOf);
   let named = false;
   let positional = false;
   let shell = false;
@@ -1885,7 +1925,7 @@ function readArguments(given: readonly Word[], mode: 'add' | 'run' | 'create', t
         if (readingAside) continue;
         return expandedArgument(expanded(word));
       }
-      const option = readOption(words, index, tool, takes);
+      const option = readOption(words, index, tool, takes, dashEnds);
       const { name, value, next } = option;
       // The arguments are local files (deno install --entrypoint), so no package is named.
       if (mode === 'add' && tool.facts.fileOptions?.includes(name) === true) return { specs: [], lines, rest: [], events, overrides };
@@ -1918,6 +1958,16 @@ function readArguments(given: readonly Word[], mode: 'add' | 'run' | 'create', t
       if (override !== undefined) overrides.push(override);
       events.push(...optionEvents(context, name, value));
       if (value === undefined) continue;
+      // Versions before `since` skipped the option alone and installed or ran this word as a package (decision D-201):
+      // it is checked as one too, and in a download command the package after it is still read.
+      const group = later?.get(name);
+      if (group?.since !== undefined && next !== undefined && (mode === 'add' || !named)) {
+        const mark: OptionValueOf = { option: name, since: group.since, written: `${name}=${value}` };
+        for (const spec of group.separator === undefined ? [value] : value.split(group.separator).map((entry) => entry.trim()).filter((entry) => entry !== '')) {
+          valueOf.set(specs.length, mark);
+          specs.push(spec);
+        }
+      }
       const listed = tool.facts.commaSeparatedOptions?.includes(name) === true ? commaSeparated(value) : [value];
       const editable = context.editable.has(name);
       if ((mode !== 'add' && packageOptions.includes(name)) || extraOptions.includes(name) || editable) {
@@ -1986,6 +2036,8 @@ interface Pending {
 
 /** What is still to be settled about each request: the variables of the lines around it come in on the way out. */
 const PENDING = new WeakMap<InstallRequest, Pending>();
+/** The specs of an outcome of readArguments that are the value of an option (decision D-201), by the array of specs. */
+const OPTION_VALUE_SPECS = new WeakMap<readonly string[], ReadonlyMap<number, OptionValueOf>>();
 
 function finish(
   tool: ToolCommands,
@@ -2000,8 +2052,10 @@ function finish(
   // Python specs carry the prefix of the policy, so that check looks them up on the index.
   const prefix = tool.ecosystem === 'pypi' ? PYPI_PREFIX : '';
   const events = [...before, ...outcome.events];
-  const requests = outcome.specs.map((spec): InstallRequest => {
-    const request: InstallRequest = { tool: tool.tool, command: line, spec: `${prefix}${spec}` };
+  const valueOf = OPTION_VALUE_SPECS.get(outcome.specs);
+  const requests = outcome.specs.map((spec, index): InstallRequest => {
+    const optionValue = valueOf?.get(index);
+    const request: InstallRequest = { tool: tool.tool, command: line, spec: `${prefix}${spec}`, ...(optionValue === undefined ? {} : { optionValue }) };
     PENDING.set(request, { events, variables: [], switches: context?.switches, tagVariable: tool.versionSelection?.tagVariable });
     return request;
   });
@@ -4566,7 +4620,7 @@ function settle(request: InstallRequest): InstallRequest {
     return { ...rest, ...place };
   }
   const events = [...pending.variables.flatMap(({ name, value }) => variableEvents(pending.switches, pending.tagVariable, name, value)), ...pending.events];
-  const result: InstallRequest = { tool: request.tool, command: request.command, spec: request.spec, ...(request.linked === true ? { linked: true } : {}) };
+  const result: InstallRequest = { tool: request.tool, command: request.command, spec: request.spec, ...(request.linked === true ? { linked: true } : {}), ...(request.optionValue === undefined ? {} : { optionValue: request.optionValue }) };
   const tag = events.findLast((event) => event.setting === 'tag');
   if (tag !== undefined && tag.setting === 'tag') result.tag = tag.value;
   if (pending.switches !== undefined) {

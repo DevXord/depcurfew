@@ -511,6 +511,25 @@ export interface CommandLineKnowledge {
   fileCommands?: readonly (readonly string[])[];
 }
 
+/**
+ * Options that take a value only in some commands of a tool, or only from a version on, in a fact of its own
+ * (`optionValues`) next to the command-line fact (decision D-201). In those commands they are value options too.
+ */
+export interface OptionValues {
+  /** add: the commands that add packages (commandLine.add and the install words); run: the download commands (commandLine.run). */
+  commands: readonly ('add' | 'run')[];
+  /** always: the next word is the value, whatever it is; unless-dash: only a next word that does not start with a dash, else the option stands alone. */
+  value: 'always' | 'unless-dash';
+  /**
+   * The first version whose commands take the value. Earlier ones skipped the option alone and installed or ran the next
+   * word as a package, so that word is checked as a package too, and a word that starts with a dash is never the value.
+   */
+  since?: string;
+  /** The value lists packages with this separator; each entry is checked as a package. */
+  separator?: string;
+  options: readonly string[];
+}
+
 /** Forms of a package spec on the command line that do not name a registry package, by prefix. */
 export interface PackageSpecKnowledge {
   /** Prefixes of specs that install a git repository. */
