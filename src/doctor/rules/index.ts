@@ -13,6 +13,7 @@ import { invalidProject } from './invalid-project.ts';
 import { knownMalicious } from './known-malicious.ts';
 import { lockfileForbiddenSource, lockfileInstallScripts } from './lockfile.ts';
 import { lockfileOutOfDate } from './lockfile-out-of-date.ts';
+import { lockfileTampered } from './lockfile-tampered.ts';
 import { managerVersionTooOld } from './manager-version.ts';
 import { npmrcOverridesPolicy, pnpmSharedWorkspaceLockfile } from './npmrc.ts';
 import { pnpmConfigUnverifiable } from './pnpm-config.ts';
@@ -43,5 +44,6 @@ export const RULES: readonly Rule[] = [
   lockfileInstallScripts,
   lockfileOutOfDate,
   knownMalicious,
+  lockfileTampered,
   unreadableConfig,
 ];

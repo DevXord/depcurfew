@@ -96,9 +96,9 @@ describe('doctor without depcurfew.json', () => {
     expect(result.stdout).toMatch(/^ {4}passed {10}The lockfile installs no package from a source depcurfew\.json denies \(compared with the default policy\) \[lockfile-forbidden-source\]$/mu);
     expect(result.stdout).toMatch(/^ {4}skipped {9}depcurfew\.json follows the schema and can be read \(needs depcurfew\.json\) \[invalid-policy\]$/mu);
     expect(result.stdout).not.toContain('(needs depcurfew.json) [config-drift]');
-    // 22 checks since pnpm-config-unverifiable (decision D-164) and ci-weakens-policy (decision D-166), which do not
-    // concern an npm project without CI.
-    expect(result.stdout).toMatch(/^ {2}22 checks: 6 passed, 2 found problems, 13 not applicable, 1 skipped$/mu);
+    // 23 checks since pnpm-config-unverifiable (decision D-164), ci-weakens-policy (decision D-166) and
+    // lockfile-tampered (decision D-204), which do not concern an npm project without CI.
+    expect(result.stdout).toMatch(/^ {2}23 checks: 6 passed, 2 found problems, 14 not applicable, 1 skipped$/mu);
   });
 
   it('--json marks every such finding and says which policy the rules that need one used', async () => {

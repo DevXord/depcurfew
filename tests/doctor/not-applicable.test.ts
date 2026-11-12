@@ -50,9 +50,11 @@ describe('rules that do not concern the project', () => {
       'lockfile-install-scripts': 'skipped',
       'lockfile-out-of-date': 'not-applicable',
       'known-malicious': 'not-applicable',
+      // lockfile-tampered (decision D-204) concerns a composer.lock only.
+      'lockfile-tampered': 'not-applicable',
       'unreadable-config': 'passed',
     });
-    expect(resultCounts(report.checked?.rules ?? [])).toBe('22 checks: 8 passed, 10 not applicable, 4 skipped');
+    expect(resultCounts(report.checked?.rules ?? [])).toBe('23 checks: 8 passed, 11 not applicable, 4 skipped');
   });
 
   it('are not applicable in a PDM project without bots: the npm, pnpm and bot rules', () => {
@@ -90,6 +92,8 @@ describe('rules that do not concern the project', () => {
       'lockfile-install-scripts': 'not-applicable',
       'lockfile-out-of-date': 'not-applicable',
       'known-malicious': 'not-applicable',
+      // lockfile-tampered (decision D-204) concerns a composer.lock only.
+      'lockfile-tampered': 'not-applicable',
       'unreadable-config': 'passed',
     });
   });

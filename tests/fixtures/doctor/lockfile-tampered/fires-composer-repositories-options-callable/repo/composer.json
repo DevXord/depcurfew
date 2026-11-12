@@ -1,0 +1,33 @@
+{
+    "name": "acme/shop",
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://repo.example.org",
+            "options": {
+                "http": {
+                    "timeout": 60
+                },
+                "prevent_url_access_callable": "strlen"
+            }
+        },
+        {
+            "type": "package",
+            "package": {
+                "name": "legacy/widgets",
+                "version": "1.0.0",
+                "dist": {
+                    "url": "https://downloads.example.com/widgets-1.0.0.zip",
+                    "type": "zip"
+                },
+                "transport-options": {
+                    "prevent_ip_access_callable": "strlen"
+                }
+            }
+        }
+    ],
+    "require": {
+        "acme/toolkit": "^2.0",
+        "legacy/widgets": "1.0.0"
+    }
+}

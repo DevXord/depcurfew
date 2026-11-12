@@ -890,6 +890,7 @@ const bundler$1 = {
 const { verified: verified$14, uncertain: uncertain$12 } = verifiedOn("2026-11-02");
 const ciOverrides$1 = verifiedOn("2026-11-03");
 const d192 = verifiedOn("2026-11-09");
+const d204 = verifiedOn("2026-11-11");
 const COMPOSER = "https://github.com/composer/composer/blob/2.11.1";
 const CONFIG$3 = `${COMPOSER}/doc/06-config.md`;
 const CLI$1 = `${COMPOSER}/doc/03-cli.md`;
@@ -899,6 +900,7 @@ const CHANGELOG$3 = `${COMPOSER}/CHANGELOG.md`;
 const SRC = `${COMPOSER}/src/Composer`;
 const VERSIONS = `${COMPOSER}/doc/articles/versions.md`;
 const AUTHENTICATION = `${COMPOSER}/doc/articles/authentication-for-private-packages.md`;
+const COMPOSER_2_11_2 = "https://github.com/composer/composer/blob/2.11.2";
 const MINIFIER = "https://github.com/composer/metadata-minifier/blob/1.0.1/src/MetadataMinifier.php";
 const CONSOLE = "https://github.com/symfony/console/blob/v5.4.55";
 const PACKAGIST_API = "https://packagist.org/apidoc";
@@ -1768,7 +1770,25 @@ const composer$3 = {
 				"http",
 				"header"
 			]
-		}, AUTHENTICATION, "\"Credentials can be stored on 4 different places; in an auth.json for the project, a global auth.json, in the composer.json itself or in the COMPOSER_AUTH environment variable\"; in composer.json \"in the config section or directly in the repository definition\". Each method is a key with the host under it: \"http-basic\": {\"example.org\": {\"username\": …, \"password\": …}}, \"bearer\": {\"example.org\": \"TOKEN\"}, \"custom-headers\": {\"repo.example.org\": [\"API-TOKEN: YOUR-API-TOKEN\", …]}, \"gitlab-oauth\" and \"gitlab-token\": {\"example.org\": \"token\"}, \"github-oauth\": {\"github.com\": \"token\"}, \"bitbucket-oauth\": {\"bitbucket.org\": {\"consumer-key\": \"key\", \"consumer-secret\": \"secret\"}}, \"client-certificate\": {\"repo.example.org\": {\"local_cert\": …, \"local_pk\": …, \"passphrase\": \"MySecretPassword\"}} and \"forgejo-token\": {\"forgejo.example.org\": {\"username\": \"forgejo-user\", \"token\": \"access-token\"}}; inline custom headers sit in the repository as \"options\": {\"http\": {\"header\": [\"API-TOKEN: YOUR-API-TOKEN\", …]}}. The token is the value under the host, so a diff that reads a line alone does not see that it is one (decision D-192).")
+		}, AUTHENTICATION, "\"Credentials can be stored on 4 different places; in an auth.json for the project, a global auth.json, in the composer.json itself or in the COMPOSER_AUTH environment variable\"; in composer.json \"in the config section or directly in the repository definition\". Each method is a key with the host under it: \"http-basic\": {\"example.org\": {\"username\": …, \"password\": …}}, \"bearer\": {\"example.org\": \"TOKEN\"}, \"custom-headers\": {\"repo.example.org\": [\"API-TOKEN: YOUR-API-TOKEN\", …]}, \"gitlab-oauth\" and \"gitlab-token\": {\"example.org\": \"token\"}, \"github-oauth\": {\"github.com\": \"token\"}, \"bitbucket-oauth\": {\"bitbucket.org\": {\"consumer-key\": \"key\", \"consumer-secret\": \"secret\"}}, \"client-certificate\": {\"repo.example.org\": {\"local_cert\": …, \"local_pk\": …, \"passphrase\": \"MySecretPassword\"}} and \"forgejo-token\": {\"forgejo.example.org\": {\"username\": \"forgejo-user\", \"token\": \"access-token\"}}; inline custom headers sit in the repository as \"options\": {\"http\": {\"header\": [\"API-TOKEN: YOUR-API-TOKEN\", …]}}. The token is the value under the host, so a diff that reads a line alone does not see that it is one (decision D-192)."),
+		transportCallables: d204.verified({
+			lockField: "transport-options",
+			repositoryField: "options",
+			repositoryKinds: ["registry", "vcs"],
+			keys: [{
+				key: "prevent_url_access_callable",
+				from: "2.10.0-RC2",
+				to: "2.11.1",
+				argument: "the URL",
+				advisory: "GHSA-jhfp-4ppm-crmm"
+			}, {
+				key: "prevent_ip_access_callable",
+				from: "2.7.3",
+				to: "2.11.1",
+				argument: "the IP address of the server"
+			}],
+			dropped: "2.11.2"
+		}, `${COMPOSER_2_11_2}/src/Composer/Package/Loader/ArrayLoader.php`, "ArrayLoader at 2.11.2 (lines 320-326) removes prevent_url_access_callable and prevent_ip_access_callable from the transport-options it loads: \"these options are invoked as callables while downloading, so they must never be taken from externally provided package data such as the lock or installed.json\". At 2.11.1 it copies transport-options as they are (lines 320-321), and Locker reads composer.lock with new ArrayLoader(null, true), which loads them (Locker.php line 77). CurlDownloader at 2.11.1 calls $options['prevent_url_access_callable']($url) for each request when the value is_callable (lines 215-221) and prevent_ip_access_callable with the IP address of the server it connected to (lines 618-622); at 2.11.2 it stops with an error on any value that is not a Closure (lines 223-227), and no JSON file can hold a Closure. RemoteFilesystem at 2.11.1 refuses both (lines 254-260). CurlDownloader.php has prevent_url_access_callable from 2.10.0-RC2 (not at 2.9.8 and 2.10.0-RC1) and prevent_ip_access_callable from 2.7.3 (not at 2.7.2); 2.2.32 has neither. At 2.11.1 ComposerRepository::configurePackageTransportOptions gives the packages of a Composer repository the options of that repository in composer.json when one of their dist URLs starts with its base URL (configurePackageTransportOptions and isOwnDistUrl, ComposerRepository.php lines 1122-1143), VcsDriver::getContents sends the requests of a VCS repository with its options (Vcs/VcsDriver.php line 169), PathRepository copies only symlink and relative from its options into the transport options of its packages (PathRepository.php lines 189-190), ArtifactRepository reads no options, PackageRepository loads the packages a package repository defines with new ArrayLoader(null, true) (PackageRepository.php line 64), and ArrayDumper writes the transport options of a package into composer.lock (Dumper/ArrayDumper.php lines 146-147). CHANGELOG.md at 2.11.2: \"Security: Fixed arbitrary command execution via the prevent_url_access_callable transport option being loaded from composer.lock / vendor/composer/installed.json (GHSA-jhfp-4ppm-crmm)\". The text of the advisory could not be read when this was checked.")
 	}
 };
 
@@ -20654,7 +20674,7 @@ function blockStart(table, scope = "project") {
 	return table === void 0 ? marker : marker.replace(": ", ` [${table}]: `);
 }
 const PREFIX = "# >>> depcurfew managed block";
-const TEXTS = [BLOCK_START, USER_BLOCK_START].map((marker) => marker.slice(29));
+const TEXTS$1 = [BLOCK_START, USER_BLOCK_START].map((marker) => marker.slice(29));
 /** The table a start marker names ('' for none), whichever policy wrote it; undefined when the line starts no block. */
 function blockLabel(line) {
 	const trimmed = line.trim();
@@ -20662,7 +20682,7 @@ function blockLabel(line) {
 	let rest = trimmed.slice(29);
 	const labeled = /^ \[([^\]]*)\]/u.exec(rest);
 	if (labeled !== null) rest = rest.slice(labeled[0].length);
-	return TEXTS.includes(rest) ? labeled?.[1] ?? "" : void 0;
+	return TEXTS$1.includes(rest) ? labeled?.[1] ?? "" : void 0;
 }
 function isBlockStart(line) {
 	return blockLabel(line) !== void 0;
@@ -20847,7 +20867,7 @@ function isHeader(line) {
 	return headerOf(line) !== void 0;
 }
 /** The key of a `key = value` line in the spelling of keyName: quoted and dotted keys as TOML reads them. */
-function keyOf$2(line) {
+function keyOf$3(line) {
 	const trimmed = line.trim();
 	if (trimmed === "" || trimmed.startsWith("#") || trimmed.startsWith("[")) return void 0;
 	const key = readKey(trimmed, 0);
@@ -20914,7 +20934,7 @@ function tablesOf(lines) {
 		const header = headerOf(line);
 		if (header !== void 0) current = header.name;
 		tables[index] = current;
-		if (header === void 0 && keyOf$2(line) !== void 0) {
+		if (header === void 0 && keyOf$3(line) !== void 0) {
 			const end = valueEnd(lines, index);
 			for (let next = index + 1; next <= end; next++) tables[next] = current;
 			index = end;
@@ -20952,7 +20972,7 @@ function restoreLines(lines, table, isManaged) {
 		}
 		const original = commentedOut(line);
 		if (original === void 0) {
-			if (keyOf$2(line) !== void 0) index = valueEnd(lines, index);
+			if (keyOf$3(line) !== void 0) index = valueEnd(lines, index);
 			continue;
 		}
 		const noted = headerOf(original);
@@ -20962,7 +20982,7 @@ function restoreLines(lines, table, isManaged) {
 			if (section === "restored") lines[index] = original;
 			continue;
 		}
-		const key = keyOf$2(original);
+		const key = keyOf$3(original);
 		if (key === void 0 || section === "kept") continue;
 		const dotted = !topLevel && current === void 0 && key.startsWith(prefix);
 		if (section === "table" && !((topLevel ? current === void 0 : current === table) && !isManaged(key) || dotted && !isManaged(key.slice(prefix.length)))) continue;
@@ -21009,7 +21029,7 @@ function writeTomlBlock(body, table, entries, managedKeys, label, scope = "proje
 			if (!header.array) headers.set(index, current);
 			continue;
 		}
-		const key = keyOf$2(line);
+		const key = keyOf$3(line);
 		if (key === void 0) continue;
 		const end = valueEnd(lines, index);
 		const inTable = (topLevel ? current === void 0 : current === table) && isManaged(key);
@@ -22991,7 +23011,7 @@ function tomlSetting(text, table, key) {
 		if (line === "" || line.startsWith("#") || line.startsWith("[")) return;
 		const equals = line.indexOf("=");
 		if (equals === -1) return;
-		const name = keyOf$2(line) ?? "";
+		const name = keyOf$3(line) ?? "";
 		if (current === table && name === key || current === "" && name === `${table}.${key}`) found = {
 			value: tomlScalar(line.slice(equals + 1)),
 			line: index + 1
@@ -24790,6 +24810,7 @@ function composerEntries(text, tool, repositories, manifest) {
 	const inline = repositories.filter((entry) => entry.names.length > 0);
 	const hosts = registryHosts(tool, repositories);
 	const pluginTypes = new Set(format.pluginTypes.map((type) => type.toLowerCase()));
+	const callables = transportCallablesOf(tool);
 	const entries = [];
 	for (const section of format.sections) {
 		const packages = document[section];
@@ -24833,6 +24854,7 @@ function composerEntries(text, tool, repositories, manifest) {
 			const release = (kind === "registry" || checkedOutRelease || kind === "unknown" && fromInline === void 0) && typeof locked === "string" && locked !== "" && !locked.startsWith(branches.prefix) && !locked.endsWith(branches.suffix);
 			const type = item[format.installScripts];
 			const plugin = typeof type === "string" && pluginTypes.has(type.toLowerCase());
+			const called = callables === void 0 ? [] : callableKeys(callables, item[callables.lockField]);
 			entries.push({
 				name,
 				spec,
@@ -24843,11 +24865,91 @@ function composerEntries(text, tool, repositories, manifest) {
 				...plugin && valueAt(item, format.optionalPlugin) === true ? { optional: true } : {},
 				...kind === "git" && why !== void 0 ? { why } : {},
 				...kind === "git" && preference !== void 0 ? { preferredInstall: preference } : {},
-				...otherSource === void 0 ? {} : { otherSource }
+				...otherSource === void 0 ? {} : { otherSource },
+				...called.length === 0 ? {} : { transportCallables: called }
 			});
 		}
 	}
 	return entries;
+}
+const isCallables = (value) => isRecord(value) && typeof value["lockField"] === "string" && typeof value["repositoryField"] === "string" && Array.isArray(value["repositoryKinds"]) && value["repositoryKinds"].every((kind) => typeof kind === "string") && typeof value["dropped"] === "string" && Array.isArray(value["keys"]) && value["keys"].every((entry) => isRecord(entry) && [
+	"key",
+	"from",
+	"to",
+	"argument"
+].every((key) => typeof entry[key] === "string"));
+/** The transport options Composer calls as PHP functions (extra.transportCallables, decision D-204); undefined without the fact. */
+function transportCallablesOf(tool) {
+	return tool.extra?.["transportCallables"] === void 0 ? void 0 : extraOf(tool, "transportCallables", isCallables);
+}
+/**
+* The keys of the fact that an object of transport options sets to anything but null, in the order of the fact: PHP's
+* isset, with which Composer reads them, takes every other value, and a key is matched as written.
+*/
+function callableKeys(fact, options) {
+	if (!isRecord(options)) return [];
+	return fact.keys.map((entry) => entry.key).filter((key) => Object.hasOwn(options, key) && options[key] !== null);
+}
+/**
+* The transport options of the repositories of the root composer.json that Composer calls as PHP functions, in the
+* order of the file: those of the options of each repository of a kind whose options Composer passes to its downloads
+* (the fact's repositoryKinds: Composer and VCS repositories; a path repository copies only symlink and relative, an
+* artifact repository reads none), and those of the transport-options of each package a package
+* repository defines (one object, or a list of them).
+*/
+function repositoryCallables(repository, tool) {
+	const fact = transportCallablesOf(tool);
+	const text = repository.readText(COMPOSER_MANIFEST);
+	const manifest = composerManifest(repository);
+	if (fact === void 0 || text === void 0 || manifest === void 0) return [];
+	const list = manifest["repositories"];
+	const entries = Array.isArray(list) ? list.map((item, index) => [index, item]) : isRecord(list) ? Object.entries(list) : [];
+	const types = repositoryTypes(tool);
+	const passing = new Set(fact.repositoryKinds.flatMap((kind) => {
+		const listed = Object.hasOwn(types, kind) ? types[kind] : void 0;
+		return isStrings$6(listed) ? listed : [];
+	}));
+	const found = [];
+	for (const [key, entry] of entries) {
+		if (!isRecord(entry)) continue;
+		const type = typeof entry["type"] === "string" ? entry["type"].toLowerCase() : "";
+		const where = {
+			repository: key,
+			type,
+			url: typeof entry["url"] === "string" ? entry["url"] : void 0
+		};
+		if (passing.has(type)) for (const option of callableKeys(fact, entry[fact.repositoryField])) found.push({
+			key: option,
+			...where,
+			line: jsonSetting(text, [
+				"repositories",
+				key,
+				fact.repositoryField,
+				option
+			])?.line
+		});
+		if (!types.inline.includes(type)) continue;
+		const packages = entry["package"];
+		const definitions = Array.isArray(packages) ? packages.map((item, index) => [index, item]) : [[void 0, packages]];
+		for (const [index, definition] of definitions) {
+			if (!isRecord(definition)) continue;
+			const name = typeof definition["name"] === "string" ? definition["name"] : "";
+			const path = [
+				"repositories",
+				key,
+				"package",
+				...index === void 0 ? [] : [index],
+				fact.lockField
+			];
+			for (const option of callableKeys(fact, definition[fact.lockField])) found.push({
+				key: option,
+				...where,
+				package: name,
+				line: jsonSetting(text, [...path, option])?.line
+			});
+		}
+	}
+	return found;
 }
 const isPreference = (value) => isRecord(value) && [
 	"setting",
@@ -28647,7 +28749,7 @@ const SOURCE_LABEL = {
 	"github-actions": "GitHub Actions",
 	dockerfile: "Dockerfile"
 };
-const RULE$5 = "manager-version-too-old";
+const RULE$6 = "manager-version-too-old";
 /** Where developers choose their Node.js; anyone can install another npm, so these give warnings. */
 const DEVELOPER_SOURCES = /* @__PURE__ */ new Set([
 	"nvmrc",
@@ -29388,7 +29490,7 @@ function report(context, helpers, check, place, resolution, facts) {
 	});
 }
 function unknown(context, subject, reason, file) {
-	context.notice(`${RULE$5} cannot tell which npm or pip comes with ${subject}: ${reason}`, file);
+	context.notice(`${RULE$6} cannot tell which npm or pip comes with ${subject}: ${reason}`, file);
 }
 /**
 * The npm an npm install -g npm@X puts in place, checked against the settings of the directory its installs run in, as
@@ -29403,7 +29505,7 @@ function checkUpgrade(context, helpers, check, place, facts) {
 	const written = lowestVersion(spec);
 	const picked = written.kind === "exact" ? void 0 : pickedNpm(spec, place.nodes);
 	if (written.kind !== "exact" && picked === void 0) {
-		context.notice(`${RULE$5} cannot evaluate ${name} version "${spec}" in ${place.file}: it is no version, range or latest, or none of the ${name} releases depcurfew knows is in it`, place.file);
+		context.notice(`${RULE$6} cannot evaluate ${name} version "${spec}" in ${place.file}: it is no version, range or latest, or none of the ${name} releases depcurfew knows is in it`, place.file);
 		return;
 	}
 	const lowest = picked === void 0 ? written : {
@@ -29534,7 +29636,7 @@ function checkDockerfiles(context, helpers, checkFor, tool, facts) {
 					file: file.file,
 					line: root.line
 				},
-				message: `${RULE$5} cannot tell which ${tool} comes with ${subject}: ${runtime.unknown ?? "the tag names no version"}`,
+				message: `${RULE$6} cannot tell which ${tool} comes with ${subject}: ${runtime.unknown ?? "the tag names no version"}`,
 				fix: `Use a ${runtimeTool} image tag that names the ${runtimeName} version (such as ${runtimeTool}:${runtimeTool === "node" ? "24-alpine" : "3.13-slim"}, with the digest after it: ${runtimeTool}:<tag>@sha256:…), or check by hand that the ${tool} of that image supports ${list}`
 			});
 			continue;
@@ -33710,7 +33812,7 @@ const composer = (context) => {
 * The setting a line sets, read as npm reads it, with the reader doctor uses (extra.npmrcFormat): quotes removed,
 * a key without = included, a trailing comment cut off; `key[]` as `key`.
 */
-function keyOf$1(line) {
+function keyOf$2(line) {
 	const parsed = iniLine(line);
 	return parsed === void 0 || "section" in parsed ? void 0 : parsed.key.replace(/\[\]$/u, "");
 }
@@ -33735,8 +33837,8 @@ function writeIniBlock(body, entries, managedKeys, marker = BLOCK_START) {
 	const lines = removed.lines.map((line) => parts(line).map((part) => {
 		if (isSection(part)) inSection = true;
 		const original = commentedOut(part);
-		if (original !== void 0) return !inSection && managed.has(keyOf$1(original) ?? "") ? part : original;
-		const key = inSection ? void 0 : keyOf$1(part);
+		if (original !== void 0) return !inSection && managed.has(keyOf$2(original) ?? "") ? part : original;
+		const key = inSection ? void 0 : keyOf$2(part);
 		return key !== void 0 && managed.has(key) ? `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${part.trim()}` : part;
 	}).join("\r"));
 	if (entries.length === 0) return joinLines(lines);
@@ -39831,7 +39933,7 @@ function variablePlace(variable, tool) {
 }
 
 // src/doctor/rules/bundler-config.ts
-const RULE$4 = "bundler-config-weakens";
+const RULE$5 = "bundler-config-weakens";
 /** Workflows as GitHub reads them: with their aliases expanded (environment.githubActions.yamlAliases, decision D-141). */
 const WORKFLOW_YAML$1 = evidenceOf(environment.githubActions.yamlAliases)[0]?.value.accepted === true ? { aliases: true } : {};
 const isSettingFacts = (value) => isRecord(value) && typeof value["key"] === "string" && typeof value["variable"] === "string" && typeof value["localFile"] === "string";
@@ -39951,7 +40053,7 @@ function checkWorkflowEnv(context, facts, wanted) {
 		if (text === void 0) continue;
 		const aliases = WORKFLOW_YAML$1.aliases === true ? yamlAliasProblem(text) : void 0;
 		if (aliases !== void 0) {
-			context.notice(`${RULE$4} could not read the env of ${file}: its YAML aliases cannot be expanded (${aliases})`, file, `Write the values out in place of the aliases in ${file}, then run depcurfew doctor again`);
+			context.notice(`${RULE$5} could not read the env of ${file}: its YAML aliases cannot be expanded (${aliases})`, file, `Write the values out in place of the aliases in ${file}, then run depcurfew doctor again`);
 			continue;
 		}
 		const label = (id) => jobLabel(id, yamlSetting(text, ["jobs", id], WORKFLOW_YAML$1)?.line);
@@ -40064,7 +40166,7 @@ function checkConfigCommands$1(context, tool, facts, wanted) {
 	}
 }
 const bundlerConfigWeakens = {
-	id: RULE$4,
+	id: RULE$5,
 	checks: ".bundle/config, the env of CI workflows and the bundle commands and bundle config of CI jobs and Dockerfiles keep the cooldown of Bundler",
 	summary: ".bundle/config, the env of a CI workflow or a bundle command in a CI job or a Dockerfile turns the cooldown of Bundler off or makes it shorter than the policy.",
 	description: "Bundler 4.0.13 and later hold back gem versions younger than the cooldown: of the Gemfile source, but the cooldown setting and the --cooldown option take its place for every source. BUNDLE_COOLDOWN with fewer days than depcurfew.json, or 0, in .bundle/config (read line by line as Bundler reads it, not as YAML: quotes stay unless they enclose the whole value, and # starts a comment), in a CI workflow (env, $GITHUB_ENV, before a bundle command) or a Dockerfile (ENV, ARG), bundle config set cooldown N in a run step or a RUN instruction, and a shorter --cooldown on bundle install, update, lock, add or cache (also bundle i, bundle package and bundle _VERSION_ install) turn the delay off or shorten it while the Gemfile still looks configured. Bundler reads the value with to_i: one that does not start with a digit counts as 0, and 1e3 as 1. A value with a ${{ }} expression gives a warning.",
@@ -40102,7 +40204,7 @@ const bundlerConfigWeakens = {
 };
 
 // src/doctor/rules/ci-weakens-policy.ts
-const RULE$3 = "ci-weakens-policy";
+const RULE$4 = "ci-weakens-policy";
 /** The tools this rule covers; pip, Composer and Bundler have rules of their own. */
 const TOOLS$1 = [
 	"npm",
@@ -40387,7 +40489,7 @@ function usedTools(context) {
 	return allSwitches(context.tools).filter(({ tool }) => detections.some((detection) => detection.packageManagers.some((manager) => manager.supported && manager.id === tool.id)) && (policy?.targets === "auto" || policy?.targets.includes(tool.id) === true));
 }
 const ciWeakensPolicy = {
-	id: RULE$3,
+	id: RULE$4,
 	checks: "CI workflows and Dockerfiles keep the release-age delay, the rule on install scripts and the source bans of npm, pnpm, Yarn, Bun, Deno, uv, Poetry and PDM",
 	summary: "A CI workflow or a Dockerfile turns off or weakens, for the commands it runs, a protection depcurfew apply wrote for npm, pnpm, Yarn, Bun, Deno, uv, Poetry or PDM.",
 	description: "Package managers take settings from the command line and the environment over their configuration files, so a workflow or a Dockerfile can undo what depcurfew apply wrote for every install it runs: NPM_CONFIG_MIN_RELEASE_AGE=0, npm_config_strict_allow_scripts=false, npm_config_allow_git=all, pnpm_config_minimum_release_age=0, YARN_ENABLE_SCRIPTS=true or UV_EXCLUDE_NEWER in the env of the workflow, a job, its container or a step, exported or set before a command in a run step, written to $GITHUB_ENV, or set with ENV or ARG in a Dockerfile; and npm --min-release-age=0 or --allow-git=all, pnpm --config.dangerously-allow-all-builds=true, uv lock --exclude-newer or pdm lock --exclude-newer on a command there. A shorter delay and install scripts or sources the policy denies are errors; a value with $ or ${{ }}, or a delay depcurfew cannot compare (a date), gives a warning. pip has python-config-ignored, Composer composer-config-weakens and Bundler bundler-config-weakens.",
@@ -40404,7 +40506,7 @@ const ciWeakensPolicy = {
 // src/doctor/rules/composer-config.ts
 /** Workflows as GitHub reads them: with their aliases expanded (environment.githubActions.yamlAliases, decision D-141). */
 const WORKFLOW_YAML = evidenceOf(environment.githubActions.yamlAliases)[0]?.value.accepted === true ? { aliases: true } : {};
-const RULE$2 = "composer-config-weakens";
+const RULE$3 = "composer-config-weakens";
 const isList = (check) => (value) => Array.isArray(value) && value.every(check);
 const isPath$1 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 /** PHP's (bool) cast of a JSON value. */
@@ -40570,7 +40672,7 @@ function checkWorkflows(context, tool) {
 		if (text === void 0) continue;
 		const aliases = WORKFLOW_YAML.aliases === true ? yamlAliasProblem(text) : void 0;
 		if (aliases !== void 0) {
-			context.notice(`${RULE$2} could not read the env of ${file}: its YAML aliases cannot be expanded (${aliases})`, file, `Write the values out in place of the aliases in ${file}, then run depcurfew doctor again`);
+			context.notice(`${RULE$3} could not read the env of ${file}: its YAML aliases cannot be expanded (${aliases})`, file, `Write the values out in place of the aliases in ${file}, then run depcurfew doctor again`);
 			continue;
 		}
 		for (const { path, where } of environments(text)) {
@@ -40724,7 +40826,7 @@ function checkCommandOptions(context, tool) {
 	}
 }
 const composerConfigWeakens = {
-	id: RULE$2,
+	id: RULE$3,
 	checks: "composer.json, CI workflows and Dockerfiles keep Composer protections on",
 	summary: "composer.json, a CI workflow or a Dockerfile turns a Composer protection off: the cooldown, malware blocking, allow-plugins, secure-http or TLS.",
 	description: "Composer 2.11 withholds new versions with config.policy.cooldown and runs only the plugins config.allow-plugins allows. \"policy\", \"cooldown\" or \"block\" under it set to false, a repository with \"require-published-time\": false or \"filter\": false, \"allow-plugins\": true (or a \"*\" or \"*/*\" key), \"secure-http\": false and \"disable-tls\": true turn such a protection off while the configuration looks right; so do COMPOSER_POLICY=0, COMPOSER_NO_BLOCKING or COMPOSER_NO_SECURITY_BLOCKING set to 1, true, on, false or off, a shorter COMPOSER_POLICY_COOLDOWN_PERIOD and COMPOSER_POLICY_COOLDOWN_BLOCK=0 in a CI workflow (env, run step, $GITHUB_ENV) or a Dockerfile (ENV, ARG, RUN), composer config policy.cooldown false and the like run there, and --no-cooldown or --no-blocking on a composer command there. Cooldown settings count when depcurfew.json sets a cooldown, allow-plugins when it denies dependency code; malware blocking and filter give warnings. COMPOSER_HOME/config.json is not read.",
@@ -41014,7 +41116,7 @@ function jsonPair(line) {
 	}
 }
 /** The key of a `key=value`, `key = value` or `key: value` line, for pairing an old line with its replacement. */
-function keyOf(line) {
+function keyOf$1(line) {
 	return /^\s*(?:-\s+)?["']?([^=:"'\s]+)["']?\s*[=:]/u.exec(line)?.[1];
 }
 /** What is wrong, in words: a value to change, a line to add or remove, or a hand-written line to comment out. */
@@ -41041,7 +41143,7 @@ function describe(file, original, before, after) {
 		return parts.join("; ");
 	}
 	const [removed] = difference.removed;
-	if (difference.removed.length > 1 && difference.removed.length === difference.added.length && difference.removed.every((text, index) => keyOf(text) !== void 0 && keyOf(text) === keyOf(difference.added[index] ?? ""))) return difference.removed.map((text, index) => `${code(text)} should be ${code(difference.added[index] ?? "")}${quotedNote(file, text, difference.added[index] ?? "")}`).join(", ");
+	if (difference.removed.length > 1 && difference.removed.length === difference.added.length && difference.removed.every((text, index) => keyOf$1(text) !== void 0 && keyOf$1(text) === keyOf$1(difference.added[index] ?? ""))) return difference.removed.map((text, index) => `${code(text)} should be ${code(difference.added[index] ?? "")}${quotedNote(file, text, difference.added[index] ?? "")}`).join(", ");
 	if (removed !== void 0 && difference.added.length > 0) return `${removedText(file, difference.removed)} should be ${addedText(difference.added)}${quotedNote(file, removed, difference.added[0] ?? "")}`;
 	if (difference.added.length > 0) {
 		const top = difference.added.length === 1 ? topLevelYaml(file, difference.added[0] ?? "") : void 0;
@@ -41306,7 +41408,7 @@ function reportedDifferences(before, after) {
 }
 
 // src/doctor/rules/corepack.ts
-const RULE$1 = "corepack-unavailable";
+const RULE$2 = "corepack-unavailable";
 /** The first release without Corepack after releases with it (25.0.0), from environment.corepack.bundledWithNode. */
 function removedIn() {
 	for (const evidence of evidenceOf(environment.corepack.bundledWithNode)) {
@@ -41447,7 +41549,7 @@ function fixFor(declaration, pin, node, jobs) {
 	return `Install Corepack wherever ${node} is used for this project (${steps}), as the Corepack README says for a Node.js without it${npm}`;
 }
 const corepackUnavailable = {
-	id: RULE$1,
+	id: RULE$2,
 	checks: "A pin that only Corepack reads has a Node.js that comes with Corepack",
 	summary: "packageManager or devEngines.packageManager pins Yarn or npm, but a declared Node.js is 25 or later, which no longer comes with Corepack.",
 	description: "Corepack reads packageManager (and devEngines.packageManager) and runs the pinned Yarn, or npm after corepack enable npm. Node.js 25.0.0 stopped distributing Corepack, so where a version file, CI job or Dockerfile chooses Node.js 25 or later, the pin has no effect unless Corepack is installed separately: whatever Yarn or npm is there runs, or none. pnpm 10 and later switches to its pinned version itself, npm checks devEngines.packageManager itself, and every Yarn from 1.18 runs a release committed under yarnPath in .yarnrc.yml, so those pins are not reported; nor is a CI job or Dockerfile stage that installs or runs Corepack, or installs the pinned npm release itself, before it installs with the pinned tool.",
@@ -43264,6 +43366,132 @@ const lockfileOutOfDate = {
 	}
 };
 
+// src/doctor/rules/lockfile-tampered.ts
+const RULE$1 = "lockfile-tampered";
+/** The key of the fact; a key the fact does not know does not reach here. */
+function keyOf(fact, key) {
+	return fact.keys.find((entry) => entry.key === key) ?? {
+		key,
+		from: "",
+		to: "",
+		argument: "a value"
+	};
+}
+/**
+* What Composer does with a key: "which Composer 2.7.3 to 2.11.1 call as a PHP function, when it names one, with … of
+* each download …". Composer calls the value only when it is callable (CurlDownloader), while the rule reports any
+* value but null. `advisory`: name the advisory of the key, which concerns the copy in composer.lock.
+*/
+function calledWith(entry, verb, what, advisory) {
+	const runs = !advisory || entry.advisory === void 0 ? "" : `, and a function such as system there runs a command (${entry.advisory})`;
+	return `which Composer ${entry.from} to ${entry.to} ${verb} as a PHP function, when it names one, with ${entry.argument} of each download ${what}${runs}`;
+}
+/** The texts of the rule, from the fact: which keys, from which Composer, and which Composer no longer takes them. */
+function lockfileTamperedTexts(fact) {
+	const [url, ip] = fact?.keys ?? [];
+	const remove = "remove the transport option from composer.lock and composer.json, or restore them from before the change, and find out who added it.";
+	if (fact === void 0 || url === void 0 || ip === void 0) return {
+		summary: "A package of composer.lock, or a repository of composer.json, has a transport option that Composer calls as a PHP function while downloading.",
+		description: "composer.lock gives a package a transport option that Composer calls as a PHP function while downloading.",
+		help: `Before any composer install or update, ${remove}`
+	};
+	return {
+		summary: `A package of composer.lock, or a repository of composer.json, has a transport option that Composer calls as a PHP function while downloading (${url.advisory === void 0 ? "" : `${url.advisory}, `}fixed in Composer ${fact.dropped}).`,
+		description: [
+			`Composer ${url.from} to ${url.to} take ${url.key} from the ${fact.lockField} of a package in composer.lock and, when it names a PHP function, call it with ${url.argument} of each download of the package, so an edited composer.lock can run a command during composer install${url.advisory === void 0 ? "" : ` (${url.advisory})`}.`,
+			`Composer ${ip.from} to ${ip.to} do the same with ${ip.key} and ${ip.argument}.`,
+			`Composer ${fact.dropped} no longer takes them from composer.lock.`,
+			`composer.json can set them too: in the ${fact.repositoryField} of a Composer or VCS repository, which Composer uses for its downloads and copies into composer.lock for the packages a Composer repository serves from its own URL, and in the ${fact.lockField} of a package a package repository defines, which it copies there too.`,
+			"The rule checks the packages and packages-dev of composer.lock and the repositories of composer.json whatever the Composer version, which depcurfew cannot tell, and leaves other transport options, such as symlink of a path repository, alone."
+		].join(" "),
+		help: `Use Composer ${fact.dropped} or later before any composer install or update, then ${remove}`
+	};
+}
+const TEXTS = lockfileTamperedTexts(transportCallablesOf(composer$3));
+/**
+* Forgets the warnings that reading `file` added to the repository since `since`. Without a policy unreadable-config
+* would make them errors, while a lockfile that does not parse is a note against the default policy, as the other
+* lockfiles are, which only the rules that need a policy read.
+*/
+function forgetWarnings(repository, since, file) {
+	for (let index = repository.warnings.length - 1; index >= since; index -= 1) if (repository.warnings[index]?.files.includes(file) === true) repository.warnings.splice(index, 1);
+}
+/** Composer is found with a composer.lock. */
+function hasComposerLock(scope) {
+	return scope.detection.packageManagers.some((manager) => manager.supported && manager.id === "composer" && manager.evidence.some((evidence) => evidence.kind === "lockfile"));
+}
+/** A package of composer.lock as a fix names it: its name when it is a Composer package name, else its line. */
+function packageInFix(lockfile, entry, line) {
+	if (isComposerName(entry.name)) return entry.name;
+	return line === void 0 ? `the package ${JSON.stringify(entry.name)}` : `the package at line ${line} of ${lockfile.file}`;
+}
+function reportLockfile(context, fact, lockfile) {
+	for (const entry of lockfile.entries) for (const key of entry.transportCallables ?? []) {
+		const line = lockfile.lineOf(entry);
+		context.report({
+			location: line === void 0 ? { file: lockfile.file } : {
+				file: lockfile.file,
+				line
+			},
+			message: `${lockfile.file} gives ${entry.name} the transport option ${key}, ${calledWith(keyOf(fact, key), `take from ${lockfile.file} and call`, "of the package", true)}; Composer ${fact.dropped} no longer takes it from ${lockfile.file}`,
+			fix: `Use Composer ${fact.dropped} or later before any composer install or update on this lockfile; then remove ${key} from the ${fact.lockField} of ${packageInFix(lockfile, entry, line)} in ${lockfile.file}, or restore ${lockfile.file} from before the change, and find out who changed it`
+		});
+	}
+}
+function reportManifest(context, tool, fact, found) {
+	const repository = `repositories[${String(found.repository)}]`;
+	const entry = keyOf(fact, found.key);
+	const fix = (where) => `Use Composer ${fact.dropped} or later before any composer install or update in this project; then remove ${found.key} from ${where} in ${COMPOSER_MANIFEST} and from every entry of composer.lock that has it, and find out who added it`;
+	const location = found.line === void 0 ? { file: COMPOSER_MANIFEST } : {
+		file: COMPOSER_MANIFEST,
+		line: found.line
+	};
+	if (found.package !== void 0) {
+		const name = found.package === "" ? "a package" : found.package;
+		const named = isComposerName(found.package.toLowerCase()) ? found.package : "the package";
+		context.report({
+			location,
+			message: `${COMPOSER_MANIFEST} gives ${name}, a package that the package repository ${repository} defines, the transport option ${found.key}, ${calledWith(entry, "call", "of the package", false)}; Composer copies the ${fact.lockField} of such a package into composer.lock`,
+			fix: fix(`the ${fact.lockField} of ${named} in ${repository}`)
+		});
+		return;
+	}
+	const what = found.url === void 0 ? `a ${found.type} repository` : `the ${found.type} repository ${found.url}`;
+	const copied = repositoryTypes(tool).registry.includes(found.type) ? `; Composer copies the ${fact.repositoryField} of a Composer repository into composer.lock for the packages it serves from its own URL` : "";
+	context.report({
+		location,
+		message: `${COMPOSER_MANIFEST} gives ${what} (${repository}) the transport option ${found.key} in its ${fact.repositoryField}, ${calledWith(entry, "call", "from that repository", false)}${copied}`,
+		fix: fix(`the ${fact.repositoryField} of ${repository}`)
+	});
+}
+const lockfileTampered = {
+	id: RULE$1,
+	checks: "No package of composer.lock and no repository of composer.json has a transport option that Composer calls as a PHP function",
+	summary: TEXTS.summary,
+	description: TEXTS.description,
+	help: TEXTS.help,
+	level: "error",
+	requiresPolicy: false,
+	alsoInComparedProjects: true,
+	applies: hasComposerLock,
+	check(context) {
+		const workspaces = context.detection.workspaces?.packages ?? [];
+		for (const manager of context.detection.packageManagers.filter((entry) => entry.supported && entry.id === "composer")) {
+			const tool = context.tools.find((entry) => entry.id === manager.id);
+			const fact = tool === void 0 ? void 0 : transportCallablesOf(tool);
+			if (tool === void 0 || fact === void 0) continue;
+			for (const found of repositoryCallables(context.repository, tool)) reportManifest(context, tool, fact, found);
+			const quiet = context.policy === void 0;
+			const known = context.repository.warnings.length;
+			for (const result of readLockfiles(context.repository, manager, tool, workspaces, context.tools)) if (result.ok) reportLockfile(context, fact, result.lockfile);
+			else {
+				if (quiet && result.unreadable) forgetWarnings(context.repository, known, result.file);
+				if (quiet || !result.unreadable) context.notice(`${RULE$1} could not check ${result.file}: ${result.reason}`, result.file);
+			}
+		}
+	}
+};
+
 // src/doctor/rules/npmrc.ts
 function before(version, limit) {
 	const until = typeof limit === "string" ? parseVersion(limit) : void 0;
@@ -44054,6 +44282,7 @@ const RULES = [
 	lockfileInstallScripts,
 	lockfileOutOfDate,
 	knownMalicious,
+	lockfileTampered,
 	unreadableConfig
 ];
 
