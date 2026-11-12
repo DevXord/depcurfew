@@ -35093,7 +35093,130 @@ function redactJson(text) {
 */
 function redactText(file, text) {
 	if (isJsonFile(file)) return redactJson(text).split("\n").map(redactCredentials).join("\n");
-	return text.split("\n").map(redactSecrets).join("\n");
+	const all = text.split("\n");
+	const shown = all.map(redactSecrets);
+	const name = file.split(/[\\/]/u).at(-1) ?? file;
+	if (!SECRET_WORDS.some((word) => text.toLowerCase().includes(word))) return shown.join("\n");
+	if (/\.ya?ml$/u.test(name)) hideYamlValues(all, shown);
+	else if (name.endsWith(".toml") || name === "Pipfile") hideTomlValues(all, shown);
+	return shown.join("\n");
+}
+/** Words of which every name SECRET_KEY takes contains one, in lower case. */
+const SECRET_WORDS = [
+	"_auth",
+	"npmauthident",
+	"key",
+	"token",
+	"password",
+	"passwd",
+	"secret"
+];
+/** Whether a key names a secret, by its last part, whatever its value (E47). */
+function isSecretKey(key) {
+	return SECRET_KEY.test(key.replaceAll("\"", "").split(/[:.]/u).at(-1)?.trim() ?? "");
+}
+/** A line without the \r of a CR LF line end, and that \r. */
+function withoutCr(line) {
+	return line.endsWith("\r") ? [line.slice(0, -1), "\r"] : [line, ""];
+}
+/** The leading spaces of a line, and the line from its first other character on as <redacted>. */
+function hiddenLine(line, keep = "") {
+	const [body, cr] = withoutCr(line);
+	let indent = 0;
+	while (body[indent] === " " || body[indent] === "	") indent += 1;
+	return indent === body.length ? line : `${body.slice(0, indent)}${REDACTED}${keep}${cr}`;
+}
+/** The index after the closing quote of a YAML quoted scalar in `text` from `from`, or -1 when it does not close there. */
+function quoteEnd(text, from, quote) {
+	for (let index = from; index < text.length; index++) {
+		const character = text[index];
+		if (quote === "\"" && character === "\\") index += 1;
+		else if (character === quote) {
+			if (quote === "'" && text[index + 1] === "'") index += 1;
+			else return index + 1;
+		}
+	}
+	return -1;
+}
+/**
+* YAML (E47): the lines below a secret key that belong to its value are hidden. A double- or single-quoted value that
+* does not close on the key's line goes on to its closing quote, which stays; any other value (a block scalar | or >, a
+* plain scalar, nothing on the key's line) goes on over the blank lines and the lines indented more than the key, as YAML
+* reads a block scalar, a plain scalar's continuation and a nested value. One pass: the lines of a value are not read
+* as keys again.
+*/
+function hideYamlValues(all, shown) {
+	for (let index = 0; index < all.length; index++) {
+		const [line] = withoutCr(all[index] ?? "");
+		const pair = colonPair(line);
+		if (pair === void 0 || !isSecretKey(pair.key)) continue;
+		let column = 0;
+		while (line[column] === " ") column += 1;
+		if (line[column] === "-") {
+			column += 1;
+			while (line[column] === " ") column += 1;
+		}
+		const value = pair.value;
+		const quote = value[0] === "\"" || value[0] === "'" ? value[0] : void 0;
+		if (quote !== void 0) {
+			if (quoteEnd(value, 1, quote) !== -1) continue;
+			let next = index + 1;
+			for (; next < all.length; next++) {
+				const [body] = withoutCr(all[next] ?? "");
+				const end = quoteEnd(body, 0, quote);
+				if (end === -1) {
+					shown[next] = hiddenLine(all[next] ?? "");
+					continue;
+				}
+				shown[next] = hiddenLine(all[next] ?? "", body.slice(end - 1));
+				break;
+			}
+			index = next;
+			continue;
+		}
+		let next = index + 1;
+		for (; next < all.length; next++) {
+			const [body] = withoutCr(all[next] ?? "");
+			let indent = 0;
+			while (body[indent] === " ") indent += 1;
+			if (indent === body.length) continue;
+			if (indent <= column) break;
+			shown[next] = hiddenLine(all[next] ?? "");
+		}
+		index = next - 1;
+	}
+}
+/**
+* TOML (E47): the lines of a value that goes on after the key's line, a multi-line string or an array or inline table,
+* are hidden when the key is a secret; the closing delimiter of a string and a line that only closes the array stay.
+* Values are followed as the TOML editor follows them, so a line inside another key's value is no key.
+*/
+function hideTomlValues(all, shown) {
+	const lines = all.map((line) => withoutCr(line)[0]);
+	for (let index = 0; index < lines.length; index++) {
+		const line = lines[index] ?? "";
+		const key = keyOf$3(line);
+		if (key === void 0) continue;
+		const end = valueEnd(lines, index);
+		const equals = line.indexOf("=");
+		const value = line.slice(equals + 1).trimStart();
+		if (isSecretKey(key) && value.trim() !== "" && !REFERENCE.test(value.trim())) shown[index] = `${line.slice(0, line.length - value.length)}${REDACTED}${withoutCr(all[index] ?? "")[1]}`;
+		if (end > index && isSecretKey(key)) {
+			const delimiter = value.startsWith("\"\"\"") ? "\"\"\"" : value.startsWith("'''") ? "'''" : void 0;
+			for (let next = index + 1; next <= end; next++) {
+				const body = lines[next] ?? "";
+				if (next < end) {
+					shown[next] = hiddenLine(all[next] ?? "");
+					continue;
+				}
+				if (delimiter !== void 0) {
+					const close = body.indexOf(delimiter);
+					shown[next] = close <= 0 || body.slice(0, close).trim() === "" ? all[next] ?? "" : hiddenLine(all[next] ?? "", body.slice(close));
+				} else if (!/^\s*[\]}]/u.test(body)) shown[next] = hiddenLine(all[next] ?? "");
+			}
+		}
+		index = end;
+	}
 }
 
 // src/apply/generators/python.ts

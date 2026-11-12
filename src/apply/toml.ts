@@ -150,7 +150,7 @@ function scanLine(line: string, state: ValueState): ValueState {
 }
 
 /** The index of the last line of the value that starts after the `=` on line `index`. */
-function valueEnd(lines: readonly string[], index: number): number {
+export function valueEnd(lines: readonly string[], index: number): number {
   const line = lines[index] ?? '';
   let state = scanLine(line.slice(line.indexOf('=') + 1), { depth: 0, string: '' });
   let end = index;
