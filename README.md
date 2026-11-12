@@ -76,15 +76,17 @@ Add it to the project as a development dependency, so the team, CI and coding ag
 
 ```bash
 npm install --save-dev --save-exact depcurfew
-npx dcf doctor
+npx --no dcf doctor
 ```
+
+`dcf` is the short name of the depcurfew program. Run it with `npx --no`: npm has an unrelated package named `dcf`, and where depcurfew is not installed yet (a fresh clone before `npm ci`, a repository without `package.json`), npx without `--no` would download and run that package instead, and in CI without asking. With `--no`, npx stops instead. The long name runs the same program, and `npx --no depcurfew` stops the same way.
 
 Pin the exact version (`--save-exact`, or `save-exact=true` in `.npmrc`) and update it on purpose: depcurfew is a young project with frequent releases, and a range would let a new release in without review.
 
 Who needs it installed:
 
 - **Developers working on the project:** nothing to do. The protection does not depend on depcurfew being installed: it lives in the package manager configuration that `apply` writes into the repository (`.npmrc`, `package.json`, `pnpm-workspace.yaml`, `.yarnrc.yml`, `bunfig.toml`, `deno.json`, `pyproject.toml` or `uv.toml`, `poetry.toml`, `Pipfile`, `requirements.txt` and the bot configuration), and the package managers read it on their own. pip's release-age delay is the exception: pip reads it only from the environment where it runs, and `apply` says what to set there. The project install brings depcurfew along as a development dependency anyway.
-- **Whoever changes `depcurfew.json`:** runs `npx dcf apply` and commits the result.
+- **Whoever changes `depcurfew.json`:** runs `npx --no dcf apply` and commits the result.
 - **CI:** runs `doctor`, with the GitHub Action below or with the project's own copy on other CI systems.
 
 A global install (`npm install -g depcurfew`) works, but teams should not rely on it: each machine may run a different version, the lockfile does not pin it, and npm does not read the project's `.npmrc` in global mode, so the project's release-age delay does not cover the install.
@@ -99,11 +101,36 @@ npm run build
 node dist/cli.js doctor /path/to/your/repository
 ```
 
+### In a repository without package.json
+
+<!-- BEGIN GENERATED: without-package-json -->
+depcurfew is a Node.js program, and a repository without `package.json` in its root, such as a Rust, .NET, Python, PHP or Ruby project, does not need one to run it.
+
+**In GitHub Actions,** the [GitHub Action](#github-action) needs nothing installed.
+
+**Once, by hand,** run an exact release with npx:
+
+```bash
+npx --yes depcurfew@1.5.2 doctor
+```
+
+Name a release that is at least as old as `cooldown.minimum` of the policy: depcurfew's own [Claude Code hook](#claude-code) denies a younger one, and so does npm where its `min-release-age` is set (npx then fails with `ETARGET`). The example names the newest release that was at least 7 days old when this README was written, usually the one before the newest. Without `--yes`, npx asks before it downloads a package the project does not have, and without a terminal or in CI it downloads without asking.
+
+**Pinned in the repository,** keep depcurfew in the tools directory `.claude/depcurfew`: its own `package.json` pins depcurfew exactly, its `package-lock.json` is committed and `.claude/depcurfew/node_modules` is git-ignored. `npm ci` installs what that `package-lock.json` locks, and `--prefix` runs it in the tools directory, so both commands run from the root of the repository, without `cd`:
+
+```bash
+npm ci --ignore-scripts --prefix .claude/depcurfew
+node .claude/depcurfew/node_modules/depcurfew/dist/cli.js doctor
+```
+
+`doctor` reads this copy too: [`depcurfew-outdated`](#depcurfew-outdated) says when the depcurfew that runs is older than it, and the [Claude Code hook](#claude-code) can run it. To be offered new releases of the pin, you can add a Dependabot `npm` entry for the directory `/.claude/depcurfew`; `apply` gives it the cooldown of the policy like any other `npm` entry. The tools directory and the Action pin their versions separately, so update both.
+<!-- END GENERATED: without-package-json -->
+
 ### Verifying a release
 
 Every release is built and published from its git tag by the [Release workflow](https://github.com/DevXord/depcurfew/blob/main/.github/workflows/release.yml) with npm trusted publishing, so the npm page of each version shows its provenance: the repository, the workflow and the commit it was built from. One job of the workflow installs, tests and packs the package without the right to publish it. Before anything is staged, `CHANGELOG.md` must start with the section of the version, CI must have passed on the tagged commit (on Linux and Windows, down to the oldest Node.js the CLI supports), and another job must build the package again from a fresh checkout of the tag on another runner and get the same checksum. Only then does a last job, which runs no code of the repository or of its dependencies, stage exactly the file the first one packed, after comparing its SHA-512 checksum. After installing, `npm audit signatures` checks the registry signature and the provenance attestation of every installed package, depcurfew included.
 
-The package contains nothing but the build of that commit, and anyone can check it: check out the tag, build it and compare the checksum with the one the registry serves, here for 1.5.1:
+The package contains nothing but the build of that commit, and anyone can check it: check out the tag, build it and compare the checksum with the one the registry serves:
 
 <!-- BEGIN GENERATED: verify-release -->
 ```bash
@@ -485,7 +512,7 @@ depcurfew configures uv, Poetry, PDM, Pipenv and pip from the same `depcurfew.js
 - **Lock again after `apply`.** `uv.lock` records the release-age delay, and PDM checks `pdm.lock` against all of its resolution settings, the delay and the build ban included. After `apply` changes them, `uv sync --locked` and `uv lock --check` fail until you run `uv lock`, and `pdm lock --check` and `pdm install --check` until you run `pdm lock`; `apply` says so (`lockfile-out-of-date`), and so does `doctor` (the rule `lockfile-out-of-date`) while the lockfile is not locked again: it compares what `uv.lock` records with the settings as uv does, and the hash in `pdm.lock` with the one PDM computes from `pyproject.toml`. `poetry.lock` and `Pipfile.lock` do not depend on the settings `apply` writes.
 - **PDM and Pipenv have no setting that pins their own version.** Where nothing pins it, `apply` configures for the latest version depcurfew knows and names that version (`version-not-pinned`). What CI jobs and Dockerfiles install counts as a version, and `doctor` checks it (`manager-version-too-old`): the `version` input of `pdm-project/setup-pdm` (`head` names none); `pdm==<version>`, `pipenv==<version>`, `uv==<version>` and `poetry==<version>` in `pip install`, `pipx install` or `uv tool install`, with a variable read from the `env` of the job or the `ENV` and `ARG` of the stage (`pip install "poetry==${POETRY_VERSION}"`); and the uv of the official uv image a Dockerfile copies from or starts from (`COPY --from=ghcr.io/astral-sh/uv:0.8.22 /uv /uvx /bin/`, `FROM ghcr.io/astral-sh/uv:0.8.22-python3.12-bookworm`; `latest` and a base name alone name no version). Pipenv takes the delay in whole days only (rounded up), has no exceptions and no project setting that forbids building; `apply` says what to set where Pipenv runs instead. `doctor` reads `pdm.lock` and `Pipfile.lock`, and reports settings that turn the delay or the build ban off without a word: Pipenv's pure-Python resolver and PDM's uv mode.
 - **Hatch has no settings of its own.** Its environments install with uv or pip, so a Hatch project is covered by the uv configuration (add `"uv"` to `targets` when its environments use the uv installer) or by the environment variables of pip.
-- **Running depcurfew.** depcurfew is a Node.js program. In a project without `package.json`, run a pinned version with `npx --yes depcurfew@<version>`; in CI the [GitHub Action](#github-action) needs nothing else.
+- **Running depcurfew.** depcurfew is a Node.js program; a Python project without `package.json` runs it as [In a repository without package.json](#in-a-repository-without-packagejson) describes.
 
 ### Update bots
 
@@ -965,7 +992,9 @@ The matcher `Bash|PowerShell|Monitor` covers every tool that runs shell commands
 }
 ```
 
-- **A repository without `package.json` in its root** (several projects side by side): keep depcurfew in a small tools directory, for example `.claude/depcurfew/package.json` with depcurfew pinned exactly and its `package-lock.json` committed, install it there (`cd .claude/depcurfew && npm ci --ignore-scripts`, also in the `SessionStart` hook), and point the hook at `${CLAUDE_PROJECT_DIR}/.claude/depcurfew/node_modules/depcurfew/dist/cli.js`.
+The command is a line for `sh` and Bash: a hook without `shell` runs in `sh -c` on macOS and Linux and in Git Bash on Windows, but in PowerShell on Windows when Git Bash is not installed, where this line fails and installs nothing, so with `onFailure: "block"` the guard then blocks every command. On Windows without Git Bash, install Git for Windows or run the install yourself before you start Claude Code.
+
+- **A repository without `package.json` in its root** (several projects side by side): keep depcurfew in the tools directory of [In a repository without package.json](#in-a-repository-without-packagejson), `.claude/depcurfew/package.json` with depcurfew pinned exactly and its `package-lock.json` committed, install it there (`npm ci --ignore-scripts --prefix .claude/depcurfew`, also in the `SessionStart` hook), and point the hook at `${CLAUDE_PROJECT_DIR}/.claude/depcurfew/node_modules/depcurfew/dist/cli.js`.
 - **Cloud sessions (Claude Code on the web):** the repository's `.claude/settings.json` hooks run there, user-level ones do not. The environment's setup script runs before Claude Code starts, so it can install depcurfew too; the `SessionStart` hook above covers a cached environment as well.
 - **Locked out already:** install depcurfew from a terminal outside Claude Code, or remove the hook from `.claude/settings.json` there; Claude cannot do it for you while the hook blocks its commands, which is the point of `block`.
 

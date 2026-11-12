@@ -11,7 +11,7 @@ import type { Rule } from '../doctor/types.ts';
 import { USER_RULES } from '../user/doctor.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import { SOURCE_KINDS } from '../knowledge/schema.ts';
-import type { CommandLineKnowledge, CommandNamesKnowledge, EnvironmentKnowledge, ExecutableAliasesKnowledge, Fact, ToolKnowledge, UserConfigKnowledge, UserDirectory, UserFile, UserPlatform } from '../knowledge/types.ts';
+import type { ChecksumCommandKnowledge, CommandLineKnowledge, CommandNamesKnowledge, CommandNeedsKnowledge, EnvironmentKnowledge, ExecPromptKnowledge, ExecReleaseAgeKnowledge, ExecutableAliasesKnowledge, Fact, PrefixOptionKnowledge, ToolKnowledge, UserConfigKnowledge, UserDirectory, UserFile, UserPlatform } from '../knowledge/types.ts';
 import { DEFAULT_POLICY, renderPolicy } from '../policy/defaults.ts';
 import { policyJsonSchema } from '../policy/json-schema.ts';
 import { INSTALLED_CLI, TOOLS_DIRECTORY } from '../self-version.ts';
@@ -258,23 +258,88 @@ function exampleWorkflow(environment: EnvironmentKnowledge, workflow: string): s
 
 /**
  * The release the verification commands of "Verifying a release" check: the newest one whose package equals the build of
- * its tag. 1.5.0 is not one: its declaration file lists the properties of one type in another order than a build of
- * the tag does (decision D-174). Updated after each release with ACTION_RELEASE.
+ * its tag. It follows ACTION_RELEASE, in the same pull request after each release, but only once the Verify release
+ * workflow (or the commands of the README) gave the same checksum for the tag and for the registry. A release whose
+ * package is not the build of its tag goes into UNVERIFIABLE_RELEASES, and VERIFIED_RELEASE stays at the release before
+ * it (tests/docs/install-paths-d206.test.ts, decision D-206).
  */
 export const VERIFIED_RELEASE = { version: '1.6.0' } as const;
 
-/** The commands that check a release against its tag, for VERIFIED_RELEASE. */
-function verifyRelease(): string {
+/**
+ * Releases whose package is not the build of their tag: 1.5.0 lists the properties of one type of its declaration file
+ * in another order than a build of the tag does (decision D-174). The README names this exception by hand.
+ */
+export const UNVERIFIABLE_RELEASES = ['1.5.0'] as const;
+
+/**
+ * The release the npx example of "In a repository without package.json" runs: the newest release that was at least
+ * 7 days old when the pull request after a release was made, usually the one before it, so that the default delay of
+ * cooldown.minimum, depcurfew's hook and npm's release-age delay all let it through (decision D-206). Never newer than
+ * ACTION_RELEASE.
+ */
+export const NPX_RELEASE = { version: '1.5.2' } as const;
+
+/** The first value of an npm fact of the knowledge base the README needs. */
+function npmFact<T>(tools: readonly ToolKnowledge[], name: string): T {
+  const fact = tools.find((tool) => tool.id === 'npm')?.extra?.[name];
+  const value = fact === undefined ? undefined : values(fact)[0];
+  if (value === undefined) throw new Error(`README: missing the npm fact extra.${name}`);
+  return value as T;
+}
+
+/** The commands that check a release against its tag, for VERIFIED_RELEASE, with the npm commands of the knowledge base. */
+function verifyRelease(tools: readonly ToolKnowledge[]): string {
   const { version } = VERIFIED_RELEASE;
+  const pack = npmFact<ChecksumCommandKnowledge>(tools, 'packChecksum');
+  const view = npmFact<ChecksumCommandKnowledge>(tools, 'viewChecksum');
   return [
     '```bash',
     `git clone --branch v${version} https://github.com/DevXord/depcurfew.git`,
     'cd depcurfew',
     'npm ci --ignore-scripts',
     'npm run build',
-    'npm pack --dry-run --json | grep shasum',
-    `npm view depcurfew@${version} dist.shasum`,
+    `${pack.command.join(' ')} | grep ${pack.field}`,
+    `${view.command.join(' ')} depcurfew@${version} ${view.field}`,
     '```',
+  ].join('\n');
+}
+
+/**
+ * How a repository without package.json in its root runs a pinned depcurfew (decision D-206): the Action, npx with an
+ * exact release old enough for the release-age delays, or the tools directory installed with --prefix, so the commands
+ * need no cd and run in any shell.
+ */
+function withoutPackageJson(tools: readonly ToolKnowledge[]): string {
+  const prompt = npmFact<ExecPromptKnowledge>(tools, 'execPrompt');
+  const age = npmFact<ExecReleaseAgeKnowledge>(tools, 'execReleaseAge');
+  const ci = npmFact<CommandNeedsKnowledge>(tools, 'ciLockfile');
+  const prefix = npmFact<PrefixOptionKnowledge>(tools, 'prefixOption');
+  const npm = tools.find((tool) => tool.id === 'npm');
+  const setting = npm?.cooldown.setting === undefined ? undefined : values(npm.cooldown.setting)[0];
+  if (setting === undefined || age.exactTooYoung === undefined) throw new Error('README: missing the release-age delay of npm or the error of npx');
+  const runner = prompt.commands[0]?.join(' ') ?? 'npx';
+  const assumed = prompt.yesAssumed.map((when) => (when === 'no TTY' ? 'without a terminal' : 'in CI')).join(' or ');
+  return [
+    'depcurfew is a Node.js program, and a repository without `package.json` in its root, such as a Rust, .NET, Python, PHP or Ruby project, does not need one to run it.',
+    '',
+    '**In GitHub Actions,** the [GitHub Action](#github-action) needs nothing installed.',
+    '',
+    `**Once, by hand,** run an exact release with ${runner}:`,
+    '',
+    '```bash',
+    `${runner} ${prompt.confirm} depcurfew@${NPX_RELEASE.version} doctor`,
+    '```',
+    '',
+    `Name a release that is at least as old as \`cooldown.minimum\` of the policy: depcurfew's own [Claude Code hook](#claude-code) denies a younger one, and so does npm where its \`${setting}\` is set (${runner} then fails with \`${age.exactTooYoung}\`). The example names the newest release that was at least 7 days old when this README was written, usually the one before the newest. Without \`${prompt.confirm}\`, ${runner} asks before it downloads a package the project does not have, and ${assumed} it downloads without asking.`,
+    '',
+    `**Pinned in the repository,** keep depcurfew in the tools directory \`${TOOLS_DIRECTORY}\`: its own \`package.json\` pins depcurfew exactly, its \`${ci.needs}\` is committed and \`${TOOLS_DIRECTORY}/node_modules\` is git-ignored. \`${ci.command.join(' ')}\` installs what that \`${ci.needs}\` locks, and \`${prefix.option}\` runs it in the tools directory, so both commands run from the root of the repository, without \`cd\`:`,
+    '',
+    '```bash',
+    `${ci.command.join(' ')} --ignore-scripts ${prefix.option} ${TOOLS_DIRECTORY}`,
+    `node ${TOOLS_DIRECTORY}/${INSTALLED_CLI} doctor`,
+    '```',
+    '',
+    `\`doctor\` reads this copy too: [\`depcurfew-outdated\`](#depcurfew-outdated) says when the depcurfew that runs is older than it, and the [Claude Code hook](#claude-code) can run it. To be offered new releases of the pin, you can add a Dependabot \`npm\` entry for the directory \`/${TOOLS_DIRECTORY}\`; \`apply\` gives it the cooldown of the policy like any other \`npm\` entry. The tools directory and the Action pin their versions separately, so update both.`,
   ].join('\n');
 }
 
@@ -293,6 +358,8 @@ function bootstrap(environment: EnvironmentKnowledge): string[] {
   const keys = hooks.settings;
   const cli = INSTALLED_CLI;
   const variable = `$${start.projectDirVariable}`;
+  const shell = values(environment.claudeCode.hookShell)[0];
+  if (shell === undefined) throw new Error('README: missing the Claude Code hook shell fact');
   const sessionStart = {
     [keys.hooks]: {
       [start.event]: [
@@ -314,7 +381,10 @@ function bootstrap(environment: EnvironmentKnowledge): string[] {
     JSON.stringify(sessionStart, null, 2),
     '```',
     '',
-    `- **A repository without \`package.json\` in its root** (several projects side by side): keep depcurfew in a small tools directory, for example \`${TOOLS_DIRECTORY}/package.json\` with depcurfew pinned exactly and its \`package-lock.json\` committed, install it there (\`cd ${TOOLS_DIRECTORY} && npm ci --ignore-scripts\`, also in the \`${start.event}\` hook), and point the hook at \`${hooks.projectDir}/${TOOLS_DIRECTORY}/${cli}\`.`,
+    // Shell form with a command line for sh and Git Bash: Claude Code runs it in PowerShell on Windows without Git Bash.
+    `The command is a line for \`sh\` and Bash: a hook without \`${shell.field}\` runs in ${shell.default === 'bash' ? '`sh -c` on macOS and Linux and in Git Bash on Windows' : shell.default}, but ${shell.withoutGitBash === 'powershell' ? 'in PowerShell on Windows when Git Bash is not installed' : shell.withoutGitBash}, where this line fails and installs nothing, so with \`${hooks.onFailure.field}: "${hooks.onFailure.value}"\` the guard then blocks every command. On Windows without Git Bash, install Git for Windows or run the install yourself before you start Claude Code.`,
+    '',
+    `- **A repository without \`package.json\` in its root** (several projects side by side): keep depcurfew in the tools directory of [In a repository without package.json](#in-a-repository-without-packagejson), \`${TOOLS_DIRECTORY}/package.json\` with depcurfew pinned exactly and its \`package-lock.json\` committed, install it there (\`npm ci --ignore-scripts --prefix ${TOOLS_DIRECTORY}\`, also in the \`${start.event}\` hook), and point the hook at \`${hooks.projectDir}/${TOOLS_DIRECTORY}/${cli}\`.`,
     start.cloudSetupScriptRunsBeforeClaudeCode
       ? `- **Cloud sessions (Claude Code on the web):** the repository's \`${hooks.settingsFile}\` hooks run there, user-level ones do not. The environment's setup script runs before Claude Code starts, so it can install depcurfew too; the \`${start.event}\` hook above covers a cached environment as well.`
       : '',
@@ -507,6 +577,7 @@ function userTable(tools: readonly ToolKnowledge[]): string {
 }
 
 export function readmeSections(inputs: ReadmeInputs): Record<string, string> {
+  const hasNpm = inputs.tools.some((tool) => tool.id === 'npm');
   return {
     'user-config': userTable(inputs.tools),
     // doctor --user has no default policy to compare with.
@@ -519,7 +590,9 @@ export function readmeSections(inputs: ReadmeInputs): Record<string, string> {
     'init-codes': initCodes(),
     'action-reference': actionTables(inputs.action),
     'action-workflow': exampleWorkflow(inputs.environment, inputs.workflow),
-    'verify-release': verifyRelease(),
+    // The start pages of the site render the sections of their own tools only; these two need npm's facts.
+    'verify-release': hasNpm ? verifyRelease(inputs.tools) : '',
+    'without-package-json': hasNpm ? withoutPackageJson(inputs.tools) : '',
     'claude-code-hook': claudeCodeHook(inputs.environment, inputs.tools),
     'mcp-clients': mcpClients(inputs.environment),
   };
