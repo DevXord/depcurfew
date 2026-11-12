@@ -2,7 +2,7 @@
 // since 10.0.100 (they run `dotnet dnx`, a hidden alias of `dotnet tool exec`), while Deno's own alias is dx and a
 // Deno dnx is only one a user made. Up to 1.6.0 the hook read every dnx line as deno x: it sent NuGet IDs and the
 // URLs of private feeds to registry.npmjs.org and denied real .NET tools as made-up npm names. Now dnx gets no
-// decision, like dotnet tool exec, except when the word right after it is an npm: or jsr: spec, which a NuGet ID
+// decision, like dotnet tool exec, except when one of its arguments is an npm: or jsr: spec, which a NuGet ID
 // cannot be (it matches ^\w+([.-]\w+)*$), so the line is read as deno x.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -112,7 +112,10 @@ describe('dnx of the .NET SDK in the Claude Code hook (decision D-208)', () => {
   it('still looks up npm: after dnx in PowerShell', async () => {
     expect((await hook('Start-Process dnx npm:evil-pkg', DENO, 'PowerShell')).urls).toEqual(['https://registry.npmjs.org/evil-pkg']);
     expect((await hook('dnx npm:$pkg', DENO, 'PowerShell')).decision).toBe('ask');
-    expect((await hook('Start-Process dnx -ArgumentList npm:evil-pkg', DENO, 'PowerShell')).decision).toBe('ask');
+    // With the spec found after options too, the words of Start-Process read as deno x and the young package is denied.
+    const started = await hook('Start-Process dnx -ArgumentList npm:evil-pkg', DENO, 'PowerShell');
+    expect(started.urls).toEqual(['https://registry.npmjs.org/evil-pkg']);
+    expect(started.decision).toBe('deny');
   });
 
   it('still checks a package manager command after it', async () => {
@@ -131,6 +134,28 @@ describe('dnx of the .NET SDK in the Claude Code hook (decision D-208)', () => {
     expect(jsr.decision).toBe('ask');
     expect(jsr).toEqual(await hook('deno x jsr:@std/path', DENO));
     expect((await hook('dnx.cmd npm:evil-pkg', DENO, 'PowerShell')).urls).toEqual(['https://registry.npmjs.org/evil-pkg']);
+  });
+
+  // The patch check of 1.6.1 found that dnx with options before the spec (dnx -A npm:x) got no decision: an npm: or
+  // jsr: word anywhere among the arguments makes it Deno's, as no argument of the .NET SDK's dnx needs one.
+  it('reads dnx as deno x when options come before the npm: spec', async () => {
+    const pairs: [string, string][] = [
+      ['dnx -A npm:evil-pkg', 'deno x -A npm:evil-pkg'],
+      ['dnx --allow-all npm:evil-pkg', 'deno x --allow-all npm:evil-pkg'],
+      ['dnx -q npm:evil-pkg', 'deno x -q npm:evil-pkg'],
+      ['dnx --quiet npm:evil-pkg', 'deno x --quiet npm:evil-pkg'],
+      ['dnx -- npm:evil-pkg', 'deno x -- npm:evil-pkg'],
+    ];
+    for (const [command, same] of pairs) {
+      const result = await hook(command, DENO);
+      expect(result.urls, command).toEqual(['https://registry.npmjs.org/evil-pkg']);
+      expect(result.decision, command).toBe('deny');
+      expect(result, command).toEqual(await hook(same, DENO));
+    }
+    for (const command of ['dnx -A npm:evil-pkg', 'dnx.cmd -q npm:evil-pkg', 'cmd /c dnx -A npm:evil-pkg']) {
+      expect((await hook(command, DENO, 'PowerShell')).decision, command).toBe('deny');
+    }
+    expect((await hook('strace dnx -A npm:evil-pkg', DENO)).decision).toBe('deny');
   });
 
   it('keeps the lookups of deno x, dx and denox', async () => {

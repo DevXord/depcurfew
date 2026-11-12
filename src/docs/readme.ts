@@ -493,7 +493,7 @@ function sharedRunNotes(environment: EnvironmentKnowledge, tools: readonly ToolK
       const others = dotnet
         ? `; any other \`${program}\` line is the tool runner of the ${runner.product} (${runner.since} and later), which, like ${listed(runner.runs.map((command) => `\`${command.join(' ')}\``))}, gets no decision, as depcurfew does not look NuGet tools up yet`
         : `; any other \`${program}\` line gets no decision`;
-      return `\`${program}\` counts for ${tool.name} as \`${entry.runs.join(' ')}\` only when the word right after it is an ${prefixes} spec (\`${program} ${entry.prefixes[0] ?? ''}cowsay\`)${others}.`;
+      return `\`${program}\` counts for ${tool.name} as \`${entry.runs.join(' ')}\` only when one of its arguments is an ${prefixes} spec (\`${program} ${entry.prefixes[0] ?? ''}cowsay\`)${others}.`;
     });
   });
   return notes.length === 0 ? [] : ['', ...notes];

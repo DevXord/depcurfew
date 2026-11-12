@@ -1033,7 +1033,7 @@ Commands the guard reads (an add subcommand of any npm package manager, such as 
 | Pipenv | `pipenv install` | none | none |
 | Composer | `composer require`, `composer r`, `composer global require`, `composer global r` | none | `composer create-project` |
 
-`dnx` counts for Deno as `deno x` only when the word right after it is an `npm:` or `jsr:` spec (`dnx npm:cowsay`); any other `dnx` line is the tool runner of the .NET SDK (10.0.100 and later), which, like `dotnet dnx`, `dotnet tool exec` and `dotnet tool execute`, gets no decision, as depcurfew does not look NuGet tools up yet.
+`dnx` counts for Deno as `deno x` only when one of its arguments is an `npm:` or `jsr:` spec (`dnx npm:cowsay`); any other `dnx` line is the tool runner of the .NET SDK (10.0.100 and later), which, like `dotnet dnx`, `dotnet tool exec` and `dotnet tool execute`, gets no decision, as depcurfew does not look NuGet tools up yet.
 <!-- END GENERATED: claude-code-hook -->
 
 The hook reads commands the way a shell splits them, but it is a safety net, not a sandbox: a command can install packages in ways it does not recognize (a script, another tool). Keep the package manager configuration from `depcurfew apply` in place; it is what enforces the policy for every install.

@@ -826,7 +826,7 @@ interface ToolCommands {
   links: readonly (readonly string[])[];
   /** Options that take a value only in the add commands or only in the download commands, or only from a version on (decision D-201). */
   optionValues: { add: ReadonlyMap<string, OptionValues>; run: ReadonlyMap<string, OptionValues> };
-  /** Run commands under a program name another tool installs too, read only with a prefixed first argument (dnx; decision D-208). */
+  /** Run commands under a program name another tool installs too, read only with a prefixed argument (dnx; decision D-208). */
   sharedRuns: readonly SharedRunKnowledge[];
 }
 
@@ -2086,7 +2086,7 @@ function laterCommand(words: readonly Word[], depth: number): CommandScan {
   const index = words.findIndex((word, at) => {
     if (word.dynamic) return false;
     const name = executableOf(word.text);
-    return runners.has(name) && !sharedRunDeclines(name, words[at + 1]);
+    return runners.has(name) && !sharedRunDeclines(name, words.slice(at + 1));
   });
   if (index === -1) return NOTHING;
   let later = words.slice(index);
@@ -2106,18 +2106,21 @@ function laterCommand(words: readonly Word[], depth: number): CommandScan {
   return scan;
 }
 
-/** Whether a run command under a program name another tool installs too names a package of the tool: the next word has one of its prefixes (decision D-208). */
-function sharedRunApplies(entry: SharedRunKnowledge, next: Word | undefined): boolean {
-  return next !== undefined && entry.prefixes.some((prefix) => next.text.startsWith(prefix));
+/**
+ * Whether a run command under a program name another tool installs too names a package of the tool: one of its
+ * arguments has one of its prefixes, also after options (dnx -A npm:x, dnx -- npm:x; decision D-208).
+ */
+function sharedRunApplies(entry: SharedRunKnowledge, words: readonly Word[]): boolean {
+  return words.some((word) => entry.prefixes.some((prefix) => word.text.startsWith(prefix)));
 }
 
 /**
- * Whether `executable` is only a program name another tool installs too and the word after it does not make it a
+ * Whether `executable` is only a program name another tool installs too and none of the words after it makes it a
  * package manager's (grep dnx notes.txt; decision D-208).
  */
-function sharedRunDeclines(executable: string, next: Word | undefined): boolean {
+function sharedRunDeclines(executable: string, after: readonly Word[]): boolean {
   const shared = commands().sharedPrograms.get(executable);
-  return shared !== undefined && !shared.some((entry) => sharedRunApplies(entry, next));
+  return shared !== undefined && !shared.some((entry) => sharedRunApplies(entry, after));
 }
 
 /** The commands in the input of a command that runs it as commands: a here-document or here-string is known, a pipe or a file is not. */
@@ -4053,10 +4056,10 @@ function directoryOfFile(path: string): string {
 function scanToolCommand(tool: ToolCommands, command: SimpleCommand, first: Word, executable: string, rest: readonly Word[], line: string, depth: number): CommandScan | undefined {
   const { add } = commands();
   const { facts } = tool;
-  // dnx is the .NET SDK's tool runner unless an npm: or jsr: spec follows it, which no NuGet ID can be (decision D-208).
+  // dnx is the .NET SDK's tool runner unless an npm: or jsr: spec is among its arguments, which no NuGet ID can be (decision D-208).
   const shared = tool.sharedRuns.find((entry) => entry.command.length === 1 && entry.command[0] === executable);
   if (shared !== undefined) {
-    const entry = sharedRunApplies(shared, rest[0]) ? facts.run.find((item) => sameCommand(item.command, shared.runs)) : undefined;
+    const entry = sharedRunApplies(shared, rest) ? facts.run.find((item) => sameCommand(item.command, shared.runs)) : undefined;
     if (entry === undefined) return undefined;
     const context = contextOf(tool, entry.command);
     return finish(tool, line, readArguments(rest, 'run', tool, entry, context), depth, [], context);
