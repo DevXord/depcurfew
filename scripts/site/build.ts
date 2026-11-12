@@ -66,7 +66,7 @@ export const README_PAGES: readonly ReadmePage[] = [
     nav: 'Overview',
     title: 'depcurfew',
     summary: 'What depcurfew does, the five-minute start and the installation.',
-    sections: ['depcurfew', 'why', 'five-minute-start', 'installation'],
+    sections: ['depcurfew', 'why', 'five-minute-start', 'documentation', 'installation'],
     contents: true,
     hero: true,
   },
@@ -84,8 +84,8 @@ export const README_PAGES: readonly ReadmePage[] = [
     nav: 'Codes',
     title: 'Warnings and errors of init and apply',
     summary: 'Every code of the warnings, notes and errors of init and apply.',
-    sections: ['init-warnings-and-notes', 'apply-warnings-and-errors'],
-    heading: true,
+    // The README keeps them after the doctor rules, past the Supported tools table (decision D-207).
+    sections: ['warnings-and-errors-of-init-and-apply'],
   },
   { file: 'doctor.html', nav: 'doctor rules', title: 'doctor rules', summary: 'Every rule of depcurfew doctor with its level and fix.', sections: ['doctor-rules'] },
   {
@@ -95,7 +95,7 @@ export const README_PAGES: readonly ReadmePage[] = [
     summary: 'The user policy, the user file of each tool and the doctor --user rules.',
     sections: ['protecting-the-whole-machine'],
   },
-  { file: 'tools.html', nav: 'Tools', title: 'Supported tools', summary: 'What depcurfew configures and checks for each tool, and Python projects.', sections: ['supported-tools'] },
+  { file: 'tools.html', nav: 'Tools', title: 'Supported tools', summary: 'What depcurfew configures and checks for each tool, with Python projects, update bots, Composer projects and Ruby projects.', sections: ['supported-tools'] },
   { file: 'action.html', nav: 'GitHub Action', title: 'GitHub Action', summary: 'The action with its inputs and outputs, and other CI systems.', sections: ['github-action'] },
   { file: 'check.html', nav: 'Guarding installs', title: 'Guarding installs', summary: 'depcurfew check before a package is installed.', sections: ['guarding-installs'] },
   { file: 'claude-code.html', nav: 'Claude Code', title: 'Claude Code', summary: 'The Claude Code hook and how to set it up.', sections: ['claude-code'] },
