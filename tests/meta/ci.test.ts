@@ -48,11 +48,15 @@ describe('CI workflow', () => {
 describe('runtime smoke test job', () => {
   const runtime = read('ci.yml').jobs['runtime'] as Job & { strategy: { matrix: { node: string[] } } };
 
-  it('builds once, then runs the smoke test of the built CLI on each Node.js version', () => {
+  it('builds once, then runs the smoke tests of the built CLI and of the library on each Node.js version', () => {
     expect(runtime.strategy['fail-fast']).toBe(false);
     expect(runtime.strategy.matrix.node.length).toBeGreaterThan(0);
     const runs = runtime.steps.map((step) => step.run).filter((run) => run !== undefined);
-    expect(runs.slice(-3)).toEqual(['npm ci', 'npm run build', 'node tests/runtime/smoke.mjs']);
+    expect(runs.slice(-4)).toEqual(['npm ci', 'npm run build', 'node tests/runtime/smoke.mjs', 'node tests/runtime/library.mjs']);
+  });
+
+  it('runs the library on Node.js 18.3.0 and 20.0.0, the oldest of each line agentcurfew may run on (E02)', () => {
+    expect(runtime.strategy.matrix.node).toEqual(expect.arrayContaining(['18.3.0', '20.0.0']));
   });
 
   it('runs on the oldest Node.js that engines in package.json allows (decision D-103)', () => {

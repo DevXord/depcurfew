@@ -2,7 +2,22 @@
 
 All notable changes for users of depcurfew. The project follows [semantic versioning](https://semver.org/): the policy file (`version: 1`), the command-line options, the exit codes and the JSON and SARIF output (`schemaVersion: 1`) only change in a backward-incompatible way in a new major version.
 
-## 1.6.1
+## Unreleased
+
+### Library
+
+- Semantic versioning now covers, in writing, `getVersion`, `loadPolicy`, `checkSpecs` and `PopularNames` with the shapes of their options and results: a minor or patch release may add optional options, fields of a result, codes and kinds, and never removes or renames one, makes an option required or gives a finding a level other than `error` or `warning` (the README, under Library). Tests hold the package to it, and to the way agentcurfew 1.2.0 calls it.
+- The types `CheckRequest` (a spec with what the command changes), `FetchLike` (the `fetch` option of `checkSpecs`) and `SpecKind` (the `kind` of a report) are exported, so that a program can write the options and results of `checkSpecs` without copying them.
+
+### Fixes
+
+- `LocalOsvData` answers `missing` for an ecosystem that `depcurfew osv update` does not download, such as `crates` or `nuget`, without reading a file. Before, it read `<name>.jsonl` from the data directory for any name, and a name with a path in it (`../x`) read a file outside the directory.
+
+### Tests
+
+- Contract tests of the library: the exports of `dist/index.js` and `dist/index.d.ts`; the signatures, options, result fields, levels, codes and kinds that semantic versioning covers; a copy of the code with which agentcurfew 1.2.0 calls depcurfew, compiled against the published types with agentcurfew's compiler options and run against the built library; and what `checkSpecs` answers without the network for each kind of spec, where `nuget:` and `cargo:` specs are kind `other` with the error `unverified` and no request.
+- CI runs the library, as agentcurfew calls it offline, on every Node.js version of the runtime smoke test, from 18.3.0 and 20.0.0 on.
+
 
 ### Releases
 
