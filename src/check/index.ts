@@ -135,6 +135,18 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
       });
       return;
     }
+    if (request.optionValue !== undefined) {
+      // Bun reads the word as the value of the option since `since`; older Bun tries to install or run it and fails,
+      // so a name the registry does not have runs nothing (decision D-201).
+      const { option, since, written } = request.optionValue;
+      add({
+        level: 'warning',
+        code: 'not-found',
+        message: `${name} is not in the registry: Bun ${since} reads it as the value of ${option}; Bun before ${since} would try to install it and fail`,
+        fix: `Write ${written} in one word, so that every Bun reads it as the value`,
+      });
+      return;
+    }
     add({
       level: 'error',
       code: 'not-found',

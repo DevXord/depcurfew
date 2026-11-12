@@ -122,6 +122,11 @@ export interface CheckRequest {
    * of that name, so a name the registry does not have is a warning; npm link then links the global one or fails.
    */
   linked?: true;
+  /**
+   * Bun (decision D-201): the spec is the separate value word of an option that Bun `since` reads with a value and older
+   * Bun installs or runs as a package, so a name the registry does not have is a warning; `written` is the one-word form.
+   */
+  optionValue?: { option: string; since: string; written: string };
 }
 
 export interface CheckOptions {

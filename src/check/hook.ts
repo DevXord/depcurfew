@@ -351,7 +351,7 @@ export function requestedSpecs(
     }
     return found;
   };
-  for (const { tool, spec, tag, prereleases, buildFromSource, directory, command: written, readsManifest, fromManifest, composerCommand, linked } of scan.requests) {
+  for (const { tool, spec, tag, prereleases, buildFromSource, directory, command: written, readsManifest, fromManifest, composerCommand, linked, optionValue } of scan.requests) {
     const request: CheckRequest = {
       spec,
       // The tool decides which of its own registry settings apply (decision D-113).
@@ -368,6 +368,8 @@ export function requestedSpecs(
       ...(composerCommand === undefined ? {} : { composerCommand }),
       // npm link installs from the registry only what the global space lacks (decision D-172).
       ...(linked === true ? { linked } : {}),
+      // Bun before 1.4.4 installs or runs the value word of an option that Bun 1.4.4 reads with a value (decision D-201).
+      ...(optionValue === undefined ? {} : { optionValue }),
     };
     const key = `${JSON.stringify(request)}\n${keyOf(directory)}`;
     if (!unique.has(key)) unique.set(key, { request, ...(directory === undefined ? {} : { directory }), command: written });
