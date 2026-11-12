@@ -82,12 +82,13 @@ describe('a CI run step or a Dockerfile RUN of 1 MiB', () => {
   });
 
   // A quarter of a MiB (11000 variables, 6500 steps): the YAML parser alone takes about 1.4 s for 1 MiB of such small
-  // entries, and doctor reads the file twice.
-  it('takes doctor less than 2 s on a workflow with thousands of env entries and steps', { timeout: 120_000 }, () => {
+  // entries, and doctor reads the file twice. That makes this case about twice as slow on Windows runners: 1.0 to 1.25 s
+  // on Linux, 2.017 s once on windows-latest with Node.js 22 (2026-11-12). The bug it guards against took over a minute.
+  it('takes doctor less than 2 s (4 s on Windows) on a workflow with thousands of env entries and steps', { timeout: 120_000 }, () => {
     const env = fill(`${HEAD}    env:\n`, (index) => `      V${index}: x\n`, MIB / 8, SETUP);
     const text = fill(env, () => '      - run: npm ci\n', MIB / 4);
     const root = repository({ 'package.json': '{}', '.github/workflows/ci.yml': text });
-    expect(doctorSeconds(root)).toBeLessThan(2);
+    expect(doctorSeconds(root)).toBeLessThan(process.platform === 'win32' ? 4 : 2);
   });
 
   it.each([
