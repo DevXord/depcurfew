@@ -89,7 +89,7 @@ export const poetry: ToolKnowledge = {
     defaultPolicy: verified(
       [{ since: '0.0.0', value: 'run' }],
       `${CONFIGURATION}#installeronly-binary`,
-      'Without installer.only-binary, packages are built from source distributions when no wheel fits, which runs their build backend. Git and directory dependencies are always built. Installing a wheel runs no package code.',
+      'Without installer.only-binary, packages are built from source distributions when no wheel fits, which runs their build backend. Git and directory dependencies are always built. Installing a wheel runs no build step: the wheel format installs it by unpacking and spreading its files (binary-distribution-format.rst in pypa/packaging.python.org at 6fa4790c, "Installing a wheel").',
     ),
     allowList: {
       setting: verified(

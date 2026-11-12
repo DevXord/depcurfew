@@ -85,7 +85,7 @@ export const pdm: ToolKnowledge = {
     defaultPolicy: verified(
       [{ since: '0.0.0', value: 'run' }],
       `${LOCKFILE}#set-acceptable-format-for-locking-or-installing`,
-      'Without only-binary, PDM locks and installs source distributions when they fit, which builds them and runs their build backend. Installing a wheel runs no package code.',
+      'Without only-binary, PDM locks and installs source distributions when they fit, which builds them and runs their build backend. Installing a wheel runs no build step: the wheel format installs it by unpacking and spreading its files (binary-distribution-format.rst in pypa/packaging.python.org at 6fa4790c, "Installing a wheel").',
     ),
     allowList: {
       setting: verified(

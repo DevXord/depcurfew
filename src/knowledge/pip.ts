@@ -26,9 +26,13 @@ const finalReview = verifiedOn('2026-11-01');
 const release14 = verifiedOn('2026-11-02');
 // pip 26.3 (2026-11-02): platformdirs 4.12.4 and the parser that normalizes key names (decision D-170).
 const d170 = verifiedOn('2026-11-03');
-const secrets = verifiedOn('2026-11-03');
 const d167 = verifiedOn('2026-11-03');
 const CONFIGPARSER = 'https://github.com/python/cpython/blob/v3.14.0/Lib/configparser.py';
+// pip 26.3 (2026-11-02), for the facts read again at that release (decision D-203): a fact moves here when a line it
+// quotes, paraphrases or names changed in what it does or says; every other fact keeps 26.2.2 and its date until the
+// whole knowledge of pip is pinned again.
+const PIP_26_3 = 'https://github.com/pypa/pip/blob/26.3';
+const d203 = verifiedOn('2026-11-11');
 
 const noSetting = (kind: string): SourceKnowledge => ({
   setting: uncertain(
@@ -76,10 +80,10 @@ export const pip: ToolKnowledge = {
     ),
   },
   installScripts: {
-    defaultPolicy: verified(
+    defaultPolicy: d203.verified(
       [{ since: '0.0.0', value: 'run' }],
-      SECURE_INSTALLS,
-      'pip builds a source distribution when no wheel fits, which runs its build backend; the secure-installs guide recommends --only-binary :all:. Installing a wheel runs no package code.',
+      `${PIP_26_3}/docs/html/topics/secure-installs.md`,
+      'pip builds a source distribution when no wheel fits, which runs its build backend; the secure-installs guide (the same in 26.2.2 and 26.3) recommends --only-binary :all:. Installing a wheel runs no build step, but pip\'s security policy says that "because Python\'s import system is dynamic, pip cannot guarantee that installing a wheel will not execute third-party code" (SECURITY.md at 26.3, lines 26-27, a sentence new in 26.3).',
     ),
     allowList: {
       setting: verified(
@@ -238,10 +242,10 @@ export const pip: ToolKnowledge = {
       PARSER,
       '"Ignore options not present in this parser": a key that is not an option of the command is skipped without a word (same code in 25.0), so pip before 26.0 ignores uploaded-prior-to.',
     ),
-    invalidValueFails: user.verified(
+    invalidValueFails: d203.verified(
       true,
-      PARSER,
-      'A pip.conf that is not valid INI stops pip (ConfigurationFileCouldNotBeLoaded, configuration.py), and a value an option rejects ends the command with a usage error: pip 26.0 aborts on uploaded-prior-to = P7D in every command that has the option, as it rejected PIP_UPLOADED_PRIOR_TO=P100000D in a test on 2026-10-30 (configuration values and PIP_* variables go through the same parsing). Commands without the option ignore the key.',
+      `${PIP_26_3}/src/pip/_internal/cli/parser.py`,
+      'A pip.conf that is not valid INI stops pip (ConfigurationFileCouldNotBeLoaded, _construct_parser in configuration.py), and a value an option rejects ends the command: for an option with a callback, such as uploaded-prior-to, with a usage error (_update_defaults calls the callback, whose raise_option_error goes to error()), for any other with exit status 3 (check_default, which from 26.3 logs "An error occurred during configuration: ... Check your pip configuration files or environment variables for this value", #8671 in NEWS.rst). pip 26.0 aborts on uploaded-prior-to = P7D in every command that has the option, as it rejected PIP_UPLOADED_PRIOR_TO=P100000D in a test on 2026-10-30 (configuration values and PIP_* variables go through the same parsing). Commands without the option ignore the key.',
     ),
     weakening: user.verified(
       [
@@ -265,7 +269,7 @@ export const pip: ToolKnowledge = {
     ),
   },
   extra: {
-    machineSettings: secrets.verified<MachineSettingsKnowledge>(
+    machineSettings: d203.verified<MachineSettingsKnowledge>(
       {
         variables: [
           { name: 'PIP_INDEX_URL', effect: 'replaces' },
@@ -283,8 +287,8 @@ export const pip: ToolKnowledge = {
         ],
         legacyUserFiles: { posix: '.pip/pip.conf', win32: 'pip/pip.ini' },
       },
-      `${PIP}/src/pip/_internal/configuration.py`,
-      'iter_config_files: the global files, then the user files unless PIP_CONFIG_FILE names a file that exists ("per-user config is not loaded when env_config_file exists"), the legacy ~/.pip/pip.conf (~/pip/pip.ini on Windows, get_configuration_files) before the user file of user.files, the site file of the environment, and the file PIP_CONFIG_FILE names; each is read with configparser.RawConfigParser (= or : between key and value, full-line comments with # or ;, indented lines continue a value, keys in lower case) and _normalize_name writes _ as -. ConfigOptionParser (src/pip/_internal/cli/parser.py) takes the sections global, the name of the command (install for pip install) and :env: (the PIP_ variables, which win), matches a key to the long option of that name, so pypi-url sets --index-url too (-i, --index-url and --pypi-url are one option in cli/cmdoptions.py), and splits the value of an append option (--extra-index-url, --find-links) at whitespace. --index-url replaces the index, --extra-index-url adds indexes and --find-links adds pages or directories of archives (cmdoptions.py).',
+      `${PIP_26_3}/src/pip/_internal/configuration.py`,
+      'iter_config_files: the global files, then the user files unless PIP_CONFIG_FILE names a file that exists ("per-user config is not loaded when env_config_file exists"), the legacy ~/.pip/pip.conf (~/pip/pip.ini on Windows, get_configuration_files) before the user file of user.files, the site file of the environment, and the file PIP_CONFIG_FILE names; each is read with a configparser.RawConfigParser (= or : between key and value, full-line comments with # or ;, indented lines continue a value), whose keys _normalize_name writes in lower case with _ as - (from 26.3 the parser itself, _RawConfigParser.optionxform; before, the default optionxform lowercased them and _normalized_keys did the rest). ConfigOptionParser (src/pip/_internal/cli/parser.py) takes the sections global, the name of the command (install for pip install) and :env: (the PIP_ variables, which win), matches a key to the long option of that name, so pypi-url sets --index-url too (-i, --index-url and --pypi-url are one option in cli/cmdoptions.py), and splits the value of an append option (--extra-index-url, --find-links) at whitespace. --index-url replaces the index, --extra-index-url adds indexes and --find-links adds pages or directories of archives (cmdoptions.py).',
     ),
     environmentNames: release14.verified<EnvironmentNameRule[]>(
       [{ prefix: 'PIP_', match: 'prefix-then-any-case' }],
@@ -390,12 +394,17 @@ export const pip: ToolKnowledge = {
       `${PIP}/src/pip/_internal/req/constructors.py`,
       'A requirement that contains a path separator (/, and \\ on Windows) or starts with . looks like a path (_looks_like_path): a directory there is a project built from source. A name with an archive extension (utils/filetypes.py) is a local archive, even when the file does not exist. http, https, ftp and file URLs are links (utils/urls.py, is_url).',
     ),
+    pathExtras: d203.verified(
+      { open: '[', close: ']' },
+      `${PIP_26_3}/src/pip/_internal/utils/urls.py`,
+      'strip_extras (lines 69-78, re.match(r"^(.+)(\\[[^\\]]+\\])$", path)): a path may end with one group of extras in brackets, with at least one character between them and no closing bracket inside; pip takes that group off (with the spaces before it, rstrip) before it looks at the path, for the value of -e (_parse_pip_syntax_editable in req/constructors.py) and for a plain path (parse_req_from_line, on the absolute path). So .[dev] and ./[dev] are the project in the current directory with its extra dev, as docs/html/cli/pip_install.rst shows ("\'.[PDF]\'  # project in current directory", lines 396 and 406), while .[] keeps its brackets and names no project, and in .[a[b] the path is .[a. In 26.2.2 the same function is in req/constructors.py.',
+    ),
     lockfilePattern: verified(
       '^pylock\\.([^.]+)\\.toml$',
       `${PYLOCK}#file-name`,
       'A named lock file, next to or instead of pylock.toml; pip lock -o writes any name.',
     ),
-    commandLine: verified(
+    commandLine: d203.verified(
       {
         add: [['pip', 'install'], ['pip3', 'install']],
         run: [],
@@ -422,8 +431,8 @@ export const pip: ToolKnowledge = {
         parsing: { abbreviations: true, groupedShortOptions: true },
         editableOptions: ['-e', '--editable'],
       },
-      `${PIP}/src/pip/_internal/commands/install.py`,
-      'pip and pip3 are the console scripts of the package (pyproject.toml). The options of pip install (install.py) and the general options of every command (cmdoptions.py, general_group), which may also come before install. pip reads them with optparse: --opt value and --opt=value, -rFILE and -r FILE, grouped short flags, and a long option shortened to any prefix that names one option (cli/parser.py keeps optparse\'s matching), so --extra means --extra-index-url. -e takes a local project path or a VCS URL to install in editable mode. -r, -c, --requirements-from-script and --group read requirements from files of the project.',
+      `${PIP_26_3}/src/pip/_internal/commands/install.py`,
+      'pip and pip3 are the console scripts of the package (pyproject.toml). The options of pip install (add_options in install.py, the same in 26.2.2; --group and --no-clean come from cli/req_command.py) and the general options of every command (cmdoptions.py, general_group), which may also come before install. -V and --version were general options too until 26.2.2; from 26.3 only the main parser takes them (cli/main_parser.py; "Keep --version available only for pip and prevent its use in subcommands", #9456 in NEWS.rst), so pip install rejects them, and they stay listed for the older versions. pip reads them with optparse: --opt value and --opt=value, -rFILE and -r FILE, grouped short flags, and a long option shortened to any prefix that names one option (cli/parser.py keeps optparse\'s matching), so --extra means --extra-index-url. -e takes a local project path or a VCS URL to install in editable mode. -r, -c, --requirements-from-script and --group read requirements from files of the project.',
     ),
     registryOverrides: verified(
       {
@@ -495,7 +504,7 @@ export const pip: ToolKnowledge = {
       `${PIPX}/src/pipx/main.py`,
       '--index-url is the base URL of the index; --pip-args is split and handed to pip, so it may carry --extra-index-url, --find-links or --no-index. With the pip backend pipx passes the PIP_* variables on to pip; with the uv backend it ignores them and uv reads its own (docs/how-to/use-uv-backend.rst); both kinds are registry variables of pip and uv.',
     ),
-    latestVersion: verified('26.2.2', NEWS, 'Released on 2026-10-20.'),
+    latestVersion: d203.verified('26.3', `${PIP_26_3}/NEWS.rst`, 'Released on 2026-11-02 ("26.3 (2026-11-02)"); still the newest release on pypi.org on 2026-11-11.'),
     configCommands: d170.verified(
       [
         { command: ['pip', 'config'], writes: ['set', 'unset', 'edit'] },
@@ -504,13 +513,13 @@ export const pip: ToolKnowledge = {
       `${PIP}/src/pip/_internal/commands/configuration.py`,
       'pip config list, edit, get, set, unset and debug: set and unset change a value and save the file, edit opens it in an editor, list, get and debug only read. Without --user, --global or --site the site file is used if one exists, else the user file.',
     ),
-    installOverrides: d170.verified(
+    installOverrides: d203.verified(
       {
         options: [{ name: '--uploaded-prior-to', weakens: 'delay', values: 'delay' }],
         variables: [{ name: 'PIP_UPLOADED_PRIOR_TO', weakens: 'delay', values: 'delay' }],
       },
-      CMDOPTIONS,
-      '--uploaded-prior-to (metavar datetime_or_duration): "Only consider packages uploaded prior to the given value", an ISO 8601 datetime or a duration of whole days P<n>D. PIP_UPLOADED_PRIOR_TO is its environment variable (environmentVariable). A datetime is not compared with the policy, so it is asked about.',
+      `${PIP_26_3}/src/pip/_internal/cli/cmdoptions.py`,
+      '--uploaded-prior-to (metavar datetime_or_duration): "Only consider packages uploaded prior to the given value. Accepts an ISO 8601 datetime ... or duration in integer days with syntax `P<n>D`" (the help of 26.3; 26.2.2 said "a duration in days"), parsed by _handle_uploaded_prior_to, the same in both. PIP_UPLOADED_PRIOR_TO is its environment variable (environmentVariable). A datetime is not compared with the policy, so it is asked about.',
     ),
   },
 };

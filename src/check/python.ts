@@ -232,6 +232,32 @@ async function checkIndexPackage(report: PackageReport, name: string, clauses: r
   });
 }
 
+/**
+ * "." outside the root of a project (decision D-203): the local directory the packages are installed in, which
+ * sources.directory decides, as for any other local directory.
+ */
+function outsideProject(policy: CheckOptions['policy'], shown: CheckOptions['installDirectory']): CheckFinding {
+  const where = outsideWhere(shown);
+  if (policy.sources?.directory === 'deny') {
+    return {
+      level: 'error',
+      code: 'forbidden-source',
+      message: `it installs from a local directory: ${where}, and depcurfew.json denies local directories (sources.directory)`,
+      fix: `Install the project from its own directory (the directory of depcurfew.json or one listed in projects), or set sources.directory to "allow" in depcurfew.json if this directory is intended`,
+    };
+  }
+  return { level: 'warning', code: 'unchecked-source', message: `it installs from a local directory: ${where}; depcurfew looks up index packages only`, fix: CHECK_BY_HAND };
+}
+
+/** Which directory "." is and which directories would make it the project, as far as they are known. */
+function outsideWhere(shown: CheckOptions['installDirectory']): string {
+  if (shown === undefined) return '"." is the directory the packages are installed in, which is not the directory of depcurfew.json or of one of its projects';
+  const roots = shown.policyFile === null ? `the project directory (${shown.root})` : `the directory of ${shown.policyFile} (${shown.root}) or of one of its projects`;
+  if (shown.directory === undefined) return `"." is a directory depcurfew cannot tell, so it is not taken for ${roots}`;
+  const directory = shown.directory === '.' ? 'the directory the packages are installed in' : shown.directory;
+  return `"." is ${directory}, which is not ${roots}`;
+}
+
 export async function checkPythonSpec(raw: string, options: CheckOptions, chosen: Chosen = {}): Promise<PackageReport> {
   const spec = parsePythonSpec(raw.trim().slice(PYPI_PREFIX.length));
   if (spec === undefined) {
@@ -243,15 +269,20 @@ export async function checkPythonSpec(raw: string, options: CheckOptions, chosen
     };
     return { spec: raw, kind: 'invalid', findings: [finding] };
   }
+  // "." and ".[extras]" name the project only where the packages are installed in the root of a project (decision D-203);
+  // elsewhere, as after cd vendor/x, they are the local directory the install runs in.
+  const outside = spec.kind === 'workspace' && options.projectRoot === false;
   const report: PackageReport = {
     spec: raw,
-    kind: spec.kind,
+    kind: outside ? 'directory' : spec.kind,
     ...(chosen.prereleases === undefined ? {} : { prereleases: chosen.prereleases }),
     ...(chosen.buildFromSource === undefined ? {} : { buildFromSource: chosen.buildFromSource }),
     findings: [],
   };
   if (spec.name !== undefined) report.name = `${PYPI_PREFIX}${spec.name}`;
-  if (spec.kind === 'workspace') {
+  if (outside) {
+    report.findings.push(outsideProject(options.policy, options.installDirectory));
+  } else if (spec.kind === 'workspace') {
     report.findings.push({
       level: 'warning',
       code: 'unchecked-source',

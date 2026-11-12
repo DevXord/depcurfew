@@ -1,0 +1,15 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "demo-client"
+version = "1.0.0"
+requires-python = ">=3.10"
+dependencies = ["certifi", "idna"]
+
+[project.optional-dependencies]
+brotli = ["brotli"]
+cli = ["click==8.*", "rich>=10,<15"]
+http2 = ["h2>=3,<5"]
+socks = ["socksio==1.*"]

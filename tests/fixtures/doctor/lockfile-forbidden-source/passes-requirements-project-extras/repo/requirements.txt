@@ -1,0 +1,6 @@
+# The project itself, with extras (decision D-203).
+-e .[cli]
+.[docs,tests]
+-e ./[dev]
+-e .\[windows]
+idna==3.20

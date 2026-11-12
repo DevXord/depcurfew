@@ -1,0 +1,29 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "requirements.txt",
+      "line": 2
+    },
+    "message": "./packages/client[cli] is built from source when installed (it is a local directory), which runs its build code: --only-binary=:all: in requirements.txt forbids building only for packages from an index, and depcurfew.json does not allow it",
+    "fix": "Give the requirement a package name (name @ ./packages/client[cli]) so that it can be allowed with \"pypi:name\" in installScripts.allow in depcurfew.json, or remove it"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "requirements.txt",
+      "line": 3
+    },
+    "message": "..[dev] is built from source when installed (it is a local directory), which runs its build code: --only-binary=:all: in requirements.txt forbids building only for packages from an index, and depcurfew.json does not allow it",
+    "fix": "Give the requirement a package name (name @ ..[dev]) so that it can be allowed with \"pypi:name\" in installScripts.allow in depcurfew.json, or remove it"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "requirements.txt",
+      "line": 4
+    },
+    "message": ".[] is built from source when installed (it is a local directory), which runs its build code: --only-binary=:all: in requirements.txt forbids building only for packages from an index, and depcurfew.json does not allow it",
+    "fix": "Give the requirement a package name (name @ .[]) so that it can be allowed with \"pypi:name\" in installScripts.allow in depcurfew.json, or remove it"
+  }
+]

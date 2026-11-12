@@ -1,0 +1,10 @@
+# The development tools are pinned; the dependencies of the package are not,
+# so that the tests run against their newest versions.
+# The package itself, with all of its extras:
+-e .[brotli,cli,http2,socks]
+
+# Documentation
+mkdocs==1.6.1
+
+# Tests
+pytest==8.4.1
