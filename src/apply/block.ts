@@ -54,10 +54,13 @@ export interface RemovedBlock {
   separated: boolean;
 }
 
-/** The lines without the block that starts at line `start`. */
-export function removeBlockAt(lines: readonly string[], start: number): RemovedBlock {
-  const end = lines.findIndex((line, index) => index > start && line.trim() === BLOCK_END);
-  const stop = end === -1 ? start : end;
+/**
+ * The lines without the block that starts at line `start` and ends at line `end`; without `end`, at the next end marker
+ * (a TOML file passes the end its own reader found outside values, decision E04).
+ */
+export function removeBlockAt(lines: readonly string[], start: number, end?: number): RemovedBlock {
+  const found = end ?? lines.findIndex((line, index) => index > start && line.trim() === BLOCK_END);
+  const stop = found === -1 ? start : found;
   const rest = [...lines.slice(0, start), ...lines.slice(stop + 1)];
   // Drop the blank line that separated the block from the content before it; insertBlock adds one after any
   // non-blank line, also when a blank line follows the block (a block at the end of a table in the middle of a file).

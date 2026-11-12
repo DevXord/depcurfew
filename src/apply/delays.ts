@@ -14,6 +14,7 @@ import { POLICY_FILE } from '../policy/defaults.ts';
 import { parseDuration } from '../policy/duration.ts';
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import { BLOCK_END, isBlockStart } from './block.ts';
+import { tomlBlockLines } from './toml.ts';
 import { extraOf, isRecord, settingOf, values, yamlOptionsFor } from './facts.ts';
 import { botOnlyEntries, isActionsEcosystem } from './generators/dependabot.ts';
 import { compareVersions, parseVersion, pinnedVersion, type Version } from './version.ts';
@@ -82,6 +83,8 @@ export function managedValue(text: string | undefined, file: string, path: reado
   if (/\.ya?ml$/u.test(name)) return markedInYaml(text, path);
   // JSON has no markers: a value there counts as written by hand.
   if (/\.jsonc?$/u.test(name)) return false;
+  // In TOML a marker counts only outside values (decision E04).
+  if (name.endsWith('.toml')) return tomlBlockLines(text).has(line);
   return insideBlock(text, line);
 }
 

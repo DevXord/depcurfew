@@ -7,6 +7,7 @@
 import { extraOf, isRecord, isSwitch, sinceOf } from '../apply/facts.ts';
 import { BLOCK_END, blockLines, blockStart, commentedOut, insertBlock, isBlockStart, joinLines, removeBlock, splitLines, SUPERSEDED, TURNED_OFF } from '../apply/block.ts';
 import { policyDuration, settingText } from '../apply/delays.ts';
+import { tomlBlockLines } from '../apply/toml.ts';
 import { buildAllowList, buildSwitchScopeWarning, compactDuration, forcedBuildWarning, pythonNames, tomlValue } from '../apply/generators/python.ts';
 import { convertCooldown } from '../policy/convert.ts';
 import { allowedNames, cooldownValue, denyList, eachSource, exclusions, execExclusionWarning, sameList, scriptsDefault, type SourceKind } from '../apply/generators/common.ts';
@@ -104,8 +105,17 @@ function iniFound(entries: readonly IniEntry[], key: string): Found | undefined 
   return entry === undefined ? undefined : { key, value: iniValue(entry.value), line: entry.line };
 }
 
+/** The lines of a TOML file with depcurfew's managed blocks blanked out, the markers read only outside values (decision E04). */
+function outsideTomlBlocks(text: string): string {
+  const inside = tomlBlockLines(text);
+  return text
+    .split(/\r?\n/u)
+    .map((line, index) => (inside.has(index + 1) ? '' : line))
+    .join('\n');
+}
+
 function tomlFound(text: string, table: string, key: string): Found | undefined {
-  const found = tomlSetting(outsideBlocks(text), table, key);
+  const found = tomlSetting(outsideTomlBlocks(text), table, key);
   return found === undefined ? undefined : { key, value: found.value, line: found.line };
 }
 

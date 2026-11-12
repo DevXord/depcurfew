@@ -1,5 +1,5 @@
 // Bun: [install] keys in a managed block in bunfig.toml; trustedDependencies in package.json.
-import { hasManagedLines } from '../block.ts';
+import { hasManagedTomlLines } from '../toml.ts';
 import { firstFile, settingOf, sinceOf } from '../facts.ts';
 import { allowedNames, cooldownValue, eachSource, exclusions, sameList, splitDotted, wrongListType } from './common.ts';
 import type { ManagerGenerator } from './context.ts';
@@ -66,6 +66,6 @@ export const bun: ManagerGenerator = (context) => {
 
   eachSource(context, () => undefined);
 
-  if (entries.length > 0 || hasManagedLines(context.read(file))) context.toml(file, table, entries, managed);
+  if (entries.length > 0 || hasManagedTomlLines(context.read(file))) context.toml(file, table, entries, managed);
   return minutes;
 };

@@ -20762,10 +20762,13 @@ function commentedOut(line) {
 function hasManagedLines(body) {
 	return splitLines(body).some((line) => isBlockStart(line) || commentedOut(line) !== void 0);
 }
-/** The lines without the block that starts at line `start`. */
-function removeBlockAt(lines, start) {
-	const end = lines.findIndex((line, index) => index > start && line.trim() === "# <<< depcurfew managed block");
-	const stop = end === -1 ? start : end;
+/**
+* The lines without the block that starts at line `start` and ends at line `end`; without `end`, at the next end marker
+* (a TOML file passes the end its own reader found outside values, decision E04).
+*/
+function removeBlockAt(lines, start, end) {
+	const found = end ?? lines.findIndex((line, index) => index > start && line.trim() === "# <<< depcurfew managed block");
+	const stop = found === -1 ? start : found;
 	const rest = [...lines.slice(0, start), ...lines.slice(stop + 1)];
 	let at = start;
 	let separated = false;
@@ -21009,16 +21012,156 @@ function tablesOf(lines) {
 	return tables;
 }
 /**
+* Whether each line starts outside every value: not inside a multi-line string, nor inside an array or inline table
+* that goes on over several lines (decision E04). Only there can a line be a marker of depcurfew's managed block.
+*/
+function outsideValues(lines) {
+	const outside = [];
+	let state = {
+		depth: 0,
+		string: ""
+	};
+	for (const line of lines) {
+		outside.push(state.depth <= 0 && state.string === "");
+		state = scanLine(line, state);
+		if (state.depth < 0) state = {
+			...state,
+			depth: 0
+		};
+	}
+	return outside;
+}
+/**
+* The managed blocks of a TOML file, read as TOML reads the file (decision E04): a marker line inside a multi-line
+* string or a multi-line array is text of that value, so a block wrapped in a string is no block, whatever its lines say.
+* The one reader of markers in TOML files, for apply, apply --user, doctor and doctor --user.
+*/
+function tomlBlocks(lines) {
+	const outside = outsideValues(lines);
+	const blocks = [];
+	for (let index = 0; index < lines.length; index++) {
+		if (outside[index] !== true) continue;
+		const label = blockLabel(lines[index] ?? "");
+		if (label === void 0) continue;
+		let end;
+		for (let next = index + 1; next < lines.length; next++) if (outside[next] === true && (lines[next] ?? "").trim() === "# <<< depcurfew managed block") {
+			end = next;
+			break;
+		}
+		blocks.push({
+			start: index,
+			label,
+			end
+		});
+		if (end === void 0) break;
+		index = end;
+	}
+	return blocks;
+}
+/** The 1-based lines between the markers of the managed blocks of a TOML text, read by tomlBlocks. */
+function tomlBlockLines(text) {
+	const all = text.split(/\r?\n/u);
+	const inside = /* @__PURE__ */ new Set();
+	for (const block of tomlBlocks(all)) for (let line = block.start + 1; line < (block.end ?? all.length); line++) inside.add(line + 1);
+	return inside;
+}
+/** Whether apply wrote anything into a TOML text: a managed block outside values, or a line it commented out. */
+function hasManagedTomlLines(body) {
+	const all = splitLines(body);
+	if (tomlBlocks(all).length > 0) return true;
+	const outside = outsideValues(all);
+	return all.some((line, index) => outside[index] === true && commentedOut(line) !== void 0);
+}
+/**
+* The lines without the managed block with this label, and without every copy of it, read by tomlBlocks: a marker in
+* a value is text of the value and stays (decision E04).
+*/
+function removeTomlBlock(lines, label) {
+	const blocks = tomlBlocks(lines).filter((block) => block.label === label);
+	const first = blocks[0];
+	if (first === void 0) return {
+		lines: [...lines],
+		at: void 0,
+		separated: false
+	};
+	const drop = /* @__PURE__ */ new Set();
+	let separated = false;
+	for (const block of blocks) {
+		const end = block.end ?? block.start;
+		const before = block.start - 1;
+		const blank = before >= 0 && !drop.has(before) && (lines[before] ?? "").trim() === "";
+		for (let index = block.start; index <= end; index++) drop.add(index);
+		if (blank) drop.add(before);
+		if (block === first) separated = blank;
+	}
+	const rest = lines.filter((_, index) => !drop.has(index));
+	let at = 0;
+	for (let index = 0; index < first.start; index++) if (!drop.has(index)) at += 1;
+	return {
+		lines: rest,
+		at: Math.min(at, rest.length),
+		separated
+	};
+}
+/**
 * Removes the block with this marker. A labeled block that is not there yet may have been written by an earlier
 * version without the label: an unlabeled block inside the same table is then taken for it.
 */
 function removeOwnBlock(lines, table, label) {
-	const removed = removeBlock(lines, blockStart(label));
+	const removed = removeTomlBlock(lines, label ?? "");
 	if (removed.at !== void 0 || label === void 0) return removed;
 	const tables = tablesOf(lines);
-	const legacy = lines.findIndex((line, index) => blockLabel(line) === "" && (tables[index] ?? "") === table);
-	return legacy === -1 ? removed : removeBlockAt(lines, legacy);
+	const legacy = tomlBlocks(lines).find((block) => block.label === "" && (tables[block.start] ?? "") === table);
+	return legacy === void 0 ? removed : removeBlockAt(lines, legacy.start, legacy.end ?? legacy.start);
 }
+/** The line where the value around line `index` starts: the last line before it that starts outside values. */
+function valueStart(outside, index) {
+	let start = index;
+	while (start > 0 && outside[start] !== true) start -= 1;
+	return start;
+}
+/**
+* The check after each edit of a TOML block (decision E04): with entries, the file has the block with this label
+* once, outside every value, in `table` (the top level for ''), and its end marker after it; without entries, no
+* such block. Throws an error whose message names the line, with a fix, which apply reports as cannot-edit.
+*/
+function checkTomlBlock(body, table, label, scope, written) {
+	const all = splitLines(body);
+	const wanted = blockLabel(blockStart(label, scope)) ?? "";
+	const blocks = tomlBlocks(all).filter((block) => block.label === wanted);
+	const name = table === "" ? "the top level" : `[${table}]`;
+	const refuse = (message, fix) => {
+		throw Object.assign(new Error(message), { fix });
+	};
+	if (!written) {
+		const left = blocks[0];
+		if (left !== void 0) refuse(`the block depcurfew manages for ${name} is still there at line ${left.start + 1} after it was removed`, `Remove the lines from line ${left.start + 1} to the end of the block by hand, then run depcurfew apply again`);
+		return;
+	}
+	const outside = outsideValues(all);
+	const markers = all.flatMap((line, index) => blockLabel(line) === wanted ? [index] : []);
+	for (const index of markers) {
+		if (outside[index] === true) continue;
+		if (blocks.length === 1) continue;
+		const start = valueStart(outside, index) + 1;
+		refuse(`the block depcurfew manages for ${name} would be inside the value that starts at line ${start}, where tools read it as text`, `Move the settings of ${name} out of the value that starts at line ${start}, then run depcurfew apply again`);
+	}
+	const block = blocks[0];
+	if (block === void 0) return refuse(`the block depcurfew manages for ${name} is missing after the edit`, `Add the settings by hand, then run depcurfew apply again`);
+	if (blocks.length > 1) refuse(`the block depcurfew manages for ${name} is there more than once, at lines ${blocks.map((item) => item.start + 1).join(", ")}`, `Keep one of the blocks, then run depcurfew apply again`);
+	if (block.end === void 0) refuse(`the block depcurfew manages for ${name} at line ${block.start + 1} has no end marker`, `Add the line "${BLOCK_END}" after its settings, then run depcurfew apply again`);
+	const found = tablesOf(all)[block.start] ?? "";
+	if (found !== table) {
+		const tool = table === "" ? "the tool" : TABLE_TOOLS.find(([prefix]) => table === prefix || table.startsWith(`${prefix}.`))?.[1] ?? "the tool";
+		refuse(`the block depcurfew manages for ${name} would be in ${found === "" ? "the top level" : `[${found}]`} at line ${block.start + 1}, where ${tool} does not read it`, `Move the block under ${table === "" ? "the top level, before the first table" : `the [${table}] header`}, then run depcurfew apply again`);
+	}
+}
+/** Which tool reads a table of pyproject.toml, for the message of checkTomlBlock. */
+const TABLE_TOOLS = [
+	["tool.uv", "uv"],
+	["tool.poetry", "Poetry"],
+	["tool.pdm", "PDM"]
+];
 /**
 * Lines apply commented out in this table (and the dotted keys and subtables of it) come back as they were, every
 * line of the value, when the policy no longer manages their key. Lines commented out in other tables stay.
@@ -21065,6 +21208,11 @@ function restoreLines(lines, table, isManaged) {
 	}
 }
 function writeTomlBlock(body, table, entries, managedKeys, label, scope = "project") {
+	const edited = editTomlBlock(body, table, entries, managedKeys, label, scope);
+	checkTomlBlock(edited, table, label, scope, entries.length > 0);
+	return edited;
+}
+function editTomlBlock(body, table, entries, managedKeys, label, scope) {
 	const managed = new Set(managedKeys);
 	const marker = blockStart(label, scope);
 	const removed = removeOwnBlock(splitLines(body), table, label);
@@ -32702,6 +32850,7 @@ function managedValue(text, file, path, line) {
 	const name = file.split("/").at(-1) ?? file;
 	if (/\.ya?ml$/u.test(name)) return markedInYaml(text, path);
 	if (/\.jsonc?$/u.test(name)) return false;
+	if (name.endsWith(".toml")) return tomlBlockLines(text).has(line);
 	return insideBlock(text, line);
 }
 function atLeast$1(version, since) {
@@ -33472,7 +33621,7 @@ const bun = (context) => {
 		}
 	}
 	eachSource(context, () => void 0);
-	if (entries.length > 0 || hasManagedLines(context.read(file))) context.toml(file, table, entries, managed);
+	if (entries.length > 0 || hasManagedTomlLines(context.read(file))) context.toml(file, table, entries, managed);
 	return minutes;
 };
 
@@ -35550,7 +35699,7 @@ const pdm = (context) => {
 		}
 	}
 	eachSource(context, () => void 0);
-	if (entries.length > 0 || context.exists(file) && hasManagedLines(context.read(file))) {
+	if (entries.length > 0 || context.exists(file) && hasManagedTomlLines(context.read(file))) {
 		relockWarning(context, file, table, (body) => writeTomlBlock(body, table, entries, managed, table));
 		context.toml(file, table, entries, managed, table);
 	}
@@ -35586,13 +35735,13 @@ const pipenv = (context) => {
 		fix: "Set PIP_ONLY_BINARY=:all: where Pipenv installs packages (CI, Dockerfile); Pipenv passes it on to pip"
 	});
 	eachSource(context, () => void 0);
-	if (entries.length > 0 || context.exists(file) && hasManagedLines(context.read(file))) context.toml(file, table, entries, managed);
+	if (entries.length > 0 || context.exists(file) && hasManagedTomlLines(context.read(file))) context.toml(file, table, entries, managed);
 	return minutes;
 };
 
 // src/apply/generators/poetry.ts
 function writeTable(context, file, table, entries, managed) {
-	if (entries.length > 0 || context.exists(file) && hasManagedLines(context.read(file))) context.toml(file, table, entries, managed, table);
+	if (entries.length > 0 || context.exists(file) && hasManagedTomlLines(context.read(file))) context.toml(file, table, entries, managed, table);
 }
 const poetry = (context) => {
 	const { tool, policy } = context;
@@ -36012,7 +36161,7 @@ const uv = (context) => {
 	}
 	eachSource(context, () => void 0);
 	const label = table === "" ? void 0 : table;
-	if (entries.length > 0 || context.exists(file) && hasManagedLines(context.read(file))) {
+	if (entries.length > 0 || context.exists(file) && hasManagedTomlLines(context.read(file))) {
 		relockWarning(context, file, table, (body) => writeTomlBlock(body, table, entries, managed, label));
 		context.toml(file, table, entries, managed, label);
 	}
