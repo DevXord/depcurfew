@@ -47,6 +47,7 @@ const LABELS = {
   pypi: { git: 'a git repository', remoteTarball: 'a URL', file: 'a local archive', directory: 'a local directory' },
   packagist: { git: 'a VCS repository', remoteTarball: 'a package repository at a URL', file: 'an artifact repository', directory: 'a path repository' },
   rubygems: { git: 'a git repository', remoteTarball: 'an archive URL', file: 'a local archive', directory: 'a path' },
+  crates: { git: 'a git repository', remoteTarball: 'an archive URL', file: 'a local archive', directory: 'a path' },
 } as const;
 
 /** Why a Python package is built from source, for messages. */

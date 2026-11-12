@@ -197,8 +197,9 @@ describe('validateKnowledge', () => {
     });
 
     it('rejects an unknown tool id', () => {
-      const tool = { ...buildTool(), id: 'cargo' } as unknown as ToolKnowledge;
-      expect(issuesFor(tool, 'id')).toEqual([expect.stringMatching(/unknown tool id 'cargo'/)]);
+      // cargo is a tool id since E05; gradle is none.
+      const tool = { ...buildTool(), id: 'gradle' } as unknown as ToolKnowledge;
+      expect(issuesFor(tool, 'id')).toEqual([expect.stringMatching(/unknown tool id 'gradle'/)]);
     });
 
     it('accepts the ecosystem of a package manager and rejects others', () => {

@@ -222,7 +222,7 @@ function placePresetRules(json: JsonFile, list: string, key: string, wanted: rea
   });
 }
 
-const ECOSYSTEM_LABELS: Readonly<Record<Ecosystem, string>> = { npm: 'npm', pypi: 'Python', packagist: 'Composer', rubygems: 'Ruby' };
+const ECOSYSTEM_LABELS: Readonly<Record<Ecosystem, string>> = { npm: 'npm', pypi: 'Python', packagist: 'Composer', rubygems: 'Ruby', crates: 'Rust' };
 
 /**
  * What the delay apply writes covers, as doctor's bot-cooldown-mismatch compares it: the packages of each package

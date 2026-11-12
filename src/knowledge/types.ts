@@ -1,13 +1,13 @@
 // Every fact about a package manager or bot carries the official URL it was verified against
 // and the date of verification. Disputed facts keep every variant with its own source.
 
-export type ToolId = 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'uv' | 'pip' | 'poetry' | 'pdm' | 'pipenv' | 'composer' | 'bundler' | 'renovate' | 'dependabot';
+export type ToolId = 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'uv' | 'pip' | 'poetry' | 'pdm' | 'pipenv' | 'composer' | 'bundler' | 'cargo' | 'renovate' | 'dependabot';
 export type ToolKind = 'package-manager' | 'update-bot';
 /**
  * The registry a package manager installs from; package names in the policy are compared per ecosystem. rubygems
  * (Bundler, decision D-152) has no prefix in the policy, so no name there belongs to it.
  */
-export type Ecosystem = 'npm' | 'pypi' | 'packagist' | 'rubygems';
+export type Ecosystem = 'npm' | 'pypi' | 'packagist' | 'rubygems' | 'crates';
 
 export interface Evidence<T> {
   value: T;

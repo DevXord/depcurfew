@@ -284,7 +284,7 @@ function checkRenovate(context: RuleContext, file: string): void {
   exemptions(context, bot, file, config, matching, registries, reported, edits);
 }
 
-const REGISTRY_LABELS: Readonly<Record<Ecosystem, string>> = { npm: 'npm', pypi: 'Python', packagist: 'Composer', rubygems: 'Ruby' };
+const REGISTRY_LABELS: Readonly<Record<Ecosystem, string>> = { npm: 'npm', pypi: 'Python', packagist: 'Composer', rubygems: 'Ruby', crates: 'Rust' };
 const POLICY_PREFIXES: Readonly<Partial<Record<Ecosystem, string>>> = { npm: '', pypi: PYPI_PREFIX, packagist: COMPOSER_PREFIX };
 
 /** The datasource each rule depcurfew apply writes for the names of one registry is limited to (decision D-171). */
