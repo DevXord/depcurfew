@@ -1109,6 +1109,15 @@ export interface CodeScanningUploadKnowledge {
   permissions: { always: Readonly<Record<string, string>>; privateRepositories: Readonly<Record<string, string>> };
 }
 
+/**
+ * What GitHub code scanning takes of the rules of a SARIF file (E03): the most characters of shortDescription.text and
+ * fullDescription.text, and whether it shows help.markdown instead of help.text when a rule has it.
+ */
+export interface SarifRulesKnowledge {
+  descriptionLimit: number;
+  helpMarkdown: boolean;
+}
+
 /** Turning off the processing of workflow commands in a step's log; {token} stands for a unique random token. */
 export interface StopCommandsKnowledge {
   stop: string;
@@ -1940,6 +1949,8 @@ export interface EnvironmentKnowledge {
     actionsPoetry: Fact<SetupActionKnowledge>;
     setupRuby: Fact<SetupActionKnowledge>;
     codeScanningUpload: Fact<CodeScanningUploadKnowledge>;
+    /** The limits and the help text of the rules of a SARIF file that code scanning shows (E03). */
+    sarifRules: Fact<SarifRulesKnowledge>;
     stopCommands: Fact<StopCommandsKnowledge>;
     annotations: Fact<AnnotationsKnowledge>;
     annotationLimits: Fact<AnnotationLimitsKnowledge>;

@@ -12,6 +12,7 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 ### Fixes
 
 - `LocalOsvData` answers `missing` for an ecosystem that `depcurfew osv update` does not download, such as `crates` or `nuget`, without reading a file. Before, it read `<name>.jsonl` from the data directory for any name, and a name with a path in it (`../x`) read a file outside the directory.
+- In `doctor --sarif` and the SARIF report of the Action, each rule's `help.markdown` has the whole description, then `**Fix:**` and the help; GitHub code scanning shows it instead of `help.text`, which keeps the help. `shortDescription` and `fullDescription`, which code scanning limits to 1024 characters, are cut at the end of the last sentence that fits, so a rule can explain more than 1024 characters without GitHub cutting it.
 
 ### Tests
 

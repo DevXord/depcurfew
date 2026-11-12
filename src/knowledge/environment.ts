@@ -16,6 +16,7 @@ const audited = verifiedOn('2026-10-31');
 const release13 = verifiedOn('2026-11-01');
 // The shell of a shell-form hook on Windows (decision D-206).
 const d206 = verifiedOn('2026-11-11');
+const e03 = verifiedOn('2026-11-12');
 const mcpFacts = verifiedOn('2026-11-01');
 const actionChecks = verifiedOn('2026-11-01');
 const leftovers = verifiedOn('2026-11-01');
@@ -543,6 +544,11 @@ export const environment: EnvironmentKnowledge = {
       },
       'https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/integrate-with-existing-tools/upload-sarif-file',
       'The example workflow on this page needs security-events: write in every repository and actions: read with contents: read only in private ones. The inputs come from upload-sarif/action.yml in github/codeql-action (current major v4, v4.39.1 checked); category tells analyses of the same tool and commit apart.',
+    ),
+    sarifRules: e03.verified(
+      { descriptionLimit: 1024, helpMarkdown: true },
+      'https://github.com/github/docs/blob/dd7d394b2d2b43d3f4f51091026921d7f539f7e8/content/code-security/reference/code-scanning/sarif-files/sarif-support.md#L156-L160',
+      'The reportingDescriptor table of "SARIF support for code scanning": shortDescription.text and fullDescription.text are each "Limited to 1024 characters"; help.text is required; help.markdown is optional and recommended, and "When help.markdown is available, it is displayed instead of help.text". The page does not say what code scanning does with a longer description.',
     ),
     stopCommands: checked.verified(
       { stop: '::stop-commands::{token}', resume: '::{token}::' },
