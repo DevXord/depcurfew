@@ -11,6 +11,9 @@ import { extraOf, isRecord } from '../apply/facts.ts';
 import { matchSegment, wildcardMatch } from '../detect/wildcard.ts';
 import type { BotOnlyEcosystemId, Ecosystem, ToolKnowledge } from '../knowledge/types.ts';
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
+import { delayMinutes } from './durations.ts';
+import { latestVersion } from './effective.ts';
+import { MAX_WAYS, MAX_WAYS_UNBOUNDED, RegexBudget } from './renovate-regex.ts';
 import { jsonElementLines, jsonSetting } from './settings.ts';
 
 export type UpdateType = string;
@@ -40,6 +43,8 @@ export interface DelaySource {
   rule?: number;
   /** The built-in preset of extends that set it, with the datasource its rule matches (decision D-171). */
   preset?: { name: string; datasource: string };
+  /** The rule sets it only when a /regex/ depcurfew does not run matches, which depcurfew counts as matching (decision D-200). */
+  regex?: RefusedRegex;
 }
 
 /** A packageRules entry that sets minimumReleaseAge with a matcher depcurfew cannot read (decision D-131). */
@@ -53,6 +58,67 @@ export interface UnreadableRule {
   value: unknown;
   /** A matcher depcurfew does not model at all (matchBaseBranches, matchJsonata...), not only patterns it cannot read. */
   unmodelled?: true;
+  /** A /regex/ of the matcher that depcurfew does not run, and why (decision D-200). */
+  regex?: RefusedRegex;
+}
+
+/** A /regex/ pattern of a matcher that depcurfew does not run, so that a crafted pattern cannot stall it (decision D-200). */
+export interface RefusedRegex {
+  pattern: string;
+  /** The matcher it is in. */
+  matcher: string;
+  /** What it has, after "has": "a quantified group", "a backreference"... */
+  reason: string;
+  /** It came after the work depcurfew spends on the /regex/ patterns of one file (RegexBudget). */
+  budget?: true;
+}
+
+/** Why depcurfew does not run the pattern, for a fix: `depcurfew does not run "/…/" in matchFileNames: it has …`. */
+export function refusedRegexAdvice(regex: RefusedRegex): string {
+  const why =
+    regex.budget === true
+      ? 'it stops running the /regex/ patterns of a Renovate file after a fixed amount of work, so that a crafted file cannot stall it, and this pattern came after that'
+      : `it has ${regex.reason}, and depcurfew runs a /regex/ only without quantified groups, backreferences and lookaround, with at most one *, + or {n,}, and with at most ${MAX_WAYS} ways to match through ?, {n,m} and | (${MAX_WAYS_UNBOUNDED} next to a *, + or {n,}), so that a crafted pattern cannot stall it`;
+  return `depcurfew does not run ${JSON.stringify(regex.pattern)} in ${regex.matcher}: ${why}`;
+}
+
+/** For a message: the refused /regex/ a finding counts as matching (decision D-200). */
+export function countedRegex(regex: RefusedRegex): string {
+  return `counting ${regex.matcher} ${JSON.stringify(regex.pattern)} as matching, which depcurfew does not run`;
+}
+
+/** For a fix: what to do about a refused /regex/ counted as matching. */
+export function countedRegexFix(regex: RefusedRegex): string {
+  return `${refusedRegexAdvice(regex)}; it counts the pattern as matching, so rewrite it with names, globs or a /regex/ that depcurfew runs if the rule should not apply here`;
+}
+
+/**
+ * How one evaluation runs the /regex/ patterns of a rule: the budget of its file, whether a pattern depcurfew does
+ * not run counts as matching (`assume`, the direction that reports a rule that shortens the delay) or as one it cannot
+ * read, and the first such pattern of each matcher, with the matchers whose result it could not tell.
+ */
+interface Run {
+  budget: RegexBudget;
+  assume: boolean;
+  matcher: string;
+  refused: Map<string, RefusedRegex>;
+  unknown: string[];
+}
+
+/** The budget of the file each rule was read from (readRenovateConfig); a rule of no file gets one for each evaluation. */
+const budgets = new WeakMap<object, RegexBudget>();
+
+function newRun(budget: RegexBudget, assume: boolean): Run {
+  return { budget, assume, matcher: '', refused: new Map(), unknown: [] };
+}
+
+/** The first refused /regex/ of a matcher whose result the run could not tell. */
+function decisive(run: Run): RefusedRegex | undefined {
+  for (const matcher of run.unknown) {
+    const regex = run.refused.get(matcher);
+    if (regex !== undefined) return regex;
+  }
+  return undefined;
 }
 
 export type RenovateDelay =
@@ -122,6 +188,9 @@ export function readRenovateConfig(text: string, file: string, base: readonly st
   const rules = Array.isArray(list?.value)
     ? (list.value as unknown[]).flatMap((rule, index): RenovateRule[] => (isRecord(rule) ? [{ index, rule, line: lines?.[index] ?? list.line }] : []))
     : [];
+  // One budget for the /regex/ patterns of the file (decision D-200).
+  const budget = new RegexBudget();
+  for (const { rule } of rules) budgets.set(rule, budget);
   return {
     file,
     base,
@@ -135,19 +204,20 @@ export function readRenovateConfig(text: string, file: string, base: readonly st
  * Whether one Renovate pattern matches `input`, as matchRegexOrGlob does: "*", a /regex/ (with ! for "not"), or a
  * case-insensitive glob. undefined for glob syntax beyond * (braces, classes...), which depcurfew does not evaluate.
  */
-function matchesPattern(input: string, pattern: string, negation: string): boolean | undefined {
+function matchesPattern(input: string, pattern: string, negation: string, run: Run): boolean | undefined {
   const negative = pattern.startsWith(negation);
   const body = negative ? pattern.slice(negation.length) : pattern;
   if (!negative && body === '*') return true;
   const regex = /^\/(.+)\/(i?)$/u.exec(body);
   if (regex !== null) {
-    let result: boolean;
-    try {
-      result = new RegExp(regex[1] ?? '', regex[2] === 'i' ? 'iu' : 'u').test(input);
-    } catch {
-      return undefined;
+    const outcome = run.budget.test(regex[1] ?? '', regex[2] === 'i' ? 'iu' : 'u', input);
+    if ('invalid' in outcome) return undefined;
+    if ('refused' in outcome) {
+      // A shape that can backtrack for minutes, or one past the budget of the file, is not run (decision D-200).
+      if (!run.refused.has(run.matcher)) run.refused.set(run.matcher, { pattern, matcher: run.matcher, reason: outcome.refused, ...(outcome.budget === true ? { budget: true as const } : {}) });
+      return run.assume ? true : undefined;
     }
-    return negative ? !result : result;
+    return negative ? !outcome.result : outcome.result;
   }
   if (/[?[\]{}()!+@]/u.test(body.replace(/^@/u, ''))) return undefined;
   const result = wildcardMatch(input.toLowerCase(), body.toLowerCase().replaceAll('**', '*'));
@@ -182,23 +252,23 @@ function matchesPath(path: string, glob: string): boolean | undefined {
 }
 
 /** One pattern of matchFileNames: "*", a /regex/ (with ! for "not") or a glob of paths (matchesPath). */
-function matchesFilePattern(input: string, pattern: string, negation: string): boolean | undefined {
+function matchesFilePattern(input: string, pattern: string, negation: string, run: Run): boolean | undefined {
   const negative = pattern.startsWith(negation);
   const body = negative ? pattern.slice(negation.length) : pattern;
   if (!negative && body === '*') return true;
-  if (/^\/(.+)\/(i?)$/u.test(body)) return matchesPattern(input, pattern, negation);
+  if (/^\/(.+)\/(i?)$/u.test(body)) return matchesPattern(input, pattern, negation, run);
   const result = matchesPath(input, body);
   return result === undefined ? undefined : negative ? !result : result;
 }
 
 /** matchRegexOrGlobList: some positive pattern matches (when there are any) and every negative pattern does too. */
-function matchesList(input: string, patterns: readonly string[], negation: string, matches = matchesPattern): boolean | undefined {
+function matchesList(input: string, patterns: readonly string[], negation: string, run: Run, matches = matchesPattern): boolean | undefined {
   if (patterns.length === 0) return false;
   const positive = patterns.filter((pattern) => !pattern.startsWith(negation));
   const negative = patterns.filter((pattern) => pattern.startsWith(negation));
-  const results = positive.map((pattern) => matches(input, pattern, negation));
+  const results = positive.map((pattern) => matches(input, pattern, negation, run));
   if (positive.length > 0 && !results.includes(true)) return results.includes(undefined) ? undefined : false;
-  const excluded = negative.map((pattern) => matches(input, pattern, negation));
+  const excluded = negative.map((pattern) => matches(input, pattern, negation, run));
   if (excluded.includes(false)) return false;
   return excluded.includes(undefined) ? undefined : true;
 }
@@ -225,7 +295,17 @@ export interface RuleScope {
  * Whether a rule applies to every package of the target: `covers` with the update types, `narrow` when it does not
  * (or only to some packages), `unknown` when a matcher has patterns depcurfew cannot read (decision D-131).
  */
-export type RuleCoverage = { kind: 'covers'; scope: RuleScope } | { kind: 'narrow' } | { kind: 'unknown'; matcher: string; unmodelled?: true };
+export type RuleCoverage =
+  | { kind: 'covers'; scope: RuleScope; assumed?: AssumedScope }
+  | { kind: 'narrow'; assumed?: undefined }
+  | { kind: 'unknown'; matcher: string; unmodelled?: true; regex?: RefusedRegex; assumed?: AssumedScope };
+
+/**
+ * What a rule covers when the /regex/ patterns depcurfew does not run count as matching, where that covers more than
+ * the patterns it runs tell (decision D-200): the direction that reports a rule that shortens or turns off the delay.
+ * `regex` is the pattern that made the difference.
+ */
+export type AssumedScope = RuleScope & { regex: RefusedRegex };
 
 function categoriesOf(bot: ToolKnowledge, manager: string | undefined): string[] {
   if (manager === undefined || bot.extra?.['managerCategories'] === undefined) return [];
@@ -301,8 +381,8 @@ function patternsOf(value: unknown, stringIsList: boolean): string[] | undefined
 }
 
 /** anyMatchRegexOrGlobList: some input matches the list. */
-function matchesAny(inputs: readonly string[], patterns: readonly string[], negation: string): boolean | undefined {
-  const results = inputs.map((input) => matchesList(input, patterns, negation));
+function matchesAny(inputs: readonly string[], patterns: readonly string[], negation: string, run: Run): boolean | undefined {
+  const results = inputs.map((input) => matchesList(input, patterns, negation, run));
   if (results.includes(true)) return true;
   return results.includes(undefined) ? undefined : false;
 }
@@ -312,6 +392,23 @@ function matchesAny(inputs: readonly string[], patterns: readonly string[], nega
  * them for some update types, some of them only, or depcurfew cannot tell.
  */
 export function ruleCoverage(bot: ToolKnowledge, rule: Record<string, unknown>, on: RenovateTarget | Ecosystem): RuleCoverage {
+  const budget = budgets.get(rule) ?? new RegexBudget();
+  const strictRun = newRun(budget, false);
+  const strict = coverageOf(bot, rule, on, strictRun);
+  if (strictRun.refused.size === 0 || (strict.kind === 'unknown' && strict.unmodelled === true)) return strict;
+  // A /regex/ depcurfew does not run: what the rule covers when it counts as matching (decision D-200). Counting a
+  // pattern as matching only widens what a rule covers, so a rule narrow then is narrow whatever the pattern matches.
+  const assumed = coverageOf(bot, rule, on, newRun(budget, true));
+  if (assumed.kind === 'narrow') return strict.kind === 'covers' ? strict : assumed;
+  if (assumed.kind === 'unknown') return strict.kind === 'unknown' ? { kind: 'unknown', matcher: strict.matcher } : strict;
+  if (strict.kind === 'covers' && assumed.scope.updateTypes.length === strict.scope.updateTypes.length) return strict;
+  const regex = decisive(strictRun) ?? [...strictRun.refused.values()][0];
+  if (regex === undefined) return strict;
+  const scope = { ...assumed.scope, regex };
+  return strict.kind === 'unknown' ? { kind: 'unknown', matcher: strict.matcher, regex, assumed: scope } : strict.kind === 'covers' ? { ...strict, assumed: scope } : strict;
+}
+
+function coverageOf(bot: ToolKnowledge, rule: Record<string, unknown>, on: RenovateTarget | Ecosystem, run: Run): RuleCoverage {
   const target = targetOf(bot, on);
   const matching = extraOf(bot, 'packageRuleMatching', isMatching);
   const managerMatching = bot.extra?.['managerMatching'] === undefined ? undefined : extraOf(bot, 'managerMatching', isManagerMatching);
@@ -333,7 +430,10 @@ export function ruleCoverage(bot: ToolKnowledge, rule: Record<string, unknown>, 
   const unmodelled = matchers.find((key) => !known.has(key));
   let unknown: string | undefined = unmodelled;
   const result = (key: string, matches: boolean | undefined): boolean => {
-    if (matches === undefined) unknown ??= key;
+    if (matches === undefined) {
+      unknown ??= key;
+      run.unknown.push(key);
+    }
     return matches !== false;
   };
   let names: RuleScope['names'] = { kind: 'all' };
@@ -357,36 +457,42 @@ export function ruleCoverage(bot: ToolKnowledge, rule: Record<string, unknown>, 
   }
   for (const [key, inputs] of lists) {
     if (!(key in rule)) continue;
+    run.matcher = key;
     const patterns = patternsOf(rule[key], stringIsList);
-    const matches = patterns === undefined || inputs === undefined ? undefined : matchesAny(inputs, patterns, matching.negation);
+    const matches = patterns === undefined || inputs === undefined ? undefined : matchesAny(inputs, patterns, matching.negation, run);
     if (!result(key, matches)) return { kind: 'narrow' };
   }
   if (actionsMatching !== undefined) {
     // matchFileNames covers the actions when it matches every workflow file; matchDepTypes when it matches their depType.
     if (actionsMatching.fileMatcher in rule) {
+      run.matcher = actionsMatching.fileMatcher;
       const patterns = patternsOf(rule[actionsMatching.fileMatcher], actionsMatching.fileStringIsList);
       const files = target.files ?? [];
-      const each = patterns === undefined ? [undefined] : files.map((file) => matchesList(file, patterns, matching.negation, matchesFilePattern));
+      const each = patterns === undefined ? [undefined] : files.map((file) => matchesList(file, patterns, matching.negation, run, matchesFilePattern));
       const matches = files.length === 0 || each.includes(false) ? false : each.includes(undefined) ? undefined : true;
       if (!result(actionsMatching.fileMatcher, matches)) return { kind: 'narrow' };
     }
     if (actionsMatching.depTypeMatcher in rule) {
+      run.matcher = actionsMatching.depTypeMatcher;
       const patterns = patternsOf(rule[actionsMatching.depTypeMatcher], actionsMatching.depTypeStringIsList);
-      const matches = patterns === undefined || target.depTypes === undefined ? undefined : matchesAny(target.depTypes, patterns, matching.negation);
+      const matches = patterns === undefined || target.depTypes === undefined ? undefined : matchesAny(target.depTypes, patterns, matching.negation, run);
       if (!result(actionsMatching.depTypeMatcher, matches)) return { kind: 'narrow' };
     }
   }
   let types = updateTypes;
   if (matching.updateTypeMatcher in rule) {
+    run.matcher = matching.updateTypeMatcher;
     const patterns = patternsOf(rule[matching.updateTypeMatcher], stringIsList);
-    const matched = patterns === undefined ? [] : updateTypes.map((type) => matchesList(type, patterns, matching.negation));
+    const matched = patterns === undefined ? [] : updateTypes.map((type) => matchesList(type, patterns, matching.negation, run));
     types = updateTypes.filter((_, index) => matched[index] === true);
+    if (matched.includes(undefined)) run.unknown.push(matching.updateTypeMatcher);
     if (types.length === 0 && !result(matching.updateTypeMatcher, patterns === undefined || matched.includes(undefined) ? undefined : false)) return { kind: 'narrow' };
   }
   if (unknown !== undefined) return { kind: 'unknown', matcher: unknown, ...(unknown === unmodelled ? { unmodelled: true as const } : {}) };
   if (types.length === 0) return { kind: 'narrow' };
   const categoryPatterns = managerMatching === undefined ? undefined : patternsOf(rule[managerMatching.categoryMatcher], stringIsList);
-  const categories = categoryPatterns === undefined ? undefined : target.categories.filter((category) => matchesList(category, categoryPatterns, matching.negation) === true);
+  run.matcher = managerMatching?.categoryMatcher ?? '';
+  const categories = categoryPatterns === undefined ? undefined : target.categories.filter((category) => matchesList(category, categoryPatterns, matching.negation, run) === true);
   return { kind: 'covers', scope: { updateTypes: types, names, matchers, ...(categories === undefined ? {} : { categories }) } };
 }
 
@@ -396,6 +502,24 @@ export function ruleCoverage(bot: ToolKnowledge, rule: Record<string, unknown>, 
  * one. Matchers of names, update types and the rest only narrow the packages further (decision D-171).
  */
 export function ruleReaches(bot: ToolKnowledge, rule: Record<string, unknown>, on: RenovateTarget | Ecosystem): boolean | undefined {
+  return reachOf(bot, rule, on, newRun(budgets.get(rule) ?? new RegexBudget(), false));
+}
+
+/**
+ * ruleReaches with the /regex/ patterns depcurfew does not run counted as matching, for a rule that shortens or turns
+ * off the delay (decision D-200); `regex` is the pattern that made the difference, when one did.
+ */
+export function ruleReachesCounting(bot: ToolKnowledge, rule: Record<string, unknown>, on: RenovateTarget | Ecosystem): { reaches: boolean | undefined; regex?: RefusedRegex } {
+  const budget = budgets.get(rule) ?? new RegexBudget();
+  const strictRun = newRun(budget, false);
+  const strict = reachOf(bot, rule, on, strictRun);
+  if (strict !== undefined || strictRun.refused.size === 0) return { reaches: strict };
+  const reaches = reachOf(bot, rule, on, newRun(budget, true));
+  const regex = decisive(strictRun);
+  return reaches === undefined || regex === undefined ? { reaches: strict } : { reaches, regex };
+}
+
+function reachOf(bot: ToolKnowledge, rule: Record<string, unknown>, on: RenovateTarget | Ecosystem, run: Run): boolean | undefined {
   const target = targetOf(bot, on);
   const matching = extraOf(bot, 'packageRuleMatching', isMatching);
   const managerMatching = bot.extra?.['managerMatching'] === undefined ? undefined : extraOf(bot, 'managerMatching', isManagerMatching);
@@ -408,29 +532,47 @@ export function ruleReaches(bot: ToolKnowledge, rule: Record<string, unknown>, o
   let reaches: boolean | undefined = true;
   for (const [key, inputs] of lists) {
     if (!(key in rule)) continue;
+    run.matcher = key;
     const patterns = patternsOf(rule[key], stringIsList);
-    const matches = patterns === undefined || inputs === undefined ? undefined : matchesAny(inputs, patterns, matching.negation);
+    const matches = patterns === undefined || inputs === undefined ? undefined : matchesAny(inputs, patterns, matching.negation, run);
     if (matches === false) return false;
-    if (matches === undefined) reaches = undefined;
+    if (matches === undefined) {
+      reaches = undefined;
+      run.unknown.push(key);
+    }
   }
   return reaches;
 }
 
 /** Whether a package name matches a Renovate pattern of matchPackageNames ("*", /regex/ or a glob; undefined when depcurfew cannot tell). */
 export function matchesName(bot: ToolKnowledge, name: string, pattern: string): boolean | undefined {
-  return matchesPattern(name, pattern, extraOf(bot, 'packageRuleMatching', isMatching).negation);
+  return matchesPattern(name, pattern, extraOf(bot, 'packageRuleMatching', isMatching).negation, newRun(new RegexBudget(), false));
 }
 
-/** The delayed update types a rule applies to (all without matchUpdateTypes); undefined when depcurfew cannot read its patterns. */
-export function ruleUpdateTypes(bot: ToolKnowledge, rule: Record<string, unknown>): UpdateType[] | undefined {
+/**
+ * The delayed update types a rule applies to (all without matchUpdateTypes); undefined when depcurfew cannot read its
+ * patterns. For a rule that shortens the delay, a /regex/ depcurfew does not run counts as matching (decision D-200),
+ * and `regex` names it when it made the difference.
+ */
+export function ruleUpdateTypes(bot: ToolKnowledge, rule: Record<string, unknown>): { types: UpdateType[] | undefined; regex?: RefusedRegex } {
   const matching = extraOf(bot, 'packageRuleMatching', isMatching);
   const updateTypes = extraOf(bot, 'delayedUpdateTypes', isStrings);
-  if (!(matching.updateTypeMatcher in rule)) return updateTypes;
+  if (!(matching.updateTypeMatcher in rule)) return { types: updateTypes };
   const managerMatching = bot.extra?.['managerMatching'] === undefined ? undefined : extraOf(bot, 'managerMatching', isManagerMatching);
   const patterns = patternsOf(rule[matching.updateTypeMatcher], managerMatching?.stringIsList === true);
-  if (patterns === undefined) return undefined;
-  const matched = updateTypes.map((type) => matchesList(type, patterns, matching.negation));
-  return matched.includes(undefined) ? undefined : updateTypes.filter((_, index) => matched[index] === true);
+  if (patterns === undefined) return { types: undefined };
+  const budget = budgets.get(rule) ?? new RegexBudget();
+  const typesOf = (run: Run) => {
+    run.matcher = matching.updateTypeMatcher;
+    const matched = updateTypes.map((type) => matchesList(type, patterns, matching.negation, run));
+    return matched.includes(undefined) ? undefined : updateTypes.filter((_, index) => matched[index] === true);
+  };
+  const strictRun = newRun(budget, false);
+  const strict = typesOf(strictRun);
+  const regex = strictRun.refused.get(matching.updateTypeMatcher);
+  if (strict !== undefined || regex === undefined) return { types: strict };
+  const types = typesOf(newRun(budget, true));
+  return types === undefined ? { types: strict } : { types, regex };
 }
 
 /** The patterns of the name matchers of a rule (matchPackageNames, matchDepNames); undefined when one cannot be read. */
@@ -456,8 +598,16 @@ export function ruleScope(bot: ToolKnowledge, rule: Record<string, unknown>, on:
   return coverage.kind === 'covers' ? coverage.scope : undefined;
 }
 
-function presetName(preset: string): string {
-  return preset.replace(/\(.*\)$/u, '');
+/**
+ * A preset without its arguments, as replace(/\(.*\)$/u, '') leaves it: when it ends with ), cut at the first ( after
+ * its last line terminator (. stops at those). Read with indexOf (decision D-200): the pattern took seconds on an
+ * extends entry of 40,000 opening brackets.
+ */
+export function presetName(preset: string): string {
+  if (!preset.endsWith(')')) return preset;
+  const last = Math.max(preset.lastIndexOf('\n'), preset.lastIndexOf('\r'), preset.lastIndexOf('\u2028'), preset.lastIndexOf('\u2029'));
+  const open = preset.indexOf('(', last + 1);
+  return open === -1 || open === preset.length - 1 ? preset : preset.slice(0, open);
 }
 
 /**
@@ -483,15 +633,46 @@ export function renovateDelay(bot: ToolKnowledge, config: RenovateConfig, on: Re
     set(updateTypes, { value: fact.value, origin: `the preset ${preset} in ${config.file} (${fact.value})`, line: config.extends.line, preset: { name: preset, datasource: fact.datasource } });
   }
   let repositorySets = config.top !== undefined;
+  const minutesOf = (value: unknown): number | undefined => {
+    const minutes = delayMinutes(bot, value, latestVersion(bot));
+    return minutes.ok ? minutes.minutes : undefined;
+  };
   for (const { index, line, rule } of config.rules) {
     if (!('minimumReleaseAge' in rule)) continue;
     const coverage = ruleCoverage(bot, rule, target);
-    if (coverage.kind === 'unknown') {
-      unreadable.push({ index, line, matcher: coverage.matcher, patterns: rule[coverage.matcher], value: rule['minimumReleaseAge'], ...(coverage.unmodelled === true ? { unmodelled: true as const } : {}) });
+    const origin = `minimumReleaseAge: ${JSON.stringify(rule['minimumReleaseAge'])} in packageRules[${index}] of ${config.file}`;
+    // A rule whose /regex/ depcurfew does not run counts for the update types where it shortens the delay that applies
+    // before it (decision D-200): the direction that reports. Where it would make the delay longer, it does not count.
+    let counted = false;
+    if (coverage.assumed !== undefined) {
+      const regex = coverage.assumed.regex;
+      const minutes = minutesOf(rule['minimumReleaseAge']);
+      const shortened = coverage.assumed.updateTypes.filter((type) => {
+        if (coverage.kind === 'covers' && coverage.scope.updateTypes.includes(type)) return false;
+        const before = byType.get(type);
+        const current = before === undefined ? 0 : minutesOf(before.value);
+        return minutes !== undefined && current !== undefined && minutes < current;
+      });
+      if (shortened.length > 0) {
+        counted = true;
+        repositorySets = true;
+        set(shortened, { value: rule['minimumReleaseAge'], origin: `${origin}, ${countedRegex(regex)}`, line, rule: index, regex });
+      }
+    }
+    if (coverage.kind === 'unknown' && !counted) {
+      unreadable.push({
+        index,
+        line,
+        matcher: coverage.matcher,
+        patterns: rule[coverage.matcher],
+        value: rule['minimumReleaseAge'],
+        ...(coverage.unmodelled === true ? { unmodelled: true as const } : {}),
+        ...(coverage.regex === undefined ? {} : { regex: coverage.regex }),
+      });
     }
     if (coverage.kind !== 'covers') continue;
     repositorySets = true;
-    set(coverage.scope.updateTypes, { value: rule['minimumReleaseAge'], origin: `minimumReleaseAge: ${JSON.stringify(rule['minimumReleaseAge'])} in packageRules[${index}] of ${config.file}`, line, rule: index });
+    set(coverage.scope.updateTypes, { value: rule['minimumReleaseAge'], origin, line, rule: index });
   }
   const unreadablePreset = config.extends.presets.find((preset) => !internal.prefixes.some((prefix) => preset.startsWith(prefix)));
   const fromKnownPreset = config.extends.presets.some((preset) => internal.settingDelay.includes(presetName(preset)));

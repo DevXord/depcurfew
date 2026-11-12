@@ -167,7 +167,9 @@ export function cleanNotice(report: DoctorReport, format: AnnotationsKnowledge |
 
 /** Markdown text with code spans kept: outside them special characters are escaped, inside only the table pipe. */
 export function markdown(text: string): string {
-  const flat = printable(text.replaceAll(/\s*[\r\n]+\s*/gu, ' '));
+  // Each run of blanks with a line break in it becomes one space, as replaceAll(/\s*[\r\n]+\s*/gu, ' ') did; that
+  // pattern read the rest of a long run of blanks without a line break from each of its positions (decision D-200).
+  const flat = printable(text.replaceAll(/\s+/gu, (run) => (run.includes('\r') || run.includes('\n') ? ' ' : run)));
   return flat
     .split(/(`[^`]*`)/u)
     .map((part, index) =>

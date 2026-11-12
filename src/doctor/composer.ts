@@ -9,6 +9,7 @@ import type { ComposerInstallPreferenceKnowledge, ToolKnowledge } from '../knowl
 import { COMPOSER_PREFIX, validatePackagePattern } from '../policy/package-pattern.ts';
 import { jsonSetting } from './settings.ts';
 import type { LockEntry, Source } from './lockfiles.ts';
+import { trimTrailing } from '../trim.ts';
 
 export const COMPOSER_MANIFEST = 'composer.json';
 
@@ -105,10 +106,10 @@ const DEFAULT_PORTS: Readonly<Record<string, string>> = { http: '80', https: '44
 export function normalizedUrl(url: string): string {
   const scp = /^[\w.-]+@([^:/]+):(.*)$/u.exec(url);
   const scheme = scp === null ? /^([a-z][a-z0-9+.-]*):\/\//iu.exec(url)?.[1]?.toLowerCase() : undefined;
-  const text = (scp === null ? url : `${scp[1] ?? ''}/${scp[2] ?? ''}`)
-    .replace(/^[a-z][a-z0-9+.-]*:\/\//iu, '')
-    .replace(/^[^/@]*@/u, '')
-    .replace(/\/+$/u, '')
+  const text = trimTrailing(
+    (scp === null ? url : `${scp[1] ?? ''}/${scp[2] ?? ''}`).replace(/^[a-z][a-z0-9+.-]*:\/\//iu, '').replace(/^[^/@]*@/u, ''),
+    '/',
+  )
     .replace(/\.git$/iu, '')
     .toLowerCase();
   const port = scheme === undefined ? undefined : DEFAULT_PORTS[scheme];

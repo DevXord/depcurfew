@@ -13,6 +13,7 @@ import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import { parseToml } from '../detect/toml.ts';
 import type { LockEntry, Source } from './lockfiles.ts';
+import { trimTrailing } from '../trim.ts';
 
 type Format = Record<string, unknown>;
 
@@ -210,7 +211,7 @@ export function pylockEntries(input: string, format: Format, workspaces: readonl
     const directory = item[key('directory')];
     if (isRecord(directory)) {
       const path = location(directory);
-      const relative = path.replaceAll('\\', '/').replace(/^\.\//u, '').replace(/\/+$/u, '');
+      const relative = trimTrailing(path.replaceAll('\\', '/').replace(/^\.\//u, ''), '/');
       const member = isProject(path) || relative === '' || workspaces.includes(relative);
       return [entry(item['name'], path, member ? 'workspace' : 'directory', !member, line)];
     }
@@ -365,6 +366,15 @@ export function requirementSource(requirement: string, format: Format, editable:
   return { source: 'registry', target: requirement, ...(registryName === undefined ? {} : { name: registryName }), builds: undefined };
 }
 
+/**
+ * The text of a requirement before its first option (blanks, then -x or --xyz), as split(/\s+--?[a-z]/u, 1) cuts it.
+ * (?<!\s): a match starts only at the first blank of a run, so a long run of blanks is read once, not from each of
+ * its positions (decision D-200).
+ */
+export function requirementBeforeOptions(requirement: string): string | undefined {
+  return requirement.split(/(?<!\s)\s+--?[a-z]/u, 1)[0];
+}
+
 /** A pip requirements file: VCS and URL requirements, local paths and registry requirements (which may or may not have wheels). */
 export function requirementsEntries(input: string, format: Format): LockEntry[] {
   const editable = strings(format['editable']);
@@ -374,7 +384,7 @@ export function requirementsEntries(input: string, format: Format): LockEntry[] 
     const flag = editable.find((option) => requirement.startsWith(`${option} `) || requirement.startsWith(`${option}=`));
     if (flag !== undefined) requirement = requirement.slice(flag.length + 1).trim();
     else if (requirement.startsWith('-')) continue;
-    requirement = (requirement.split(/\s+--?[a-z]/u, 1)[0] ?? requirement).split(';', 1)[0]?.trim() ?? requirement;
+    requirement = (requirementBeforeOptions(requirement) ?? requirement).split(';', 1)[0]?.trim() ?? requirement;
     const found = requirementSource(requirement, format, flag !== undefined);
     if (found.source === 'workspace') {
       entries.push({ ...entry('', found.target, 'workspace', false, lineNumber), name: '.' });

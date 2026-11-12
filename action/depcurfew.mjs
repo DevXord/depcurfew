@@ -18100,8 +18100,16 @@ function bundlerCliCommand(name, cli) {
 	if (cli.hidden !== void 0 && Object.hasOwn(cli.hidden, exact)) return cli.hidden[exact];
 	return cli.commands.includes(exact) ? exact : void 0;
 }
-/** A version Gem::Version.correct? accepts (VERSION_PATTERN of RubyGems), for bundle _VERSION_. */
-const GEM_VERSION = /^\s*([0-9]+(?:\.[0-9a-zA-Z]+)*(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)?\s*$/u;
+/**
+* A version Gem::Version.correct? accepts (VERSION_PATTERN of RubyGems), for bundle _VERSION_, with the blanks around
+* it: trimmed first, since \s* at both ends of the pattern tried every way to share a long run of blanks between them
+* (decision D-200).
+*/
+const GEM_VERSION = /^([0-9]+(?:\.[0-9a-zA-Z]+)*(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)?$/u;
+/** Whether bundle _VERSION_ names a version, as GEM_VERSION reads it after trimming. */
+function gemVersion(text) {
+	return GEM_VERSION.test(text.trim());
+}
 /**
 * bundle install, update, lock, add and cache, also by alias or prefix (bundle i, bundle package) and a bare bundle
 * (decisions D-152 and D-159): an install with the release-age delay it gets, as written: --cooldown N on the command
@@ -18114,7 +18122,7 @@ function bundlerCommand(args, at, facts, environment) {
 	let rest = args;
 	let version;
 	const selector = known.versionSelector === true ? /^_(.*)_$/su.exec(rest[0]?.text ?? "")?.[1] : void 0;
-	if (selector !== void 0 && GEM_VERSION.test(selector)) {
+	if (selector !== void 0 && gemVersion(selector)) {
 		version = selector.trim();
 		rest = rest.slice(1);
 	}
@@ -19860,6 +19868,64 @@ function wildcardMatch(text, pattern) {
 	const parts = text.split("/");
 	const patternParts = pattern.split("/");
 	return parts.length === patternParts.length && parts.every((part, index) => matchSegment$1(part, patternParts[index] ?? ""));
+}
+/** Code points a run of the glob cannot hold: * stops at /, ** at the line terminators (as . of a regular expression). */
+const STOPS_STAR = /* @__PURE__ */ new Set(["/"]);
+const STOPS_ANY = /* @__PURE__ */ new Set([
+	"\n",
+	"\r",
+	"\u2028",
+	"\u2029"
+]);
+/**
+* A glob of directories in which `*` stands for any run without `/` and `**` for any run without a line terminator,
+* as a function of the text it matches: what the regular expression ^…$ (flag u) that the glob used to be built into
+* matched, code point by code point (decision D-200). The pattern comes from a repository file, so it is never built
+* into a regular expression, which backtracks exponentially on `*a*a*a…`. A run of stars was .* and [^/]* as often
+* as ** and * fit into it (*** was .*[^/]*): two equal runs in a row match what one does, so each run is at most **
+* then *. The text is walked once for each part of the pattern, and a part that matches no prefix ends the walk;
+* each literal reads a character, so at most about 3 × (length(text) + 1) parts are walked.
+*/
+function directoryGlob(pattern) {
+	const tokens = [];
+	const push = (token) => {
+		if (typeof token === "string" || tokens[tokens.length - 1] !== token) tokens.push(token);
+	};
+	pattern.split("**").forEach((part, partIndex) => {
+		if (partIndex > 0) push(STOPS_ANY);
+		part.split("*").forEach((piece, pieceIndex) => {
+			if (pieceIndex > 0) push(STOPS_STAR);
+			for (const character of piece) push(character);
+		});
+	});
+	return (text) => {
+		const input = [...text];
+		let reach = new Uint8Array(input.length + 1);
+		let next = new Uint8Array(input.length + 1);
+		reach[0] = 1;
+		for (const token of tokens) {
+			next.fill(0);
+			let any = false;
+			if (typeof token === "string") {
+				for (let at = 0; at < input.length; at++) if (reach[at] === 1 && input[at] === token) {
+					next[at + 1] = 1;
+					any = true;
+				}
+			} else {
+				let open = false;
+				for (let at = 0; at <= input.length; at++) {
+					open = reach[at] === 1 || open && !token.has(input[at - 1] ?? "");
+					if (open) {
+						next[at] = 1;
+						any = true;
+					}
+				}
+			}
+			if (!any) return false;
+			[reach, next] = [next, reach];
+		}
+		return reach[input.length] === 1;
+	};
 }
 
 // src/detect/workspaces.ts
@@ -22716,8 +22782,29 @@ function jsonSetting(text, path) {
 		line: offset === void 0 ? 1 : lineAt$1(text, offset)
 	};
 }
+const BLANK$2 = /\s/u;
+const LINE_TERMINATORS = [
+	"\n",
+	"\r",
+	"\u2028",
+	"\u2029"
+];
+/**
+* `raw` without a comment at its end, as replace(/\s+#.*$/u, '') removes it: from the blanks before the first # that
+* follows a blank and has no line terminator after it. Read with indexOf and a loop (decision D-200): the pattern read
+* the rest of a long run of blanks from each of its positions, which took seconds on a bunfig.toml value of 80,000.
+*/
+function withoutTomlComment(raw) {
+	const last = Math.max(...LINE_TERMINATORS.map((terminator) => raw.lastIndexOf(terminator)));
+	let hash = raw.indexOf("#", last + 1);
+	while (hash !== -1 && !(hash > 0 && BLANK$2.test(raw[hash - 1] ?? ""))) hash = raw.indexOf("#", hash + 1);
+	if (hash === -1) return raw;
+	let start = hash - 1;
+	while (start > 0 && BLANK$2.test(raw[start - 1] ?? "")) start -= 1;
+	return raw.slice(0, start);
+}
 function tomlScalar(raw) {
-	const text = raw.replace(/\s+#.*$/u, "").trim();
+	const text = withoutTomlComment(raw).trim();
 	if (text === "true") return true;
 	if (text === "false") return false;
 	if (/^[+-]?\d[\d_]*(\.\d+)?$/u.test(text)) return Number(text.replaceAll("_", ""));
@@ -24378,6 +24465,14 @@ function patternsFor(patterns, ecosystem) {
 	return patterns.filter((pattern) => ecosystemOf(pattern) === ecosystem).map((pattern) => pattern.slice(prefix.length));
 }
 
+// src/trim.ts
+/** `text` without the run of `character` (one UTF-16 code unit, such as '/') at its very end, as replace(/c+$/u, '') does. */
+function trimTrailing(text, character) {
+	let end = text.length;
+	while (end > 0 && text[end - 1] === character) end -= 1;
+	return end === text.length ? text : text.slice(0, end);
+}
+
 // src/doctor/composer.ts
 const COMPOSER_MANIFEST = "composer.json";
 const isStrings$6 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
@@ -24456,7 +24551,7 @@ const DEFAULT_PORTS = {
 function normalizedUrl(url) {
 	const scp = /^[\w.-]+@([^:/]+):(.*)$/u.exec(url);
 	const scheme = scp === null ? /^([a-z][a-z0-9+.-]*):\/\//iu.exec(url)?.[1]?.toLowerCase() : void 0;
-	const text = (scp === null ? url : `${scp[1] ?? ""}/${scp[2] ?? ""}`).replace(/^[a-z][a-z0-9+.-]*:\/\//iu, "").replace(/^[^/@]*@/u, "").replace(/\/+$/u, "").replace(/\.git$/iu, "").toLowerCase();
+	const text = trimTrailing((scp === null ? url : `${scp[1] ?? ""}/${scp[2] ?? ""}`).replace(/^[a-z][a-z0-9+.-]*:\/\//iu, "").replace(/^[^/@]*@/u, ""), "/").replace(/\.git$/iu, "").toLowerCase();
 	const port = scheme === void 0 ? void 0 : DEFAULT_PORTS[scheme];
 	return port === void 0 ? text : text.replace(new RegExp(`^([^/]*):${port}(?=/|$)`, "u"), "$1");
 }
@@ -25055,7 +25150,7 @@ function pylockEntries(input, format, workspaces = []) {
 		const directory = item[key("directory")];
 		if (isRecord(directory)) {
 			const path = location(directory);
-			const relative = path.replaceAll("\\", "/").replace(/^\.\//u, "").replace(/\/+$/u, "");
+			const relative = trimTrailing(path.replaceAll("\\", "/").replace(/^\.\//u, ""), "/");
 			const member = isProject(path) || relative === "" || workspaces.includes(relative);
 			return [entry(item["name"], path, member ? "workspace" : "directory", !member, line)];
 		}
@@ -25206,6 +25301,14 @@ function requirementSource(requirement, format, editable) {
 		builds: void 0
 	};
 }
+/**
+* The text of a requirement before its first option (blanks, then -x or --xyz), as split(/\s+--?[a-z]/u, 1) cuts it.
+* (?<!\s): a match starts only at the first blank of a run, so a long run of blanks is read once, not from each of
+* its positions (decision D-200).
+*/
+function requirementBeforeOptions(requirement) {
+	return requirement.split(/(?<!\s)\s+--?[a-z]/u, 1)[0];
+}
 /** A pip requirements file: VCS and URL requirements, local paths and registry requirements (which may or may not have wheels). */
 function requirementsEntries(input, format) {
 	const editable = strings$1(format["editable"]);
@@ -25215,7 +25318,7 @@ function requirementsEntries(input, format) {
 		const flag = editable.find((option) => requirement.startsWith(`${option} `) || requirement.startsWith(`${option}=`));
 		if (flag !== void 0) requirement = requirement.slice(flag.length + 1).trim();
 		else if (requirement.startsWith("-")) continue;
-		requirement = (requirement.split(/\s+--?[a-z]/u, 1)[0] ?? requirement).split(";", 1)[0]?.trim() ?? requirement;
+		requirement = (requirementBeforeOptions(requirement) ?? requirement).split(";", 1)[0]?.trim() ?? requirement;
 		const found = requirementSource(requirement, format, flag !== void 0);
 		if (found.source === "workspace") entries.push({
 			...entry("", found.target, "workspace", false, lineNumber),
@@ -27360,23 +27463,55 @@ const UNIT_MINUTES = {
 function word(unit) {
 	return MINUTES$2[unit.toLowerCase().replace(/s$/u, "")];
 }
+const BLANK$1 = /^\s$/u;
+const DIGIT = /^\d$/u;
+const LETTER = /^[a-z]$/iu;
+/** Where the run of characters that `kind` accepts ends, from `at`. */
+function runEnd(text, at, kind) {
+	let end = at;
+	while (end < text.length && kind.test(text[end] ?? "")) end++;
+	return end;
+}
+/**
+* The numbers and unit words of a text made only of them and blanks ("1 day 12h", "3days"), in order; undefined for
+* any other text. The text is read once, one character at a time: blanks, digits, blanks, letters, blanks, again and
+* again, as the pattern \s*(\d+)\s*([a-z]+)\s* read from where the last part ended; a search for (\d+)\s*([a-z]+)
+* anywhere in it took seconds on 40,000 digits and "!" (decision D-200).
+*/
+function durationWords(text) {
+	const parts = [];
+	let at = 0;
+	while (at < text.length) {
+		const numberStart = runEnd(text, at, BLANK$1);
+		const numberEnd = runEnd(text, numberStart, DIGIT);
+		if (numberEnd === numberStart) return void 0;
+		const unitStart = runEnd(text, numberEnd, BLANK$1);
+		const unitEnd = runEnd(text, unitStart, LETTER);
+		if (unitEnd === unitStart) return void 0;
+		parts.push([text.slice(numberStart, numberEnd), text.slice(unitStart, unitEnd)]);
+		at = runEnd(text, unitEnd, BLANK$1);
+	}
+	return parts.length === 0 ? void 0 : parts;
+}
+/** A delay in the 'words' syntax ("1 day 12h"), in minutes; undefined for any other text. */
+function wordsMinutes(text) {
+	const parts = durationWords(text);
+	if (parts === void 0) return void 0;
+	let total = 0;
+	for (const [number, unit] of parts) {
+		const minutes = word(unit);
+		if (minutes === void 0) return void 0;
+		total += Number(number) * minutes;
+	}
+	return total;
+}
 const SYNTAX$1 = {
 	compact: (text) => {
 		const match = /^(\d+)(ms|s|m|h|d|w)$/u.exec(text);
 		return match === null ? void 0 : Number(match[1]) * (MINUTES$2[match[2] ?? ""] ?? NaN);
 	},
 	"compact-or-words": (text) => SYNTAX$1["compact"]?.(text) ?? SYNTAX$1["words"]?.(text),
-	words: (text) => {
-		const parts = [...text.matchAll(/(\d+)\s*([a-z]+)/giu)];
-		if (parts.length === 0 || parts.map((part) => part[0]).join(" ").replaceAll(/\s+/gu, "") !== text.replaceAll(/\s+/gu, "")) return void 0;
-		let total = 0;
-		for (const part of parts) {
-			const unit = word(part[2] ?? "");
-			if (unit === void 0) return void 0;
-			total += Number(part[1]) * unit;
-		}
-		return total;
-	},
+	words: (text) => wordsMinutes(text),
 	"unit-word": (text) => {
 		const match = /^(\d+)\s*(second|minute|hour|day|week)s?$/u.exec(text);
 		return match === null ? void 0 : Number(match[1]) * (MINUTES$2[match[2] ?? ""] ?? NaN);
@@ -30109,12 +30244,12 @@ function validateProjectDirectory(entry) {
 	if (entry === "") return `must not be empty; write the directory of the project relative to the repository root, ${EXAMPLE}`;
 	if (/^[A-Za-z]:/u.test(entry) || entry.startsWith("\\\\")) return `must be relative to the repository root, without a drive letter, ${EXAMPLE}`;
 	if (entry.startsWith("/")) {
-		const relative = entry.replace(/^\/+/u, "").replace(/\/+$/u, "");
+		const relative = trimTrailing(entry.replace(/^\/+/u, ""), "/");
 		return relative === "" ? "is the repository root, which depcurfew configures anyway; remove the entry" : `must be relative to the repository root; write "${relative}"`;
 	}
-	if (entry.includes("\\")) return `must use / between directories; write "${entry.replaceAll("\\", "/").replace(/\/+$/u, "")}"`;
+	if (entry.includes("\\")) return `must use / between directories; write "${trimTrailing(entry.replaceAll("\\", "/"), "/")}"`;
 	if (entry === "." || entry === "./") return "is the repository root, which depcurfew configures anyway; remove the entry";
-	if (entry.endsWith("/")) return `must not end with /; write "${entry.replace(/\/+$/u, "")}"`;
+	if (entry.endsWith("/")) return `must not end with /; write "${trimTrailing(entry, "/")}"`;
 	const segments = entry.split("/");
 	if (segments.includes("")) return `must not contain //; write "${segments.filter((segment) => segment !== "").join("/")}"`;
 	if (segments.includes("..")) return "must not contain \"..\": a project is a directory inside the repository; write its path from the repository root";
@@ -30508,10 +30643,53 @@ function nestedCommentsEnd(text, end, indent) {
 	}
 	return result;
 }
-/** Whether block sequences in the document are indented under their key (the yaml default) or not. */
+const SPACE = /\s/u;
+/** Spaces and tabs from `at` on. */
+function blanksFrom(text, at) {
+	let end = at;
+	while (text[end] === " " || text[end] === "	") end += 1;
+	return end - at;
+}
+/**
+* Whether block sequences in the document are indented under their key (the yaml default) or not: from the first key
+* line followed by a list item, as /^([ \t]*)[^\s#-][^\n]*:[ \t]*(?:#[^\n]*)?\n([ \t]*)- /mu finds it. That pattern
+* tried every : of a long line from every line start before it (a dependabot.yml line of 80,000 ":#" took seconds), so
+* the text is read in one pass instead (decision D-200), with the same lines: a line starts after \n, \r, U+2028 or
+* U+2029 (^ with the m flag), while the key line runs to the next \n only ([^\n]).
+*/
 function indentsSequences(text) {
-	const match = /^([ \t]*)[^\s#-][^\n]*:[ \t]*(?:#[^\n]*)?\n([ \t]*)- /mu.exec(text);
-	return match === null ? true : (match[2]?.length ?? 0) > (match[1]?.length ?? 0);
+	let lineBreak = -2;
+	let lastColon = -1;
+	let item = -1;
+	let start = 0;
+	while (start <= text.length) {
+		const indent = blanksFrom(text, start);
+		const first = start + indent;
+		const character = text[first];
+		if (character !== void 0 && !SPACE.test(character) && character !== "#" && character !== "-") {
+			if (lineBreak < first) {
+				lineBreak = text.indexOf("\n", first + 1);
+				if (lineBreak === -1) return true;
+				lastColon = -1;
+				let after = "";
+				for (let at = lineBreak - 1; at > first; at--) {
+					if (text[at] === ":" && (after === "" || after === "#")) {
+						lastColon = at;
+						break;
+					}
+					if (text[at] !== " " && text[at] !== "	") after = text[at] ?? "";
+				}
+				const next = blanksFrom(text, lineBreak + 1);
+				item = text[lineBreak + 1 + next] === "-" && text[lineBreak + 2 + next] === " " ? next : -1;
+			}
+			if (lastColon > first && item !== -1) return item > indent;
+		}
+		let end = first;
+		while (end < text.length && text[end] !== "\n" && text[end] !== "\r" && text[end] !== "\u2028" && text[end] !== "\u2029") end += 1;
+		if (end >= text.length) return true;
+		start = end + 1;
+	}
+	return true;
 }
 function indentUnit(text) {
 	let unit = 0;
@@ -31173,7 +31351,213 @@ function execExclusionWarning(context, setting, patterns) {
 	});
 }
 
+// src/doctor/renovate-regex.ts
+/** The most ways to match that depcurfew runs a pattern with. */
+const MAX_WAYS = 256;
+/** The same next to an unbounded quantifier: /.*[ab]{0,255}c/ took 191 ms against 300 letters. */
+const MAX_WAYS_UNBOUNDED = 16;
+/**
+* The work depcurfew spends on the /regex/ patterns of one Renovate file, in the steps RegexBudget estimates: about a
+* tenth of a second (a step took 0.2 to 1 ns on the patterns of the tests).
+*/
+const REGEX_BUDGET = 1e8;
+/** The steps charged for each character of a pattern compiled. */
+const COMPILE_STEPS = 1e3;
+/** The cap of the lengths below: past it, the estimate is over the budget anyway. */
+const LONG = 1e6;
+const QUANTIFIER = /(?:[*+?]|\{(\d+)(,(\d*))?\})\??/uy;
+/** The shape of a pattern that compiles with the u flag: what depcurfew does not run, and what running it costs. */
+function regexShape(source) {
+	const capWays = (value) => Math.min(value, 257);
+	const capLength = (value) => Math.min(value, LONG);
+	const stack = [{
+		ways: 0,
+		length: 0,
+		current: 1,
+		currentLength: 0
+	}];
+	const top = () => stack[stack.length - 1] ?? {
+		ways: 0,
+		length: 0,
+		current: 1,
+		currentLength: 0
+	};
+	let unbounded = 0;
+	const shape = (refused) => {
+		const frame = top();
+		return {
+			...refused === void 0 ? {} : { refused },
+			ways: capWays(frame.ways + frame.current),
+			unbounded: unbounded > 0,
+			length: Math.max(frame.length, frame.currentLength)
+		};
+	};
+	let atom;
+	const commit = (ways = atom?.ways ?? 1, length = atom?.length ?? 1) => {
+		if (atom !== void 0) {
+			const frame = top();
+			frame.current = capWays(frame.current * ways);
+			frame.currentLength = capLength(frame.currentLength + length);
+		}
+		atom = void 0;
+	};
+	let at = 0;
+	while (at < source.length) {
+		const character = source[at] ?? "";
+		QUANTIFIER.lastIndex = at;
+		const quantifier = atom === void 0 ? null : QUANTIFIER.exec(source);
+		if (quantifier !== null) {
+			if (atom?.group === true) return shape("a quantified group");
+			const [text, low, comma, high] = quantifier;
+			const open = character === "*" || character === "+" || comma !== void 0 && high === "";
+			if (open && ++unbounded > 1) return shape("more than one unbounded quantifier (*, + or {n,})");
+			const ways = open ? 1 : character === "?" ? 2 : comma === void 0 ? 1 : capWays(Number(high) - Number(low) + 1);
+			const times = open || character === "?" ? Math.max(1, Number(low ?? 1)) : Number(comma === void 0 ? low : high);
+			commit(ways, capLength((atom?.length ?? 1) * times));
+			at += text.length;
+			continue;
+		}
+		commit();
+		if (character === "\\") {
+			const next = source[at + 1] ?? "";
+			if (/[1-9]/u.test(next) || next === "k") return shape("a backreference");
+			if ((next === "p" || next === "P" || next === "u") && source[at + 2] === "{") at = source.indexOf("}", at) + 1;
+			else at += next === "u" ? 6 : next === "x" ? 4 : next === "c" ? 3 : 2;
+			atom = {
+				ways: 1,
+				length: 1,
+				group: false
+			};
+		} else if (character === "[") {
+			at += 1;
+			while (at < source.length && source[at] !== "]") at += source[at] === "\\" ? 2 : 1;
+			at += 1;
+			atom = {
+				ways: 1,
+				length: 1,
+				group: false
+			};
+		} else if (character === "(") {
+			if (/^\(\?<?[=!]/u.test(source.slice(at, at + 4))) return shape("a lookaround");
+			stack.push({
+				ways: 0,
+				length: 0,
+				current: 1,
+				currentLength: 0
+			});
+			if (source[at + 1] === "?") at = (source[at + 2] === "<" ? source.indexOf(">", at) : source.indexOf(":", at)) + 1;
+			else at += 1;
+		} else if (character === ")") {
+			const group = stack.length > 1 ? stack.pop() : void 0;
+			atom = {
+				ways: capWays((group?.ways ?? 0) + (group?.current ?? 1)),
+				length: Math.max(group?.length ?? 0, group?.currentLength ?? 0),
+				group: true
+			};
+			at += 1;
+		} else if (character === "|") {
+			const frame = top();
+			frame.ways = capWays(frame.ways + frame.current);
+			frame.length = Math.max(frame.length, frame.currentLength);
+			frame.current = 1;
+			frame.currentLength = 0;
+			at += 1;
+		} else {
+			atom = {
+				ways: 1,
+				length: 1,
+				group: false
+			};
+			at += 1;
+		}
+	}
+	commit();
+	const result = shape();
+	if (result.ways > 256) return shape(`more than ${256} ways to match (each ?, {n,m} and | multiplies them)`);
+	if (result.unbounded && result.ways > 16) return shape(`an unbounded quantifier (*, + or {n,}) and more than ${16} ways to match (each ?, {n,m} and | multiplies them)`);
+	return result;
+}
+/**
+* The /regex/ patterns of one Renovate file, run at most once for each input and only up to REGEX_BUDGET steps in
+* all (decision D-200). The steps of a test are an estimate that grows with the ways to match, the input and the
+* length of a match: ways × (n + 1) × min(n + 1, length + 1), and once more × (n + 1) with an unbounded quantifier,
+* for an input of n characters. A test past the budget is not run: depcurfew treats its pattern as one it does not run.
+*/
+var RegexBudget = class {
+	#spent = 0;
+	#compiled = /* @__PURE__ */ new Map();
+	#results = /* @__PURE__ */ new Map();
+	test(source, flags, input) {
+		const key = `${flags}\u0000${source}`;
+		let compiled = this.#compiled.get(key);
+		if (compiled === void 0) {
+			const steps = source.length * COMPILE_STEPS;
+			if (this.#spent + steps > 1e8) return {
+				refused: "past the budget",
+				budget: true
+			};
+			this.#spent += steps;
+			try {
+				compiled = {
+					regex: new RegExp(source, flags),
+					shape: regexShape(source)
+				};
+			} catch {
+				compiled = null;
+			}
+			this.#compiled.set(key, compiled);
+		}
+		if (compiled === null) return { invalid: true };
+		if (compiled.shape.refused !== void 0) return { refused: compiled.shape.refused };
+		const run = `${key}\u0000${input}`;
+		const known = this.#results.get(run);
+		if (known !== void 0) return { result: known };
+		const { ways, unbounded, length } = compiled.shape;
+		const size = input.length + 1;
+		const steps = ways * size * Math.min(size, length + 1) * (unbounded ? size : 1);
+		if (this.#spent + steps > 1e8) return {
+			refused: "past the budget",
+			budget: true
+		};
+		this.#spent += steps;
+		const result = compiled.regex.test(input);
+		this.#results.set(run, result);
+		return { result };
+	}
+};
+
 // src/doctor/renovate.ts
+/** Why depcurfew does not run the pattern, for a fix: `depcurfew does not run "/…/" in matchFileNames: it has …`. */
+function refusedRegexAdvice(regex) {
+	const why = regex.budget === true ? "it stops running the /regex/ patterns of a Renovate file after a fixed amount of work, so that a crafted file cannot stall it, and this pattern came after that" : `it has ${regex.reason}, and depcurfew runs a /regex/ only without quantified groups, backreferences and lookaround, with at most one *, + or {n,}, and with at most ${256} ways to match through ?, {n,m} and | (${16} next to a *, + or {n,}), so that a crafted pattern cannot stall it`;
+	return `depcurfew does not run ${JSON.stringify(regex.pattern)} in ${regex.matcher}: ${why}`;
+}
+/** For a message: the refused /regex/ a finding counts as matching (decision D-200). */
+function countedRegex(regex) {
+	return `counting ${regex.matcher} ${JSON.stringify(regex.pattern)} as matching, which depcurfew does not run`;
+}
+/** For a fix: what to do about a refused /regex/ counted as matching. */
+function countedRegexFix(regex) {
+	return `${refusedRegexAdvice(regex)}; it counts the pattern as matching, so rewrite it with names, globs or a /regex/ that depcurfew runs if the rule should not apply here`;
+}
+/** The budget of the file each rule was read from (readRenovateConfig); a rule of no file gets one for each evaluation. */
+const budgets = /* @__PURE__ */ new WeakMap();
+function newRun(budget, assume) {
+	return {
+		budget,
+		assume,
+		matcher: "",
+		refused: /* @__PURE__ */ new Map(),
+		unknown: []
+	};
+}
+/** The first refused /regex/ of a matcher whose result the run could not tell. */
+function decisive(run) {
+	for (const matcher of run.unknown) {
+		const regex = run.refused.get(matcher);
+		if (regex !== void 0) return regex;
+	}
+}
 const isStrings$5 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 const isNames = (value) => isRecord(value) && Object.values(value).every((item) => typeof item === "string");
 const isLists = (value) => isRecord(value) && Object.values(value).every(isStrings$5);
@@ -31205,6 +31589,8 @@ function readRenovateConfig(text, file, base) {
 		rule,
 		line: lines?.[index] ?? list.line
 	}] : []) : [];
+	const budget = new RegexBudget();
+	for (const { rule } of rules) budgets.set(rule, budget);
 	return {
 		file,
 		base,
@@ -31220,19 +31606,24 @@ function readRenovateConfig(text, file, base) {
 * Whether one Renovate pattern matches `input`, as matchRegexOrGlob does: "*", a /regex/ (with ! for "not"), or a
 * case-insensitive glob. undefined for glob syntax beyond * (braces, classes...), which depcurfew does not evaluate.
 */
-function matchesPattern(input, pattern, negation) {
+function matchesPattern(input, pattern, negation, run) {
 	const negative = pattern.startsWith(negation);
 	const body = negative ? pattern.slice(negation.length) : pattern;
 	if (!negative && body === "*") return true;
 	const regex = /^\/(.+)\/(i?)$/u.exec(body);
 	if (regex !== null) {
-		let result;
-		try {
-			result = new RegExp(regex[1] ?? "", regex[2] === "i" ? "iu" : "u").test(input);
-		} catch {
-			return;
+		const outcome = run.budget.test(regex[1] ?? "", regex[2] === "i" ? "iu" : "u", input);
+		if ("invalid" in outcome) return void 0;
+		if ("refused" in outcome) {
+			if (!run.refused.has(run.matcher)) run.refused.set(run.matcher, {
+				pattern,
+				matcher: run.matcher,
+				reason: outcome.refused,
+				...outcome.budget === true ? { budget: true } : {}
+			});
+			return run.assume ? true : void 0;
 		}
-		return negative ? !result : result;
+		return negative ? !outcome.result : outcome.result;
 	}
 	if (/[?[\]{}()!+@]/u.test(body.replace(/^@/u, ""))) return void 0;
 	const result = wildcardMatch(input.toLowerCase(), body.toLowerCase().replaceAll("**", "*"));
@@ -31264,22 +31655,22 @@ function matchesPath(path, glob) {
 	return below[0] === 1;
 }
 /** One pattern of matchFileNames: "*", a /regex/ (with ! for "not") or a glob of paths (matchesPath). */
-function matchesFilePattern(input, pattern, negation) {
+function matchesFilePattern(input, pattern, negation, run) {
 	const negative = pattern.startsWith(negation);
 	const body = negative ? pattern.slice(negation.length) : pattern;
 	if (!negative && body === "*") return true;
-	if (/^\/(.+)\/(i?)$/u.test(body)) return matchesPattern(input, pattern, negation);
+	if (/^\/(.+)\/(i?)$/u.test(body)) return matchesPattern(input, pattern, negation, run);
 	const result = matchesPath(input, body);
 	return result === void 0 ? void 0 : negative ? !result : result;
 }
 /** matchRegexOrGlobList: some positive pattern matches (when there are any) and every negative pattern does too. */
-function matchesList(input, patterns, negation, matches = matchesPattern) {
+function matchesList(input, patterns, negation, run, matches = matchesPattern) {
 	if (patterns.length === 0) return false;
 	const positive = patterns.filter((pattern) => !pattern.startsWith(negation));
 	const negative = patterns.filter((pattern) => pattern.startsWith(negation));
-	const results = positive.map((pattern) => matches(input, pattern, negation));
+	const results = positive.map((pattern) => matches(input, pattern, negation, run));
 	if (positive.length > 0 && !results.includes(true)) return results.includes(void 0) ? void 0 : false;
-	const excluded = negative.map((pattern) => matches(input, pattern, negation));
+	const excluded = negative.map((pattern) => matches(input, pattern, negation, run));
 	if (excluded.includes(false)) return false;
 	return excluded.includes(void 0) ? void 0 : true;
 }
@@ -31367,8 +31758,8 @@ function patternsOf(value, stringIsList) {
 	return stringIsList && typeof value === "string" ? [value] : void 0;
 }
 /** anyMatchRegexOrGlobList: some input matches the list. */
-function matchesAny(inputs, patterns, negation) {
-	const results = inputs.map((input) => matchesList(input, patterns, negation));
+function matchesAny(inputs, patterns, negation, run) {
+	const results = inputs.map((input) => matchesList(input, patterns, negation, run));
 	if (results.includes(true)) return true;
 	return results.includes(void 0) ? void 0 : false;
 }
@@ -31377,6 +31768,34 @@ function matchesAny(inputs, patterns, negation) {
 * them for some update types, some of them only, or depcurfew cannot tell.
 */
 function ruleCoverage(bot, rule, on) {
+	const budget = budgets.get(rule) ?? new RegexBudget();
+	const strictRun = newRun(budget, false);
+	const strict = coverageOf(bot, rule, on, strictRun);
+	if (strictRun.refused.size === 0 || strict.kind === "unknown" && strict.unmodelled === true) return strict;
+	const assumed = coverageOf(bot, rule, on, newRun(budget, true));
+	if (assumed.kind === "narrow") return strict.kind === "covers" ? strict : assumed;
+	if (assumed.kind === "unknown") return strict.kind === "unknown" ? {
+		kind: "unknown",
+		matcher: strict.matcher
+	} : strict;
+	if (strict.kind === "covers" && assumed.scope.updateTypes.length === strict.scope.updateTypes.length) return strict;
+	const regex = decisive(strictRun) ?? [...strictRun.refused.values()][0];
+	if (regex === void 0) return strict;
+	const scope = {
+		...assumed.scope,
+		regex
+	};
+	return strict.kind === "unknown" ? {
+		kind: "unknown",
+		matcher: strict.matcher,
+		regex,
+		assumed: scope
+	} : strict.kind === "covers" ? {
+		...strict,
+		assumed: scope
+	} : strict;
+}
+function coverageOf(bot, rule, on, run) {
 	const target = targetOf(bot, on);
 	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
 	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
@@ -31394,7 +31813,10 @@ function ruleCoverage(bot, rule, on) {
 	const unmodelled = matchers.find((key) => !known.has(key));
 	let unknown = unmodelled;
 	const result = (key, matches) => {
-		if (matches === void 0) unknown ??= key;
+		if (matches === void 0) {
+			unknown ??= key;
+			run.unknown.push(key);
+		}
 		return matches !== false;
 	};
 	let names = { kind: "all" };
@@ -31436,28 +31858,33 @@ function ruleCoverage(bot, rule, on) {
 	}
 	for (const [key, inputs] of lists) {
 		if (!(key in rule)) continue;
+		run.matcher = key;
 		const patterns = patternsOf(rule[key], stringIsList);
-		if (!result(key, patterns === void 0 || inputs === void 0 ? void 0 : matchesAny(inputs, patterns, matching.negation))) return { kind: "narrow" };
+		if (!result(key, patterns === void 0 || inputs === void 0 ? void 0 : matchesAny(inputs, patterns, matching.negation, run))) return { kind: "narrow" };
 	}
 	if (actionsMatching !== void 0) {
 		if (actionsMatching.fileMatcher in rule) {
+			run.matcher = actionsMatching.fileMatcher;
 			const patterns = patternsOf(rule[actionsMatching.fileMatcher], actionsMatching.fileStringIsList);
 			const files = target.files ?? [];
-			const each = patterns === void 0 ? [void 0] : files.map((file) => matchesList(file, patterns, matching.negation, matchesFilePattern));
+			const each = patterns === void 0 ? [void 0] : files.map((file) => matchesList(file, patterns, matching.negation, run, matchesFilePattern));
 			const matches = files.length === 0 || each.includes(false) ? false : each.includes(void 0) ? void 0 : true;
 			if (!result(actionsMatching.fileMatcher, matches)) return { kind: "narrow" };
 		}
 		if (actionsMatching.depTypeMatcher in rule) {
+			run.matcher = actionsMatching.depTypeMatcher;
 			const patterns = patternsOf(rule[actionsMatching.depTypeMatcher], actionsMatching.depTypeStringIsList);
-			const matches = patterns === void 0 || target.depTypes === void 0 ? void 0 : matchesAny(target.depTypes, patterns, matching.negation);
+			const matches = patterns === void 0 || target.depTypes === void 0 ? void 0 : matchesAny(target.depTypes, patterns, matching.negation, run);
 			if (!result(actionsMatching.depTypeMatcher, matches)) return { kind: "narrow" };
 		}
 	}
 	let types = updateTypes;
 	if (matching.updateTypeMatcher in rule) {
+		run.matcher = matching.updateTypeMatcher;
 		const patterns = patternsOf(rule[matching.updateTypeMatcher], stringIsList);
-		const matched = patterns === void 0 ? [] : updateTypes.map((type) => matchesList(type, patterns, matching.negation));
+		const matched = patterns === void 0 ? [] : updateTypes.map((type) => matchesList(type, patterns, matching.negation, run));
 		types = updateTypes.filter((_, index) => matched[index] === true);
+		if (matched.includes(void 0)) run.unknown.push(matching.updateTypeMatcher);
 		if (types.length === 0 && !result(matching.updateTypeMatcher, patterns === void 0 || matched.includes(void 0) ? void 0 : false)) return { kind: "narrow" };
 	}
 	if (unknown !== void 0) return {
@@ -31467,7 +31894,8 @@ function ruleCoverage(bot, rule, on) {
 	};
 	if (types.length === 0) return { kind: "narrow" };
 	const categoryPatterns = managerMatching === void 0 ? void 0 : patternsOf(rule[managerMatching.categoryMatcher], stringIsList);
-	const categories = categoryPatterns === void 0 ? void 0 : target.categories.filter((category) => matchesList(category, categoryPatterns, matching.negation) === true);
+	run.matcher = managerMatching?.categoryMatcher ?? "";
+	const categories = categoryPatterns === void 0 ? void 0 : target.categories.filter((category) => matchesList(category, categoryPatterns, matching.negation, run) === true);
 	return {
 		kind: "covers",
 		scope: {
@@ -31484,6 +31912,25 @@ function ruleCoverage(bot, rule, on) {
 * one. Matchers of names, update types and the rest only narrow the packages further (decision D-171).
 */
 function ruleReaches(bot, rule, on) {
+	return reachOf(bot, rule, on, newRun(budgets.get(rule) ?? new RegexBudget(), false));
+}
+/**
+* ruleReaches with the /regex/ patterns depcurfew does not run counted as matching, for a rule that shortens or turns
+* off the delay (decision D-200); `regex` is the pattern that made the difference, when one did.
+*/
+function ruleReachesCounting(bot, rule, on) {
+	const budget = budgets.get(rule) ?? new RegexBudget();
+	const strictRun = newRun(budget, false);
+	const strict = reachOf(bot, rule, on, strictRun);
+	if (strict !== void 0 || strictRun.refused.size === 0) return { reaches: strict };
+	const reaches = reachOf(bot, rule, on, newRun(budget, true));
+	const regex = decisive(strictRun);
+	return reaches === void 0 || regex === void 0 ? { reaches: strict } : {
+		reaches,
+		regex
+	};
+}
+function reachOf(bot, rule, on, run) {
 	const target = targetOf(bot, on);
 	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
 	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
@@ -31496,27 +31943,48 @@ function ruleReaches(bot, rule, on) {
 	let reaches = true;
 	for (const [key, inputs] of lists) {
 		if (!(key in rule)) continue;
+		run.matcher = key;
 		const patterns = patternsOf(rule[key], stringIsList);
-		const matches = patterns === void 0 || inputs === void 0 ? void 0 : matchesAny(inputs, patterns, matching.negation);
+		const matches = patterns === void 0 || inputs === void 0 ? void 0 : matchesAny(inputs, patterns, matching.negation, run);
 		if (matches === false) return false;
-		if (matches === void 0) reaches = void 0;
+		if (matches === void 0) {
+			reaches = void 0;
+			run.unknown.push(key);
+		}
 	}
 	return reaches;
 }
 /** Whether a package name matches a Renovate pattern of matchPackageNames ("*", /regex/ or a glob; undefined when depcurfew cannot tell). */
 function matchesName(bot, name, pattern) {
-	return matchesPattern(name, pattern, extraOf(bot, "packageRuleMatching", isMatching$1).negation);
+	return matchesPattern(name, pattern, extraOf(bot, "packageRuleMatching", isMatching$1).negation, newRun(new RegexBudget(), false));
 }
-/** The delayed update types a rule applies to (all without matchUpdateTypes); undefined when depcurfew cannot read its patterns. */
+/**
+* The delayed update types a rule applies to (all without matchUpdateTypes); undefined when depcurfew cannot read its
+* patterns. For a rule that shortens the delay, a /regex/ depcurfew does not run counts as matching (decision D-200),
+* and `regex` names it when it made the difference.
+*/
 function ruleUpdateTypes(bot, rule) {
 	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
 	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$5);
-	if (!(matching.updateTypeMatcher in rule)) return updateTypes;
+	if (!(matching.updateTypeMatcher in rule)) return { types: updateTypes };
 	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
 	const patterns = patternsOf(rule[matching.updateTypeMatcher], managerMatching?.stringIsList === true);
-	if (patterns === void 0) return void 0;
-	const matched = updateTypes.map((type) => matchesList(type, patterns, matching.negation));
-	return matched.includes(void 0) ? void 0 : updateTypes.filter((_, index) => matched[index] === true);
+	if (patterns === void 0) return { types: void 0 };
+	const budget = budgets.get(rule) ?? new RegexBudget();
+	const typesOf = (run) => {
+		run.matcher = matching.updateTypeMatcher;
+		const matched = updateTypes.map((type) => matchesList(type, patterns, matching.negation, run));
+		return matched.includes(void 0) ? void 0 : updateTypes.filter((_, index) => matched[index] === true);
+	};
+	const strictRun = newRun(budget, false);
+	const strict = typesOf(strictRun);
+	const regex = strictRun.refused.get(matching.updateTypeMatcher);
+	if (strict !== void 0 || regex === void 0) return { types: strict };
+	const types = typesOf(newRun(budget, true));
+	return types === void 0 ? { types: strict } : {
+		types,
+		regex
+	};
 }
 /** The patterns of the name matchers of a rule (matchPackageNames, matchDepNames); undefined when one cannot be read. */
 function namePatterns(bot, rule) {
@@ -31532,15 +32000,15 @@ function namePatterns(bot, rule) {
 	return patterns;
 }
 /**
-* The update types for which a rule applies to every package of the target (or of a registry), or undefined when it
-* narrows the packages or depcurfew cannot tell.
+* A preset without its arguments, as replace(/\(.*\)$/u, '') leaves it: when it ends with ), cut at the first ( after
+* its last line terminator (. stops at those). Read with indexOf (decision D-200): the pattern took seconds on an
+* extends entry of 40,000 opening brackets.
 */
-function ruleScope(bot, rule, on) {
-	const coverage = ruleCoverage(bot, rule, on);
-	return coverage.kind === "covers" ? coverage.scope : void 0;
-}
 function presetName(preset) {
-	return preset.replace(/\(.*\)$/u, "");
+	if (!preset.endsWith(")")) return preset;
+	const last = Math.max(preset.lastIndexOf("\n"), preset.lastIndexOf("\r"), preset.lastIndexOf("\u2028"), preset.lastIndexOf("\u2029"));
+	const open = preset.indexOf("(", last + 1);
+	return open === -1 || open === preset.length - 1 ? preset : preset.slice(0, open);
 }
 /**
 * The delay Renovate applies to every package of the target (or of a registry), for each delayed update type. Without
@@ -31575,22 +32043,50 @@ function renovateDelay$1(bot, config, on) {
 		});
 	}
 	let repositorySets = config.top !== void 0;
+	const minutesOf = (value) => {
+		const minutes = delayMinutes(bot, value, latestVersion$1(bot));
+		return minutes.ok ? minutes.minutes : void 0;
+	};
 	for (const { index, line, rule } of config.rules) {
 		if (!("minimumReleaseAge" in rule)) continue;
 		const coverage = ruleCoverage(bot, rule, target);
-		if (coverage.kind === "unknown") unreadable.push({
+		const origin = `minimumReleaseAge: ${JSON.stringify(rule["minimumReleaseAge"])} in packageRules[${index}] of ${config.file}`;
+		let counted = false;
+		if (coverage.assumed !== void 0) {
+			const regex = coverage.assumed.regex;
+			const minutes = minutesOf(rule["minimumReleaseAge"]);
+			const shortened = coverage.assumed.updateTypes.filter((type) => {
+				if (coverage.kind === "covers" && coverage.scope.updateTypes.includes(type)) return false;
+				const before = byType.get(type);
+				const current = before === void 0 ? 0 : minutesOf(before.value);
+				return minutes !== void 0 && current !== void 0 && minutes < current;
+			});
+			if (shortened.length > 0) {
+				counted = true;
+				repositorySets = true;
+				set(shortened, {
+					value: rule["minimumReleaseAge"],
+					origin: `${origin}, ${countedRegex(regex)}`,
+					line,
+					rule: index,
+					regex
+				});
+			}
+		}
+		if (coverage.kind === "unknown" && !counted) unreadable.push({
 			index,
 			line,
 			matcher: coverage.matcher,
 			patterns: rule[coverage.matcher],
 			value: rule["minimumReleaseAge"],
-			...coverage.unmodelled === true ? { unmodelled: true } : {}
+			...coverage.unmodelled === true ? { unmodelled: true } : {},
+			...coverage.regex === void 0 ? {} : { regex: coverage.regex }
 		});
 		if (coverage.kind !== "covers") continue;
 		repositorySets = true;
 		set(coverage.scope.updateTypes, {
 			value: rule["minimumReleaseAge"],
-			origin: `minimumReleaseAge: ${JSON.stringify(rule["minimumReleaseAge"])} in packageRules[${index}] of ${config.file}`,
+			origin,
 			line,
 			rule: index
 		});
@@ -33911,8 +34407,28 @@ function equalsPair(line) {
 * hold any character, as "//registry.npmjs.org/:_authToken" does; a bare one may hold a colon that no space follows.
 */
 const KEY = String.raw`(?:"((?:[^"\\]|\\.)*)"|'([^']*)'|([A-Za-z0-9_.\/@-]+(?::[A-Za-z0-9_.\/@-]+)*))`;
-/** key: value, as in YAML. */
-const COLON = new RegExp(String.raw`^\s*(?:-\s+)?${KEY}\s*:(?:\s+|$)(.*)$`, "u");
+/** The key of key: value, as in YAML, up to its colon. */
+const COLON_KEY = new RegExp(String.raw`^\s*(?:-\s+)?${KEY}\s*:(?=\s|$)`, "u");
+const BLANK_RUN = /\s*/uy;
+const LINE_TERMINATOR = /[\n\r\u2028\u2029]/u;
+/**
+* key: value, as in YAML: what /^\s*(?:-\s+)?KEY\s*:(?:\s+|$)(.*)$/u matched, read without backtracking over the
+* blanks after the colon (decision D-200): that pattern took seconds on a key, 40,000 blanks and a value with a line
+* separator. Its greedy blanks gave the only match there is: with fewer of them, the value (. stops at the line
+* terminators) would still have to pass the terminator it could not pass.
+*/
+function colonPair(line) {
+	const prefix = COLON_KEY.exec(line);
+	if (prefix === null) return void 0;
+	BLANK_RUN.lastIndex = prefix[0].length;
+	BLANK_RUN.exec(line);
+	const value = line.slice(BLANK_RUN.lastIndex);
+	if (LINE_TERMINATOR.test(value)) return void 0;
+	return {
+		key: prefix[1] ?? prefix[2] ?? prefix[3] ?? "",
+		value
+	};
+}
 /** A key and its value inside an inline table or a flow mapping: { token = "…", url = "…" }, {npmAuthToken: …}. */
 const INLINE = new RegExp(String.raw`[{,]\s*${KEY}\s*[=:]\s*("(?:[^"\\]|\\.)*"|'[^']*'|[^,{}[\]\s][^,}\s]*)`, "gu");
 /** A reference to an environment variable (${NPM_TOKEN}, $NPM_TOKEN) is no secret, and shows where the value comes from. */
@@ -33934,9 +34450,8 @@ function redactSecrets(line) {
 function redactLine(line) {
 	const equals = equalsPair(line);
 	if (equals !== void 0 && isSecret(equals.key, equals.value)) return `${line.slice(0, line.length - equals.value.length)}${REDACTED}`;
-	const colon = COLON.exec(line);
-	const value = colon?.[4] ?? "";
-	if (colon !== null && isSecret(colon[1] ?? colon[2] ?? colon[3] ?? "", value)) return `${line.slice(0, line.length - value.length)}${REDACTED}`;
+	const colon = colonPair(line);
+	if (colon !== void 0 && isSecret(colon.key, colon.value)) return `${line.slice(0, line.length - colon.value.length)}${REDACTED}`;
 	return redactCredentials(line.replace(INLINE, (whole, double, single, bare, found) => isSecret(double ?? single ?? bare ?? "", found) ? `${whole.slice(0, whole.length - found.length)}${REDACTED}` : whole));
 }
 const isStrings$3 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
@@ -35049,6 +35564,7 @@ function shorterRules(context, file, written, list, descriptionKey, targets) {
 			};
 			entry.types.add(type);
 			entry.labels.add(label);
+			if (source.regex !== void 0) entry.regex ??= source.regex;
 			found.set(source.rule, entry);
 		}
 	}
@@ -35071,8 +35587,8 @@ function shorterRules(context, file, written, list, descriptionKey, targets) {
 				file,
 				line: entry.line
 			},
-			message: `${context.name}: ${list}[${index}] in ${file} (line ${entry.line}) sets minimumReleaseAge: ${JSON.stringify(entry.value)} for ${scope} of ${listing$1(covered)}, shorter than the ${describe(wanted.minutes)} depcurfew apply writes for ${context.name}; ${context.name} uses the rule, and depcurfew apply does not change entries it did not write`,
-			fix: `Make minimumReleaseAge in ${list}[${index}] of ${file} at least ${describe(wanted.minutes)}, or limit the rule to the ${what} that need a shorter delay`
+			message: `${context.name}: ${list}[${index}] in ${file} (line ${entry.line}) sets minimumReleaseAge: ${JSON.stringify(entry.value)} for ${scope} of ${listing$1(covered)}, shorter than the ${describe(wanted.minutes)} depcurfew apply writes for ${context.name}${entry.regex === void 0 ? "" : ` (${countedRegex(entry.regex)})`}; ${context.name} uses the rule, and depcurfew apply does not change entries it did not write`,
+			fix: `Make minimumReleaseAge in ${list}[${index}] of ${file} at least ${describe(wanted.minutes)}, or limit the rule to the ${what} that need a shorter delay${entry.regex === void 0 ? "" : `; ${countedRegexFix(entry.regex)}`}`
 		});
 	}
 }
@@ -37113,7 +37629,7 @@ function cleanNotice(report, format = values$1(environment.githubActions.annotat
 }
 /** Markdown text with code spans kept: outside them special characters are escaped, inside only the table pipe. */
 function markdown(text) {
-	return printable(text.replaceAll(/\s*[\r\n]+\s*/gu, " ")).split(/(`[^`]*`)/u).map((part, index) => index % 2 === 1 ? part.replaceAll("|", "\\|") : part.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll(/([\\`*_[\]|~#!])/gu, "\\$1").replaceAll(/(https?|www)(?=[:.])/gu, "$1&#8203;")).join("");
+	return printable(text.replaceAll(/\s+/gu, (run) => run.includes("\r") || run.includes("\n") ? " " : run)).split(/(`[^`]*`)/u).map((part, index) => index % 2 === 1 ? part.replaceAll("|", "\\|") : part.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll(/([\\`*_[\]|~#!])/gu, "\\$1").replaceAll(/(https?|www)(?=[:.])/gu, "$1&#8203;")).join("");
 }
 /** A path or rule id as a code span; a line break in a path is shown as text, so it cannot end the table row. */
 function code$1(text) {
@@ -37874,6 +38390,7 @@ function renovateDelays(context, bot, file) {
 				scope: types.length === updateTypes.length ? scopeOf(target, "updates") : `${listing$1(types)} ${scopeOf(target, "updates")}`,
 				applies,
 				...source?.rule === void 0 ? {} : { rule: source.rule },
+				...source?.regex === void 0 ? {} : { regex: source.regex },
 				...source?.rule !== void 0 && isOwnRule(config.rules.find((entry) => entry.index === source.rule)?.rule["description"]) ? { ownRule: true } : {},
 				...source?.preset === void 0 ? {} : { preset: {
 					...source.preset,
@@ -37991,10 +38508,19 @@ function projectBotNotes(context, views) {
 }
 /** Whether a directory of a Dependabot updates entry names the project: the same path, or a glob of directories that matches it. */
 function namesDirectory(entry, project, globs) {
-	const trimmed = entry.replace(/^\/+/u, "").replace(/\/+$/u, "");
-	if (!globs || !trimmed.includes("*")) return trimmed === project;
-	const pattern = trimmed.split("**").map((part) => part.split("*").map((piece) => piece.replace(/[.+?^${}()|[\]\\]/gu, "\\$&")).join("[^/]*")).join(".*");
-	return new RegExp(`^${pattern}$`, "u").test(project);
+	return directoryMatcher(entry, globs)(project);
+}
+/** The matchers of the directories read last, so that a long glob is read once for all projects (decision D-200). */
+const directoryMatchers = /* @__PURE__ */ new Map();
+function directoryMatcher(entry, globs) {
+	const key = `${globs ? "g" : "p"}${entry}`;
+	const known = directoryMatchers.get(key);
+	if (known !== void 0) return known;
+	const trimmed = trimTrailing(entry.replace(/^\/+/u, ""), "/");
+	const matcher = !globs || !trimmed.includes("*") ? (project) => trimmed === project : directoryGlob(trimmed);
+	if (directoryMatchers.size >= 256) directoryMatchers.clear();
+	directoryMatchers.set(key, matcher);
+	return matcher;
 }
 /**
 * A project of a repository whose root Dependabot configuration has updates entries for other projects, but none for
@@ -38155,7 +38681,7 @@ function compare(context, delay, reference) {
 				line: rule.line
 			},
 			message: `${delay.bot.name} packageRules[${rule.index}] in ${delay.location.file} sets minimumReleaseAge: ${JSON.stringify(rule.value)} for ${rule.matcher} ${JSON.stringify(rule.patterns)}, which depcurfew cannot read, so it cannot tell whether ${delay.bot.name} waits as long as ${reference.asLongAs}`,
-			fix: rule.unmodelled === true ? `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe$1(reference.minutes)}; depcurfew does not evaluate ${rule.matcher}, so this note stays while the rule sets a shorter delay` : `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe$1(reference.minutes)}, or write its ${rule.matcher} with names, * or /regex/ patterns, which depcurfew reads`
+			fix: rule.unmodelled === true ? `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe$1(reference.minutes)}; depcurfew does not evaluate ${rule.matcher}, so this note stays while the rule sets a shorter delay` : rule.regex !== void 0 ? `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe$1(reference.minutes)}, or rewrite the pattern with names, globs or a /regex/ that depcurfew runs; ${refusedRegexAdvice(rule.regex)}` : `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe$1(reference.minutes)}, or write its ${rule.matcher} with names, * or /regex/ patterns, which depcurfew reads`
 		});
 	}
 	if (delay.rule !== void 0 && delay.minutes === 0) return true;
@@ -38163,7 +38689,7 @@ function compare(context, delay, reference) {
 	context.report({
 		location: delay.location,
 		message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? "without waiting" : `after ${describe$1(delay.minutes)}`} (${delay.origin}), but ${reference.waits}`,
-		fix: delay.fix ?? (delay.preset !== void 0 ? presetFix(context, delay, delay.preset, reference) : delay.rule !== void 0 && delay.ownRule !== true ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe$1(reference.minutes)}, or limit the rule to the ${reference.things} that need a shorter delay` : delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(reference.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(reference.minutes)}, or run depcurfew apply`)
+		fix: delay.fix ?? (delay.preset !== void 0 ? presetFix(context, delay, delay.preset, reference) : delay.rule !== void 0 && delay.ownRule !== true ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe$1(reference.minutes)}, or limit the rule to the ${reference.things} that need a shorter delay${delay.regex === void 0 ? "" : `; ${countedRegexFix(delay.regex)}`}` : delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(reference.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(reference.minutes)}, or run depcurfew apply`)
 	});
 	return true;
 }
@@ -38497,23 +39023,27 @@ function checkRenovate(context, file) {
 		const delay = delayMinutes(bot, rule["minimumReleaseAge"], latestVersion$1(bot));
 		if (!delay.ok || delay.minutes !== 0) continue;
 		const covered = targets.flatMap((target) => {
-			const scope = ruleScope(bot, rule, target);
+			const coverage = ruleCoverage(bot, rule, target);
+			const scope = coverage.assumed ?? (coverage.kind === "covers" ? coverage.scope : void 0);
 			return scope === void 0 ? [] : [{
 				scope,
-				target
+				target,
+				regex: coverage.assumed?.regex
 			}];
 		});
 		const first = covered[0];
 		if (first === void 0) continue;
 		const { scope } = first;
+		const regex = covered.find((item) => item.regex !== void 0)?.regex;
 		reported.add(index);
+		const counting = regex === void 0 ? "" : `, ${countedRegex(regex)}`;
 		context.report({
 			location: {
 				file,
 				line
 			},
-			message: scope.matchers.length === 0 ? `packageRules[${index}] turns off minimumReleaseAge without matching any packages, so it applies to all of them` : scope.names.kind === "pattern" && scope.matchers.every((key) => !narrowing.includes(key)) ? `packageRules[${index}] turns off minimumReleaseAge for "${scope.names.pattern}", which matches every package` : `packageRules[${index}] turns off minimumReleaseAge for ${covers(scope, covered.map((item) => item.target), matching)}`,
-			fix: "Match only the packages that need the exception, e.g. with matchPackageNames: [\"@your-scope/*\"]"
+			message: scope.matchers.length === 0 ? `packageRules[${index}] turns off minimumReleaseAge without matching any packages, so it applies to all of them` : scope.names.kind === "pattern" && scope.matchers.every((key) => !narrowing.includes(key)) ? `packageRules[${index}] turns off minimumReleaseAge for "${scope.names.pattern}", which matches every package${counting}` : `packageRules[${index}] turns off minimumReleaseAge for ${covers(scope, covered.map((item) => item.target), matching)}${counting}`,
+			fix: `Match only the packages that need the exception, e.g. with matchPackageNames: ["@your-scope/*"]${regex === void 0 ? "" : `; ${countedRegexFix(regex)}`}`
 		});
 	}
 	const registries = managerTargets(bot, detected.length > 0 ? detected : context.tools).flatMap(({ target, tools }) => {
@@ -38617,20 +39147,24 @@ function exemptions(context, bot, file, config, matching, registries, reported, 
 		if (!delay.ok || delay.minutes >= cooldown.minimum.minutes) continue;
 		const positive = (namePatterns(bot, rule) ?? []).filter((pattern) => !pattern.startsWith(matching.negation));
 		if (positive.length === 0 || positive.some(matchesEveryName)) continue;
-		const types = ruleUpdateTypes(bot, rule);
+		const { types, regex: typesRegex } = ruleUpdateTypes(bot, rule);
 		if (types === void 0 || types.length === 0) continue;
 		const found = registries.flatMap(({ target, ecosystem }) => {
 			const prefix = POLICY_PREFIXES[ecosystem];
-			if (prefix === void 0 || ruleReaches(bot, rule, target) !== true) return [];
+			const reach = prefix === void 0 ? void 0 : ruleReachesCounting(bot, rule, target);
+			if (prefix === void 0 || reach?.reaches !== true) return [];
 			const policy = patternsFor(cooldown.exclude, ecosystem);
 			const names = positive.filter((pattern) => !exempted(bot, pattern, policy));
 			return names.length === 0 ? [] : [{
 				label: REGISTRY_LABELS[ecosystem],
 				names,
-				prefix
+				prefix,
+				...reach.regex === void 0 ? {} : { regex: reach.regex }
 			}];
 		});
 		if (found.length === 0) continue;
+		const regex = typesRegex ?? found.find((entry) => entry.regex !== void 0)?.regex;
+		const counting = regex === void 0 ? "" : `, ${countedRegex(regex)}`;
 		const names = [...new Set(found.flatMap((entry) => entry.names))];
 		const quoted = listing$1(names.map((name) => JSON.stringify(name)));
 		const labels = [...new Set(found.map((entry) => entry.label))];
@@ -38645,8 +39179,8 @@ function exemptions(context, bot, file, config, matching, registries, reported, 
 				file,
 				line
 			},
-			message: delay.minutes === 0 ? `packageRules[${index}] in ${file} turns off minimumReleaseAge for ${scope} (${where}), which cooldown.exclude in ${POLICY_FILE} does not exempt` : `packageRules[${index}] in ${file} sets minimumReleaseAge: ${JSON.stringify(rule["minimumReleaseAge"])} for ${scope} (${where}), shorter than cooldown.minimum "${cooldown.minimum.text}" in ${POLICY_FILE}, which cooldown.exclude does not exempt them from`,
-			fix: own ? edits ? `Run depcurfew apply, which writes the rule from cooldown.exclude in ${POLICY_FILE}` : `Write packageRules[${index}] of ${file} as the snippet of depcurfew apply shows it, from cooldown.exclude in ${POLICY_FILE} (depcurfew apply does not edit ${file})` : labels.length === 1 ? `${add} if these packages need no delay (${then("rule")}), or remove the exception from packageRules[${index}] of ${file}` : `${add} if these packages need no delay (${then("rules")}), limit packageRules[${index}] of ${file} with ${matching.datasourceMatcher} to the registry it is meant for, or remove the exception from it`
+			message: delay.minutes === 0 ? `packageRules[${index}] in ${file} turns off minimumReleaseAge for ${scope} (${where}${counting}), which cooldown.exclude in ${POLICY_FILE} does not exempt` : `packageRules[${index}] in ${file} sets minimumReleaseAge: ${JSON.stringify(rule["minimumReleaseAge"])} for ${scope} (${where}${counting}), shorter than cooldown.minimum "${cooldown.minimum.text}" in ${POLICY_FILE}, which cooldown.exclude does not exempt them from`,
+			fix: `${own ? edits ? `Run depcurfew apply, which writes the rule from cooldown.exclude in ${POLICY_FILE}` : `Write packageRules[${index}] of ${file} as the snippet of depcurfew apply shows it, from cooldown.exclude in ${POLICY_FILE} (depcurfew apply does not edit ${file})` : labels.length === 1 ? `${add} if these packages need no delay (${then("rule")}), or remove the exception from packageRules[${index}] of ${file}` : `${add} if these packages need no delay (${then("rules")}), limit packageRules[${index}] of ${file} with ${matching.datasourceMatcher} to the registry it is meant for, or remove the exception from it`}${regex === void 0 ? "" : `; ${countedRegexFix(regex)}`}`
 		});
 	}
 }

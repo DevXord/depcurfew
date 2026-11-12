@@ -25,23 +25,61 @@ function word(unit: string): number | undefined {
   return MINUTES[unit.toLowerCase().replace(/s$/u, '')];
 }
 
+// The characters of one number and one unit word, as \s, \d and [a-z] with the flags i and u read them: case folding
+// lets [a-z] match the Kelvin sign and the long s too (decision D-200).
+const BLANK = /^\s$/u;
+const DIGIT = /^\d$/u;
+const LETTER = /^[a-z]$/iu;
+
+/** Where the run of characters that `kind` accepts ends, from `at`. */
+function runEnd(text: string, at: number, kind: RegExp): number {
+  let end = at;
+  while (end < text.length && kind.test(text[end] ?? '')) end++;
+  return end;
+}
+
+/**
+ * The numbers and unit words of a text made only of them and blanks ("1 day 12h", "3days"), in order; undefined for
+ * any other text. The text is read once, one character at a time: blanks, digits, blanks, letters, blanks, again and
+ * again, as the pattern \s*(\d+)\s*([a-z]+)\s* read from where the last part ended; a search for (\d+)\s*([a-z]+)
+ * anywhere in it took seconds on 40,000 digits and "!" (decision D-200).
+ */
+export function durationWords(text: string): [string, string][] | undefined {
+  const parts: [string, string][] = [];
+  let at = 0;
+  while (at < text.length) {
+    const numberStart = runEnd(text, at, BLANK);
+    const numberEnd = runEnd(text, numberStart, DIGIT);
+    if (numberEnd === numberStart) return undefined;
+    const unitStart = runEnd(text, numberEnd, BLANK);
+    const unitEnd = runEnd(text, unitStart, LETTER);
+    if (unitEnd === unitStart) return undefined;
+    parts.push([text.slice(numberStart, numberEnd), text.slice(unitStart, unitEnd)]);
+    at = runEnd(text, unitEnd, BLANK);
+  }
+  return parts.length === 0 ? undefined : parts;
+}
+
+/** A delay in the 'words' syntax ("1 day 12h"), in minutes; undefined for any other text. */
+export function wordsMinutes(text: string): number | undefined {
+  const parts = durationWords(text);
+  if (parts === undefined) return undefined;
+  let total = 0;
+  for (const [number, unit] of parts) {
+    const minutes = word(unit);
+    if (minutes === undefined) return undefined;
+    total += Number(number) * minutes;
+  }
+  return total;
+}
+
 const SYNTAX: Record<string, (text: string) => number | undefined> = {
   compact: (text) => {
     const match = /^(\d+)(ms|s|m|h|d|w)$/u.exec(text);
     return match === null ? undefined : Number(match[1]) * (MINUTES[match[2] ?? ''] ?? Number.NaN);
   },
   'compact-or-words': (text) => SYNTAX['compact']?.(text) ?? SYNTAX['words']?.(text),
-  words: (text) => {
-    const parts = [...text.matchAll(/(\d+)\s*([a-z]+)/giu)];
-    if (parts.length === 0 || parts.map((part) => part[0]).join(' ').replaceAll(/\s+/gu, '') !== text.replaceAll(/\s+/gu, '')) return undefined;
-    let total = 0;
-    for (const part of parts) {
-      const unit = word(part[2] ?? '');
-      if (unit === undefined) return undefined;
-      total += Number(part[1]) * unit;
-    }
-    return total;
-  },
+  words: (text) => wordsMinutes(text),
   // One number and one lowercase unit word, singular or plural (Composer's policy.cooldown.period).
   'unit-word': (text) => {
     const match = /^(\d+)\s*(second|minute|hour|day|week)s?$/u.exec(text);

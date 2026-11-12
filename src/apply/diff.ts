@@ -254,8 +254,26 @@ function equalsPair(line: string): { key: string; value: string } | undefined {
  * hold any character, as "//registry.npmjs.org/:_authToken" does; a bare one may hold a colon that no space follows.
  */
 const KEY = String.raw`(?:"((?:[^"\\]|\\.)*)"|'([^']*)'|([A-Za-z0-9_.\/@-]+(?::[A-Za-z0-9_.\/@-]+)*))`;
-/** key: value, as in YAML. */
-const COLON = new RegExp(String.raw`^\s*(?:-\s+)?${KEY}\s*:(?:\s+|$)(.*)$`, 'u');
+/** The key of key: value, as in YAML, up to its colon. */
+const COLON_KEY = new RegExp(String.raw`^\s*(?:-\s+)?${KEY}\s*:(?=\s|$)`, 'u');
+const BLANK_RUN = /\s*/uy;
+const LINE_TERMINATOR = /[\n\r\u2028\u2029]/u;
+
+/**
+ * key: value, as in YAML: what /^\s*(?:-\s+)?KEY\s*:(?:\s+|$)(.*)$/u matched, read without backtracking over the
+ * blanks after the colon (decision D-200): that pattern took seconds on a key, 40,000 blanks and a value with a line
+ * separator. Its greedy blanks gave the only match there is: with fewer of them, the value (. stops at the line
+ * terminators) would still have to pass the terminator it could not pass.
+ */
+export function colonPair(line: string): { key: string; value: string } | undefined {
+  const prefix = COLON_KEY.exec(line);
+  if (prefix === null) return undefined;
+  BLANK_RUN.lastIndex = prefix[0].length;
+  BLANK_RUN.exec(line);
+  const value = line.slice(BLANK_RUN.lastIndex);
+  if (LINE_TERMINATOR.test(value)) return undefined;
+  return { key: prefix[1] ?? prefix[2] ?? prefix[3] ?? '', value };
+}
 /** A key and its value inside an inline table or a flow mapping: { token = "…", url = "…" }, {npmAuthToken: …}. */
 const INLINE = new RegExp(String.raw`[{,]\s*${KEY}\s*[=:]\s*("(?:[^"\\]|\\.)*"|'[^']*'|[^,{}[\]\s][^,}\s]*)`, 'gu');
 /** A reference to an environment variable (${NPM_TOKEN}, $NPM_TOKEN) is no secret, and shows where the value comes from. */
@@ -280,9 +298,8 @@ export function redactSecrets(line: string): string {
 function redactLine(line: string): string {
   const equals = equalsPair(line);
   if (equals !== undefined && isSecret(equals.key, equals.value)) return `${line.slice(0, line.length - equals.value.length)}${REDACTED}`;
-  const colon = COLON.exec(line);
-  const value = colon?.[4] ?? '';
-  if (colon !== null && isSecret(colon[1] ?? colon[2] ?? colon[3] ?? '', value)) return `${line.slice(0, line.length - value.length)}${REDACTED}`;
+  const colon = colonPair(line);
+  if (colon !== undefined && isSecret(colon.key, colon.value)) return `${line.slice(0, line.length - colon.value.length)}${REDACTED}`;
   return redactCredentials(
     line.replace(INLINE, (whole: string, double: string | undefined, single: string | undefined, bare: string | undefined, found: string) =>
       isSecret(double ?? single ?? bare ?? '', found) ? `${whole.slice(0, whole.length - found.length)}${REDACTED}` : whole,

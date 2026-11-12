@@ -1,6 +1,7 @@
 // Entries of `projects` in the policy: directories of independent projects in the repository (decision D-100), each
 // written as a path relative to the repository root with / between directories, so that the same policy means the
 // same directories on every machine and can never name a directory outside the repository.
+import { trimTrailing } from '../trim.ts';
 
 /** Characters no entry may hold: Windows forbids them in file names, and * and ? would read as patterns. */
 const FORBIDDEN = /[\\:*?"<>|\u0000-\u001f\u007f]/u;
@@ -22,12 +23,12 @@ export function validateProjectDirectory(entry: string): string | undefined {
   if (entry === '') return `must not be empty; write the directory of the project relative to the repository root, ${EXAMPLE}`;
   if (/^[A-Za-z]:/u.test(entry) || entry.startsWith('\\\\')) return `must be relative to the repository root, without a drive letter, ${EXAMPLE}`;
   if (entry.startsWith('/')) {
-    const relative = entry.replace(/^\/+/u, '').replace(/\/+$/u, '');
+    const relative = trimTrailing(entry.replace(/^\/+/u, ''), '/');
     return relative === '' ? 'is the repository root, which depcurfew configures anyway; remove the entry' : `must be relative to the repository root; write "${relative}"`;
   }
-  if (entry.includes('\\')) return `must use / between directories; write "${entry.replaceAll('\\', '/').replace(/\/+$/u, '')}"`;
+  if (entry.includes('\\')) return `must use / between directories; write "${trimTrailing(entry.replaceAll('\\', '/'), '/')}"`;
   if (entry === '.' || entry === './') return 'is the repository root, which depcurfew configures anyway; remove the entry';
-  if (entry.endsWith('/')) return `must not end with /; write "${entry.replace(/\/+$/u, '')}"`;
+  if (entry.endsWith('/')) return `must not end with /; write "${trimTrailing(entry, '/')}"`;
   const segments = entry.split('/');
   if (segments.includes('')) return `must not contain //; write "${segments.filter((segment) => segment !== '').join('/')}"`;
   if (segments.includes('..')) return 'must not contain "..": a project is a directory inside the repository; write its path from the repository root';

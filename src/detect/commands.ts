@@ -598,8 +598,17 @@ function bundlerCliCommand(name: string | undefined, cli: NonNullable<NonNullabl
   return cli.commands.includes(exact) ? exact : undefined;
 }
 
-/** A version Gem::Version.correct? accepts (VERSION_PATTERN of RubyGems), for bundle _VERSION_. */
-const GEM_VERSION = /^\s*([0-9]+(?:\.[0-9a-zA-Z]+)*(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)?\s*$/u;
+/**
+ * A version Gem::Version.correct? accepts (VERSION_PATTERN of RubyGems), for bundle _VERSION_, with the blanks around
+ * it: trimmed first, since \s* at both ends of the pattern tried every way to share a long run of blanks between them
+ * (decision D-200).
+ */
+const GEM_VERSION = /^([0-9]+(?:\.[0-9a-zA-Z]+)*(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)?$/u;
+
+/** Whether bundle _VERSION_ names a version, as GEM_VERSION reads it after trimming. */
+export function gemVersion(text: string): boolean {
+  return GEM_VERSION.test(text.trim());
+}
 
 /**
  * bundle install, update, lock, add and cache, also by alias or prefix (bundle i, bundle package) and a bare bundle
@@ -613,7 +622,7 @@ function bundlerCommand(args: readonly Word[], at: number, facts: CommandFacts, 
   let rest = args;
   let version: string | undefined;
   const selector = known.versionSelector === true ? /^_(.*)_$/su.exec(rest[0]?.text ?? '')?.[1] : undefined;
-  if (selector !== undefined && GEM_VERSION.test(selector)) {
+  if (selector !== undefined && gemVersion(selector)) {
     version = selector.trim();
     rest = rest.slice(1);
   }

@@ -116,10 +116,57 @@ function nestedCommentsEnd(text: string, end: number, indent: number): number {
   return result;
 }
 
-/** Whether block sequences in the document are indented under their key (the yaml default) or not. */
-function indentsSequences(text: string): boolean {
-  const match = /^([ \t]*)[^\s#-][^\n]*:[ \t]*(?:#[^\n]*)?\n([ \t]*)- /mu.exec(text);
-  return match === null ? true : (match[2]?.length ?? 0) > (match[1]?.length ?? 0);
+const SPACE = /\s/u;
+
+/** Spaces and tabs from `at` on. */
+function blanksFrom(text: string, at: number): number {
+  let end = at;
+  while (text[end] === ' ' || text[end] === '\t') end += 1;
+  return end - at;
+}
+
+/**
+ * Whether block sequences in the document are indented under their key (the yaml default) or not: from the first key
+ * line followed by a list item, as /^([ \t]*)[^\s#-][^\n]*:[ \t]*(?:#[^\n]*)?\n([ \t]*)- /mu finds it. That pattern
+ * tried every : of a long line from every line start before it (a dependabot.yml line of 80,000 ":#" took seconds), so
+ * the text is read in one pass instead (decision D-200), with the same lines: a line starts after \n, \r, U+2028 or
+ * U+2029 (^ with the m flag), while the key line runs to the next \n only ([^\n]).
+ */
+export function indentsSequences(text: string): boolean {
+  // For the \n-line being looked at: where it ends, the last : on it after which only blanks and a comment follow, and
+  // the indentation of the list item on the next line (-1: none).
+  let lineBreak = -2;
+  let lastColon = -1;
+  let item = -1;
+  let start = 0;
+  while (start <= text.length) {
+    const indent = blanksFrom(text, start);
+    const first = start + indent;
+    const character = text[first];
+    if (character !== undefined && !SPACE.test(character) && character !== '#' && character !== '-') {
+      if (lineBreak < first) {
+        lineBreak = text.indexOf('\n', first + 1);
+        if (lineBreak === -1) return true;
+        lastColon = -1;
+        let after = '';
+        for (let at = lineBreak - 1; at > first; at--) {
+          if (text[at] === ':' && (after === '' || after === '#')) {
+            lastColon = at;
+            break;
+          }
+          if (text[at] !== ' ' && text[at] !== '\t') after = text[at] ?? '';
+        }
+        const next = blanksFrom(text, lineBreak + 1);
+        item = text[lineBreak + 1 + next] === '-' && text[lineBreak + 2 + next] === ' ' ? next : -1;
+      }
+      if (lastColon > first && item !== -1) return item > indent;
+    }
+    let end = first;
+    while (end < text.length && text[end] !== '\n' && text[end] !== '\r' && text[end] !== '\u2028' && text[end] !== '\u2029') end += 1;
+    if (end >= text.length) return true;
+    start = end + 1;
+  }
+  return true;
 }
 
 function indentUnit(text: string): number {
