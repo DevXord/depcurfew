@@ -17,7 +17,9 @@ export function blockStart(table?: string, scope: BlockScope = 'project'): strin
   return table === undefined ? marker : marker.replace(': ', ` [${table}]: `);
 }
 
-const PREFIX = '# >>> depcurfew managed block';
+/** What every start marker begins with, whichever policy wrote it and whatever table it names. */
+export const BLOCK_PREFIX = '# >>> depcurfew managed block';
+const PREFIX = BLOCK_PREFIX;
 const TEXTS: readonly string[] = [BLOCK_START, USER_BLOCK_START].map((marker) => marker.slice(PREFIX.length));
 
 /** The table a start marker names ('' for none), whichever policy wrote it; undefined when the line starts no block. */

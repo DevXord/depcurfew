@@ -20739,7 +20739,9 @@ function blockStart(table, scope = "project") {
 	const marker = scope === "user" ? USER_BLOCK_START : BLOCK_START;
 	return table === void 0 ? marker : marker.replace(": ", ` [${table}]: `);
 }
-const PREFIX = "# >>> depcurfew managed block";
+/** What every start marker begins with, whichever policy wrote it and whatever table it names. */
+const BLOCK_PREFIX = "# >>> depcurfew managed block";
+const PREFIX = BLOCK_PREFIX;
 const TEXTS$1 = [BLOCK_START, USER_BLOCK_START].map((marker) => marker.slice(29));
 /** The table a start marker names ('' for none), whichever policy wrote it; undefined when the line starts no block. */
 function blockLabel(line) {
@@ -21037,6 +21039,14 @@ function outsideValues(lines) {
 * The one reader of markers in TOML files, for apply, apply --user, doctor and doctor --user.
 */
 function tomlBlocks(lines) {
+	return readBlocks(lines).blocks;
+}
+/** The blocks, and whether each line starts outside values, worked out only when some line has a start marker's text. */
+function readBlocks(lines) {
+	if (!lines.some((line) => line.includes("# >>> depcurfew managed block"))) return {
+		blocks: [],
+		outside: void 0
+	};
 	const outside = outsideValues(lines);
 	const blocks = [];
 	for (let index = 0; index < lines.length; index++) {
@@ -21056,7 +21066,10 @@ function tomlBlocks(lines) {
 		if (end === void 0) break;
 		index = end;
 	}
-	return blocks;
+	return {
+		blocks,
+		outside
+	};
 }
 /** The 1-based lines between the markers of the managed blocks of a TOML text, read by tomlBlocks. */
 function tomlBlockLines(text) {
@@ -21067,6 +21080,7 @@ function tomlBlockLines(text) {
 }
 /** Whether apply wrote anything into a TOML text: a managed block outside values, or a line it commented out. */
 function hasManagedTomlLines(body) {
+	if (!body.includes("# >>> depcurfew managed block") && !body.includes("# depcurfew: superseded by the managed block: ".trim()) && !body.includes("# depcurfew: turned off; depcurfew.json manages this setting: ".trim())) return false;
 	const all = splitLines(body);
 	if (tomlBlocks(all).length > 0) return true;
 	const outside = outsideValues(all);
@@ -21128,7 +21142,8 @@ function valueStart(outside, index) {
 function checkTomlBlock(body, table, label, scope, written) {
 	const all = splitLines(body);
 	const wanted = blockLabel(blockStart(label, scope)) ?? "";
-	const blocks = tomlBlocks(all).filter((block) => block.label === wanted);
+	const read = readBlocks(all);
+	const blocks = read.blocks.filter((block) => block.label === wanted);
 	const name = table === "" ? "the top level" : `[${table}]`;
 	const refuse = (message, fix) => {
 		throw Object.assign(new Error(message), { fix });
@@ -21138,19 +21153,27 @@ function checkTomlBlock(body, table, label, scope, written) {
 		if (left !== void 0) refuse(`the block depcurfew manages for ${name} is still there at line ${left.start + 1} after it was removed`, `Remove the lines from line ${left.start + 1} to the end of the block by hand, then run depcurfew apply again`);
 		return;
 	}
-	const outside = outsideValues(all);
-	const markers = all.flatMap((line, index) => blockLabel(line) === wanted ? [index] : []);
-	for (const index of markers) {
-		if (outside[index] === true) continue;
-		if (blocks.length === 1) continue;
-		const start = valueStart(outside, index) + 1;
-		refuse(`the block depcurfew manages for ${name} would be inside the value that starts at line ${start}, where tools read it as text`, `Move the settings of ${name} out of the value that starts at line ${start}, then run depcurfew apply again`);
+	const outside = read.outside ?? outsideValues(all);
+	if (blocks.length !== 1) {
+		const hidden = all.findIndex((line, index) => outside[index] !== true && blockLabel(line) === wanted);
+		if (hidden !== -1) {
+			const start = valueStart(outside, hidden) + 1;
+			refuse(`the block depcurfew manages for ${name} would be inside the value that starts at line ${start}, where tools read it as text`, `Move the settings of ${name} out of the value that starts at line ${start}, then run depcurfew apply again`);
+		}
 	}
 	const block = blocks[0];
 	if (block === void 0) return refuse(`the block depcurfew manages for ${name} is missing after the edit`, `Add the settings by hand, then run depcurfew apply again`);
 	if (blocks.length > 1) refuse(`the block depcurfew manages for ${name} is there more than once, at lines ${blocks.map((item) => item.start + 1).join(", ")}`, `Keep one of the blocks, then run depcurfew apply again`);
 	if (block.end === void 0) refuse(`the block depcurfew manages for ${name} at line ${block.start + 1} has no end marker`, `Add the line "${BLOCK_END}" after its settings, then run depcurfew apply again`);
-	const found = tablesOf(all)[block.start] ?? "";
+	let found = "";
+	for (let index = block.start - 1; index >= 0; index--) {
+		if (outside[index] !== true) continue;
+		const header = headerOf(all[index] ?? "");
+		if (header !== void 0) {
+			found = header.name;
+			break;
+		}
+	}
 	if (found !== table) {
 		const tool = table === "" ? "the tool" : TABLE_TOOLS.find(([prefix]) => table === prefix || table.startsWith(`${prefix}.`))?.[1] ?? "the tool";
 		refuse(`the block depcurfew manages for ${name} would be in ${found === "" ? "the top level" : `[${found}]`} at line ${block.start + 1}, where ${tool} does not read it`, `Move the block under ${table === "" ? "the top level, before the first table" : `the [${table}] header`}, then run depcurfew apply again`);

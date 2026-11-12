@@ -5,7 +5,7 @@
 // line of the value, and come back as they were once the policy no longer manages them. Values are followed across
 // lines, so a line inside an array or a multi-line string is never taken for a key or a header. A file with blocks
 // in several tables names the table in each block's marker.
-import { BLOCK_END, blockLabel, blockStart, commentedOut, insertBlock, joinLines, removeBlockAt, splitLines, SUPERSEDED, TURNED_OFF, type BlockScope, type RemovedBlock } from './block.ts';
+import { BLOCK_END, BLOCK_PREFIX, blockLabel, blockStart, commentedOut, insertBlock, joinLines, removeBlockAt, splitLines, SUPERSEDED, TURNED_OFF, type BlockScope, type RemovedBlock } from './block.ts';
 
 const BARE_KEY = /^[A-Za-z0-9_-]+/u;
 const ESCAPES: Readonly<Record<string, string>> = { b: '\b', t: '\t', n: '\n', f: '\f', r: '\r', e: '\u001b', '"': '"', '\\': '\\' };
@@ -209,6 +209,12 @@ export interface TomlBlock {
  * The one reader of markers in TOML files, for apply, apply --user, doctor and doctor --user.
  */
 export function tomlBlocks(lines: readonly string[]): TomlBlock[] {
+  return readBlocks(lines).blocks;
+}
+
+/** The blocks, and whether each line starts outside values, worked out only when some line has a start marker's text. */
+function readBlocks(lines: readonly string[]): { blocks: TomlBlock[]; outside: boolean[] | undefined } {
+  if (!lines.some((line) => line.includes(BLOCK_PREFIX))) return { blocks: [], outside: undefined };
   const outside = outsideValues(lines);
   const blocks: TomlBlock[] = [];
   for (let index = 0; index < lines.length; index++) {
@@ -226,7 +232,7 @@ export function tomlBlocks(lines: readonly string[]): TomlBlock[] {
     if (end === undefined) break;
     index = end;
   }
-  return blocks;
+  return { blocks, outside };
 }
 
 /** The 1-based lines between the markers of the managed blocks of a TOML text, read by tomlBlocks. */
@@ -241,6 +247,7 @@ export function tomlBlockLines(text: string): Set<number> {
 
 /** Whether apply wrote anything into a TOML text: a managed block outside values, or a line it commented out. */
 export function hasManagedTomlLines(body: string): boolean {
+  if (!body.includes(BLOCK_PREFIX) && !body.includes(SUPERSEDED.trim()) && !body.includes(TURNED_OFF.trim())) return false;
   const all = splitLines(body);
   if (tomlBlocks(all).length > 0) return true;
   const outside = outsideValues(all);
@@ -299,7 +306,8 @@ function valueStart(outside: readonly boolean[], index: number): number {
 export function checkTomlBlock(body: string, table: string, label: string | undefined, scope: BlockScope, written: boolean): void {
   const all = splitLines(body);
   const wanted = blockLabel(blockStart(label, scope)) ?? '';
-  const blocks = tomlBlocks(all).filter((block) => block.label === wanted);
+  const read = readBlocks(all);
+  const blocks = read.blocks.filter((block) => block.label === wanted);
   const name = table === '' ? 'the top level' : `[${table}]`;
   const refuse = (message: string, fix: string): never => {
     throw Object.assign(new Error(message), { fix });
@@ -309,20 +317,29 @@ export function checkTomlBlock(body: string, table: string, label: string | unde
     if (left !== undefined) refuse(`the block depcurfew manages for ${name} is still there at line ${left.start + 1} after it was removed`, `Remove the lines from line ${left.start + 1} to the end of the block by hand, then run depcurfew apply again`);
     return;
   }
-  const outside = outsideValues(all);
-  const markers = all.flatMap((line, index) => (blockLabel(line) === wanted ? [index] : []));
-  for (const index of markers) {
-    if (outside[index] === true) continue;
-    // A marker in a value is only a problem when the block apply wrote is not found outside values.
-    if (blocks.length === 1) continue;
-    const start = valueStart(outside, index) + 1;
-    refuse(`the block depcurfew manages for ${name} would be inside the value that starts at line ${start}, where tools read it as text`, `Move the settings of ${name} out of the value that starts at line ${start}, then run depcurfew apply again`);
+  const outside = read.outside ?? outsideValues(all);
+  // A marker in a value is only a problem when the block apply wrote is not found outside values.
+  if (blocks.length !== 1) {
+    const hidden = all.findIndex((line, index) => outside[index] !== true && blockLabel(line) === wanted);
+    if (hidden !== -1) {
+      const start = valueStart(outside, hidden) + 1;
+      refuse(`the block depcurfew manages for ${name} would be inside the value that starts at line ${start}, where tools read it as text`, `Move the settings of ${name} out of the value that starts at line ${start}, then run depcurfew apply again`);
+    }
   }
   const block = blocks[0];
   if (block === undefined) return refuse(`the block depcurfew manages for ${name} is missing after the edit`, `Add the settings by hand, then run depcurfew apply again`);
   if (blocks.length > 1) refuse(`the block depcurfew manages for ${name} is there more than once, at lines ${blocks.map((item) => item.start + 1).join(', ')}`, `Keep one of the blocks, then run depcurfew apply again`);
   if (block.end === undefined) refuse(`the block depcurfew manages for ${name} at line ${block.start + 1} has no end marker`, `Add the line "${BLOCK_END}" after its settings, then run depcurfew apply again`);
-  const found = tablesOf(all)[block.start] ?? '';
+  // The table of the block: the nearest header above it on a line outside values (a header cannot sit in a value).
+  let found = '';
+  for (let index = block.start - 1; index >= 0; index--) {
+    if (outside[index] !== true) continue;
+    const header = headerOf(all[index] ?? '');
+    if (header !== undefined) {
+      found = header.name;
+      break;
+    }
+  }
   if (found !== table) {
     const tool = table === '' ? 'the tool' : TABLE_TOOLS.find(([prefix]) => table === prefix || table.startsWith(`${prefix}.`))?.[1] ?? 'the tool';
     refuse(`the block depcurfew manages for ${name} would be in ${found === '' ? 'the top level' : `[${found}]`} at line ${block.start + 1}, where ${tool} does not read it`, `Move the block under ${table === '' ? 'the top level, before the first table' : `the [${table}] header`}, then run depcurfew apply again`);
