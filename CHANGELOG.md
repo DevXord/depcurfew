@@ -8,6 +8,7 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 
 - Semantic versioning now covers, in writing, `getVersion`, `loadPolicy`, `checkSpecs` and `PopularNames` with the shapes of their options and results: a minor or patch release may add optional options, fields of a result, codes and kinds, and never removes or renames one, makes an option required or gives a finding a level other than `error` or `warning` (the README, under Library). Tests hold the package to it, and to the way agentcurfew 1.2.0 calls it.
 - The types `CheckRequest` (a spec with what the command changes), `FetchLike` (the `fetch` option of `checkSpecs`) and `SpecKind` (the `kind` of a report) are exported, so that a program can write the options and results of `checkSpecs` without copying them.
+- The types of tool ids (`ToolId`) and ecosystems (`Ecosystem`) gain `cargo` and `crates`, which 1.7.0 adds for Rust projects; a program that switches over them needs a branch for the new values. Until the rest of the Cargo support is in, depcurfew neither detects nor configures Cargo.
 
 ### Fixes
 

@@ -3,6 +3,7 @@
 import { isRecord, values } from '../apply/facts.ts';
 import { compareVersions, parseVersion, type Version } from '../apply/version.ts';
 import { TomlDateTime } from '../detect/toml.ts';
+import { cargo } from '../knowledge/cargo.ts';
 import type { ToolKnowledge, UserCooldownUnit } from '../knowledge/types.ts';
 
 const MINUTES: Record<string, number> = {
@@ -208,4 +209,44 @@ export function formatMinutes(minutes: number): string {
   }
   const rounded = Math.round(minutes * 100) / 100;
   return `${rounded} minute${rounded === 1 ? '' : 's'}`;
+}
+
+/**
+ * A Cargo time span read as Cargo reads it (maybe_parse_time_span, extra.timeSpan of Cargo, E05): "0" or a span of zero
+ * is no delay; a whole number in ASCII digits, at most one space and a unit in the singular or plural is a delay in
+ * seconds; anything else is invalid, which stops Cargo's resolution with an error. A product of the number and the unit
+ * above u64 is a result of its own: Cargo multiplies without a check, and whether its build wraps the product is not
+ * established, so it may be a short delay (fail closed). A loop over the characters (decision D-200).
+ */
+export type CargoTimeSpan = { kind: 'off' } | { kind: 'delay'; seconds: number } | { kind: 'overflow' } | { kind: 'invalid' };
+
+const U64_MAX = (1n << 64n) - 1n;
+
+function cargoUnits(): Readonly<Record<string, number>> {
+  const fact = cargo.extra?.['timeSpan'];
+  const found = fact === undefined ? undefined : values(fact)[0];
+  const units = isRecord(found) && isRecord(found['units']) ? found['units'] : {};
+  return Object.fromEntries(Object.entries(units).filter((entry): entry is [string, number] => typeof entry[1] === 'number'));
+}
+
+export function cargoTimeSpan(text: string): CargoTimeSpan {
+  if (text === '0') return { kind: 'off' };
+  let end = 0;
+  while (end < text.length && text.charCodeAt(end) >= 48 && text.charCodeAt(end) <= 57) end += 1;
+  // A number without a unit (or nothing at all) is not a span.
+  if (end === 0 || end === text.length) return { kind: 'invalid' };
+  const digits = text.slice(0, end);
+  let unit = text.slice(end);
+  if (unit.startsWith(' ')) unit = unit.slice(1);
+  const units = cargoUnits();
+  const singular = unit.endsWith('s') ? unit.slice(0, -1) : unit;
+  const factor = Object.hasOwn(units, singular) ? units[singular] : undefined;
+  if (factor === undefined) return { kind: 'invalid' };
+  // u64 parse: a number above u64 is an error in Cargo.
+  if (digits.replace(/^0+/u, '').length > 20) return { kind: 'invalid' };
+  const count = BigInt(digits);
+  if (count > U64_MAX) return { kind: 'invalid' };
+  const product = count * BigInt(factor);
+  if (product > U64_MAX) return { kind: 'overflow' };
+  return product === 0n ? { kind: 'off' } : { kind: 'delay', seconds: Number(product) };
 }

@@ -59,6 +59,9 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
     // Ruby's String#to_i reads the number settings of Bundler (rubySyntax, stringToInteger).
     { host: 'github.com', pathPrefix: '/ruby/ruby/' },
   ],
+  // Cargo: doc.rust-lang.org/cargo is built from doc/book in rust-lang/cargo; the release manifests of static.rust-lang.org
+  // name the cargo of each Rust release (E05).
+  cargo: [{ host: 'doc.rust-lang.org', pathPrefix: '/cargo/' }, { host: 'github.com', pathPrefix: '/rust-lang/cargo/' }, { host: 'github.com', pathPrefix: '/rust-lang/rust/' }, { host: 'static.rust-lang.org', pathPrefix: '/dist/' }],
   renovate: [{ host: 'docs.renovatebot.com' }, { host: 'github.com', pathPrefix: '/renovatebot/' }],
   // Psych (ruby/psych) is the YAML library dependabot-core loads dependabot.yml with (extra.yamlScalars).
   dependabot: [
