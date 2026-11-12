@@ -2,7 +2,7 @@
 
 All notable changes for users of depcurfew. The project follows [semantic versioning](https://semver.org/): the policy file (`version: 1`), the command-line options, the exit codes and the JSON and SARIF output (`schemaVersion: 1`) only change in a backward-incompatible way in a new major version.
 
-## Unreleased
+## 1.6.1
 
 ### Releases
 
@@ -46,6 +46,7 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 
 ### Tests
 
+- The case of `tests/security/cpu-time-1-3.test.ts` with thousands of `env` entries and steps allows 4 s of CPU time on Windows instead of 2 s. Most of its time goes to the YAML parser, and Windows runners run it about twice as slowly: it took 1.0 to 1.25 s on Linux and once 2.017 s on Windows with Node.js 22. The quadratic code it guards against took more than a minute.
 - Every test has 60 s and every hook 120 s on the clock before Vitest stops it, far above the time limits on CPU time. Vitest's defaults of 5 s and 10 s, not the limits, failed tests and hooks on busy Windows runners.
 - The cases with aliases that expand themselves have a limit of 5 s of CPU time, as the other slow inputs have, instead of 1 s. Contrary to the 1.6.0 notes, measuring CPU time made the limits stricter for code that allocates much: the CPU time of the test process counts the helper threads of V8 too, and this case failed on Windows.
 - The tests of what depcurfew does as root in the home directory of another user (`apply --user`, `init --user` and `osv update` with `sudo`, and the policy search) now run in CI: the job `root` runs their files with `sudo` and fails when one of them ran no test or a test was skipped. Before, the 15 tests behind the root gate were skipped on every CI runner. Two new tests pin the limit of 40 symbolic links that `apply --user` and `init --user` follow in the home directory.
