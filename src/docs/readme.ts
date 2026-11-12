@@ -11,7 +11,7 @@ import type { Rule } from '../doctor/types.ts';
 import { USER_RULES } from '../user/doctor.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import { SOURCE_KINDS } from '../knowledge/schema.ts';
-import type { ChecksumCommandKnowledge, CommandLineKnowledge, CommandNamesKnowledge, CommandNeedsKnowledge, EnvironmentKnowledge, ExecPromptKnowledge, ExecReleaseAgeKnowledge, ExecutableAliasesKnowledge, Fact, PrefixOptionKnowledge, ToolKnowledge, UserConfigKnowledge, UserDirectory, UserFile, UserPlatform } from '../knowledge/types.ts';
+import type { ChecksumCommandKnowledge, CommandLineKnowledge, CommandNamesKnowledge, CommandNeedsKnowledge, EnvironmentKnowledge, ExecPromptKnowledge, ExecReleaseAgeKnowledge, ExecutableAliasesKnowledge, Fact, PrefixOptionKnowledge, SharedRunKnowledge, ToolKnowledge, UserConfigKnowledge, UserDirectory, UserFile, UserPlatform } from '../knowledge/types.ts';
 import { DEFAULT_POLICY, renderPolicy } from '../policy/defaults.ts';
 import { policyJsonSchema } from '../policy/json-schema.ts';
 import { INSTALLED_CLI, TOOLS_DIRECTORY } from '../self-version.ts';
@@ -467,7 +467,36 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
     '| Package manager | Add packages | Download and run | Starter kits |',
     '| --- | --- | --- | --- |',
     ...rows,
+    ...sharedRunNotes(environment, tools),
   ].join('\n');
+}
+
+/** a, b and c. */
+function listed(items: readonly string[]): string {
+  return items.length < 2 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1) ?? ''}`;
+}
+
+/**
+ * The program names a tool's run command shares with the .NET SDK (Deno's dnx; decision D-208): which lines count, and
+ * that the others, like the SDK's own tool commands, get no decision.
+ */
+function sharedRunNotes(environment: EnvironmentKnowledge, tools: readonly ToolKnowledge[]): string[] {
+  const fact = environment.botOnlyEcosystems.nuget.toolRunner;
+  const runner = fact === undefined ? undefined : values(fact)[0];
+  const notes = tools.flatMap((tool) => {
+    const shared = tool.extra?.['sharedRuns'];
+    const entries = shared === undefined ? [] : ((values(shared)[0] as readonly SharedRunKnowledge[] | undefined) ?? []);
+    return entries.map((entry) => {
+      const program = entry.command.join(' ');
+      const prefixes = entry.prefixes.map((prefix) => `\`${prefix}\``).join(' or ');
+      const dotnet = runner !== undefined && runner.executables.includes(program);
+      const others = dotnet
+        ? `; any other \`${program}\` line is the tool runner of the ${runner.product} (${runner.since} and later), which, like ${listed(runner.runs.map((command) => `\`${command.join(' ')}\``))}, gets no decision, as depcurfew does not look NuGet tools up yet`
+        : `; any other \`${program}\` line gets no decision`;
+      return `\`${program}\` counts for ${tool.name} as \`${entry.runs.join(' ')}\` only when one of its arguments is an ${prefixes} spec (\`${program} ${entry.prefixes[0] ?? ''}cowsay\`)${others}.`;
+    });
+  });
+  return notes.length === 0 ? [] : ['', ...notes];
 }
 
 /** How the MCP clients start depcurfew mcp, from the knowledge base (environment.mcp.clients). */

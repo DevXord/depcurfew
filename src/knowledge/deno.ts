@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { SourceKnowledge, ToolKnowledge } from './types.ts';
+import type { SharedRunKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -11,6 +11,8 @@ const osvFacts = verifiedOn('2026-11-02');
 // The key and unit of the delay in .npmrc, for the generated tables (decision D-170).
 const d170 = verifiedOn('2026-11-03');
 const d167 = verifiedOn('2026-11-03');
+// dnx is the .NET SDK's tool runner; only dnx npm: and dnx jsr: stay Deno's (decision D-208).
+const d208 = verifiedOn('2026-11-11');
 const DENO_V2_9_8 = 'https://github.com/denoland/deno/blob/v2.9.8';
 const NPMRC_PARSER = `${DENO_V2_9_8}/libs/npmrc/lib.rs`;
 const X_VALUE_OPTIONS = [
@@ -210,7 +212,6 @@ export const deno: ToolKnowledge = {
           { command: ['deno', 'x'], packageOptions: ['--package', '-p'], binaryPath: true },
           { command: ['dx'], packageOptions: ['--package', '-p'], binaryPath: true },
           { command: ['denox'], packageOptions: ['--package', '-p'], binaryPath: true },
-          { command: ['dnx'], packageOptions: ['--package', '-p'], binaryPath: true },
         ],
         create: [],
         createNames: 'prefix',
@@ -220,11 +221,15 @@ export const deno: ToolKnowledge = {
           { command: ['deno', 'x'], valueOptions: X_VALUE_OPTIONS },
           { command: ['dx'], valueOptions: X_VALUE_OPTIONS },
           { command: ['denox'], valueOptions: X_VALUE_OPTIONS },
-          { command: ['dnx'], valueOptions: X_VALUE_OPTIONS },
         ],
       },
       'https://github.com/denoland/docs/tree/74beb7585f7e798fe0bc8d867295bff23fc2e38e/runtime/reference/cli',
-      'install.md: deno install [PACKAGES] installs packages and adds them to deno.json or package.json, deno add is its alias, deno install --global installs a package or script as a binary, and deno install --entrypoint (-e) [FILES] installs what the files use. -n/--name, --root, --os and --arch take a value; --allow-scripts and --node-modules-dir are shown with =. Since Deno 2.8 a name without a prefix is an npm package; JSR packages need jsr: (add.md). x.md: deno x runs a package from npm or JSR without installing it, like npx (deno x npm:create-vite my-app); --package (-p) names the package when the binary differs (deno x -p typescript tsc), and npm:<package>/<binary> picks one binary; deno x --install-alias creates the dx alias. In Deno 2.9.8 (github.com/denoland/deno, cli/args/flags.rs) an executable whose name ends in dx, denox or dnx runs as deno x, and libs/cli_parser/src/defs.rs (X_SUBCOMMAND with COMPILE_ARGS, PERMISSION_ARGS, RUNTIME_MISC_ARGS and INSPECT_ARGS) gives the options of deno x that take a separate value; the permission flags take theirs after =. -L/--log-level is a global option with a value.',
+      'install.md: deno install [PACKAGES] installs packages and adds them to deno.json or package.json, deno add is its alias, deno install --global installs a package or script as a binary, and deno install --entrypoint (-e) [FILES] installs what the files use. -n/--name, --root, --os and --arch take a value; --allow-scripts and --node-modules-dir are shown with =. Since Deno 2.8 a name without a prefix is an npm package; JSR packages need jsr: (add.md). x.md: deno x runs a package from npm or JSR without installing it, like npx (deno x npm:create-vite my-app); --package (-p) names the package when the binary differs (deno x -p typescript tsc), and npm:<package>/<binary> picks one binary; deno x --install-alias creates the dx alias. In Deno 2.9.8 (github.com/denoland/deno, cli/args/flags.rs) an executable whose name ends in dx, denox or dnx runs as deno x; dnx is not listed here, as the .NET SDK installs its own dnx (sharedRuns; decision D-208). In 2.9.8 libs/cli_parser/src/defs.rs (X_SUBCOMMAND with COMPILE_ARGS, PERMISSION_ARGS, RUNTIME_MISC_ARGS and INSPECT_ARGS) gives the options of deno x that take a separate value; the permission flags take theirs after =. -L/--log-level is a global option with a value.',
+    ),
+    sharedRuns: d208.verified<SharedRunKnowledge[]>(
+      [{ command: ['dnx'], runs: ['deno', 'x'], prefixes: ['npm:', 'jsr:'] }],
+      `${DENO_V2_9_8}/cli/args/flags.rs`,
+      'Lines 705-710: "dx/denox/dnx shim: rewrite the binary name into an explicit `x` subcommand" when the name of the binary ends in dx, denox or dnx. Deno itself creates only the alias deno x --install-alias asks for, dx by default ("Creates a dx alias so you can run dx <command> instead of deno x <command>", install-alias with default_value("dx") in libs/cli_parser/src/defs.rs at v2.9.8; runtime/reference/cli/x.md in denoland/docs at 74beb7585f7e798fe0bc8d867295bff23fc2e38e shows dx and --install-alias=denox), so a dnx of Deno is one a user made. The .NET SDK installs dnx next to dotnet since 10.0.100 (environment.botOnlyEcosystems.nuget.toolRunner). deno x runs npm:<package> and jsr:<package> specs (x.md), and a NuGet package ID holds no colon, so a dnx line with an argument that starts with npm: or jsr:, also after options (dnx -A npm:x), is read as deno x and any other dnx line as no package manager\'s (decision D-208).',
     ),
     lockfileFormat: osvFacts.verified(
       { installScripts: 'scripts', installScriptsSinceLockfile: '5', sources: null, peerSeparator: '_' },

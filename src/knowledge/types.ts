@@ -713,6 +713,19 @@ export interface CommandNamesKnowledge {
   hidden?: readonly string[];
 }
 
+/**
+ * A program that runs one of the tool's run commands but whose name another tool installs too (decision D-208: Deno
+ * reads a binary named dnx as deno x, and the .NET SDK installs dnx): the line is the tool's only when the word right
+ * after the program starts with one of the prefixes, which the other tool's arguments cannot hold. Otherwise depcurfew
+ * reads it as no package manager's command. The commands are listed next to the command-line fact (sharedRuns).
+ */
+export interface SharedRunKnowledge {
+  command: readonly string[];
+  /** The run command of the tool it is read as (deno x). */
+  runs: readonly string[];
+  prefixes: readonly string[];
+}
+
 /** Other names a tool's program is installed under, each with the program it is (pnpm's pn; decision D-193). */
 export type ExecutableAliasesKnowledge = Record<string, string>;
 
@@ -1790,9 +1803,26 @@ export interface ClientDelayKnowledge {
   file?: string;
 }
 
+/**
+ * Programs the package manager's product installs that download a package and run it (the .NET SDK's dnx; decision
+ * D-208), which depcurfew does not check yet, and the commands they run.
+ */
+export interface ToolRunnerKnowledge {
+  executables: readonly string[];
+  /** The first version that installs them. */
+  since: string;
+  product: string;
+  /** The commands they run, as written on the command line. */
+  runs: readonly (readonly string[])[];
+  /** The pattern every package ID matches, as the tool writes it. */
+  packageId: string;
+}
+
 export interface BotOnlyEcosystemKnowledge {
   project: Fact<BotOnlyProjectKnowledge>;
   releaseAge: Fact<ClientDelayKnowledge>;
+  /** Programs that download a package of the ecosystem and run it (decision D-208). */
+  toolRunner?: Fact<ToolRunnerKnowledge>;
 }
 
 export interface EnvironmentKnowledge {
