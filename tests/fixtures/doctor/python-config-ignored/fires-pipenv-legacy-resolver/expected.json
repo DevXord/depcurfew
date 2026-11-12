@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "Pipfile",
+      "line": 11
+    },
+    "message": "resolver = \"uv\" makes Pipenv lock without cool-down-period, so the release-age delay in Pipfile has no effect",
+    "fix": "Remove resolver from [pipenv] in Pipfile, and write resolver_backend = \"pip\" if the backend must be named, so that Pipenv locks with pip and applies cool-down-period"
+  }
+]

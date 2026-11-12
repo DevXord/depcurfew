@@ -4681,6 +4681,9 @@ const PIPENV = "https://github.com/pypa/pipenv/blob/v2026.10.4";
 const PIPFILE = `${PIPENV}/docs/pipfile.md`;
 const CHANGELOG$1 = `${PIPENV}/CHANGELOG.md`;
 const CONFIGURATION$3 = `${PIPENV}/docs/configuration.md`;
+const PIPENV_CURRENT = "https://github.com/pypa/pipenv/blob/v2026.11.0";
+const d202 = verifiedOn("2026-11-11");
+const BYPASSING_BACKENDS = ["pure-python", "uv"];
 const user$4 = verifiedOn("2026-10-31");
 const final$1 = verifiedOn("2026-11-01");
 const osvFacts = verifiedOn("2026-11-02");
@@ -4735,11 +4738,16 @@ const pipenv$1 = {
 		unknownKeys: user$4.verified("ignore", CONFIGURATION$3, "No user file."),
 		invalidValueFails: user$4.verified(false, CONFIGURATION$3, "No user file."),
 		weakening: user$4.verified([], CONFIGURATION$3, "No user file; see variables."),
-		variables: user$4.uncertain([
+		variables: d202.uncertain([
 			{
 				name: "PIPENV_RESOLVER",
-				values: ["pure-python"],
-				effect: "selects the pure-python resolver, which ignores cool-down-period"
+				values: BYPASSING_BACKENDS,
+				effect: "selects a resolver backend that does not apply cool-down-period"
+			},
+			{
+				name: "PIPENV_BACKEND",
+				values: BYPASSING_BACKENDS,
+				effect: "selects the resolver backend of pipenv lock, one that does not apply cool-down-period"
 			},
 			{
 				name: "PIPENV_PYPI_MIRROR",
@@ -4756,7 +4764,7 @@ const pipenv$1 = {
 				values: "any",
 				effect: "builds these packages from source when installing, and pipenv install records no_binary for a named package in the Pipfile"
 			}
-		], `${PIPENV}/pipenv/utils/resolver.py`, "PIPENV_RESOLVER is not documented. The code ranks it above the resolver key of the Pipfile (\"CLI/caller > env > current project's Pipfile > default\"), and the pure-python backend locked the newest versions despite cool-down-period when chosen in the Pipfile (extra.resolverBypass, tested on 2026-10-30); the variable itself was not tested. PIPENV_PYPI_MIRROR: \"When the index does not provide upload-time metadata (e.g. most private mirrors) the setting is accepted but has no filtering effect\" (docs/pipfile.md). PIP_* variables are merged over the environment of the pip subprocess (pipenv/utils/processes.py), so they still reach it while pip.conf does not; pipenv/routines/install.py also reads PIP_NO_BINARY.")
+		], `${PIPENV_CURRENT}/docs/resolver_backends.md`, "PIPENV_RESOLVER selects the resolver backend after --backend and --resolver and before resolver_backend in [pipenv] (\"Selecting a Backend\"); the pure-python and uv backends lock without cool-down-period (extra.resolverBypass, read from the code). PIPENV_BACKEND is not documented: only pipenv lock has --backend (pipenv/cli/options.py, _add_lock_options), and apply_env_vars sets every option not given on the command line from PIPENV_<option name> (options.py lines 470-492), so PIPENV_BACKEND acts as --backend. Pipenv strips both values; neither variable was tested. PIPENV_PYPI_MIRROR: \"When the index does not provide upload-time metadata (e.g. most private mirrors) the setting is accepted but has no filtering effect\" (docs/pipfile.md). PIP_* variables are merged over the environment of the pip subprocess (pipenv/utils/processes.py), so they still reach it while pip.conf does not (pipenv/utils/pip.py sets PIP_CONFIG_FILE to os.devnull); pipenv/routines/install.py also reads PIP_NO_BINARY. All read at v2026.11.0.")
 	},
 	extra: {
 		installedPackage: d173$2.verified({
@@ -4778,11 +4786,20 @@ const pipenv$1 = {
 		}, `${PIPFILE}#cool-down-period`, "Only whole days (<int>d) are accepted."),
 		durationUnits: verified$8(["days"], `${PIPFILE}#cool-down-period`, "Whole days only."),
 		missingUploadTime: verified$8("An index without upload times makes the setting accepted but without effect", `${PIPFILE}#cool-down-period`, "\"When the index does not provide upload-time metadata (e.g. most private mirrors) the setting is accepted but has no filtering effect.\""),
-		resolverBypass: uncertain$6({
+		resolverBypass: d202.uncertain({
 			table: "pipenv",
 			keys: ["resolver_backend", "resolver"],
-			value: "pure-python"
-		}, `${PIPENV}/pipenv/routines/lock.py`, "Not documented. Tested on 2026-10-30 with 2026.10.4: with resolver_backend = \"pure-python\" in [pipenv], pipenv lock locked the newest versions despite cool-down-period = \"100000d\"; resolver is the older name of the key."),
+			values: BYPASSING_BACKENDS,
+			delayBackend: "pip",
+			olderKeyAlone: {
+				until: "2026.9.1",
+				commands: [
+					"pipenv update",
+					"pipenv upgrade",
+					"pipenv uninstall"
+				]
+			}
+		}, `${PIPENV_CURRENT}/pipenv/utils/resolver.py`, "Read from the code at v2026.11.0; Pipenv was not run with uv. Pipenv applies cool-down-period only in the pip backend, as pip's uploaded_prior_to (lines 607-613; no other file of the wheel outside the vendored code reads it), so the pure-python and uv backends lock the newest versions: the uv backend runs uv pip compile --no-config without a cutoff (pipenv/resolver/backends/uv.py lines 234-249). Tested on 2026-10-30 with 2026.10.4: with resolver_backend = \"pure-python\", pipenv lock locked the newest versions despite cool-down-period = \"100000d\". The backend comes from --backend or --resolver, then PIPENV_RESOLVER, then resolver_backend in [pipenv], then pip (docs/resolver_backends.md); resolver is the older name of the key, read when resolver_backend is not set, and Pipenv strips the value (_selected_backend_for_request, lines 1505-1530). Before 2026.9.1, pipenv update, upgrade and uninstall read only resolver (CHANGELOG.md, 2026.9.1; _selected_backend_for_request at v2026.9.0). A name that is not a backend, also in other letter case, stops the lock with an error (CHANGELOG.md, 2026.8.0; pipenv/resolver/backends/__init__.py). Pipenv leaves UV_EXCLUDE_NEWER in the environment of uv (uv.py lines 93-106)."),
 		lockfileFormat: osvFacts.verified({
 			meta: "_meta",
 			git: "git",
@@ -43662,23 +43679,47 @@ function checkPdm(context, tool) {
 		fix: `Remove ${mode["key"]} from ${found.file}, or forbid building in uv too ([tool.uv] no-build = true in pyproject.toml)`
 	});
 }
-/** Pipenv's pure-Python resolver (resolver_backend = "pure-python") locks without cool-down-period. */
+/** Whether Python takes a TOML value as true: Pipenv reads `settings.get("resolver_backend") or settings.get("resolver")`. */
+function pythonTrue(value) {
+	if (typeof value === "string" || Array.isArray(value)) return value.length > 0;
+	if (typeof value === "number" || typeof value === "bigint") return Number(value) !== 0;
+	if (typeof value === "boolean") return value;
+	return !isRecord(value) || Object.keys(value).length > 0;
+}
+/**
+* Pipenv's resolver backends that lock without cool-down-period (extra.resolverBypass): resolver_backend, or the older
+* key resolver, set in [pipenv] to one of them, compared stripped as Pipenv reads it (decision D-202). The older key is
+* reported also next to resolver_backend, which Pipenv reads first: before olderKeyAlone.until some commands read
+* only the older key, and removing it is right in every version.
+*/
 function checkPipenv(context, tool) {
 	const bypass = tool.extra?.["resolverBypass"] === void 0 ? void 0 : extraOf(tool, "resolverBypass", isRecord);
 	const setting = settingOf(tool.cooldown.setting);
-	if (bypass === void 0 || setting === null || !isStrings(bypass["keys"]) || typeof bypass["table"] !== "string") return;
+	if (bypass === void 0 || setting === null) return;
+	const { table, keys, values, delayBackend, olderKeyAlone } = bypass;
+	if (typeof table !== "string" || !isStrings(keys) || !isStrings(values) || typeof delayBackend !== "string") return;
 	const delay = readPythonSetting(context.repository, tool, setting);
 	if (delay === void 0) return;
-	for (const key of bypass["keys"]) {
-		const found = tomlSettingAt(context.repository, delay.file, [bypass["table"], key]);
-		if (found === void 0 || found.value !== bypass["value"]) continue;
+	const [first] = keys;
+	const older = isRecord(olderKeyAlone) && typeof olderKeyAlone["until"] === "string" && isStrings(olderKeyAlone["commands"]) ? {
+		until: olderKeyAlone["until"],
+		commands: olderKeyAlone["commands"]
+	} : void 0;
+	const found = keys.map((key) => ({
+		key,
+		entry: tomlSettingAt(context.repository, delay.file, [table, key])
+	}));
+	for (const [index, { key, entry }] of found.entries()) {
+		if (entry === void 0 || typeof entry.value !== "string" || !values.includes(entry.value.trim())) continue;
+		const written = `${key} = ${JSON.stringify(entry.value)}`;
+		const shadowed = found.slice(0, index).some((earlier) => earlier.entry !== void 0 && pythonTrue(earlier.entry.value));
 		context.report({
 			location: {
-				file: found.file,
-				line: found.line
+				file: entry.file,
+				line: entry.line
 			},
-			message: `${key} = ${JSON.stringify(found.value)} makes ${tool.name} lock without ${setting}, so the release-age delay in ${delay.file} has no effect`,
-			fix: `Remove ${key} from [${bypass["table"]}] in ${delay.file}, so that ${tool.name} locks with pip and applies ${setting}`
+			message: shadowed && older !== void 0 && first !== void 0 ? `${written} is the older name of ${first}: ${tool.name} reads ${first} first, but ${listing$1(older.commands)} of ${tool.name} before ${older.until} read only ${key}, so there it still selects a resolver backend that locks without ${setting}` : `${written} makes ${tool.name} lock without ${setting}, so the release-age delay in ${delay.file} has no effect`,
+			fix: index === 0 ? `Remove ${key} from [${table}] in ${delay.file}, or write ${key} = "${delayBackend}", so that ${tool.name} locks with ${delayBackend} and applies ${setting}` : `Remove ${key} from [${table}] in ${delay.file}, and write ${first ?? key} = "${delayBackend}" if the backend must be named, so that ${tool.name} locks with ${delayBackend} and applies ${setting}`
 		});
 	}
 }
@@ -43862,7 +43903,7 @@ const pythonConfigIgnored = {
 	id: "python-config-ignored",
 	checks: "Python tools read their settings where they are written",
 	summary: "A Python tool ignores a setting where it is written.",
-	description: "uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project (a pip.conf counts only where PIP_CONFIG_FILE names it) and rejects options it does not know in requirements files, so a CI job or a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = \"pure-python\" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.",
+	description: "uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project (a pip.conf counts only where PIP_CONFIG_FILE names it) and rejects options it does not know in requirements files, so a CI job or a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend (or its older name resolver) set to \"pure-python\" or \"uv\" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.",
 	help: "Move the setting to the file the tool reads.",
 	level: "error",
 	requiresPolicy: false,
