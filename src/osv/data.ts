@@ -352,7 +352,9 @@ function findLine(bytes: Buffer, body: number, name: string): unknown {
 
 /** Reads the file of an ecosystem: missing, unreadable with the reason, or ready with its bytes. */
 function readDataFile(directory: string | undefined, ecosystem: string): Loaded {
-  if (directory === undefined) return { state: { status: 'missing', file: '' } };
+  // osv update writes the files of OSV_DATA_ECOSYSTEMS only: any other name (an ecosystem a later depcurfew or a program
+  // using the library knows, or a name with a path in it) has no data, and no file is opened for it (E30).
+  if (directory === undefined || !isDataEcosystem(ecosystem)) return { state: { status: 'missing', file: '' } };
   const file = osvDataFile(directory, ecosystem);
   // One open of the file itself, never through a symbolic link in its place and without a stat before it, so that it
   // cannot be swapped for a link or a FIFO in between (decision D-190).
@@ -392,6 +394,10 @@ function readDataFile(directory: string | undefined, ecosystem: string): Loaded 
   // An export is never written after its download (decision D-156): such a date is not taken, and the age counts from the download.
   const exported = exportedAt !== null && Date.parse(exportedAt) > Date.parse(downloadedAt) ? null : exportedAt;
   return { state: { status: 'ready', file, downloadedAt, exportedAt: exported, records }, bytes, body: newline + 1 };
+}
+
+function isDataEcosystem(ecosystem: string): ecosystem is OsvDataEcosystem {
+  return (OSV_DATA_ECOSYSTEMS as readonly string[]).includes(ecosystem);
 }
 
 function reasonOf(error: unknown): string {
