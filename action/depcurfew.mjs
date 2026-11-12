@@ -24831,7 +24831,37 @@ const PREFIXES$1 = {
 /** Also used as the JSON Schema pattern. The lookaheads reject patterns made only of `*`, which match every package. */
 const PACKAGE_PATTERN = `^(?:${PYPI_PREFIX}(?!\\*+$)${PYTHON_NAME$1}|${COMPOSER_PREFIX}(?!\\*+/\\*+$)${COMPOSER_PART}/${COMPOSER_PART}|(?!\\*+$)(@${NAME$1}/)?${NAME$1})$`;
 const GRAMMAR = new RegExp(PACKAGE_PATTERN, "u");
-const PREFIX_LIST = `${PYPI_PREFIX} and ${COMPOSER_PREFIX}`;
+/** The start of every message about a prefix the policy does not take (E33). */
+const PREFIXES_ARE = `the ecosystem prefixes are ${`${PYPI_PREFIX} and ${COMPOSER_PREFIX}`}, and npm packages have none`;
+/** Prefixes people write for npm packages, which have none in the policy (E33): the hint names the npm name. */
+const NPM_WORDS = /* @__PURE__ */ new Set([
+	"npm",
+	"node",
+	"npmjs"
+]);
+/** Prefixes people write for Python packages, which take pypi: (E33). */
+const PYTHON_WORDS = /* @__PURE__ */ new Set([
+	"pip",
+	"python",
+	"py"
+]);
+/**
+* Prefixes of ecosystems whose packages have no names in the policy, since no setting depcurfew writes takes one: Ruby
+* gems (decision D-152), JSR packages, Rust crates and NuGet packages (E33). The entry has to go; no other spelling of
+* it is right.
+*/
+const NAMELESS = {
+	gem: "Ruby gems",
+	gems: "Ruby gems",
+	rubygems: "Ruby gems",
+	ruby: "Ruby gems",
+	bundler: "Ruby gems",
+	jsr: "JSR packages",
+	cargo: "Rust crates",
+	crates: "Rust crates",
+	crate: "Rust crates",
+	nuget: "NuGet packages"
+};
 function validatePythonPattern(pattern) {
 	const name = pattern.slice(5);
 	if (name === "") return `write a Python package name after ${PYPI_PREFIX}, e.g. "${PYPI_PREFIX}requests"`;
@@ -24864,13 +24894,17 @@ function validatePackagePattern(pattern) {
 	const prefix = /^([A-Za-z][A-Za-z0-9+.-]*):/u.exec(pattern);
 	if (prefix !== null) {
 		const rest = pattern.slice(prefix[0].length);
-		const word = prefix[1] ?? "";
-		const meant = word.toLowerCase() === "packagist" ? "composer" : suggest(word.toLowerCase(), ["pypi", "composer"]);
-		if (meant === "pypi") return `the ecosystem prefixes are ${PREFIX_LIST}; write Python packages as "${PYPI_PREFIX}${rest}"`;
-		if (meant === "composer") return `the ecosystem prefixes are ${PREFIX_LIST}; write Composer packages as "${COMPOSER_PREFIX}${rest.toLowerCase()}"`;
-		if (COMPOSER_LIKE.test(rest.toLowerCase())) return `the ecosystem prefixes are ${PREFIX_LIST}; write Composer packages as "${COMPOSER_PREFIX}${rest.toLowerCase()}"`;
-		const example = validatePackagePattern(rest) === void 0 ? `"${rest}"` : "\"esbuild\" or \"@scope/name\"";
-		return `the ecosystem prefixes are ${PREFIX_LIST}; write npm packages without a prefix, e.g. ${example}`;
+		const word = (prefix[1] ?? "").toLowerCase();
+		if (NPM_WORDS.has(word)) {
+			const example = validatePackagePattern(rest) === void 0 ? `"${rest}"` : "\"esbuild\" or \"@scope/name\"";
+			return `${PREFIXES_ARE}; write npm packages without a prefix, e.g. ${example}`;
+		}
+		const nameless = Object.hasOwn(NAMELESS, word) ? NAMELESS[word] : void 0;
+		if (nameless !== void 0) return `${nameless} have no names in depcurfew.json, since no setting depcurfew writes takes one; remove this entry (${PREFIXES_ARE})`;
+		const meant = PYTHON_WORDS.has(word) ? "pypi" : word === "packagist" || word === "php" ? "composer" : suggest(word, ["pypi", "composer"]);
+		if (meant === "pypi") return `${PREFIXES_ARE}; write Python packages as "${PYPI_PREFIX}${rest}"`;
+		if (meant === "composer") return `${PREFIXES_ARE}; write Composer packages as "${COMPOSER_PREFIX}${rest.toLowerCase()}"`;
+		return `${PREFIXES_ARE}; remove the entry or fix the spelling of its prefix`;
 	}
 	const nameStart = pattern.startsWith("@") ? pattern.indexOf("/") + 1 : 0;
 	const versionAt = pattern.indexOf("@", Math.max(nameStart, 1));
