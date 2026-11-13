@@ -42143,6 +42143,25 @@ function checkPipOptions(context, plan) {
 		});
 	}
 }
+/**
+* Cargo (E07): a setting of .cargo/config.toml that undoes the delay apply writes (cooldown-overridden), a value apply
+* cannot read or that Cargo may wrap, and the older name .cargo/config (cooldown-not-written) stay after apply; each is
+* reported where it points, with apply's text, once per line, as for Bundler (decision D-159) and pip (decision D-167).
+*/
+function checkCargoCooldown(context, plan) {
+	const seen = /* @__PURE__ */ new Set();
+	for (const warning of plan.warningDetails) {
+		if (warning.tool !== "cargo" || warning.location === void 0 || warning.code !== "cooldown-overridden" && warning.code !== "cooldown-not-written") continue;
+		const key = `${warning.location.file}\u0000${warning.location.line ?? ""}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		context.report({
+			location: warning.location,
+			message: warning.message,
+			...warning.fix === void 0 ? {} : { fix: warning.fix }
+		});
+	}
+}
 /** The most settings a note against the default policy names; the rest are counted (decision D-149). */
 const MAX_SETTINGS = 6;
 /** Settings for a message: `a`, `b` and `c`, at most MAX_SETTINGS, then how many more. */
@@ -42213,6 +42232,7 @@ const configDrift = {
 			reportAgainstDefault(context, plan);
 			checkBundlerCooldown(context, plan);
 			checkPipOptions(context, plan);
+			checkCargoCooldown(context, plan);
 			checkAllowLists(context, plan);
 			checkComposerExclusions(context, plan);
 			return;
@@ -42245,6 +42265,7 @@ const configDrift = {
 		}
 		checkBundlerCooldown(context, plan);
 		checkPipOptions(context, plan);
+		checkCargoCooldown(context, plan);
 		checkAllowLists(context, plan);
 		checkComposerExclusions(context, plan);
 	}

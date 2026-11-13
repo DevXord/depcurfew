@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { applyProject } from '../../src/apply/index.ts';
 import { blockStart, BLOCK_END } from '../../src/apply/block.ts';
 import { runDoctor } from '../../src/doctor/index.ts';
+import { run } from '../../src/cli/run.ts';
 
 const temporary: string[] = [];
 afterEach(() => {
@@ -139,5 +140,45 @@ describe('the older name .cargo/config (E07)', () => {
     const report = applyProject(root);
     expect(read(root)).toBe(lines('[net]', 'retry = 3'));
     expect(warning(report, 'cooldown-not-written')?.fix).toBe('Move the settings of .cargo/config into .cargo/config.toml and delete .cargo/config (Cargo reads .cargo/config and ignores .cargo/config.toml when both are there), then run depcurfew apply again');
+  });
+});
+
+describe('doctor reports what apply cannot keep for Cargo (E07)', () => {
+  const drift = (root: string) => runDoctor(root).findings.filter((finding) => finding.rule === 'config-drift');
+
+  it('reports each setting that undoes the delay at its line, with the text of apply, before and after apply', () => {
+    const root = repository({ '.cargo/config.toml': lines('[resolver]', 'incompatible-publish-age = "allow"', '', '[registries.crates-io]', 'min-publish-age = "0"') });
+    const expected = [
+      { line: 2, message: 'Cargo: resolver.incompatible-publish-age = "allow" in .cargo/config.toml (line 2) turns the release-age delay off, the one depcurfew apply writes included' },
+      { line: 5, message: 'Cargo: registries.crates-io.min-publish-age in .cargo/config.toml (line 5) is "0", which takes the place of the 3 days depcurfew apply writes for crates.io' },
+    ];
+    const reported = () => drift(root).filter((finding) => finding.message.startsWith('Cargo: ')).map((finding) => ({ line: finding.location?.line, message: finding.message }));
+    expect(reported()).toEqual(expected);
+    applyProject(root);
+    expect(reported()).toEqual(expected);
+    expect(drift(root).every((finding) => finding.level === 'error')).toBe(true);
+  });
+
+  it('reports a value apply cannot read, and the older name, where they are', () => {
+    const unreadable = repository({ '.cargo/config.toml': lines('[registry]', 'global-min-publish-age = "99999999999999 months"') });
+    expect(drift(unreadable).map((finding) => [finding.location?.file, finding.location?.line, finding.message.startsWith('Cargo: cooldown not written')])).toEqual([['.cargo/config.toml', 2, true]]);
+    const legacy = repository({ '.cargo/config': lines('[build]', 'jobs = 4') });
+    expect(drift(legacy).map((finding) => [finding.location?.file, finding.fix])).toEqual([['.cargo/config', 'Rename .cargo/config to .cargo/config.toml, the name Cargo prefers (it reads both), then run depcurfew apply again']]);
+  });
+});
+
+describe('init keeps a longer delay of Cargo (E07)', () => {
+  it('takes registry.global-min-publish-age as cooldown.minimum when it is longer than the default', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'depcurfew-e07-init-'));
+    temporary.push(root);
+    mkdirSync(join(root, '.git'));
+    mkdirSync(join(root, '.cargo'));
+    writeFileSync(join(root, 'Cargo.toml'), CARGO['Cargo.toml']);
+    writeFileSync(join(root, '.cargo/config.toml'), lines('[registry]', 'global-min-publish-age = "2 weeks"'));
+    let stdout = '';
+    const code = await run(['init', '--json', root], { stdout: (text) => (stdout += text), stderr: () => {} });
+    expect(code).toBe(0);
+    expect((JSON.parse(readFileSync(join(root, 'depcurfew.json'), 'utf8')) as { cooldown: { minimum: string } }).cooldown.minimum).toBe('14d');
+    expect(stdout).toContain('cooldown-kept');
   });
 });
