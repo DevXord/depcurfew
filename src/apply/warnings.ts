@@ -2,6 +2,8 @@
 // with a side effect) and errors (nothing is written). Every one has a stable code for programs and AI agents
 // (apply --json) and the README lists them; the message says what happened and `fix` what to do.
 import type { ToolId } from '../knowledge/types.ts';
+import { environment } from '../knowledge/environment.ts';
+import { describeBotOnlyEcosystems } from '../knowledge/render.ts';
 
 export const APPLY_WARNINGS = {
   'nothing-to-configure': 'depcurfew found no supported package manager or bot, so nothing is configured.',
@@ -65,7 +67,7 @@ export const APPLY_WARNINGS = {
   'bot-config-not-edited': 'A bot configuration file is in a place or format depcurfew does not edit; a snippet shows what to add.',
   'bot-entries-missing': 'The Dependabot configuration has no entries for the package managers in use.',
   'bot-config-unreadable': 'The Dependabot configuration uses a YAML alias, which Dependabot does not accept, so it reads no configuration from the file (the cooldown apply writes included), and depcurfew does not read the delays the file sets.',
-  'bot-rule-shortens-delay': "A Renovate packageRules entry apply does not manage gives every package of a registry, Renovate manager or category in use, the actions of the workflows or the dependencies of an ecosystem updated by bots only (Cargo, Go modules, Maven, Gradle, NuGet), or some update types of them, a shorter release-age delay than the one apply writes; or a Dependabot updates entry apply writes the cooldown into has a cooldown.include list, which limits the cooldown to the dependencies it names, or keeps a cooldown.exclude list that matches every dependency (an entry for actions, Ruby gems or an ecosystem updated by bots only, whose list apply does not replace). The bot uses these, and apply does not change them.",
+  'bot-rule-shortens-delay': `A Renovate packageRules entry apply does not manage gives every package of a registry, Renovate manager or category in use, the actions of the workflows or the dependencies of an ecosystem updated by bots only (${describeBotOnlyEcosystems(environment)}), or some update types of them, a shorter release-age delay than the one apply writes; or a Dependabot updates entry apply writes the cooldown into has a cooldown.include list, which limits the cooldown to the dependencies it names, or keeps a cooldown.exclude list that matches every dependency (an entry for actions, Ruby gems or an ecosystem updated by bots only, whose list apply does not replace). The bot uses these, and apply does not change them.`,
   'security-delay-unsupported': 'Dependabot cannot delay security updates, so securityUpdates "delay" is not applied.',
 } as const satisfies Record<string, string>;
 

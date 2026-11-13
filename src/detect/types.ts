@@ -246,7 +246,7 @@ export interface Detection {
   ciForProjects?: PackageManagerInfo[];
   node: { versions: VersionDeclaration[] };
   bots: BotInfo[];
-  /** Cargo, Go modules, Maven, Gradle and NuGet, whose new versions only the bots delay (decision D-151); absent when none. */
+  /** Go modules, Maven, Gradle and NuGet, whose new versions only the bots delay (decision D-151, E08); absent when none. */
   botEcosystems?: BotEcosystemInfo[];
   workspaces: WorkspaceInfo | null;
   /** `.npmrc` files in the root and in workspace packages; several tools read them. */

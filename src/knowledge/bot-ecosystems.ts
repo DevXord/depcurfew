@@ -1,8 +1,9 @@
-// Ecosystems whose package manager has no release-age delay that depcurfew configures: Cargo, Go modules, Maven,
-// Gradle and NuGet (decision D-151). depcurfew finds them by their files and delays their new versions only through the
-// update bots (dependabot.ts: botOnlyEcosystems, renovate.ts: botOnlyEcosystems). Read from the official sources in
-// their GitHub repositories (doc.rust-lang.org, go.dev, maven.apache.org and learn.microsoft.com were not reachable
-// from this session; their pages are built from these files).
+// Ecosystems whose package manager has no release-age delay that depcurfew configures: Go modules, Maven, Gradle and
+// NuGet (decision D-151; Cargo left them in 1.7.0, when depcurfew apply began to write its delay, E08). depcurfew finds
+// them by their files and delays their new versions only through the update bots (dependabot.ts: botOnlyEcosystems,
+// renovate.ts: botOnlyEcosystems). Read from the official sources in their GitHub repositories (go.dev,
+// maven.apache.org and learn.microsoft.com were not reachable from this session; their pages are built from these
+// files).
 import { verifiedOn } from './define.ts';
 import type { BotOnlyEcosystemId, BotOnlyEcosystemKnowledge } from './types.ts';
 
@@ -11,24 +12,11 @@ const dotnet11 = verifiedOn('2026-11-11');
 // The .NET SDK's dnx, which the hook no longer reads as Deno's (decision D-208).
 const d208 = verifiedOn('2026-11-11');
 
-const CARGO = 'https://github.com/rust-lang/cargo/blob';
 const GRADLE_DOCS = 'https://github.com/gradle/gradle/blob/v9.8.2/platforms/documentation/docs/src/docs';
 const NUGET_DOCS = 'https://github.com/NuGet/docs.microsoft.com-nuget/blob/main/docs';
 const NUGET_DOCS_D205 = 'https://github.com/NuGet/docs.microsoft.com-nuget/blob/2f8406a736ab57c51caffa4701fc21fb7f141c1b/docs';
 
 export const botOnlyEcosystems: Readonly<Record<BotOnlyEcosystemId, BotOnlyEcosystemKnowledge>> = {
-  cargo: {
-    project: verified(
-      { name: 'Cargo', client: 'Cargo', files: ['Cargo.toml', 'Cargo.lock'] },
-      `${CARGO}/rust-1.99.0/doc/book/src/guide/cargo-toml-vs-cargo-lock.md`,
-      '"Cargo.toml is about describing your dependencies in a broad sense" (the manifest) and "Cargo.lock contains exact information about your dependencies" (the Cargo book of Cargo 1.99, guide/cargo-toml-vs-cargo-lock.md).',
-    ),
-    releaseAge: uncertain(
-      { setting: 'registry.global-min-publish-age', since: '1.100.0', product: 'Cargo', file: '.cargo/config.toml' },
-      `${CARGO}/master/doc/book/src/CHANGELOG.md`,
-      'The changelog of the Cargo book on master lists under "Cargo 1.100 (2026-11-12)": "Stabilize minimum publish age configurations. When registry.global-min-publish-age is set, the resolver ignores versions published more recently than that, unless they are already in Cargo.lock" (RFC 3923, rust-lang/cargo#17335); reference/config.md on master documents registry.global-min-publish-age (default "0", values such as "14 days"), registries.<name>.min-publish-age and resolver.incompatible-publish-age, read from .cargo/config.toml. On 2026-11-03 Cargo 1.100 is not released: the latest Rust release is 1.99.1 of 2026-10-15 (RELEASES.md on the stable branch of rust-lang/rust), and Cargo 1.99 has the setting only behind the nightly flag -Zmin-publish-age (doc/book/src/reference/unstable.md at rust-1.99.0, which lists no stable setting in config.md). Uncertain because 1.100 is a planned release; until a repository runs Cargo 1.100, Cargo has no release-age delay of its own.',
-    ),
-  },
   gomod: {
     project: verified(
       { name: 'Go modules', client: 'Go', files: ['go.mod', 'go.sum'] },

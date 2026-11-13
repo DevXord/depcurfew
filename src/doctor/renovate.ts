@@ -356,13 +356,8 @@ export function botEcosystemTargets(bot: ToolKnowledge, ids: readonly BotOnlyEco
 /** The targets of the package managers among `tools`, one for each datasource and manager, with the tools of each. */
 export function managerTargets(bot: ToolKnowledge, tools: readonly ToolKnowledge[]): { target: RenovateTarget; tools: ToolKnowledge[] }[] {
   const groups = new Map<string, { target: RenovateTarget; tools: ToolKnowledge[] }>();
-  const managers = extraOf(bot, 'managers', isRecord);
-  const botOnly = bot.extra?.['botOnlyEcosystems'] === undefined ? {} : extraOf(bot, 'botOnlyEcosystems', isRecord);
   for (const tool of tools) {
     if (tool.kind !== 'package-manager') continue;
-    // A package manager without a manager of its own here whose dependencies the entry of an ecosystem updated by bots
-    // only covers (Cargo, E06) is that entry's target, not one of its own: its packages are not counted twice.
-    if (!Object.hasOwn(managers, tool.id) && Object.hasOwn(botOnly, tool.id)) continue;
     const target = managerTarget(bot, tool.id, ecosystemOfTool(tool));
     // A tool without a known manager is a target of its own.
     const key = `${target.datasource ?? ''}\u0000${target.manager ?? `\u0000${tool.id}`}`;

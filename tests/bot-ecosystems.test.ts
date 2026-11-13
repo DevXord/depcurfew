@@ -1,5 +1,5 @@
-// Ecosystems updated by bots only (decision D-151): Cargo, Go modules, Maven, Gradle and NuGet are detected by their
-// files, explain says that only the bots wait for them, doctor compares the bots' delay for them with cooldown.minimum
+// Ecosystems updated by bots only (decision D-151): Go modules, Maven, Gradle and NuGet are detected by their files
+// (Cargo was one until 1.7.0, when depcurfew apply began to write its delay, E08), explain says that only the bots wait for them, doctor compares the bots' delay for them with cooldown.minimum
 // and notes them in a repository without a bot, and apply gives their Dependabot entries the cooldown.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { detectProject } from '../src/detect/index.ts';
 import { botEcosystemFacts, ownDelayText } from '../src/detect/bot-ecosystems.ts';
-import { botEcosystemTargets, readRenovateConfig, renovateDelay } from '../src/doctor/renovate.ts';
+import { botEcosystemTargets, managerTargets, readRenovateConfig, renovateDelay } from '../src/doctor/renovate.ts';
+import { cargo } from '../src/knowledge/cargo.ts';
 import { runDoctor } from '../src/doctor/index.ts';
 import { longestDelay } from '../src/apply/delays.ts';
 import { renovate } from '../src/knowledge/renovate.ts';
@@ -46,8 +47,7 @@ async function exec(...argv: string[]): Promise<{ code: number; stdout: string; 
   return { code, stdout, stderr };
 }
 
-const CARGO_LINE =
-  'Cargo before 1.100.0 has no release-age delay of its own (Cargo 1.100.0 adds registry.global-min-publish-age in .cargo/config.toml, which depcurfew does not configure), so only the update bots wait before they propose new versions (Dependabot package-ecosystem: cargo, Renovate manager cargo)';
+const GO_LINE = 'Go has no release-age delay of its own, so only the update bots wait before they propose new versions (Dependabot package-ecosystem: gomod, Renovate manager gomod)';
 
 describe('detection', () => {
   it('finds the files in the root, its direct subdirectories that are not hidden, workspace packages and projects', () => {
@@ -66,7 +66,6 @@ describe('detection', () => {
     });
     const detection = detectProject(root, undefined, undefined, { projects: ['services/api'] });
     expect(detection.botEcosystems).toEqual([
-      { id: 'cargo', files: ['packages/native/Cargo.toml'] },
       { id: 'maven', files: ['services/api/pom.xml'] },
       { id: 'nuget', files: ['app/App.csproj'] },
     ]);
@@ -82,7 +81,6 @@ describe('detection', () => {
   it('says what each package manager does about new versions', () => {
     const texts = Object.fromEntries(botEcosystemFacts().map((entry) => [entry.id, ownDelayText(entry, true)]));
     expect(texts).toEqual({
-      cargo: 'Cargo before 1.100.0 has no release-age delay of its own (Cargo 1.100.0 adds registry.global-min-publish-age in .cargo/config.toml, which depcurfew does not configure)',
       gomod: 'Go has no release-age delay of its own',
       maven: 'Maven has no release-age delay of its own',
       gradle: 'Gradle has no release-age delay of its own',
@@ -93,15 +91,15 @@ describe('detection', () => {
 
 describe('depcurfew explain', () => {
   it('lists the ecosystems updated by bots only and says that only the bots wait', async () => {
-    const result = await exec('explain', repo('cargo-dependabot'));
+    const result = await exec('explain', repo('bot-ecosystems-dependabot'));
     expect(result.code).toBe(EXIT_OK);
-    expect(result.stdout).toContain(['Bots:', '  Dependabot: .github/dependabot.yml', 'Updated by bots only:', '  Cargo: Cargo.lock, Cargo.toml', `    ${CARGO_LINE}`, 'Workspaces: none'].join('\n'));
+    expect(result.stdout).toContain(['Bots:', '  Dependabot: .github/dependabot.yml', 'Updated by bots only:', '  Go modules: go.mod, go.sum', `    ${GO_LINE}`, '  Maven: java-service/pom.xml'].join('\n'));
   });
 
   it('gives the same in JSON, with the name and the sentence', async () => {
-    const result = await exec('explain', '--json', repo('cargo-dependabot'));
-    const report = JSON.parse(result.stdout) as { project: { botEcosystems: unknown } };
-    expect(report.project.botEcosystems).toEqual([{ id: 'cargo', name: 'Cargo', files: ['Cargo.lock', 'Cargo.toml'], message: CARGO_LINE }]);
+    const result = await exec('explain', '--json', repo('bot-ecosystems-dependabot'));
+    const report = JSON.parse(result.stdout) as { project: { botEcosystems: unknown[] } };
+    expect(report.project.botEcosystems[0]).toEqual({ id: 'gomod', name: 'Go modules', files: ['go.mod', 'go.sum'], message: GO_LINE });
   });
 
   it('shows no such section without these ecosystems', async () => {
@@ -113,8 +111,7 @@ describe('depcurfew explain', () => {
 
 describe('Renovate', () => {
   it('knows the manager, datasource and categories of each ecosystem', () => {
-    expect(botEcosystemTargets(renovate, ['cargo', 'gomod', 'maven', 'gradle', 'nuget'])).toEqual([
-      { datasource: 'crate', manager: 'cargo', categories: ['rust'], ecosystem: 'cargo' },
+    expect(botEcosystemTargets(renovate, ['gomod', 'maven', 'gradle', 'nuget'])).toEqual([
       { datasource: 'go', manager: 'gomod', categories: ['golang'], ecosystem: 'gomod' },
       { datasource: 'maven', manager: 'maven', categories: ['java'], ecosystem: 'maven' },
       { datasource: 'maven', manager: 'gradle', categories: ['java'], ecosystem: 'gradle' },
@@ -124,8 +121,10 @@ describe('Renovate', () => {
 
   it('reads security:minimumReleaseAgeCrate as 3 days for Cargo dependencies only', () => {
     const config = readRenovateConfig(JSON.stringify({ extends: ['security:minimumReleaseAgeCrate'] }), 'renovate.json', []);
-    const [cargo, gomod] = botEcosystemTargets(renovate, ['cargo', 'gomod']);
-    const cargoDelay = cargo === undefined ? undefined : renovateDelay(renovate, config, cargo);
+    // Cargo is a package manager from 1.7.0 (E08): its target is the cargo manager with the crate datasource.
+    const cargoTarget = managerTargets(renovate, [cargo])[0]?.target;
+    const [gomod] = botEcosystemTargets(renovate, ['gomod']);
+    const cargoDelay = cargoTarget === undefined ? undefined : renovateDelay(renovate, config, cargoTarget);
     const gomodDelay = gomod === undefined ? undefined : renovateDelay(renovate, config, gomod);
     expect(cargoDelay?.known === true ? cargoDelay.byType.get('major')?.value : undefined).toBe('3 days');
     expect(gomodDelay?.known === true ? gomodDelay.byType.size : undefined).toBe(0);

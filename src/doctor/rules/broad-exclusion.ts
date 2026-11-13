@@ -41,6 +41,8 @@ import { readToolSetting } from '../pnpm-config.ts';
 import type { Rule, RuleContext } from '../types.ts';
 import { usesBot, usesManager } from '../applies.ts';
 import { coversActions, coversBotEcosystems } from '../../apply/targets.ts';
+import { environment } from '../../knowledge/environment.ts';
+import { describeBotOnlyEcosystems } from '../../knowledge/render.ts';
 
 /** Patterns that match every package (or every scoped package): *, **, @*\/*, npm:*, and regexes like /.*\/. */
 export const isBroad = matchesEveryName;
@@ -428,7 +430,7 @@ export const broadExclusion: Rule = {
   checks: 'No exception list, per-scope setting or Renovate rule turns the release-age delay off beyond cooldown.exclude',
   summary: 'An exception list matches every package, or a per-scope setting or a Renovate rule exempts packages cooldown.exclude does not, which turns the protection off.',
   description:
-    'A release-age exception such as "*" (or a policy allow-list entry such as "@*/*") looks narrow but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns; with a cooldown for Renovate, also for the actions of the workflows (the github-actions manager, every workflow file, the depType action) and for Cargo, Go modules, Maven, Gradle or NuGet in the repository. A Renovate rule that gives npm, Python or Composer packages of some names a shorter delay than cooldown.minimum is an exception cooldown.exclude must make too, and a rule depcurfew apply wrote for the names of one registry must be limited to its datasource. In Yarn 4.17 and later, a shorter npmScopes.<scope>.npmMinimalAgeGate exempts that scope.',
+    `A release-age exception such as "*" (or a policy allow-list entry such as "@*/*") looks narrow but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns; with a cooldown for Renovate, also for the actions of the workflows (the github-actions manager, every workflow file, the depType action) and for ${describeBotOnlyEcosystems(environment).replace(/ and ([^,]*)$/u, ' or $1')} in the repository. A Renovate rule that gives npm, Python or Composer packages of some names a shorter delay than cooldown.minimum is an exception cooldown.exclude must make too, and a rule depcurfew apply wrote for the names of one registry must be limited to its datasource. In Yarn 4.17 and later, a shorter npmScopes.<scope>.npmMinimalAgeGate exempts that scope.`,
   help: 'Replace the pattern with the packages or scopes that really need the exception.',
   level: 'error',
   requiresPolicy: false,

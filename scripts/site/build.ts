@@ -135,7 +135,7 @@ const ECOSYSTEM_PAGES: Partial<Record<Ecosystem, EcosystemPage>> = {
 // The bots' section of the README says what they do for each ecosystem, also for those only they delay (D-151).
 const BOTS_PAGE: EcosystemPage = { file: 'bots.html', nav: 'Bots', guide: ['update-bots', WITHOUT_PACKAGE_JSON], rules: ['bot-cooldown-mismatch'] };
 
-/** The ecosystems updated by bots only, for the summary of the bots' start page: "Cargo, Go modules … and NuGet". */
+/** The ecosystems updated by bots only, for the summary of the bots' start page: "Go modules … and NuGet". */
 const BOT_ECOSYSTEMS = Object.values(environment.botOnlyEcosystems).flatMap((entry) => evidenceOf(entry.project).slice(0, 1).map((evidence) => evidence.value.name));
 
 const names = (tools: readonly ToolKnowledge[]) => {

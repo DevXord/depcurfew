@@ -238,12 +238,21 @@ function groups(tools: readonly ToolKnowledge[], environment: EnvironmentKnowled
   return environment === undefined ? named : [...named, { name: ENVIRONMENT_NAME, entry: environment }];
 }
 
+/** The ecosystems updated by bots only, by name, from the knowledge base (E08): "Go modules, Maven, Gradle and NuGet". */
+export function describeBotOnlyEcosystems(environment: EnvironmentKnowledge): string {
+  const names = Object.values(environment.botOnlyEcosystems).flatMap((entry) => {
+    const project = evidenceOf(entry.project)[0]?.value;
+    return project === undefined ? [] : [project.name];
+  });
+  return names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1) ?? ''}`;
+}
+
 function renderEnvironment(environment: EnvironmentKnowledge | undefined): string[] {
   if (environment === undefined) return [];
   const lines = [
     '## Environment',
     '',
-    'How repositories pin tool versions (Corepack, devEngines, Volta, asdf), how GitHub Actions installs them, and the ecosystems whose new versions only the update bots delay (botOnlyEcosystems: Cargo, Go modules, Maven, Gradle and NuGet).',
+    `How repositories pin tool versions (Corepack, devEngines, Volta, asdf), how GitHub Actions installs them, and the ecosystems whose new versions only the update bots delay (botOnlyEcosystems: ${describeBotOnlyEcosystems(environment)}).`,
     '',
   ];
   for (const { path, fact } of collectFacts(environment)) {

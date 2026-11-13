@@ -1769,9 +1769,9 @@ export interface RootLifecycleScriptsKnowledge {
 
 /**
  * An ecosystem whose package manager has no release-age delay depcurfew configures, so that depcurfew delays new
- * versions there only through the update bots (decision D-151): Cargo, Go modules, Maven, Gradle and NuGet.
+ * versions there only through the update bots (decision D-151): Go modules, Maven, Gradle and NuGet (Cargo until 1.7.0, E08).
  */
-export type BotOnlyEcosystemId = 'cargo' | 'gomod' | 'maven' | 'gradle' | 'nuget';
+export type BotOnlyEcosystemId = 'gomod' | 'maven' | 'gradle' | 'nuget';
 
 /** The files that show an ecosystem updated by bots only, in a project directory. */
 export interface BotOnlyProjectKnowledge {

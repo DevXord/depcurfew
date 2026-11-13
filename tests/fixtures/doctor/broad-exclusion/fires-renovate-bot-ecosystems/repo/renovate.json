@@ -3,6 +3,6 @@
   "packageRules": [
     { "matchCategories": ["golang"], "minimumReleaseAge": null },
     { "matchDatasources": ["maven"], "matchUpdateTypes": ["patch"], "minimumReleaseAge": null },
-    { "matchManagers": ["cargo"], "minimumReleaseAge": null }
+    { "matchManagers": ["nuget"], "minimumReleaseAge": null }
   ]
 }

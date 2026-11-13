@@ -5,7 +5,7 @@
       "file": "renovate.json",
       "line": 4
     },
-    "message": "Renovate proposes Cargo updates after 1 hour (minimumReleaseAge: \"1 hour\" in packageRules[0] of renovate.json), but cooldown.minimum in depcurfew.json is 3 days, which covers Cargo dependencies, and Cargo before 1.100.0 has no release-age delay of its own; its pull requests bring in versions younger than that",
+    "message": "Renovate proposes updates after 1 hour (minimumReleaseAge: \"1 hour\" in packageRules[0] of renovate.json), but Cargo waits 3 days (registry.global-min-publish-age: \"3 days\" in .cargo/config.toml); its pull requests bring in versions younger than Cargo picks itself, and Cargo keeps them, as it keeps the versions in Cargo.lock",
     "fix": "Make minimumReleaseAge in packageRules[0] of renovate.json at least 3 days, or limit the rule to the packages that need a shorter delay"
   }
 ]

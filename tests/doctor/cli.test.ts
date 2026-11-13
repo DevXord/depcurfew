@@ -70,7 +70,7 @@ describe('depcurfew doctor', () => {
     expect(result.stdout).toContain('\n\nWhat was checked:\n  Tools: ');
     expect(result.stdout).toMatch(/^  Files read: .*\.github\/dependabot\.yml/mu);
     expect(result.stdout).toMatch(/^  \d+ checks: \d+ passed, \d+ not applicable, \d+ skipped$/mu);
-    expect(result.stdout).toContain('    passed          Update bots wait at least as long as the package manager, and for the actions of workflows and the dependencies of Cargo, Go modules, Maven, Gradle and NuGet as long as the policy, before proposing a new version [bot-cooldown-mismatch]\n');
+    expect(result.stdout).toContain('    passed          Update bots wait at least as long as the package manager, and for the actions of workflows and the dependencies of Go modules, Maven, Gradle and NuGet as long as the policy, before proposing a new version [bot-cooldown-mismatch]\n');
     expect(result.stdout).toContain('    passed          Configuration files match what depcurfew apply writes for depcurfew.json (compared with the default policy) [config-drift]\n');
     expect(result.stdout).toContain('    skipped         depcurfew.json follows the schema and can be read (needs depcurfew.json) [invalid-policy]\n');
     expect(result.stdout).toContain('    not applicable  Python tools read their settings where they are written [python-config-ignored]\n');

@@ -1,0 +1,4 @@
+[registry]
+# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead
+global-min-publish-age = "1 week"
+# <<< depcurfew managed block

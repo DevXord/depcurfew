@@ -26,14 +26,6 @@
       ]
     }
   ],
-  "botEcosystems": [
-    {
-      "id": "cargo",
-      "files": [
-        "Cargo.toml"
-      ]
-    }
-  ],
   "workspaces": {
     "declarations": [
       {

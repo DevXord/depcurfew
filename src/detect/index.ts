@@ -661,7 +661,7 @@ export function detectProject(
       [facts.pythonProject],
     );
   }
-  // Cargo, Go modules, Maven, Gradle and NuGet (decision D-151): in the root, its direct subdirectories that are not
+  // Go modules, Maven, Gradle and NuGet (decision D-151; Cargo is a package manager from 1.7.0, E08): in the root, its direct subdirectories that are not
   // hidden, workspace packages and the directories listed in projects.
   const searched = [...new Set(['.', ...repository.listDirectories('.', (name) => !name.startsWith('.')).sort(byPath), ...directories.slice(1), ...projects])];
   const botEcosystems = detectBotEcosystems(repository, botEcosystemFacts(environment), searched);

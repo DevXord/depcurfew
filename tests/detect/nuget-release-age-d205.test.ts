@@ -66,13 +66,10 @@ describe('what depcurfew says NuGet does about new versions', () => {
     expect(ownDelayText(nuget, false)).toBe(NUGET_SHORT);
   });
 
-  it('keeps the texts of Cargo, Go modules, Maven and Gradle as they were', () => {
+  // Cargo left the ecosystems updated by bots only in 1.7.0 (E08).
+  it('keeps the texts of Go modules, Maven and Gradle as they were', () => {
     const texts = Object.fromEntries(botEcosystemFacts().flatMap((entry) => (entry.id === 'nuget' ? [] : [[entry.id, [ownDelayText(entry, true), ownDelayText(entry, false)]]])));
     expect(texts).toEqual({
-      cargo: [
-        'Cargo before 1.100.0 has no release-age delay of its own (Cargo 1.100.0 adds registry.global-min-publish-age in .cargo/config.toml, which depcurfew does not configure)',
-        'Cargo before 1.100.0 has no release-age delay of its own',
-      ],
       gomod: ['Go has no release-age delay of its own', 'Go has no release-age delay of its own'],
       maven: ['Maven has no release-age delay of its own', 'Maven has no release-age delay of its own'],
       gradle: ['Gradle has no release-age delay of its own', 'Gradle has no release-age delay of its own'],

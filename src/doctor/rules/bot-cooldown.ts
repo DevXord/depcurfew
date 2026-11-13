@@ -4,8 +4,8 @@
 // manager re-checks the lockfile. Renovate's delay comes from the top level, the presets it extends and the
 // packageRules that cover every package of a registry, Renovate manager or category (decision D-131); a preset or a
 // rule matcher depcurfew cannot read gives a note. When the policy's delay covers the actions the workflows run
-// (decision D-130) or the dependencies of the ecosystems updated by bots only (Cargo, Go modules, Maven, Gradle and
-// NuGet, decision D-151), the bot's delay for them is compared with cooldown.minimum; such an ecosystem in a
+// (decision D-130) or the dependencies of the ecosystems updated by bots only (Go modules, Maven, Gradle and NuGet,
+// decision D-151; Cargo is a package manager from 1.7.0, E08), the bot's delay for them is compared with cooldown.minimum; such an ecosystem in a
 // repository without an update bot gets a note, because nothing delays its new versions there.
 import { extraOf, isRecord, values, yamlOptionsFor } from '../../apply/facts.ts';
 import { botOnlyEntries, isActionsEcosystem } from '../../apply/generators/dependabot.ts';
@@ -40,6 +40,8 @@ import { managerSources } from '../projects.ts';
 import type { ProjectView, Rule, RuleContext, RuleScope } from '../types.ts';
 import { usesBot, usesManager } from '../applies.ts';
 import { configParses } from './unreadable-config.ts';
+import { environment } from '../../knowledge/environment.ts';
+import { describeBotOnlyEcosystems } from '../../knowledge/render.ts';
 
 interface BotDelay extends Delay {
   bot: ToolKnowledge;
@@ -422,11 +424,25 @@ interface Reference {
   things: 'packages' | 'actions';
 }
 
+/**
+ * What the pull requests of a bot that waits less than the package manager do. A manager whose delay keeps the versions
+ * already in the lockfile (Cargo, extra.notCovered.lockedVersions) does not stop them, so no failure is promised (E08).
+ */
+function pullRequestEffect(tool: ToolKnowledge): string {
+  const notCovered = tool.extra?.['notCovered'] === undefined ? undefined : values(tool.extra['notCovered'])[0];
+  if (isRecord(notCovered) && notCovered['lockedVersions'] === true) {
+    const versions = tool.project === undefined ? [] : (values(tool.project.lockfiles)[0] ?? []);
+    const lockfile = versions.at(-1)?.value[0];
+    return `its pull requests bring in versions younger than ${tool.name} picks itself, and ${tool.name} keeps them, as it keeps the versions ${lockfile === undefined ? 'of the lockfile' : `in ${lockfile}`}`;
+  }
+  return `its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`;
+}
+
 function managerReference(tool: ToolKnowledge, own: Delay): Reference {
   return {
     minutes: own.minutes,
     asLongAs: `${tool.name} (${describe(own.minutes)}, ${own.origin})`,
-    waits: `${tool.name} waits ${describe(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
+    waits: `${tool.name} waits ${describe(own.minutes)} (${own.origin}); ${pullRequestEffect(tool)}`,
     things: 'packages',
   };
 }
@@ -610,10 +626,10 @@ function hasUnprotected(scope: RuleScope): boolean {
 
 export const botCooldownMismatch: Rule = {
   id: 'bot-cooldown-mismatch',
-  checks: 'Update bots wait at least as long as the package manager, and for the actions of workflows and the dependencies of Cargo, Go modules, Maven, Gradle and NuGet as long as the policy, before proposing a new version',
+  checks: `Update bots wait at least as long as the package manager, and for the actions of workflows and the dependencies of ${describeBotOnlyEcosystems(environment)} as long as the policy, before proposing a new version`,
   summary: 'An update bot waits less than the package manager, or for the actions of workflows and the dependencies of the ecosystems updated by bots only less than the policy, before proposing a new version.',
   description:
-    'The bot then opens pull requests with versions the package manager would not pick yet: they fail where the manager re-checks the lockfile or bring in younger versions, and security updates that skip the bot delay fail too. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category, update type or the files and depType of actions, each is reported, and one with a matcher depcurfew cannot read gets a note. The actions of workflows and the dependencies of Cargo, Go, Maven, Gradle and NuGet must wait cooldown.minimum; without a bot, the latter get a note. An unreadable bot file (JSON5, a YAML alias) gets a note per package manager that waits. With projects, a bot file inside a project gets a note (bots read only the root\'s), and a project the root\'s Dependabot configuration leaves out gets a warning. A Dependabot composer entry gets a note: it counts from the release time the author sets.',
+    `The bot then opens pull requests with versions the package manager would not pick yet: they can fail where the manager re-checks the lockfile, or bring in younger versions. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category, update type or the files and depType of actions, each is reported, and one with a matcher depcurfew cannot read gets a note. The actions of workflows and the dependencies of ${describeBotOnlyEcosystems(environment)} must wait cooldown.minimum; without a bot, the latter get a note. An unreadable bot file (JSON5, a YAML alias) gets a note per package manager that waits. With projects, a bot file inside a project gets a note (bots read only the root's), and a project the root's Dependabot configuration leaves out gets a warning. A Dependabot composer entry gets a note: it counts from the release time the author sets.`,
   help: 'Give the bot a delay at least as long as the package manager\'s, and for the actions of workflows and the ecosystems updated by bots only as long as cooldown.minimum (depcurfew apply does this).',
   level: 'error',
   requiresPolicy: false,
