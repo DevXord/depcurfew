@@ -7,7 +7,13 @@ import { compareVersions, formatVersion, parseVersion, type Version } from '../.
 import { extraOf, isRecord, isSwitch, settingOf, sinceOf, values } from '../../apply/facts.ts';
 import { describeRequirements, listing } from '../../apply/requirements.ts';
 import { insteadText, setVersionText } from '../../apply/yarn-path.ts';
+import { isNamedChannel, isTomlToolchain } from '../../detect/rust-toolchain.ts';
 import type { PackageManagerInfo, VersionDeclaration } from '../../detect/types.ts';
+import { bundler } from '../../knowledge/bundler.ts';
+import { cargo } from '../../knowledge/cargo.ts';
+import { composer } from '../../knowledge/composer.ts';
+import { environment } from '../../knowledge/environment.ts';
+import { yarn } from '../../knowledge/yarn.ts';
 import { SOURCE_KINDS } from '../../knowledge/schema.ts';
 import type { Fact, ToolKnowledge } from '../../knowledge/types.ts';
 import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
@@ -318,12 +324,87 @@ function checkComposer(context: RuleContext, manager: PackageManagerInfo, tool: 
   });
 }
 
+/**
+ * Cargo (E09, decision D-197 point 6): the Rust a toolchain file pins (rust-toolchain.toml, rust-toolchain) chooses the
+ * Cargo of a directory. An exact release below the one a setting needs is an error, a channel X.Y (rustup runs the latest
+ * X.Y release, extra.toolchainChannels) a warning. depcurfew cannot tell for a pre-release of that release itself or for
+ * a channel without a Rust release (beta, nightly, a dated channel): a note, never an error. A custom toolchain or a file
+ * rustup cannot read stays a notice, with the reason.
+ */
+function checkCargo(context: RuleContext, manager: PackageManagerInfo, tool: ToolKnowledge, features: readonly Feature[]): void {
+  if (features.length === 0) return;
+  const newest = (items: readonly Feature[]) => formatVersion(items.map((item) => parseVersion(item.since) as Version).reduce((a, b) => (compareVersions(a, b) >= 0 ? a : b)));
+  for (const declaration of manager.versions) {
+    if (!('version' in declaration)) continue;
+    const { file } = declaration;
+    const channel = declaration.channel ?? declaration.version;
+    const line = declarationLine(context, declaration);
+    const location = line === undefined ? { file } : { file, line };
+    const toml = isTomlToolchain(context.repository.readText(file) ?? '');
+    const lowest = declaration.unknown === undefined ? lowestVersion(declaration.version) : ({ kind: 'unknown' } as const);
+    if (lowest.kind === 'unknown') {
+      if (declaration.unknown !== undefined && isNamedChannel(declaration.version)) {
+        const needed = newest(features);
+        context.report({
+          level: 'note',
+          location,
+          message: `${file} uses the rustup channel ${declaration.version}, which names no Rust release, so depcurfew cannot tell whether its Cargo supports ${describeRequirements(features)}`,
+          fix: `Pin a Rust release of ${needed} or later in ${toml ? `channel in [toolchain] of ${file}` : file}, or make sure the Cargo of this toolchain is from Rust ${needed} or later`,
+        });
+      } else {
+        context.notice(`manager-version-too-old cannot evaluate ${tool.name} version "${declaration.version}" in ${file}${declaration.unknown === undefined ? '' : `: ${declaration.unknown}`}`, file);
+      }
+      continue;
+    }
+    const missing = missingFeatures(features, (since) => belowVersion(lowest, since));
+    if (missing.length === 0) continue;
+    const needed = newest(missing);
+    const list = describeRequirements(missing);
+    const fix = toml ? `Set channel in [toolchain] of ${file} to "${needed}" or a later Rust release` : `Replace ${channel} in ${file} with ${needed} or a later Rust release`;
+    // 1.100.0-beta.N comes before 1.100.0, but may already have what 1.100.0 has.
+    const preRelease = lowest.prerelease !== undefined && missing.every((item) => compareVersions(lowest.version, parseVersion(item.since) as Version) >= 0);
+    if (preRelease) {
+      context.report({ level: 'note', location, message: `${file} pins Rust ${formatBound(lowest)}, a pre-release of Rust ${formatVersion(lowest.version)}, and depcurfew cannot tell whether its Cargo supports ${list}`, fix });
+    } else if (lowest.kind === 'exact') {
+      const named = channel === declaration.version ? '' : ` (channel "${channel}")`;
+      context.report({ level: 'error', location, message: `${file} pins Rust ${formatBound(lowest)}${named}, whose Cargo does not support ${list}`, fix });
+    } else {
+      context.report({ level: 'warning', location, message: `${file} pins the channel "${channel}", the latest Rust ${declaration.version} release, whose Cargo does not support ${list}`, fix });
+    }
+  }
+}
+
+/** A version without a patch of zero, as the description writes it (2.11.0 is 2.11). */
+const shortVersion = (version: string) => version.replace(/\.0$/u, '');
+
+/** The first value of a fact of `extra` whose field `key` is a string. */
+function extraField(tool: ToolKnowledge, fact: string, key: string): string {
+  const found = tool.extra?.[fact] === undefined ? undefined : values(tool.extra[fact])[0];
+  const value = isRecord(found) ? found[key] : undefined;
+  if (typeof value !== 'string') throw new Error(`manager-version-too-old: ${tool.id}.extra.${fact}.${key} is not a string`);
+  return value;
+}
+
+/** The description of the rule, with the versions it names from the knowledge base, within the SARIF limit (E09). */
+function description(): string {
+  const node22 = values(environment.node.bundledNpm)[0]?.find((entry) => entry.line === '22');
+  const npm22 = node22?.bundles.at(-1)?.[1]?.split('.')[0] ?? '10';
+  const rust = values(cargo.cooldown.availableSince)[0] ?? '1.100.0';
+  return [
+    `Package managers ignore settings they do not know; npm ${npm22} does not even warn.`,
+    'When packageManager, devEngines, Volta, .tool-versions, mise.toml, a CI step or a Dockerfile (pipx install poetry==X, the uv image) pins an older version, a setting is not applied there, and so for the npm of the Node.js a CI job, Dockerfile stage or version file chooses and the pip of a python image:',
+    `Node.js 22 comes with npm ${npm22}, which has no min-release-age. npm install -g npm@<range> counts as the newest release depcurfew knows.`,
+    `Composer pins no version: plugin-api-version in composer.lock older than ${shortVersion(extraField(composer, 'pluginApiVersion', 'cooldownApi'))} gives a warning, otherwise a note.`,
+    `Bundler runs the version of BUNDLED WITH in Gemfile.lock (cooldown: in a Gemfile needs ${extraField(bundler, 'cooldownWithLockfile', 'since')} once it exists), the bundler input of ruby/setup-ruby or gem install bundler -v, and every Yarn from ${shortVersion(extraField(yarn, 'yarnPathRuns', 'classicSince'))} the release yarnPath names.`,
+    `Cargo runs the Rust of rust-toolchain.toml or rust-toolchain: a release below ${rust} is an error, a channel X.Y a warning, beta, nightly and dated channels a note.`,
+  ].join(' ');
+}
+
 export const managerVersionTooOld: Rule = {
   id: 'manager-version-too-old',
   checks: 'The declared package manager versions, and the npm and pip that come with the declared Node.js and Python versions, support the settings the repository relies on',
   summary: 'A declared package manager version, or the npm or pip that comes with a declared Node.js or Python version, is older than a setting the repository relies on.',
-  description:
-    'Package managers ignore settings they do not know; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, mise.toml, a CI step or a Dockerfile (pipx install poetry==X, the uv image) pins an older version, the setting is silently not applied there, and so for the npm of the Node.js a CI job, a Dockerfile stage or a version file chooses and the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age. npm install -g npm@<range> counts as the newest release of it depcurfew knows. Composer pins no version: a composer.lock whose plugin-api-version shows a Composer older than 2.11 gives a warning, otherwise a note says the cooldown needs 2.11. Bundler switches to the version of BUNDLED WITH in Gemfile.lock, which counts as a pin (cooldown: in a Gemfile needs 4.0.14 once Gemfile.lock exists), as do the bundler input of ruby/setup-ruby and gem install bundler -v. So is the release yarnPath in .yarnrc.yml names (yarn-<version>.cjs), which every Yarn from 1.18 runs.',
+  description: description(),
   help: 'Raise the declared version to at least the version that introduced the setting, everywhere it is declared, or install a newer npm or pip before installing packages.',
   level: 'error',
   requiresPolicy: false,
@@ -336,6 +417,7 @@ export const managerVersionTooOld: Rule = {
       const tool = context.tools.find((entry) => entry.id === manager.id);
       if (tool === undefined) continue;
       if (tool.id === 'composer') checkComposer(context, manager, tool, featuresOf(context, tool));
+      else if (tool.id === 'cargo') checkCargo(context, manager, tool, featuresOf(context, tool));
       else checkManager(context, manager, tool, featuresOf(context, tool));
     }
     // The npm that comes with the declared Node.js, and the pip of a python image, where nothing replaces them.
