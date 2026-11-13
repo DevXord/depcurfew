@@ -51,6 +51,23 @@ function channelVersion(channel: string): Pick<VersionDeclaration & { version: s
   return { version: channel, unknown: `${channel} is a custom rustup toolchain, whose Rust version depcurfew cannot tell` };
 }
 
+/** Whether a channel is a rustup channel name without a Rust release (beta, nightly, a dated channel such as stable-2026-10-01). */
+export function isNamedChannel(channel: string): boolean {
+  const fact = cargo.extra?.['toolchainChannels'];
+  const found = fact === undefined ? undefined : values(fact)[0];
+  const named = isRecord(found) && Array.isArray(found['named']) ? found['named'] : [];
+  return named.includes(channel.split('-')[0] ?? '') && channel !== 'stable';
+}
+
+/** Whether a toolchain file is TOML with [toolchain] (true) or the legacy format of rust-toolchain, a toolchain name alone. */
+export function isTomlToolchain(text: string): boolean {
+  try {
+    return isRecord(parseToml(text).root['toolchain']);
+  } catch {
+    return false;
+  }
+}
+
 /** The channel of a toolchain file and its line: TOML [toolchain] channel, or (legacy) the first line of rust-toolchain. */
 function readChannel(text: string, legacy: boolean): { channel: string; line: number } | { notToml: string; line: number } | undefined {
   let document: TomlDocument | undefined;
