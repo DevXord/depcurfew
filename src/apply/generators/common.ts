@@ -37,7 +37,7 @@ export interface CooldownValue {
 }
 
 /** The cooldown in the tool's unit, or undefined (with a warning) when it cannot be written. */
-export function cooldownValue(context: Context, duration: Duration | undefined = context.policy.cooldown?.minimum): CooldownValue | undefined {
+export function cooldownValue(context: Context, duration: Duration | undefined = context.policy.cooldown?.minimum, options: { olderToo?: boolean } = {}): CooldownValue | undefined {
   if (duration === undefined) return undefined;
   const setting = settingOf(context.tool.cooldown.setting);
   if (setting === null) return undefined;
@@ -46,7 +46,8 @@ export function cooldownValue(context: Context, duration: Duration | undefined =
     context.warn({ code: 'cooldown-not-written', message: `${context.name}: cooldown not written: ${result.reason}`, fix: result.fix });
     return undefined;
   }
-  if (!context.supports(sinceOf(context.tool.cooldown.availableSince), setting)) return undefined;
+  // With olderToo (Cargo, decision D-197 point 5) a version that ignores the setting still gets it, with version-too-old.
+  if (!context.supports(sinceOf(context.tool.cooldown.availableSince), setting) && options.olderToo !== true) return undefined;
   if (typeof result.value === 'string') {
     const [count = '0', unit = ''] = result.value.split(' ');
     return { value: result.value, minutes: Number(count) * (MINUTES[unit.endsWith('s') ? unit : `${unit}s`] ?? 0) };

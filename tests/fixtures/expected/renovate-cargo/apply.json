@@ -1,8 +1,24 @@
 {
   "changed": [
+    ".cargo/config.toml",
     "renovate.json"
   ],
   "warnings": [
+    {
+      "code": "version-not-pinned",
+      "tool": "cargo",
+      "message": "Cargo: no exact version is pinned, so depcurfew configures for Cargo 1.100.0, the latest version it knows",
+      "fix": "Pin the version you use (channel in [toolchain] of rust-toolchain.toml) to configure for it"
+    },
+    {
+      "code": "cooldown-limits",
+      "tool": "cargo",
+      "location": {
+        "file": ".cargo/config.toml"
+      },
+      "message": "Cargo: global-min-publish-age holds back new versions when Cargo resolves dependencies, but not cargo install of a crate, not versions a registry gives no publish time, and not versions already in Cargo.lock; a value in $CARGO_HOME/config.toml, an environment variable or --config takes the place of the one in .cargo/config.toml",
+      "fix": "Install tools with cargo install --locked and an exact --version; check CARGO_REGISTRY_GLOBAL_MIN_PUBLISH_AGE, CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE and $CARGO_HOME/config.toml where Cargo runs"
+    },
     {
       "code": "bot-rule-shortens-delay",
       "tool": "renovate",

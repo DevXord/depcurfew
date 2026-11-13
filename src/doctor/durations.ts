@@ -122,6 +122,14 @@ export function delayMinutes(tool: ToolKnowledge, value: unknown, version: Versi
   if (typeof value !== 'string') return { ok: false, reason: `${JSON.stringify(value) ?? String(value)} is not a delay` };
   const fact = tool.extra?.['durationStrings'];
   const format = fact === undefined ? undefined : values(fact)[0];
+  // Cargo reads its time span as maybe_parse_time_span does (E07): "0" alone is no delay, and a product above u64 may be
+  // wrapped by Cargo to a short delay, so it is no delay depcurfew can read either.
+  if (isRecord(format) && format['syntax'] === 'cargo') {
+    const span = cargoTimeSpan(value);
+    if (span.kind === 'off') return { ok: true, minutes: 0 };
+    if (span.kind === 'delay') return { ok: true, minutes: span.seconds / 60 };
+    return { ok: false, reason: span.kind === 'overflow' ? `"${value}" is more seconds than Cargo counts, and Cargo may wrap it to a short delay` : `"${value}" is not a time span ${tool.name} reads` };
+  }
   // Composer matches the string as it is (durationStrings trim: false); the other tools read it without the spaces around it.
   const text = isRecord(format) && format['trim'] === false ? value : value.trim();
   if (/^\d+$/u.test(text)) return delayMinutes(tool, Number(text), version);

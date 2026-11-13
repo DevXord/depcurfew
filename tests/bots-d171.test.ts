@@ -212,7 +212,8 @@ describe('Dependabot cooldown.include and a broad cooldown.exclude apply keeps (
     );
     const report = applyProject(root);
     expect(read(root, '.github/dependabot.yml')).toContain('default-days: 3\n      exclude: ["*"]');
-    expect(codes(report)).toEqual(['bot-rule-shortens-delay']);
+    // Cargo is a package manager since E06, with the limits of its own delay since E07.
+    expect(codes(report)).toEqual(['cooldown-limits', 'bot-rule-shortens-delay']);
     expect(warnings(report, 'bot-rule-shortens-delay')[0]).toEqual({
       code: 'bot-rule-shortens-delay',
       tool: 'dependabot',

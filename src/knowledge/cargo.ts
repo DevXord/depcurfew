@@ -110,6 +110,21 @@ export const cargo: ToolKnowledge = {
     directory: noSourceSetting('path dependencies'),
   },
   extra: {
+    legacyConfig: verified(
+      { file: '.cargo/config', bothUse: '.cargo/config' },
+      `${CONFIG}#hierarchical-structure`,
+      '"Cargo also reads config files without the .toml extension, such as .cargo/config. Support for the .toml extension was added in version 1.39 and is the preferred form. If both files exist, Cargo will use the file without the extension."',
+    ),
+    durationStrings: verified(
+      { syntax: 'cargo', trim: false },
+      TIME_SPAN,
+      'maybe_parse_time_span reads the string as it is: a space before or after it makes it invalid (tests time_span_errors), and "0" alone is no delay (PublishAgePolicy::for_report).',
+    ),
+    dependencySources: verified(
+      ['git', 'directory'],
+      SPECIFYING,
+      'A dependency comes from a registry, a git repository (git = "...") or a path (path = "..."), a directory with a Cargo.toml; Cargo has no dependency on a tarball URL or a local archive.',
+    ),
     durationUnits: verified(
       ['minutes', 'hours', 'days', 'weeks'],
       TIME_SPAN,
