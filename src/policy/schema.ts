@@ -189,7 +189,7 @@ const inferredPolicyShape = object(
     projects: withDefault(projectsShape, []),
     doctor: optional(doctorShape),
   },
-  { description: 'One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Composer, Bundler, Renovate and Dependabot.' },
+  { description: 'One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Composer, Bundler, Cargo, Renovate and Dependabot.' },
 );
 
 export const policyShape: Shape<Policy, ResolvedPolicy> = inferredPolicyShape;

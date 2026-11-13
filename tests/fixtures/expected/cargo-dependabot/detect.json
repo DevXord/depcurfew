@@ -1,5 +1,24 @@
 {
-  "packageManagers": [],
+  "packageManagers": [
+    {
+      "id": "cargo",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "Cargo.lock"
+        },
+        {
+          "kind": "config",
+          "file": "Cargo.toml"
+        }
+      ],
+      "versions": [],
+      "configFiles": [
+        "Cargo.toml"
+      ]
+    }
+  ],
   "node": {
     "versions": []
   },

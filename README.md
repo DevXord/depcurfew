@@ -8,7 +8,7 @@
 [![license](https://img.shields.io/badge/license-MIT-0f766e)](https://github.com/DevXord/depcurfew/blob/main/LICENSE)
 [![docs](https://img.shields.io/badge/docs-depcurfew.github.io-0f766e)](https://depcurfew.github.io/)
 
-> One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Composer, Bundler, Renovate and Dependabot, and a doctor that finds configuration that silently does nothing.
+> One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Composer, Bundler, Cargo, Renovate and Dependabot, and a doctor that finds configuration that silently does nothing.
 
 A sibling of [agentcurfew](https://agentcurfew.github.io/): agentcurfew guards the files that steer AI coding agents, depcurfew guards the packages that people and agents install. Documentation: [depcurfew.github.io](https://depcurfew.github.io/).
 
@@ -374,6 +374,7 @@ What depcurfew configures and checks for each tool, from its [knowledge base](ht
 | Pipenv | `cool-down-period` in `Pipfile` (duration string), since 2026.6.2 | none | none | none | 2026-10-30 – 2026-11-11 |
 | Composer | `config.policy.cooldown.period` in `composer.json` (duration string), since 2.11.0 | `config.policy.cooldown.ignore`, since 2.11.0 | `config.allow-plugins` in `composer.json` | none | 2026-11-02 – 2026-11-11 |
 | Bundler | `cooldown` in `Gemfile`, `gems.rb` (days), since 4.0.13 | none | none | none | 2026-11-03 |
+| Cargo | `registry.global-min-publish-age` in `.cargo/config.toml` (duration string), since 1.100.0 | none | none | none | 2026-11-12 – 2026-11-13 |
 | Renovate | `minimumReleaseAge` in `renovate.json`, `renovate.jsonc` … (duration string), since 35.46.0 | `packageRules: matchPackageNames + minimumReleaseAge: null`, since 35.46.0 ❓ | none | n/a | 2026-10-28 – 2026-11-03 |
 | Dependabot | `cooldown` in `.github/dependabot.yml`, `.github/dependabot.yaml` (days), since 2025-07-01 | `cooldown.exclude`, since 2025-07-01 ❓ | none | n/a | 2026-10-28 – 2026-11-03 |
 | Cargo (bots only) | `registry.global-min-publish-age` in `.cargo/config.toml`, since Cargo 1.100.0 (depcurfew does not write it) ❓; the delay comes from the bots: Dependabot `cargo`, Renovate `cargo` | n/a | n/a | n/a | 2026-11-03 |

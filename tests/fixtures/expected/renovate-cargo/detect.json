@@ -1,5 +1,20 @@
 {
-  "packageManagers": [],
+  "packageManagers": [
+    {
+      "id": "cargo",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "config",
+          "file": "Cargo.toml"
+        }
+      ],
+      "versions": [],
+      "configFiles": [
+        "Cargo.toml"
+      ]
+    }
+  ],
   "node": {
     "versions": []
   },
@@ -19,7 +34,17 @@
       ]
     }
   ],
-  "workspaces": null,
+  "workspaces": {
+    "declarations": [
+      {
+        "file": "Cargo.toml",
+        "patterns": [
+          "crates/*"
+        ]
+      }
+    ],
+    "packages": []
+  },
   "npmrcFiles": [],
   "workflows": [],
   "jobs": [],

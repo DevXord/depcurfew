@@ -2,7 +2,7 @@ import type { BotOnlyEcosystemId, ToolId } from '../knowledge/types.ts';
 
 export type { BotOnlyEcosystemId } from '../knowledge/types.ts';
 
-export type PackageManagerId = Extract<ToolId, 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'uv' | 'pip' | 'poetry' | 'pdm' | 'pipenv' | 'composer' | 'bundler'>;
+export type PackageManagerId = Extract<ToolId, 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'uv' | 'pip' | 'poetry' | 'pdm' | 'pipenv' | 'composer' | 'bundler' | 'cargo'>;
 export type BotId = Extract<ToolId, 'renovate' | 'dependabot'>;
 
 /** Why a package manager is considered in use. Ordered from the strongest signal. */
@@ -54,6 +54,11 @@ export type VersionDeclaration = ({ version: string; versionFile?: string } | { 
   matrix?: string;
   /** Why depcurfew does not read the version written (a matrix with too many values); the version is then as written. */
   unknown?: string;
+  /**
+   * rust-toolchain: the rustup channel as written, when `version` is what depcurfew takes it for (stable is the latest
+   * Rust the knowledge base knows, 1.100.0-x86_64-unknown-linux-gnu is 1.100.0), E06.
+   */
+  channel?: string;
   /** dockerfile: the build stage, by its name or its number from 0. */
   stage?: string;
   /**

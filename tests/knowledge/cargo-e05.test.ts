@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { values } from '../../src/apply/facts.ts';
 import { cargoTimeSpan } from '../../src/doctor/durations.ts';
-import { CARGO_RELEASE, cargo, RUST_1_100_MANIFEST } from '../../src/knowledge/cargo.ts';
+import { CARGO_RELEASE, cargo, RUST_1_100_MANIFEST, RUSTUP_RELEASE } from '../../src/knowledge/cargo.ts';
 import { knowledgeBase } from '../../src/knowledge/index.ts';
 import type { Ecosystem, Fact, ToolId } from '../../src/knowledge/types.ts';
 import { validateKnowledge } from '../../src/knowledge/validate.ts';
@@ -34,14 +34,16 @@ describe('the knowledge of Cargo (E05)', () => {
     expect(all.length).toBeGreaterThan(20);
     for (const [path, fact] of all) {
       for (const source of sources(fact)) {
-        expect(source.startsWith(`${CARGO_RELEASE}/`) || source === RUST_1_100_MANIFEST, `${path}: ${source}`).toBe(true);
+        // The facts of rust-toolchain (E06) cite rustup 1.29.3 by its commit and the manifest of the channel 1.99.
+        const pinned = source.startsWith(`${CARGO_RELEASE}/`) || source.startsWith(`${RUSTUP_RELEASE}/`) || source === RUST_1_100_MANIFEST || source === 'https://static.rust-lang.org/dist/channel-rust-1.99.toml';
+        expect(pinned, `${path}: ${source}`).toBe(true);
         expect(source, path).not.toMatch(/\/(?:master|main|beta|nightly)\/|beta\.\d/u);
       }
     }
   });
 
   it('passes the validator of the knowledge base', () => {
-    expect(validateKnowledge([cargo], '2026-11-12')).toEqual([]);
+    expect(validateKnowledge([cargo], '2026-11-13')).toEqual([]);
   });
 
   it('knows the keys, the variables and the switch of the delay, from Rust 1.100.0 on', () => {
@@ -60,11 +62,11 @@ describe('the knowledge of Cargo (E05)', () => {
     expect(values(extra['latestVersion'] as Fact<unknown>)).toEqual(['1.100.0']);
   });
 
-  it('adds cargo to the tool ids and crates to the ecosystems, and joins knowledgeBase only with detection (E06)', () => {
+  it('adds cargo to the tool ids and crates to the ecosystems, and to knowledgeBase with detection (E06)', () => {
     const id: ToolId = 'cargo';
     const ecosystem: Ecosystem = 'crates';
     expect([cargo.id, cargo.ecosystem]).toEqual([id, ecosystem]);
-    expect(knowledgeBase.map((tool) => tool.id)).not.toContain('cargo');
+    expect(knowledgeBase.map((tool) => tool.id)).toContain('cargo');
   });
 
   it('gives every tool with a user file a user generator, so a user file is never known without one', () => {
