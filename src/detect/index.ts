@@ -22,6 +22,7 @@ import { parseToml, tomlValueAt, type TomlDocument, type TomlValue } from './tom
 import { projectOf, readWorkflows } from './workflows.ts';
 import { miseRequest, miseTools } from './mise.ts';
 import { dockerfileCandidates, readDockerStages } from './dockerfiles.ts';
+import { rustToolchainVersion } from './rust-toolchain.ts';
 import { expandWorkspaces } from './workspaces.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import { parseYaml } from '../yaml-parse.ts';
@@ -527,6 +528,11 @@ export function detectProject(
     // The version that wrote the lockfile, which the tool switches to (BUNDLED WITH of Gemfile.lock, decision D-152).
     if (manager.lockfileVersion !== null) for (const file of present) readLockfileVersion(repository, manager.id, manager.lockfileVersion, file, collector);
     for (const file of manager.configFiles.filter((name) => repository.isFile(name))) collector.addEvidence(manager.id, 'config', file);
+  }
+  // Cargo: the Rust version rust-toolchain or rust-toolchain.toml pins, as rustup reads them (E06).
+  if (collector.evidence.has('cargo')) {
+    const toolchain = rustToolchainVersion(repository, '.');
+    if (toolchain !== undefined) collector.addVersion('cargo', toolchain);
   }
 
   const workflows = readWorkflows(repository, facts);

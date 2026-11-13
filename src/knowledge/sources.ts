@@ -61,7 +61,7 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   ],
   // Cargo: doc.rust-lang.org/cargo is built from doc/book in rust-lang/cargo; the release manifests of static.rust-lang.org
   // name the cargo of each Rust release (E05).
-  cargo: [{ host: 'doc.rust-lang.org', pathPrefix: '/cargo/' }, { host: 'github.com', pathPrefix: '/rust-lang/cargo/' }, { host: 'github.com', pathPrefix: '/rust-lang/rust/' }, { host: 'static.rust-lang.org', pathPrefix: '/dist/' }],
+  cargo: [{ host: 'doc.rust-lang.org', pathPrefix: '/cargo/' }, { host: 'github.com', pathPrefix: '/rust-lang/cargo/' }, { host: 'github.com', pathPrefix: '/rust-lang/rust/' }, { host: 'github.com', pathPrefix: '/rust-lang/rustup/' }, { host: 'static.rust-lang.org', pathPrefix: '/dist/' }],
   renovate: [{ host: 'docs.renovatebot.com' }, { host: 'github.com', pathPrefix: '/renovatebot/' }],
   // Psych (ruby/psych) is the YAML library dependabot-core loads dependabot.yml with (extra.yamlScalars).
   dependabot: [

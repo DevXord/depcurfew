@@ -6,7 +6,7 @@ The facts depcurfew relies on, each linked to the official documentation or chan
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-14 tools · 928 facts · 125 uncertain · 14 disputed · verified 2026-10-28 to 2026-11-12.
+15 tools · 960 facts · 134 uncertain · 14 disputed · verified 2026-10-28 to 2026-11-13.
 
 ## Release-age cooldown
 
@@ -26,6 +26,7 @@ How each tool delays freshly published versions.
 | Pipenv | `cool-down-period` [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period) | `Pipfile` [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#pipenv-directives) | none ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/commands.md) | duration-string [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period) | 2026.6.2 [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/CHANGELOG.md) | 2026.6.2+: off [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period) | none ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period) | - | - | applies ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period) |
 | Composer | `config.policy.cooldown.period` [↗](https://github.com/composer/composer/blob/2.11.1/doc/06-config.md#cooldown) | `composer.json` [↗](https://github.com/composer/composer/blob/2.11.1/doc/04-schema.md#config) | none ❓ [↗](https://github.com/composer/composer/blob/2.11.1/doc/03-cli.md#require-r) | duration-string [↗](https://github.com/composer/composer/blob/2.11.1/doc/06-config.md#period) | 2.11.0 [↗](https://github.com/composer/composer/blob/2.11.1/CHANGELOG.md) | 2.11.0+: off [↗](https://github.com/composer/composer/blob/2.11.1/doc/06-config.md#period) | `config.policy.cooldown.ignore` [↗](https://github.com/composer/composer/blob/2.11.1/doc/06-config.md#cooldown) | 2.11.0 [↗](https://github.com/composer/composer/blob/2.11.1/CHANGELOG.md) | Package names with \* wildcards, e.g. vendor/\* [↗](https://github.com/composer/composer/blob/2.11.1/doc/06-config.md#cooldown) | applies ❓ [↗](https://github.com/composer/composer/blob/2.11.1/doc/06-config.md#cooldown) |
 | Bundler | `cooldown` [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/dsl.rb) | `Gemfile`, `gems.rb` [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/shared_helpers.rb) | `--cooldown` [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/CHANGELOG.md) | days [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/resolver.rb) | 4.0.13 [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/CHANGELOG.md) | 4.0.13+: off [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/man/bundle-config.1.ronn) | none ❓ [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/man/bundle-config.1.ronn) | - | - | applies [↗](https://blog.rubygems.org/2026/06/03/cooldown-let-new-gems-be-vetted.html) |
+| Cargo | `registry.global-min-publish-age` [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md#registryglobal-min-publish-age) | `.cargo/config.toml` [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md#hierarchical-structure) | none [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md#command-line-overrides) | duration-string [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/util/time_span.rs) | 1.100.0 [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/unstable.md) | 1.100.0+: off [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md#registryglobal-min-publish-age) | none ❓ [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md) | - | - | applies [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/resolver/version_prefs.rs) |
 | Renovate | `minimumReleaseAge` [↗](https://docs.renovatebot.com/configuration-options/#minimumreleaseage) | `renovate.json`, `renovate.jsonc`, `renovate.json5`, `.github/renovate.json`, `.github/renovate.jsonc`, `.github/renovate.json5`, `.gitlab/renovate.json`, `.gitlab/renovate.jsonc`, `.gitlab/renovate.json5`, `.renovaterc`, `.renovaterc.json`, `.renovaterc.jsonc`, `.renovaterc.json5` [↗](https://github.com/renovatebot/renovate/blob/44.209.0/lib/workers/repository/init/merge.ts) | `--minimum-release-age` [↗](https://docs.renovatebot.com/configuration-options/#minimumreleaseage) | duration-string [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/) | 35.46.0 [↗](https://github.com/renovatebot/renovate/releases/tag/35.46.0) | all versions: off [↗](https://github.com/renovatebot/renovate/blob/44.209.0/lib/config/options/index.ts) | `packageRules: matchPackageNames + minimumReleaseAge: null` [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/#how-do-i-opt-out-dependencies-from-minimum-release-age-checks) | 35.46.0 ❓ [↗](https://github.com/renovatebot/renovate/releases/tag/35.46.0) | matchPackageNames: exact names, globs such as @org/\*\* (with ! negation) or /regex/; case-insensitive [↗](https://docs.renovatebot.com/configuration-options/#matchpackagenames) | bypass [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/#what-happens-to-security-updates) |
 | Dependabot | `cooldown` [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown) | `.github/dependabot.yml`, `.github/dependabot.yaml` [↗](https://docs.github.com/en/code-security/concepts/supply-chain-security/about-the-dependabot-yml-file) | none ❓ [↗](https://github.com/dependabot/cli) | days [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown) | 2025-07-01 [↗](https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/) | 2025-07-01+: off<br>2026-07-14+: `3` [↗](https://github.blog/changelog/2026-07-14-dependabot-version-updates-introduce-default-package-cooldown/) | `cooldown.exclude` [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown) | 2025-07-01 ❓ [↗](https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/) | Dependency names with \* wildcards, up to 150 entries; exclude always wins over include [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown) | bypass [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown) |
 
@@ -47,6 +48,7 @@ Whether dependency lifecycle scripts run, and how to allow specific packages.
 | Pipenv | all versions: run [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/configuration.md) | none ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md) | - | - | - | none ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/configuration.md) |
 | Composer | earlier: run<br>2.2.0+: deny-except-allowlist [↗](https://github.com/composer/composer/blob/2.11.1/doc/06-config.md#allow-plugins) | `config.allow-plugins` [↗](https://github.com/composer/composer/blob/2.11.1/doc/06-config.md#allow-plugins) | `composer.json` [↗](https://github.com/composer/composer/blob/2.11.1/doc/04-schema.md#config) | 2.2.0 [↗](https://github.com/composer/composer/blob/2.11.1/doc/06-config.md#allow-plugins) | An object of package name patterns (vendor/\*) to true (allow) or false (disallow without asking); true allows every plugin and false none [↗](https://github.com/composer/composer/blob/2.11.1/src/Composer/Plugin/PluginManager.php) | `config.allow-plugins: false` [↗](https://github.com/composer/composer/blob/2.11.1/doc/06-config.md#allow-plugins) |
 | Bundler | all versions: run [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/rubygems_gem_installer.rb) | none ❓ [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/man/bundle-config.1.ronn) | - | - | - | none ❓ [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/man/bundle-config.1.ronn) |
+| Cargo | all versions: run [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/build-scripts.md) | none ❓ [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md) | - | - | - | none ❓ [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md) |
 | Renovate | all versions: deny [↗](https://docs.renovatebot.com/configuration-options/#ignorescripts) | none ❓ [↗](https://docs.renovatebot.com/configuration-options/#ignorescripts) | - | - | - | `ignoreScripts: true` [↗](https://docs.renovatebot.com/configuration-options/#ignorescripts) |
 | Dependabot | all versions: deny ❓ [↗](https://github.com/dependabot/dependabot-core/blob/v0.403.0/npm_and_yarn/lib/dependabot/npm_and_yarn/helpers.rb) | none [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#insecure-external-code-execution) | - | - | - | none ❓ [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#insecure-external-code-execution) |
 
@@ -68,6 +70,7 @@ How depcurfew recognizes each package manager in a repository.
 | Pipenv | all versions: `Pipfile.lock` [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#pipfilelock) | `Pipfile` [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#pipfile) | none ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md) | none ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md) |
 | Composer | all versions: `composer.lock` [↗](https://github.com/composer/composer/blob/2.11.1/doc/01-basic-usage.md#commit-your-composer-lock-file-to-version-control) | `composer.json` [↗](https://github.com/composer/composer/blob/2.11.1/doc/04-schema.md) | none ❓ [↗](https://github.com/composer/composer/blob/2.11.1/doc/05-repositories.md#path) | none ❓ [↗](https://github.com/composer/composer/blob/2.11.1/doc/05-repositories.md#path) |
 | Bundler | all versions: `Gemfile.lock`, `gems.locked` [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/shared_helpers.rb) | `Gemfile`, `gems.rb` [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/shared_helpers.rb) | none ❓ [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/man/gemfile.5.ronn) | none ❓ [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/man/gemfile.5.ronn) |
+| Cargo | all versions: `Cargo.lock` [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/workspaces.md) | `Cargo.toml` [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/manifest.md) | `{"files":["Cargo.toml"],"key":"workspace","excludeKey":"exclude"}` [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/workspaces.md) | `members` [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/workspaces.md#the-members-and-exclude-fields) |
 
 ## Dependency sources
 
@@ -123,6 +126,10 @@ Settings that allow or forbid dependencies from git, remote tarballs and local p
 | Bundler · remote tarball | none ❓ [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/man/gemfile.5.ronn) | - | - | - |
 | Bundler · local tarball | none ❓ [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/man/gemfile.5.ronn) | - | - | - |
 | Bundler · local directory | none ❓ [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/man/bundle-config.1.ronn) | - | - | - |
+| Cargo · git | none ❓ [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md) | - | - | - |
+| Cargo · remote tarball | none ❓ [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/specifying-dependencies.md) | - | - | - |
+| Cargo · local tarball | none ❓ [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/specifying-dependencies.md) | - | - | - |
+| Cargo · local directory | none ❓ [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md) | - | - | - |
 
 ## Additional facts
 
@@ -526,6 +533,22 @@ Further facts used by generators and `doctor`.
 - `configCommand` (✅ verified): `{"command":["bundle","config"],"set":"set","scopes":["--local","--global"],"legacyArguments":2,"keyAnyCase":true}` [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/cli/config.rb)
 - `updateCommand` (✅ verified): bundle update GEM --cooldown 0 --conservative [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/man/bundle-update.1.ronn)
 - `dependencySources` (✅ verified): git, directory [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/man/gemfile.5.ronn)
+
+### Cargo
+
+- `durationUnits` (✅ verified): minutes, hours, days, weeks [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/util/time_span.rs)
+- `registryMinPublishAge` (✅ verified): `{"key":"registries.<name>.min-publish-age","winsOverGlobal":true,"cratesIo":"crates-io"}` [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/resolver/version_prefs.rs)
+- `resolverSwitch` (✅ verified): `{"key":"resolver.incompatible-publish-age","values":["allow","deny"],"default":"deny","turnsOff":"allow"}` [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md#resolverincompatible-publish-age)
+- `environment` (✅ verified): `{"global":"CARGO_REGISTRY_GLOBAL_MIN_PUBLISH_AGE","resolver":"CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE"}` [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/environment-variables.md)
+- `registryVariable` (❓ uncertain): `{"prefix":"CARGO_REGISTRIES_","suffix":"_MIN_PUBLISH_AGE","name":"as-written","needsTable":true}` ❓ [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/context/de.rs)
+- `timeSpan` (❓ uncertain): `{"units":{"second":1,"minute":60,"hour":3600,"day":86400,"week":604800,"month":2629746},"zero":"0","overflow":"unchecked"}` ❓ [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/util/time_span.rs)
+- `notCovered` (✅ verified): `{"install":true,"withoutPubtime":true,"lockedVersions":true}` [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/tests/testsuite/min_publish_age.rs)
+- `resolverDocs` (✅ verified): publish-age [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/resolver.md#publish-age)
+- `schema` (✅ verified): `{"registry":"global-min-publish-age","registries":"min-publish-age","resolver":"incompatible-publish-age"}` [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/context/schema.rs)
+- `toolchainFiles` (✅ verified): `{"files":["rust-toolchain","rust-toolchain.toml"],"bothUse":"rust-toolchain","legacyIn":"rust-toolchain","key":"toolchain.channel","walksUp":true}` [↗](https://github.com/rust-lang/rustup/blob/edbc831cec44dc2858a4a4dce768c74361d027dc/src/config.rs)
+- `toolchainChannels` (✅ verified): `{"named":["stable","beta","nightly"],"versioned":["major.minor","major.minor.patch"],"latestPatchFor":"major.minor"}` [↗](https://github.com/rust-lang/rustup/blob/edbc831cec44dc2858a4a4dce768c74361d027dc/doc/user-guide/src/concepts/toolchains.md)
+- `channelManifest` (✅ verified): 1.99.1 [↗](https://static.rust-lang.org/dist/channel-rust-1.99.toml)
+- `latestVersion` (✅ verified): 1.100.0 [↗](https://static.rust-lang.org/dist/channel-rust-1.100.0.toml)
 
 ### Renovate
 
@@ -1284,6 +1307,32 @@ Context recorded with verified facts.
 - `extra.configCommand`: bundle config set [--local|--global] NAME VALUE (bundle-config(1)): set "defaults to setting local configuration if executing from within a local application, otherwise it will set global configuration"; --local writes \<project_root>/.bundle/config (or $BUNDLE_APP_CONFIG/config), --global \~/.bundle/config. CLI::Config#set joins the value words with spaces (value\_.unshift(value), then join(" ")), and the hidden base command still runs bundle config NAME VALUE (two arguments, or one with --local or --global) as set, with a deprecation warning. Settings#set_key stores the key as key_for gives it (lib/bundler/settings.rb: dots to \_\_, dashes to \_\_\_, upper case, BUNDLE\_ in front), so cooldown in any case is BUNDLE_COOLDOWN. Both files replace the cooldown: of every Gemfile source (extra.cooldownSetting), so a 0 written there turns the delay off for the later bundle commands on that machine. [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/cli/config.rb)
 - `extra.updateCommand`: --cooldown 0 disables the cooldown "for this run, overriding any per-source or global configuration. Combine with --conservative to minimize transitive churn when bypassing cooldown for an urgent update." [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/man/bundle-update.1.ronn)
 - `extra.dependencySources`: Of the kinds of sources a policy names, a Gemfile can declare git sources (GIT, GITHUB and the other git sources) and path sources (PATH), with no setting that forbids them; it has no source for an archive URL or a local archive. [↗](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/man/gemfile.5.ronn)
+
+### Cargo
+
+- `cooldown.setting`: A TOML string in the [registry] table of a Cargo configuration file: "Specifies the global minimum timespan since a version's \`pubtime\` that it may be considered for \`resolver.incompatible-publish-age\`". registries.\<name>.min-publish-age takes its place for one registry (extra.registryMinPublishAge), and resolver.incompatible-publish-age = "allow" turns the check off (extra.resolverSwitch). [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md#registryglobal-min-publish-age)
+- `cooldown.configFiles`: Cargo reads .cargo/config.toml in the current directory and every parent directory, then $CARGO_HOME/config.toml; .cargo/config without the extension is the older name, still read. --config and environment variables take precedence over the files. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md#hierarchical-structure)
+- `cooldown.cliFlag`: No flag of its own: --config KEY=VALUE sets any key for one command, so --config 'registry.global-min-publish-age="0"' turns the delay off for it. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md#command-line-overrides)
+- `cooldown.unit`: parse_time_span: a whole number of 0 or more, at most one space, and second(s), minute(s), hour(s), day(s), week(s) or month(s) (a month is 2,629,746 seconds); "0" alone means no delay. Anything else is an error that stops resolution ("invalid value for \`registry.global-min-publish-age\`"). [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/util/time_span.rs)
+- `cooldown.availableSince`: "Minimum publish-age configuration for dependency resolution was stabilized in Rust 1.100." Versions of Cargo are given as the version of the Rust release that ships it (cargo 0.101.0 ships with Rust 1.100.0); each key says "MSRV: Respected as of 1.100+". [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/unstable.md)
+- `cooldown.default`: Default: "0", which allows all packages: no delay. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md#registryglobal-min-publish-age)
+- `cooldown.securityUpdates`: PublishAgePolicy::too_new holds back every version whose pubtime is newer than the threshold, a fix included; the resolver docs name resolver.incompatible-publish-age = "allow" with cargo update --precise as the way to take one version sooner. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/resolver/version_prefs.rs)
+- `installScripts.defaultPolicy`: Placing a file named build.rs in the root of a package "will cause Cargo to compile that script and execute it just before building the package"; procedural macros run in the compiler as well. Both run at cargo build, check and test, from every dependency. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/build-scripts.md)
+- `project.lockfiles`: "All packages share a common Cargo.lock file which resides in the workspace root"; a package that is no workspace member has its own next to Cargo.toml. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/workspaces.md)
+- `project.manifests`: "The Cargo.toml file for each package is called its manifest." [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/manifest.md)
+- `project.workspaces`: The [workspace] table of the root Cargo.toml lists members and exclude; members takes globs ("crates/\*"), the root package is a member too, and path dependencies of members become members. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/workspaces.md)
+- `project.workspacesObjectKey`: members = ["member1", "path/to/member2", "crates/\*"] in [workspace]. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/workspaces.md#the-members-and-exclude-fields)
+- `extra.durationUnits`: The units depcurfew writes, each of which parse_time_span accepts in the singular and the plural; it also accepts seconds and months, which depcurfew does not write. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/util/time_span.rs)
+- `extra.registryMinPublishAge`: PublishAgePolicy::min_age takes registries.\<name>.min-publish-age before registry.global-min-publish-age, and names crates.io crates-io (CRATES_IO_REGISTRY), so [registries.crates-io] min-publish-age = "0" turns the delay off for crates.io under any global value (test registries_crates_io_overrides_global in tests/testsuite/min_publish_age.rs). The comment "registries other than crates.io" in config.md is about the other keys of [registries.\<name>]. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/resolver/version_prefs.rs)
+- `extra.resolverSwitch`: "allow: treat pubtime-incompatible versions like any other version"; with it PublishAgePolicy::new returns no policy (src/resolver/version_prefs.rs). deny keeps versions already in Cargo.lock. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md#resolverincompatible-publish-age)
+- `extra.environment`: The environment variables of registry.global-min-publish-age and resolver.incompatible-publish-age; they take precedence over the configuration files. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/environment-variables.md)
+- `extra.notCovered`: Tests cargo_install_ignores_min_publish_age, versions_without_pubtime_unaffected and locked_versions_preserved: cargo install of a crate from a registry takes no delay, versions a registry gives no pubtime are not held back ("Will be ignored if the registry does not support this", config.md), and versions already in Cargo.lock stay. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/tests/testsuite/min_publish_age.rs)
+- `extra.resolverDocs`: The resolver chapter: versions newer than min-publish-age are pubtime-incompatible; with deny they are ignored unless already in Cargo.lock; allow with cargo update --precise pulls in a version and its transitive dependencies. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/resolver.md#publish-age)
+- `extra.schema`: GlobalRegistryConfig, RegistryConfig and CargoResolverConfig in src/context/schema.rs: the keys are TOML strings; [registry] has no min-publish-age of its own (to_registry_config sets it to None). [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/context/schema.rs)
+- `extra.toolchainFiles`: Cfg::find_override_from_dir_walk looks in the current directory and each parent for rust-toolchain and rust-toolchain.toml (after the override database of rustup override set); when both are in a directory it uses rust-toolchain and warns. rust-toolchain.toml is TOML only ([toolchain] channel = "..."); rust-toolchain is TOML or the legacy format, a toolchain name alone (ParseMode::Both; doc/user-guide/src/overrides.md). RUSTUP_TOOLCHAIN and a +toolchain argument take precedence over the files. [↗](https://github.com/rust-lang/rustup/blob/edbc831cec44dc2858a4a4dce768c74361d027dc/src/config.rs)
+- `extra.toolchainChannels`: \<channel> = stable|beta|nightly|\<versioned>[-\<prerelease>], \<versioned> = \<major.minor>|\<major.minor.patch>, optionally followed by -\<date> and -\<host>; a name of any other form is a custom toolchain. The channel 1.99 is the latest 1.99 patch: static.rust-lang.org/dist/channel-rust-1.99.toml names rustc 1.99.1 (read 2026-11-13). [↗](https://github.com/rust-lang/rustup/blob/edbc831cec44dc2858a4a4dce768c74361d027dc/doc/user-guide/src/concepts/toolchains.md)
+- `extra.channelManifest`: The manifest of the channel 1.99 names rustc 1.99.1 (58cf8f9c3 2026-10-13), the latest 1.99 release, while channel-rust-1.99.0.toml names 1.99.0: a channel X.Y follows the latest X.Y.z (read 2026-11-13). [↗](https://static.rust-lang.org/dist/channel-rust-1.99.toml)
+- `extra.latestVersion`: Rust 1.100.0 (rustc 0ef1bc386 2026-11-09, cargo 0.101.0 3acc79c0c 2026-11-05) is the stable release of 2026-11-12, the date of the manifest. [↗](https://static.rust-lang.org/dist/channel-rust-1.100.0.toml)
 
 ### Renovate
 
@@ -2178,6 +2227,60 @@ Bundler has no workspaces: a Gemfile describes one bundle (concluded from gemfil
 No workspaces.
 
 - `null` · [source](https://github.com/ruby/rubygems/blob/v4.0.23/bundler/lib/bundler/man/gemfile.5.ronn), verified 2026-11-03.
+
+### Cargo · `cooldown.exclude.setting` ❓ uncertain
+
+No key exempts single crates: min-publish-age is set for every registry (registry.global-min-publish-age) or for one registry (registries.\<name>.min-publish-age), and config.md lists no other publish-age key (concluded from the documented keys and the schema).
+
+- `null` · [source](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md), verified 2026-11-12.
+
+### Cargo · `installScripts.allowList.setting` ❓ uncertain
+
+No key of the Cargo configuration allows the build scripts of some dependencies only (concluded from config.md).
+
+- `null` · [source](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md), verified 2026-11-12.
+
+### Cargo · `installScripts.disableAll` ❓ uncertain
+
+No key or flag keeps build scripts or procedural macros of dependencies from running (concluded from config.md).
+
+- `null` · [source](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md), verified 2026-11-12.
+
+### Cargo · `sources.git.setting` ❓ uncertain
+
+No key of the Cargo configuration allows or forbids git dependencies (concluded from config.md, which lists every key).
+
+- `null` · [source](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md), verified 2026-11-12.
+
+### Cargo · `sources.remoteTarball.setting` ❓ uncertain
+
+Cargo has no tarball URL dependency: a dependency comes from a registry, a git repository or a path to a directory with a Cargo.toml.
+
+- `null` · [source](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/specifying-dependencies.md), verified 2026-11-12.
+
+### Cargo · `sources.file.setting` ❓ uncertain
+
+Cargo has no local archive dependency: a dependency comes from a registry, a git repository or a path to a directory with a Cargo.toml.
+
+- `null` · [source](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/specifying-dependencies.md), verified 2026-11-12.
+
+### Cargo · `sources.directory.setting` ❓ uncertain
+
+No key of the Cargo configuration allows or forbids path dependencies (concluded from config.md, which lists every key).
+
+- `null` · [source](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md), verified 2026-11-12.
+
+### Cargo · `extra.registryVariable` ❓ uncertain
+
+environment-variables.md documents CARGO_REGISTRIES\_\<name>\_MIN_PUBLISH_AGE. The registries map takes its names from the tables of the configuration files and --config (ConfigMapAccess::new_map) and puts each into the variable as it is written (push_sensitive), so Cargo reads CARGO_REGISTRIES_crates-io_MIN_PUBLISH_AGE, and only when a file or --config defines [registries.crates-io]; without -Zadvanced-env a variable alone adds no registry. The spelling in capitals is not read on Linux; how Windows compares the names of variables is not established. Both spellings count (fail closed).
+
+- `{"prefix":"CARGO_REGISTRIES_","suffix":"_MIN_PUBLISH_AGE","name":"as-written","needsTable":true}` · [source](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/context/de.rs), verified 2026-11-12.
+
+### Cargo · `extra.timeSpan` ❓ uncertain
+
+maybe_parse_time_span reads the number as a u64 and returns Duration::from_secs(factor \* count) without checked_mul. Whether the Cargo that Rust ships checks the overflow of that product or wraps it is not established from the cargo sources, so a product above u64 counts as a possible weakening (fail closed). "0 days" is a delay of zero, like "0".
+
+- `{"units":{"second":1,"minute":60,"hour":3600,"day":86400,"week":604800,"month":2629746},"zero":"0","overflow":"unchecked"}` · [source](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/util/time_span.rs), verified 2026-11-12.
 
 ### Renovate · `cooldown.exclude.availableSince` ❓ uncertain
 

@@ -2,6 +2,7 @@ import { verifiedOn } from './define.ts';
 import type { SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-11-12');
+const toolchain = verifiedOn('2026-11-13');
 
 /**
  * The cargo of Rust 1.100.0, the first Rust whose Cargo respects min-publish-age (E05). channel-rust-1.100.0.toml names
@@ -11,6 +12,10 @@ const { verified, uncertain } = verifiedOn('2026-11-12');
 export const CARGO_RELEASE = 'https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750';
 /** The release manifest of Rust 1.100.0, which names the cargo of that release. */
 export const RUST_1_100_MANIFEST = 'https://static.rust-lang.org/dist/channel-rust-1.100.0.toml';
+/** rustup 1.29.3, the latest release on 2026-11-13 (tag 1.29.3), which picks the toolchain of a directory (E06). */
+export const RUSTUP_RELEASE = 'https://github.com/rust-lang/rustup/blob/edbc831cec44dc2858a4a4dce768c74361d027dc';
+/** The manifest of the channel 1.99: rustup's channel X.Y is the latest X.Y.z release (it names 1.99.1). */
+const RUST_1_99_CHANNEL = 'https://static.rust-lang.org/dist/channel-rust-1.99.toml';
 
 const CONFIG = `${CARGO_RELEASE}/doc/book/src/reference/config.md`;
 const ENVIRONMENT = `${CARGO_RELEASE}/doc/book/src/reference/environment-variables.md`;
@@ -154,6 +159,17 @@ export const cargo: ToolKnowledge = {
       SCHEMA,
       'GlobalRegistryConfig, RegistryConfig and CargoResolverConfig in src/context/schema.rs: the keys are TOML strings; [registry] has no min-publish-age of its own (to_registry_config sets it to None).',
     ),
+    toolchainFiles: toolchain.verified(
+      { files: ['rust-toolchain', 'rust-toolchain.toml'], bothUse: 'rust-toolchain', legacyIn: 'rust-toolchain', key: 'toolchain.channel', walksUp: true },
+      `${RUSTUP_RELEASE}/src/config.rs`,
+      'Cfg::find_override_from_dir_walk looks in the current directory and each parent for rust-toolchain and rust-toolchain.toml (after the override database of rustup override set); when both are in a directory it uses rust-toolchain and warns. rust-toolchain.toml is TOML only ([toolchain] channel = "..."); rust-toolchain is TOML or the legacy format, a toolchain name alone (ParseMode::Both; doc/user-guide/src/overrides.md). RUSTUP_TOOLCHAIN and a +toolchain argument take precedence over the files.',
+    ),
+    toolchainChannels: toolchain.verified(
+      { named: ['stable', 'beta', 'nightly'], versioned: ['major.minor', 'major.minor.patch'], latestPatchFor: 'major.minor' },
+      `${RUSTUP_RELEASE}/doc/user-guide/src/concepts/toolchains.md`,
+      '<channel> = stable|beta|nightly|<versioned>[-<prerelease>], <versioned> = <major.minor>|<major.minor.patch>, optionally followed by -<date> and -<host>; a name of any other form is a custom toolchain. The channel 1.99 is the latest 1.99 patch: static.rust-lang.org/dist/channel-rust-1.99.toml names rustc 1.99.1 (read 2026-11-13).',
+    ),
+    channelManifest: toolchain.verified('1.99.1', RUST_1_99_CHANNEL, 'The manifest of the channel 1.99 names rustc 1.99.1 (58cf8f9c3 2026-10-13), the latest 1.99 release, while channel-rust-1.99.0.toml names 1.99.0: a channel X.Y follows the latest X.Y.z (read 2026-11-13).'),
     latestVersion: verified('1.100.0', RUST_1_100_MANIFEST, 'Rust 1.100.0 (rustc 0ef1bc386 2026-11-09, cargo 0.101.0 3acc79c0c 2026-11-05) is the stable release of 2026-11-12, the date of the manifest.'),
   },
 };

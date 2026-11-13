@@ -129,6 +129,8 @@ const ECOSYSTEM_PAGES: Partial<Record<Ecosystem, EcosystemPage>> = {
   pypi: { file: 'python.html', nav: 'Python', guide: ['python-projects', WITHOUT_PACKAGE_JSON], rules: ['python-config-ignored', 'lockfile-out-of-date'] },
   packagist: { file: 'php.html', nav: 'PHP', guide: ['composer-projects', WITHOUT_PACKAGE_JSON], rules: ['composer-config-weakens', 'lockfile-tampered'] },
   rubygems: { file: 'ruby.html', nav: 'Ruby', guide: ['ruby-projects', WITHOUT_PACKAGE_JSON], rules: ['bundler-config-weakens'] },
+  // Cargo (E06): the README section on Rust projects comes with apply for Cargo (E15).
+  crates: { file: 'rust.html', nav: 'Rust', guide: [WITHOUT_PACKAGE_JSON], rules: [] },
 };
 // The bots' section of the README says what they do for each ecosystem, also for those only they delay (D-151).
 const BOTS_PAGE: EcosystemPage = { file: 'bots.html', nav: 'Bots', guide: ['update-bots', WITHOUT_PACKAGE_JSON], rules: ['bot-cooldown-mismatch'] };
@@ -177,7 +179,7 @@ export interface PageGroup {
  * knowledge base gets a start page `<ecosystem>.html`, which has to be added here.
  */
 export const PAGE_GROUPS: readonly PageGroup[] = [
-  { title: 'Start', files: ['index.html', 'guide.html', 'npm.html', 'python.html', 'php.html', 'ruby.html', 'bots.html'] },
+  { title: 'Start', files: ['index.html', 'guide.html', 'npm.html', 'python.html', 'php.html', 'ruby.html', 'rust.html', 'bots.html'] },
   { title: 'Reference', files: ['policy.html', 'commands.html', 'codes.html', 'doctor.html', 'tools.html', 'knowledge.html'] },
   { title: 'Integrations', files: ['action.html', 'check.html', 'claude-code.html', 'mcp.html', 'machine.html'] },
   { title: 'Project', files: ['about.html', 'other-tools.html', 'versions.html'] },

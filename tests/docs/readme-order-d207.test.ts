@@ -80,6 +80,8 @@ describe('hand-written lists (D-207)', () => {
     const bullet = codeSpans(paragraph('- **Developers working on the project:**'));
     const files = new Set<string>();
     for (const tool of packageManagers) {
+      // Cargo is detected since E06, and apply writes .cargo/config.toml from E07 on, which adds it to the bullet.
+      if (tool.id === 'cargo') continue;
       for (const entry of values(tool.cooldown.configFiles)) for (const file of entry) files.add(file);
       const allowList = tool.installScripts.allowList.file;
       if (allowList !== undefined) for (const file of values(allowList)) if (file !== null) files.add(file);

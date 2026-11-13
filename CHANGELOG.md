@@ -4,6 +4,10 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 
 ## Unreleased
 
+### Cargo
+
+- depcurfew detects Cargo in a repository with `Cargo.toml` or `Cargo.lock`, reads the members of a Cargo workspace (`[workspace] members`), and reads the Rust version that `rust-toolchain` or `rust-toolchain.toml` pins, as rustup does: when both files are in a directory `rust-toolchain` wins, a bare channel name counts only in `rust-toolchain`, `1.85.0` is that release, `1.85` stays as written (the latest 1.85 patch), `stable` is the latest Rust depcurfew knows (1.100.0), and `beta`, `nightly`, dated and custom toolchains are versions depcurfew cannot read. `depcurfew explain` lists Cargo with that version, `targets` takes `"cargo"`, and the site has a start page for Rust. Writing Cargo's own delay (`.cargo/config.toml`) and the texts about Cargo's delay come in the next steps of this release.
+
 ### Library
 
 - Semantic versioning now covers, in writing, `getVersion`, `loadPolicy`, `checkSpecs` and `PopularNames` with the shapes of their options and results: a minor or patch release may add optional options, fields of a result, codes and kinds, and never removes or renames one, makes an option required or gives a finding a level other than `error` or `warning` (the README, under Library). Tests hold the package to it, and to the way agentcurfew 1.2.0 calls it.

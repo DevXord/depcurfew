@@ -203,7 +203,10 @@ export const dependabot: BotGenerator = (context, duration, repository) => {
   limitedCooldowns(context, file, setting, keys.exclude, limited);
   // Without package managers to update, entries for the actions and the ecosystems updated by bots only are what there
   // is to configure.
-  const managersInUse = context.tools.some((entry) => entry.kind === 'package-manager' && context.targets.has(entry.id));
+  // A package manager whose dependencies only the entries of the ecosystems updated by bots only cover (Cargo, until
+  // apply writes its delay, E06) needs no entry of the ecosystems above.
+  const covered = new Set(Object.values(managers).flatMap((ids) => (Array.isArray(ids) ? ids : [])));
+  const managersInUse = context.tools.some((entry) => entry.kind === 'package-manager' && context.targets.has(entry.id) && covered.has(entry.id));
   if (configured === 0 && (others.size === 0 || managersInUse)) {
     context.warn({
       code: 'bot-entries-missing',

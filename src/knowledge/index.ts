@@ -1,5 +1,6 @@
 import { bun } from './bun.ts';
 import { bundler } from './bundler.ts';
+import { cargo } from './cargo.ts';
 import { composer } from './composer.ts';
 import { deno } from './deno.ts';
 import { dependabot } from './dependabot.ts';
@@ -16,6 +17,6 @@ import { yarn } from './yarn.ts';
 
 export { environment } from './environment.ts';
 
-export const knowledgeBase: readonly ToolKnowledge[] = [npm, pnpm, yarn, bun, deno, uv, pip, poetry, pdm, pipenv, composer, bundler, renovate, dependabot];
+export const knowledgeBase: readonly ToolKnowledge[] = [npm, pnpm, yarn, bun, deno, uv, pip, poetry, pdm, pipenv, composer, bundler, cargo, renovate, dependabot];
 
 export type * from './types.ts';
