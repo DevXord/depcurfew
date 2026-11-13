@@ -3,8 +3,8 @@
 // pypi, composer: names to packagist, so an exception never reaches a package of the same name in another registry, a
 // crate or a Go module included (decision D-171). JSON5 files and the deprecated package.json key are not edited; a
 // snippet is printed. The top-level minimumReleaseAge covers every Renovate manager, the github-actions manager of the
-// workflows' actions (decision D-130) and the managers of the ecosystems updated by bots only (cargo, gomod, maven,
-// gradle, nuget; decision D-151) included, so they need no rule of their own. A built-in preset of extends whose rule
+// workflows' actions (decision D-130) and the managers of the ecosystems updated by bots only (gomod, maven, gradle,
+// nuget; decision D-151) included, so they need no rule of their own. A built-in preset of extends whose rule
 // gives a datasource in use a shorter delay (config:best-practices for npm) wins over the top level; a rule for that
 // datasource at the front of packageRules gives it the policy's delay again (decision D-171).
 import { delayMinutes, formatMinutes } from '../../doctor/durations.ts';

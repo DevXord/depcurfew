@@ -212,14 +212,15 @@ describe('Dependabot cooldown.include and a broad cooldown.exclude apply keeps (
     );
     const report = applyProject(root);
     expect(read(root, '.github/dependabot.yml')).toContain('default-days: 3\n      exclude: ["*"]');
-    // Cargo is a package manager since E06, with the limits of its own delay since E07.
+    // Cargo is a package manager since E06, with the limits of its own delay since E07; its crates have no names in
+    // the policy, so the entry keeps its own exclude list (E08).
     expect(codes(report)).toEqual(['cooldown-limits', 'bot-rule-shortens-delay']);
     expect(warnings(report, 'bot-rule-shortens-delay')[0]).toEqual({
       code: 'bot-rule-shortens-delay',
       tool: 'dependabot',
       location: { file: '.github/dependabot.yml', line: 10 },
       message:
-        'Dependabot: cooldown.exclude in updates[0] (cargo) of .github/dependabot.yml (line 10) contains "*", so Dependabot applies no cooldown to these updates, the one depcurfew apply writes included; depcurfew apply keeps this list, because cooldown.exclude in depcurfew.json names no Cargo dependencies',
+        'Dependabot: cooldown.exclude in updates[0] (cargo) of .github/dependabot.yml (line 10) contains "*", so Dependabot applies no cooldown to these updates, the one depcurfew apply writes included; depcurfew apply keeps this list, because cooldown.exclude in depcurfew.json names no Rust crates',
       fix: 'Remove "*" from cooldown.exclude in updates[0] of .github/dependabot.yml and list only the dependencies that need the exception',
     });
     expect(problems(root).map((finding) => finding.rule)).toEqual(['broad-exclusion']);
@@ -271,7 +272,7 @@ describe('the Renovate rule for npm exclusions is limited to the npm datasource 
           level: 'error',
           location: { file: 'renovate.json', line: 7 },
           message:
-            'packageRules[0] in renovate.json, the rule depcurfew apply writes for the npm names of cooldown.exclude in depcurfew.json, is not limited to matchDatasources ["npm"], so it also turns off minimumReleaseAge for packages of the same names from other datasources, Cargo dependencies among them',
+            'packageRules[0] in renovate.json, the rule depcurfew apply writes for the npm names of cooldown.exclude in depcurfew.json, is not limited to matchDatasources ["npm"], so it also turns off minimumReleaseAge for packages of the same names from other datasources, Rust packages among them',
           fix: 'Run depcurfew apply, which limits the rule to matchDatasources ["npm"]',
         },
       ]);

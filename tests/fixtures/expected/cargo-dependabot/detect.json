@@ -30,15 +30,6 @@
       ]
     }
   ],
-  "botEcosystems": [
-    {
-      "id": "cargo",
-      "files": [
-        "Cargo.lock",
-        "Cargo.toml"
-      ]
-    }
-  ],
   "workspaces": null,
   "npmrcFiles": [],
   "workflows": [],

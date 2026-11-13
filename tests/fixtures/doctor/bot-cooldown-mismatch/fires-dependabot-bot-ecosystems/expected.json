@@ -5,7 +5,7 @@
       "file": ".github/dependabot.yml",
       "line": 3
     },
-    "message": "Dependabot proposes cargo updates after 3 days (Dependabot's default (3 days)), but cooldown.minimum in depcurfew.json is 1 week, which covers Cargo dependencies, and Cargo before 1.100.0 has no release-age delay of its own; its pull requests bring in versions younger than that",
+    "message": "Dependabot proposes cargo updates after 3 days (Dependabot's default (3 days)), but Cargo waits 1 week (registry.global-min-publish-age: \"1 week\" in .cargo/config.toml); its pull requests bring in versions younger than Cargo picks itself, and Cargo keeps them, as it keeps the versions in Cargo.lock",
     "fix": "Make the Dependabot delay at least 1 week, or run depcurfew apply"
   },
   {

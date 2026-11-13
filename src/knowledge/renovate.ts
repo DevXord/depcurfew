@@ -161,9 +161,9 @@ export const renovate: ToolKnowledge = {
       'https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm',
     ),
     datasources: d152.verified(
-      { npm: 'npm', pypi: 'pypi', packagist: 'packagist', rubygems: 'rubygems' },
+      { npm: 'npm', pypi: 'pypi', packagist: 'packagist', rubygems: 'rubygems', crates: 'crate' },
       'https://docs.renovatebot.com/modules/datasource/pypi/',
-      'Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version\'s files. Composer packages come from packagist, the datasource of the composer manager (static readonly id = \'packagist\' in lib/modules/datasource/packagist/index.ts and supportedDatasources in lib/modules/manager/composer/index.ts at 44.199.2, read 2026-11-02). Ruby gems come from rubygems (static readonly id = \'rubygems\' in lib/modules/datasource/rubygems/index.ts at 44.198.2, one of the supportedDatasources of the bundler manager), which has releaseTimestampSupport: "The release timestamp is determined from the `created_at` field in the results" (read 2026-11-03).',
+      'Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version\'s files. Composer packages come from packagist, the datasource of the composer manager (static readonly id = \'packagist\' in lib/modules/datasource/packagist/index.ts and supportedDatasources in lib/modules/manager/composer/index.ts at 44.199.2, read 2026-11-02). Ruby gems come from rubygems (static readonly id = \'rubygems\' in lib/modules/datasource/rubygems/index.ts at 44.198.2, one of the supportedDatasources of the bundler manager), which has releaseTimestampSupport: "The release timestamp is determined from the `created_at` field in the results" (read 2026-11-03). Crates come from the crate datasource (lib/modules/manager/cargo/schema.ts at 44.198.2, the release extra.managers cites).',
     ),
     packagistReleaseTime: composer.verified(
       { field: 'published-time', fallback: 'time' },
@@ -227,10 +227,11 @@ export const renovate: ToolKnowledge = {
         pipenv: 'pipenv',
         composer: 'composer',
         bundler: 'bundler',
+        cargo: 'cargo',
         'github-actions': 'github-actions',
       },
       `${AT}/lib/modules/manager/api.ts`,
-      'The Renovate manager that updates the packages of each tool, by its id in api.ts; github-actions updates the actions the workflows run. The npm manager reads package.json with package-lock.json, pnpm-lock.yaml or yarn.lock (lockFileNames in npm/index.ts). bun and deno have managers of their own that take a package.json over from npm (supersedesManagers in bun/index.ts and deno/index.ts, applied by lib/workers/repository/extract/supersedes.ts), and poetry takes pyproject.toml over from pep621, which updates it for uv and PDM. composer updates composer.json (composer/index.ts), and bundler the Gemfile with Gemfile.lock (managerFilePatterns /(^|/)Gemfile$/ and lockFileNames in bundler/index.ts, so not gems.rb); bundler was read on 2026-11-03.',
+      'The Renovate manager that updates the packages of each tool, by its id in api.ts; github-actions updates the actions the workflows run. The npm manager reads package.json with package-lock.json, pnpm-lock.yaml or yarn.lock (lockFileNames in npm/index.ts). bun and deno have managers of their own that take a package.json over from npm (supersedesManagers in bun/index.ts and deno/index.ts, applied by lib/workers/repository/extract/supersedes.ts), and poetry takes pyproject.toml over from pep621, which updates it for uv and PDM. composer updates composer.json (composer/index.ts), and bundler the Gemfile with Gemfile.lock (managerFilePatterns /(^|/)Gemfile$/ and lockFileNames in bundler/index.ts, so not gems.rb); bundler was read on 2026-11-03. cargo updates Cargo.toml (managerFilePatterns, lockFileNames Cargo.lock), the packages of Cargo, a package manager of its own in depcurfew from 1.7.0 (E08; before, an ecosystem updated by bots only).',
     ),
     managerCategories: d152.verified(
       {
@@ -243,14 +244,14 @@ export const renovate: ToolKnowledge = {
         pipenv: ['python'],
         composer: ['php'],
         bundler: ['ruby'],
+        cargo: ['rust'],
         'github-actions': ['ci'],
       },
       `${AT}/lib/config/index.ts`,
-      'getManagerConfig gives each dependency the categories its manager exports (categories in lib/modules/manager/<id>/index.ts; the list of categories is lib/constants/category.ts), and matchCategories matches them. bundler exports the category ruby (read 2026-11-03).',
+      'getManagerConfig gives each dependency the categories its manager exports (categories in lib/modules/manager/<id>/index.ts; the list of categories is lib/constants/category.ts), and matchCategories matches them. bundler exports the category ruby (read 2026-11-03). cargo exports rust (lib/modules/manager/cargo/index.ts).',
     ),
     botOnlyEcosystems: d151.verified(
       {
-        cargo: { manager: 'cargo', datasource: 'crate', categories: ['rust'] },
         gomod: { manager: 'gomod', datasource: 'go', categories: ['golang'] },
         maven: { manager: 'maven', datasource: 'maven', categories: ['java'] },
         gradle: { manager: 'gradle', datasource: 'maven', categories: ['java'] },

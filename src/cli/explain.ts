@@ -332,7 +332,7 @@ function projectLines(project: ExplainDetection, fromRoot?: { directory: string;
   else lines.push('Node.js versions:', ...versions);
   if (project.bots.length === 0) lines.push('Bots: none');
   else lines.push('Bots:', ...project.bots.map((bot) => `  ${toolName(bot.id)}: ${bot.configFiles.join(', ')}`));
-  // Cargo, Go modules, Maven, Gradle and NuGet, which only the bots delay (decision D-151); the line only when found.
+  // Go modules, Maven, Gradle and NuGet, which only the bots delay (decision D-151, E08); the line only when found.
   if (project.botEcosystems !== undefined && project.botEcosystems.length > 0) {
     lines.push('Updated by bots only:', ...project.botEcosystems.flatMap((entry) => [`  ${entry.name}: ${entry.files.join(', ')}`, `    ${entry.message}`]));
   }

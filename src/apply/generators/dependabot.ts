@@ -1,11 +1,12 @@
-// Dependabot: cooldown in every updates entry of a JavaScript, Python, Composer or Bundler ecosystem in dependabot.yml, in
-// the github-actions entries when the repository has workflows (decision D-130), and in the entries of the ecosystems
-// updated by bots only: cargo, gomod, maven, gradle and nuget (decision D-151). semver-*-days keys that are already
-// there are raised to the policy's delay (never lowered, never added) where the ecosystem reads them; other keys
-// (include) stay. Each package entry gets the exclusions of its registry: npm names for npm, bun and deno, pypi: names
-// for pip and uv, composer: names for composer. The policy's exclusions name none of the actions, of the dependencies
-// of the ecosystems updated by bots only or of the Ruby gems of bundler entries, so their entries get none, and keep
-// their own (decision D-152). An include list, which limits the cooldown to the dependencies it names, and an exclude
+// Dependabot: cooldown in every updates entry of a JavaScript, Python, Composer, Bundler or Cargo ecosystem in
+// dependabot.yml, in the github-actions entries when the repository has workflows (decision D-130), and in the entries
+// of the ecosystems updated by bots only: gomod, maven, gradle and nuget (decision D-151; cargo is a package manager's
+// from 1.7.0, E08). semver-*-days keys that are already there are raised to the policy's delay (never lowered, never
+// added) where the ecosystem reads them; other keys (include) stay. Each package entry gets the exclusions of its
+// registry: npm names for npm, bun and deno, pypi: names for pip and uv, composer: names for composer. The policy's
+// exclusions name none of the actions, of the dependencies of the ecosystems updated by bots only, of the Ruby gems of
+// bundler entries or of the crates of cargo entries, so their entries get none, and keep their own (decision D-152,
+// E08). An include list, which limits the cooldown to the dependencies it names, and an exclude
 // list such an entry keeps that matches every dependency stay too, with a warning: the cooldown apply writes covers
 // only some dependencies there, or none (decision D-171). Names Psych would not read as text when written plain (yes,
 // off, 1_0) are written in quotes (yaml-edit.ts, decision D-171).
@@ -19,7 +20,7 @@ import type { BotGenerator } from './context.ts';
 import { rejectsYamlAliases, yamlAliasLine, yamlSetting } from '../../doctor/settings.ts';
 import { matchesEveryName } from '../../doctor/renovate.ts';
 import { botEcosystemFact } from '../../detect/bot-ecosystems.ts';
-import type { BotOnlyEcosystemId, ToolKnowledge } from '../../knowledge/types.ts';
+import type { BotOnlyEcosystemId, Ecosystem, ToolKnowledge } from '../../knowledge/types.ts';
 import { listing } from '../requirements.ts';
 
 interface CooldownKeys {
@@ -96,7 +97,7 @@ function limitedCooldowns(
     const broad = kept ? strings(cooldown[excludeKey]).find(matchesEveryName) : undefined;
     if (broad !== undefined) {
       const { location, at } = where(excludeKey);
-      const names = other === undefined ? 'Ruby gems' : 'id' in other ? `${botEcosystemFact(other.id)?.client ?? other.ecosystem} dependencies` : 'actions';
+      const names = other === undefined ? registryNames(context, ecosystem, extraOf(tool, 'ecosystems', isRecord)) : 'id' in other ? `${botEcosystemFact(other.id)?.client ?? other.ecosystem} dependencies` : 'actions';
       context.warn({
         code: 'bot-rule-shortens-delay',
         location,
@@ -105,6 +106,16 @@ function limitedCooldowns(
       });
     }
   }
+}
+
+/** The registries whose packages cooldown.exclude in the policy can name (npm, pypi:, composer:). */
+const NAMED_REGISTRIES: ReadonlySet<Ecosystem> = new Set<Ecosystem>(['npm', 'pypi', 'packagist']);
+
+/** The packages of a manager entry whose names the policy has none of, for messages: "Ruby gems", "Rust crates". */
+function registryNames(context: Parameters<BotGenerator>[0], ecosystem: string, managers: Record<string, unknown>): string {
+  const covered = Array.isArray(managers[ecosystem]) ? (managers[ecosystem] as unknown[]) : [];
+  const tool = context.tools.find((entry) => covered.includes(entry.id));
+  return tool !== undefined && ecosystemOfTool(tool) === 'crates' ? 'Rust crates' : 'Ruby gems';
 }
 
 export const dependabot: BotGenerator = (context, duration, repository) => {
@@ -152,12 +163,13 @@ export const dependabot: BotGenerator = (context, duration, repository) => {
   const setting = settingOf(tool.cooldown.setting) ?? 'cooldown';
   const yaml = context.yaml(file);
   const updates = yaml.get(['updates']);
-  // undefined for a registry the policy has no names for (Ruby gems, decision D-152): such an entry keeps its own exclude.
+  // undefined for a registry the policy has no names for (Ruby gems, decision D-152; Rust crates, E08): such an entry
+  // keeps its own exclude.
   const patternsOf = (ecosystem: string): string[] | undefined => {
     const covered = Array.isArray(managers[ecosystem]) ? (managers[ecosystem] as unknown[]) : [];
     const tool = context.tools.find((entry) => covered.includes(entry.id));
     const registry = tool === undefined ? 'npm' : ecosystemOfTool(tool);
-    if (registry === 'rubygems') return undefined;
+    if (!NAMED_REGISTRIES.has(registry)) return undefined;
     return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], registry)) ?? [];
   };
   let configured = 0;

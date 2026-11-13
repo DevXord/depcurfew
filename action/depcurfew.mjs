@@ -2352,8 +2352,9 @@ const dependabot$1 = {
 			],
 			uv: ["uv"],
 			composer: ["composer"],
-			bundler: ["bundler"]
-		}, `${OPTIONS$1}#package-ecosystem`, "The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). composer covers Composer v2, bundler Bundler (the table lists v2; dependabot-core v0.403.0 also builds a helper with Bundler ~> 4.0, bundler/helpers/v4/build). Cooldown, including the semver-* keys, is supported for all of them (the cooldown table of the same page lists Composer and Bundler with default and SemVer-bump days, read 2026-11-02 and, for Bundler, 2026-11-03). PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0)."),
+			bundler: ["bundler"],
+			cargo: ["cargo"]
+		}, `${OPTIONS$1}#package-ecosystem`, "The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). composer covers Composer v2, bundler Bundler (the table lists v2; dependabot-core v0.403.0 also builds a helper with Bundler ~> 4.0, bundler/helpers/v4/build). Cooldown, including the semver-* keys, is supported for all of them (the cooldown table of the same page lists Composer and Bundler with default and SemVer-bump days, read 2026-11-02 and, for Bundler, 2026-11-03). cargo covers Cargo (the table lists Cargo v1, and the cooldown table lists Cargo with default and SemVer-bump days, read 2026-11-03), a package manager of its own from depcurfew 1.7.0 (E08). PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0)."),
 		yamlAliases: bots$1.verified({ accepted: false }, "https://github.com/dependabot/dependabot-core/blob/v0.402.0/common/lib/dependabot/config/file.rb", "Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load(config, symbolize_names: true); Psych.safe_load takes aliases: false unless told otherwise and raises Psych::AliasesNotEnabled on an alias (*name), so a file with one is not read. The issue that asks for aliases (https://github.com/dependabot/dependabot-core/issues/1582, \"YAML aliases\", open and labelled Keep on 2026-11-02) quotes the error users get, \"YAML aliases are not supported\"; the pull request that would allow them (#9653) is open and not merged. The reference of dependabot.yml (dependabot-options-reference.md in github/docs) does not mention anchors or aliases. An anchor (&name) that no alias refers to changes nothing."),
 		yamlScalars: d171$1.verified({
 			library: "psych",
@@ -2365,10 +2366,6 @@ const dependabot$1 = {
 			semverDays: false
 		}, `${OPTIONS$1}#cooldown`, "package-ecosystem github-actions updates the actions the workflows run: with directory / Dependabot \"will search the /.github/workflows directory, as well as the action.yml/action.yaml file from the root directory\". The cooldown table lists GitHub Actions with default-days supported and the semver-major-days, semver-minor-days and semver-patch-days keys not supported, and the default cooldown of 3 days covers version updates without a cooldown block (github/docs, content/code-security/reference/supply-chain-security/dependabot-options-reference.md, main on 2026-11-02)."),
 		botOnlyEcosystems: d151$1.verified({
-			cargo: {
-				ecosystem: "cargo",
-				semverDays: true
-			},
 			gomod: {
 				ecosystem: "gomod",
 				semverDays: true
@@ -2385,7 +2382,7 @@ const dependabot$1 = {
 				ecosystem: "nuget",
 				semverDays: true
 			}
-		}, `${OPTIONS$1}#cooldown`, "The package-ecosystem values of the ecosystems depcurfew delays only through the bots (decision D-151): cargo (Cargo v1), gomod (Go modules v1), maven, gradle and nuget (NuGet <=6.12.0), from the package-ecosystem table of the same page. The cooldown table lists Cargo, Gomod (Go Modules), Gradle, Maven and NuGet with default-days and the SemVer-bump days (semver-major-days, semver-minor-days, semver-patch-days) supported, and the default cooldown of 3 days covers their version updates without a cooldown block (github/docs, content/code-security/reference/supply-chain-security/dependabot-options-reference.md, main on 2026-11-03)."),
+		}, `${OPTIONS$1}#cooldown`, "The package-ecosystem values of the ecosystems depcurfew delays only through the bots (decision D-151; Cargo left them in 1.7.0, E08): gomod (Go modules v1), maven, gradle and nuget (NuGet <=6.12.0), from the package-ecosystem table of the same page. The cooldown table lists Cargo, Gomod (Go Modules), Gradle, Maven and NuGet with default-days and the SemVer-bump days (semver-major-days, semver-minor-days, semver-patch-days) supported, and the default cooldown of 3 days covers their version updates without a cooldown block (github/docs, content/code-security/reference/supply-chain-security/dependabot-options-reference.md, main on 2026-11-03)."),
 		actionsReleaseDate: bots$1.uncertain("the publication date of the GitHub release of the tag, else the date of the tag, else the date of the commit; with no date the update does not wait", "https://github.com/dependabot/dependabot-core/blob/v0.402.0/github_actions/lib/dependabot/github_actions/update_checker/latest_version_finder.rb", "Read from the code, not the docs. A proposed commit SHA is aged by published_at of the GitHub release of its tag, else the creatordate of the tag (git for-each-ref), else the commit date; version tags by the creatordate of each tag (refs_for_tag_with_detail in common/lib/dependabot/git_metadata_fetcher.rb), which is the tagger date of an annotated tag and the commit date of a lightweight one, both set in git by whoever makes them. Only default-days counts. A missing or unreadable date lets the update through (check_if_version_in_cooldown_period? returns false)."),
 		dayRange: disputed$4("Matters for opting out of the default cooldown; cooldown.exclude: [\"*\"] works under the documented precedence rule either way. The announcement does not state its author's role.", evidence$4("1 to 90 days", "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates"), evidence$4("0 removes the cooldown", "https://github.com/dependabot/dependabot-core/discussions/15582")),
 		maximumDays: verified$12(90, "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates", "The page says the number of cooldown days must be between 1 and 90; whether 0 is accepted is disputed (see dayRange)."),
@@ -6525,8 +6522,9 @@ const renovate$1 = {
 			npm: "npm",
 			pypi: "pypi",
 			packagist: "packagist",
-			rubygems: "rubygems"
-		}, "https://docs.renovatebot.com/modules/datasource/pypi/", "Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version's files. Composer packages come from packagist, the datasource of the composer manager (static readonly id = 'packagist' in lib/modules/datasource/packagist/index.ts and supportedDatasources in lib/modules/manager/composer/index.ts at 44.199.2, read 2026-11-02). Ruby gems come from rubygems (static readonly id = 'rubygems' in lib/modules/datasource/rubygems/index.ts at 44.198.2, one of the supportedDatasources of the bundler manager), which has releaseTimestampSupport: \"The release timestamp is determined from the `created_at` field in the results\" (read 2026-11-03)."),
+			rubygems: "rubygems",
+			crates: "crate"
+		}, "https://docs.renovatebot.com/modules/datasource/pypi/", "Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version's files. Composer packages come from packagist, the datasource of the composer manager (static readonly id = 'packagist' in lib/modules/datasource/packagist/index.ts and supportedDatasources in lib/modules/manager/composer/index.ts at 44.199.2, read 2026-11-02). Ruby gems come from rubygems (static readonly id = 'rubygems' in lib/modules/datasource/rubygems/index.ts at 44.198.2, one of the supportedDatasources of the bundler manager), which has releaseTimestampSupport: \"The release timestamp is determined from the `created_at` field in the results\" (read 2026-11-03). Crates come from the crate datasource (lib/modules/manager/cargo/schema.ts at 44.198.2, the release extra.managers cites)."),
 		packagistReleaseTime: composer$1.verified({
 			field: "published-time",
 			fallback: "time"
@@ -6609,8 +6607,9 @@ const renovate$1 = {
 			pipenv: "pipenv",
 			composer: "composer",
 			bundler: "bundler",
+			cargo: "cargo",
 			"github-actions": "github-actions"
-		}, `${AT}/lib/modules/manager/api.ts`, "The Renovate manager that updates the packages of each tool, by its id in api.ts; github-actions updates the actions the workflows run. The npm manager reads package.json with package-lock.json, pnpm-lock.yaml or yarn.lock (lockFileNames in npm/index.ts). bun and deno have managers of their own that take a package.json over from npm (supersedesManagers in bun/index.ts and deno/index.ts, applied by lib/workers/repository/extract/supersedes.ts), and poetry takes pyproject.toml over from pep621, which updates it for uv and PDM. composer updates composer.json (composer/index.ts), and bundler the Gemfile with Gemfile.lock (managerFilePatterns /(^|/)Gemfile$/ and lockFileNames in bundler/index.ts, so not gems.rb); bundler was read on 2026-11-03."),
+		}, `${AT}/lib/modules/manager/api.ts`, "The Renovate manager that updates the packages of each tool, by its id in api.ts; github-actions updates the actions the workflows run. The npm manager reads package.json with package-lock.json, pnpm-lock.yaml or yarn.lock (lockFileNames in npm/index.ts). bun and deno have managers of their own that take a package.json over from npm (supersedesManagers in bun/index.ts and deno/index.ts, applied by lib/workers/repository/extract/supersedes.ts), and poetry takes pyproject.toml over from pep621, which updates it for uv and PDM. composer updates composer.json (composer/index.ts), and bundler the Gemfile with Gemfile.lock (managerFilePatterns /(^|/)Gemfile$/ and lockFileNames in bundler/index.ts, so not gems.rb); bundler was read on 2026-11-03. cargo updates Cargo.toml (managerFilePatterns, lockFileNames Cargo.lock), the packages of Cargo, a package manager of its own in depcurfew from 1.7.0 (E08; before, an ecosystem updated by bots only)."),
 		managerCategories: d152.verified({
 			npm: ["js"],
 			bun: ["js"],
@@ -6621,14 +6620,10 @@ const renovate$1 = {
 			pipenv: ["python"],
 			composer: ["php"],
 			bundler: ["ruby"],
+			cargo: ["rust"],
 			"github-actions": ["ci"]
-		}, `${AT}/lib/config/index.ts`, "getManagerConfig gives each dependency the categories its manager exports (categories in lib/modules/manager/<id>/index.ts; the list of categories is lib/constants/category.ts), and matchCategories matches them. bundler exports the category ruby (read 2026-11-03)."),
+		}, `${AT}/lib/config/index.ts`, "getManagerConfig gives each dependency the categories its manager exports (categories in lib/modules/manager/<id>/index.ts; the list of categories is lib/constants/category.ts), and matchCategories matches them. bundler exports the category ruby (read 2026-11-03). cargo exports rust (lib/modules/manager/cargo/index.ts)."),
 		botOnlyEcosystems: d151.verified({
-			cargo: {
-				manager: "cargo",
-				datasource: "crate",
-				categories: ["rust"]
-			},
 			gomod: {
 				manager: "gomod",
 				datasource: "go",
@@ -8042,24 +8037,10 @@ const osv = {
 const { verified: verified$1, uncertain } = verifiedOn("2026-11-03");
 const dotnet11 = verifiedOn("2026-11-11");
 const d208 = verifiedOn("2026-11-11");
-const CARGO = "https://github.com/rust-lang/cargo/blob";
 const GRADLE_DOCS = "https://github.com/gradle/gradle/blob/v9.8.2/platforms/documentation/docs/src/docs";
 const NUGET_DOCS = "https://github.com/NuGet/docs.microsoft.com-nuget/blob/main/docs";
 const NUGET_DOCS_D205 = "https://github.com/NuGet/docs.microsoft.com-nuget/blob/2f8406a736ab57c51caffa4701fc21fb7f141c1b/docs";
 const botOnlyEcosystems = {
-	cargo: {
-		project: verified$1({
-			name: "Cargo",
-			client: "Cargo",
-			files: ["Cargo.toml", "Cargo.lock"]
-		}, `${CARGO}/rust-1.99.0/doc/book/src/guide/cargo-toml-vs-cargo-lock.md`, "\"Cargo.toml is about describing your dependencies in a broad sense\" (the manifest) and \"Cargo.lock contains exact information about your dependencies\" (the Cargo book of Cargo 1.99, guide/cargo-toml-vs-cargo-lock.md)."),
-		releaseAge: uncertain({
-			setting: "registry.global-min-publish-age",
-			since: "1.100.0",
-			product: "Cargo",
-			file: ".cargo/config.toml"
-		}, `${CARGO}/master/doc/book/src/CHANGELOG.md`, "The changelog of the Cargo book on master lists under \"Cargo 1.100 (2026-11-12)\": \"Stabilize minimum publish age configurations. When registry.global-min-publish-age is set, the resolver ignores versions published more recently than that, unless they are already in Cargo.lock\" (RFC 3923, rust-lang/cargo#17335); reference/config.md on master documents registry.global-min-publish-age (default \"0\", values such as \"14 days\"), registries.<name>.min-publish-age and resolver.incompatible-publish-age, read from .cargo/config.toml. On 2026-11-03 Cargo 1.100 is not released: the latest Rust release is 1.99.1 of 2026-10-15 (RELEASES.md on the stable branch of rust-lang/rust), and Cargo 1.99 has the setting only behind the nightly flag -Zmin-publish-age (doc/book/src/reference/unstable.md at rust-1.99.0, which lists no stable setting in config.md). Uncertain because 1.100 is a planned release; until a repository runs Cargo 1.100, Cargo has no release-age delay of its own.")
-	},
 	gomod: {
 		project: verified$1({
 			name: "Go modules",
@@ -32777,11 +32758,8 @@ function botEcosystemTargets(bot, ids) {
 /** The targets of the package managers among `tools`, one for each datasource and manager, with the tools of each. */
 function managerTargets(bot, tools) {
 	const groups = /* @__PURE__ */ new Map();
-	const managers = extraOf(bot, "managers", isRecord);
-	const botOnly = bot.extra?.["botOnlyEcosystems"] === void 0 ? {} : extraOf(bot, "botOnlyEcosystems", isRecord);
 	for (const tool of tools) {
 		if (tool.kind !== "package-manager") continue;
-		if (!Object.hasOwn(managers, tool.id) && Object.hasOwn(botOnly, tool.id)) continue;
 		const target = managerTarget(bot, tool.id, ecosystemOfTool(tool));
 		const key = `${target.datasource ?? ""}\u0000${target.manager ?? `\u0000${tool.id}`}`;
 		const group = groups.get(key);
@@ -33209,7 +33187,7 @@ function limitedCooldowns(context, file, setting, excludeKey, entries) {
 		const broad = kept ? strings(cooldown[excludeKey]).find(matchesEveryName) : void 0;
 		if (broad !== void 0) {
 			const { location, at } = where(excludeKey);
-			const names = other === void 0 ? "Ruby gems" : "id" in other ? `${botEcosystemFact(other.id)?.client ?? other.ecosystem} dependencies` : "actions";
+			const names = other === void 0 ? registryNames(context, ecosystem, extraOf(tool, "ecosystems", isRecord)) : "id" in other ? `${botEcosystemFact(other.id)?.client ?? other.ecosystem} dependencies` : "actions";
 			context.warn({
 				code: "bot-rule-shortens-delay",
 				location,
@@ -33218,6 +33196,18 @@ function limitedCooldowns(context, file, setting, excludeKey, entries) {
 			});
 		}
 	}
+}
+/** The registries whose packages cooldown.exclude in the policy can name (npm, pypi:, composer:). */
+const NAMED_REGISTRIES = /* @__PURE__ */ new Set([
+	"npm",
+	"pypi",
+	"packagist"
+]);
+/** The packages of a manager entry whose names the policy has none of, for messages: "Ruby gems", "Rust crates". */
+function registryNames(context, ecosystem, managers) {
+	const covered = Array.isArray(managers[ecosystem]) ? managers[ecosystem] : [];
+	const tool = context.tools.find((entry) => covered.includes(entry.id));
+	return tool !== void 0 && ecosystemOfTool(tool) === "crates" ? "Rust crates" : "Ruby gems";
 }
 const dependabot = (context, duration, repository) => {
 	const { tool, policy } = context;
@@ -33267,7 +33257,7 @@ const dependabot = (context, duration, repository) => {
 		const covered = Array.isArray(managers[ecosystem]) ? managers[ecosystem] : [];
 		const tool = context.tools.find((entry) => covered.includes(entry.id));
 		const registry = tool === void 0 ? "npm" : ecosystemOfTool(tool);
-		if (registry === "rubygems") return void 0;
+		if (!NAMED_REGISTRIES.has(registry)) return void 0;
 		return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], registry)) ?? [];
 	};
 	let configured = 0;
@@ -37884,7 +37874,82 @@ var ManifestGuard = class extends Workspace {
 	}
 };
 
+// src/knowledge/render.ts
+/** The ecosystems updated by bots only, by name, from the knowledge base (E08): "Go modules, Maven, Gradle and NuGet". */
+function describeBotOnlyEcosystems(environment) {
+	const names = Object.values(environment.botOnlyEcosystems).flatMap((entry) => {
+		const project = evidenceOf(entry.project)[0]?.value;
+		return project === void 0 ? [] : [project.name];
+	});
+	return names.length <= 1 ? names[0] ?? "" : `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`;
+}
+
 // src/apply/warnings.ts
+const APPLY_WARNINGS = {
+	"nothing-to-configure": "depcurfew found no supported package manager or bot, so nothing is configured.",
+	"environment-overrides": "apply --user: an environment variable makes a tool read another user file or none, or overrides a value apply writes there.",
+	"depcurfew-outdated": "The project installs a newer depcurfew than the one running, which may not know settings that version writes.",
+	"file-unreadable": "A file that shows which tools a project uses cannot be read or parsed (too large, a symlink out of the repository, no read permission, invalid), so depcurfew may configure fewer tools than the project uses.",
+	"tool-not-supported": "A detected or installed tool is not supported (Yarn Classic), so nothing is written for it.",
+	"target-not-found": "With projects, a package manager listed under targets is configured in each directory (the root or a project) that uses it, and none uses it, so nothing is written for it.",
+	"tool-only-in-ci": "A tool appears only in a CI setup step, with no manifest, lockfile or configuration in the repository, so targets \"auto\" does not configure it.",
+	"version-not-pinned": "No exact version of a package manager is pinned, so depcurfew configures for the latest version it knows.",
+	"version-too-old": "The pinned version of a tool (with apply --user, the installed one) lacks a setting the policy needs, so that setting is not written.",
+	"version-in-use-too-old": "Another npm the repository runs than the pinned one (one a declared Node.js comes with, such as Node.js 24 in .nvmrc, or a CI job or Dockerfile installs) lacks a setting apply writes for the release-age delay or a dependency source, so that setting has no effect there; doctor reports the same places as manager-version-too-old. A place that only runs npm ci needs no delay.",
+	"version-unknown": "apply --user: the installed version of a tool cannot be read from its files, and a value it does not understand would stop every command, so nothing is written for it.",
+	"no-user-config": "apply --user: the tool has no user-level configuration file, so nothing is written for it.",
+	"user-setting-project-only": "apply --user: the tool reads a part of the policy only from project files, so it is not written into the user file.",
+	"user-directory-relative": "apply --user: the environment variable that names the directory of the user file (XDG_CONFIG_HOME, APPDATA) is a relative path, so the tool looks in another place from each directory, or where it looks then is not known; nothing is written for it.",
+	"user-file-uncertain": "apply --user: a library the tool calls decides where its user file is (platformdirs for Poetry and PDM on macOS), and its version cannot be read from files, so apply --user writes where the tool's docs say and names the other files the tool may read.",
+	"user-setting-overridden": "apply --user: a file the tool reads ahead of its user file (~/.npmrc for pnpm 10) sets a key apply writes there to another value, so the value written has no effect.",
+	"version-not-used": "apply --user: --for gives the version of a tool that apply --user does not configure (not in PATH with targets \"auto\", or not listed under targets).",
+	"cooldown-not-written": "The release-age delay cannot be written for a tool (for Bundler: a source call of the Gemfile apply does not edit, no source \"https://rubygems.org\", or a Gemfile depcurfew cannot read as Ruby does from the line given on, which it then does not edit at all; for pnpm 12.15 and later: include in pnpm-workspace.yaml gives minimumReleaseAge to a config dependency or to a file outside the directory).",
+	"cooldown-shortened": "A release-age delay set outside depcurfew's markers (in JSON files also one an earlier apply wrote) is longer than the policy, and apply replaces it with the shorter one; a fixed date of uv, PDM or Deno counts as the time since that date.",
+	"cooldown-overridden": "A setting in the file apply writes the delay to undoes it for some or all packages, and apply does not change it (Cargo: resolver.incompatible-publish-age = \"allow\", or a shorter registries.crates-io.min-publish-age, which wins over the global key for crates.io).",
+	"cooldown-limits": "The release-age delay apply writes does not cover everything the tool installs (Cargo: cargo install of a crate, versions a registry gives no publish time, fixes it holds back as well, and a value in $CARGO_HOME/config.toml or the environment that overrides the project).",
+	"cooldown-environment-only": "pip reads no project configuration, so the release-age delay has to be set in the environment where pip runs.",
+	"exclude-pattern-unsupported": "A cooldown exception uses a wildcard the tool does not support, so it is not written.",
+	"exclude-ignored-by-exec": "npx, npm exec and npm x do not read min-release-age-exclude: the packages of cooldown.exclude that they download still wait for the release-age delay.",
+	"exclude-unsupported": "The tool has no setting for cooldown exceptions, so the release-age delay applies to every package (Bundler: also because the policy has no names for Ruby gems).",
+	"exclude-not-written": "The setting that holds the cooldown exceptions (Composer's config.policy.cooldown.ignore) has a value of a type the tool does not accept there, so apply leaves it as it is and does not add the exceptions; the release-age delay is written.",
+	"exclude-entry-outside-policy": "A cooldown exception in a file without depcurfew's markers (Composer's config.policy.cooldown.ignore) exempts a package that cooldown.exclude does not; apply removes only the entries it wrote, recognised by their reason, and leaves this one.",
+	"allow-pattern-unsupported": "An installScripts.allow entry is a pattern, but the tool takes package names only, so it is not written.",
+	"deny-pattern-unsupported": "An installScripts.deny entry is a pattern, but the tool records denials by package name only, so it is not written.",
+	"allow-all-unsupported": "The tool has no setting that allows every install script, so installScripts \"allow\" is not written.",
+	"allow-all-replaced": "A setting that allowed every install script (with any value the tool reads as true, also one that a YAML merge key brings in, or pnpm 10's dangerously-allow-all-builds in .npmrc) was set to false, or replaced with the policy's allow-list where the setting is the list itself (Deno's allowScripts, Composer's allow-plugins, which then may be {}), because the policy denies install scripts.",
+	"allow-list-entry-outside-policy": "An install-script allow-list in the repository (with apply --user, in a user file) lets a package run scripts the policy does not allow, or will once the tool reads the list (Deno before 2.6.0 does not read allowScripts); apply does not remove it.",
+	"deny-conflicts-with-file": "An entry in a tool's own list lets a package of installScripts.deny run its install scripts, or blocks a package of installScripts.allow; apply does not change entries it did not write.",
+	"deny-needs-optional-dependencies": "A package of installScripts.deny takes its binary from an optional dependency (esbuild), but npm leaves optional dependencies out (omit=optional or optional=false in .npmrc, --omit=optional or --no-optional on an install of a CI job or Dockerfile, NPM_CONFIG_OMIT=optional), so the package cannot find its binary after that install.",
+	"unexpected-value": "A setting apply adds to has a value of a type the tool does not accept there, so apply leaves it as it is and writes nothing into it.",
+	"built-in-list-replaced": "Bun's built-in list of trusted packages is replaced by the policy's allow-list.",
+	"scripts-not-enforceable": "The pinned (with apply --user, the installed) npm or pnpm, or another npm the repository runs (one a declared Node.js comes with, or a CI job or Dockerfile installs), runs every install script and has no allow-list, so \"deny\" cannot be enforced; also given for an npm the repository runs whose version depcurfew cannot tell, which counts as one that runs them, and for Bundler, which builds the native extensions of gems at install time and has no setting that stops it.",
+	"strict-allow-scripts-for-npm-in-use": "An npm the repository runs (the pinned one, one a CI job or Dockerfile installs, or one a declared Node.js comes with, for a project also through the root version files and root Dockerfiles that build it) is 11.16 to 11.x and runs install scripts the allow-list does not cover unless strict-allow-scripts is set, so apply writes strict-allow-scripts=true, which makes npm 12 stop the install at such a script; not given when that npm is the pinned one and no place runs npm 12.",
+	"before-overrides-cooldown": "before= in .npmrc takes the place of the release-age delay apply writes, or makes npm stop with an error next to it (apply --user then does not write the delay).",
+	"exact-version-gap": "The pinned (with apply --user, the installed) pnpm skips the release-age delay for packages requested by exact version.",
+	"setting-owned-elsewhere": "pnpm 12.15 and later: include in pnpm-workspace.yaml gives a setting the policy needs to a config dependency or to a file outside the directory, so apply does not write it (pnpm refuses a setting with two owners, ERR_PNPM_DUPLICATE_SETTING) and cannot check its value; the release-age delay itself gives cooldown-not-written.",
+	"source-not-enforceable": "The tool has no setting for a dependency source the policy denies; doctor checks the lockfile instead, where it reads it (not Gemfile.lock).",
+	"source-loosened": "A dependency-source setting outside depcurfew's markers is stricter than the policy (npm's allow-file or allow-directory none or root, pnpm's blockExoticSubdeps true, a Yarn approvedGitRepositories list without **), and apply replaces it with the value the policy's \"allow\" gives.",
+	"security-delay-removed": "Renovate delays security updates (vulnerabilityAlerts.minimumReleaseAge), but cooldown.securityUpdates is \"bypass\", so apply sets it to null and Renovate proposes them at once.",
+	"exclusion-dropped": "A cooldown exception set outside depcurfew's markers (an entry of npm's min-release-age-exclude, pnpm's minimumReleaseAgeExclude, Yarn's npmPreapprovedPackages, Bun's minimumReleaseAgeExcludes, Deno's minimumDependencyAge.exclude, uv's exclude-newer-package, PDM's exclude-newer-override, Poetry's min-release-age-exclude or Dependabot's cooldown.exclude) is not in cooldown.exclude, so apply comments it out (removes it in JSON), and the package waits again. Also an entry of uv's exclude-newer-package with a date or a duration that holds its package back less than cooldown.minimum; one that holds it back longer stays in the managed block.",
+	"source-switch-indirect-only": "The pnpm setting for git and tarball sources stops them only for indirect dependencies.",
+	"source-switch-combined": "One pnpm setting covers git and tarball sources, so denying one denies both.",
+	"forced-source-build": "Python packages on the allow-list are always built from source, because no tool can only allow a build.",
+	"build-switch-scope": "The tool's switch forbids building only packages from an index; git, local and archive dependencies are still built.",
+	"build-switch-install-only": "Poetry applies its build switch when installing; poetry lock may still build source distributions.",
+	"build-switch-environment-only": "The tool has no project setting that forbids building from source, so it has to be set in the environment where the tool runs.",
+	"requirements-file-missing": "There is no requirements file to write pip options into.",
+	"build-switch-undone": "A line of a requirements file pip reads (requirements.txt or a file it includes with -r or -c) has --no-binary or --only-binary=:none:, which undoes the --only-binary=:all: apply writes, and apply cannot comment it out: the option follows a requirement, shares its line with other options or continues on the next line.",
+	"requirements-include-unread": "A requirements file pip reads includes another one (-r, -c) that apply cannot check for lines that undo --only-binary=:all: (a URL, a path outside the directory configured, a missing file, or a file it cannot read).",
+	"manifest-missing": "A setting belongs in a project manifest (package.json, deno.json, pyproject.toml, Pipfile, composer.json, Gemfile) that does not exist, and apply does not create manifests.",
+	"lockfile-out-of-date": "The lockfile records, or is checked against, a setting apply changed, so it has to be locked again.",
+	"file-ignored-by-git": "A file apply writes matches a .gitignore rule, so the change may never reach the repository.",
+	"bot-config-missing": "A bot has no configuration file, and depcurfew does not create one.",
+	"bot-config-not-edited": "A bot configuration file is in a place or format depcurfew does not edit; a snippet shows what to add.",
+	"bot-entries-missing": "The Dependabot configuration has no entries for the package managers in use.",
+	"bot-config-unreadable": "The Dependabot configuration uses a YAML alias, which Dependabot does not accept, so it reads no configuration from the file (the cooldown apply writes included), and depcurfew does not read the delays the file sets.",
+	"bot-rule-shortens-delay": `A Renovate packageRules entry apply does not manage gives every package of a registry, Renovate manager or category in use, the actions of the workflows or the dependencies of an ecosystem updated by bots only (${describeBotOnlyEcosystems(environment)}), or some update types of them, a shorter release-age delay than the one apply writes; or a Dependabot updates entry apply writes the cooldown into has a cooldown.include list, which limits the cooldown to the dependencies it names, or keeps a cooldown.exclude list that matches every dependency (an entry for actions, Ruby gems or an ecosystem updated by bots only, whose list apply does not replace). The bot uses these, and apply does not change them.`,
+	"security-delay-unsupported": "Dependabot cannot delay security updates, so securityUpdates \"delay\" is not applied."
+};
 /** A warning as one line of text, as ApplyReport.warnings has it. */
 function warningText(warning) {
 	return warning.fix === void 0 ? warning.message : `${warning.message}. ${warning.fix}`;
@@ -39868,11 +39933,23 @@ function missingDependabotEntries(context, views) {
 		fix: `If Dependabot should update ${view.directory}, add an updates entry with package-ecosystem: ${ecosystem} and directory: /${view.directory} to ${file}, then run depcurfew apply to give it the cooldown`
 	});
 }
+/**
+* What the pull requests of a bot that waits less than the package manager do. A manager whose delay keeps the versions
+* already in the lockfile (Cargo, extra.notCovered.lockedVersions) does not stop them, so no failure is promised (E08).
+*/
+function pullRequestEffect(tool) {
+	const notCovered = tool.extra?.["notCovered"] === void 0 ? void 0 : values$1(tool.extra["notCovered"])[0];
+	if (isRecord(notCovered) && notCovered["lockedVersions"] === true) {
+		const lockfile = (tool.project === void 0 ? [] : values$1(tool.project.lockfiles)[0] ?? []).at(-1)?.value[0];
+		return `its pull requests bring in versions younger than ${tool.name} picks itself, and ${tool.name} keeps them, as it keeps the versions ${lockfile === void 0 ? "of the lockfile" : `in ${lockfile}`}`;
+	}
+	return `its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`;
+}
 function managerReference(tool, own) {
 	return {
 		minutes: own.minutes,
 		asLongAs: `${tool.name} (${describe$1(own.minutes)}, ${own.origin})`,
-		waits: `${tool.name} waits ${describe$1(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
+		waits: `${tool.name} waits ${describe$1(own.minutes)} (${own.origin}); ${pullRequestEffect(tool)}`,
 		things: "packages"
 	};
 }
@@ -40019,9 +40096,9 @@ function hasUnprotected(scope) {
 }
 const botCooldownMismatch = {
 	id: "bot-cooldown-mismatch",
-	checks: "Update bots wait at least as long as the package manager, and for the actions of workflows and the dependencies of Cargo, Go modules, Maven, Gradle and NuGet as long as the policy, before proposing a new version",
+	checks: `Update bots wait at least as long as the package manager, and for the actions of workflows and the dependencies of ${describeBotOnlyEcosystems(environment)} as long as the policy, before proposing a new version`,
 	summary: "An update bot waits less than the package manager, or for the actions of workflows and the dependencies of the ecosystems updated by bots only less than the policy, before proposing a new version.",
-	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail where the manager re-checks the lockfile or bring in younger versions, and security updates that skip the bot delay fail too. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category, update type or the files and depType of actions, each is reported, and one with a matcher depcurfew cannot read gets a note. The actions of workflows and the dependencies of Cargo, Go, Maven, Gradle and NuGet must wait cooldown.minimum; without a bot, the latter get a note. An unreadable bot file (JSON5, a YAML alias) gets a note per package manager that waits. With projects, a bot file inside a project gets a note (bots read only the root's), and a project the root's Dependabot configuration leaves out gets a warning. A Dependabot composer entry gets a note: it counts from the release time the author sets.",
+	description: `The bot then opens pull requests with versions the package manager would not pick yet: they can fail where the manager re-checks the lockfile, or bring in younger versions. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category, update type or the files and depType of actions, each is reported, and one with a matcher depcurfew cannot read gets a note. The actions of workflows and the dependencies of ${describeBotOnlyEcosystems(environment)} must wait cooldown.minimum; without a bot, the latter get a note. An unreadable bot file (JSON5, a YAML alias) gets a note per package manager that waits. With projects, a bot file inside a project gets a note (bots read only the root's), and a project the root's Dependabot configuration leaves out gets a warning. A Dependabot composer entry gets a note: it counts from the release time the author sets.`,
 	help: "Give the bot a delay at least as long as the package manager's, and for the actions of workflows and the ecosystems updated by bots only as long as cooldown.minimum (depcurfew apply does this).",
 	level: "error",
 	requiresPolicy: false,
@@ -40485,7 +40562,7 @@ const broadExclusion = {
 	id: "broad-exclusion",
 	checks: "No exception list, per-scope setting or Renovate rule turns the release-age delay off beyond cooldown.exclude",
 	summary: "An exception list matches every package, or a per-scope setting or a Renovate rule exempts packages cooldown.exclude does not, which turns the protection off.",
-	description: "A release-age exception such as \"*\" (or a policy allow-list entry such as \"@*/*\") looks narrow but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns; with a cooldown for Renovate, also for the actions of the workflows (the github-actions manager, every workflow file, the depType action) and for Cargo, Go modules, Maven, Gradle or NuGet in the repository. A Renovate rule that gives npm, Python or Composer packages of some names a shorter delay than cooldown.minimum is an exception cooldown.exclude must make too, and a rule depcurfew apply wrote for the names of one registry must be limited to its datasource. In Yarn 4.17 and later, a shorter npmScopes.<scope>.npmMinimalAgeGate exempts that scope.",
+	description: `A release-age exception such as "*" (or a policy allow-list entry such as "@*/*") looks narrow but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns; with a cooldown for Renovate, also for the actions of the workflows (the github-actions manager, every workflow file, the depType action) and for ${describeBotOnlyEcosystems(environment).replace(/ and ([^,]*)$/u, " or $1")} in the repository. A Renovate rule that gives npm, Python or Composer packages of some names a shorter delay than cooldown.minimum is an exception cooldown.exclude must make too, and a rule depcurfew apply wrote for the names of one registry must be limited to its datasource. In Yarn 4.17 and later, a shorter npmScopes.<scope>.npmMinimalAgeGate exempts that scope.`,
 	help: "Replace the pattern with the packages or scopes that really need the exception.",
 	level: "error",
 	requiresPolicy: false,
