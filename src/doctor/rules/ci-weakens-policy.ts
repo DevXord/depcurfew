@@ -3,8 +3,9 @@
 // where the variables are set (ci-settings.ts: the env of the workflow, a job, its container and a step; export,
 // NAME=value before a command and $GITHUB_ENV in run steps; ENV, ARG and RUN of Dockerfile stages) and on the commands
 // of the tool: the options and variables of installOverrides, the cooldown option, and for npm the settings of
-// installScripts and sources (extra.settingOverrides). pip has python-config-ignored, Composer composer-config-weakens
-// and Bundler bundler-config-weakens.
+// installScripts and sources (extra.settingOverrides). Cargo's --config takes TOML or a file (extra.configOverride, E10),
+// read with cargo-config.ts. pip has python-config-ignored, Composer composer-config-weakens and Bundler
+// bundler-config-weakens.
 import { isRecord, values } from '../../apply/facts.ts';
 import { programName } from '../../detect/commands.ts';
 import type { PackageManagerId } from '../../detect/types.ts';
@@ -13,7 +14,8 @@ import type { EnvironmentNameRule, InstallOverridesKnowledge, OverrideValues, To
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import type { SourceKind } from '../../apply/generators/common.ts';
 import { usesManager } from '../applies.ts';
-import { ciSettings, variablePlace } from '../ci-settings.ts';
+import { delayKeys, readConfigArgument, readConfigFiles, type DelayKey, type DelaySetting, type ReadConfigFile } from '../cargo-config.ts';
+import { ciSettings, variablePlace, type CiCommand } from '../ci-settings.ts';
 import { delayMinutes, formatMinutes } from '../durations.ts';
 import { plannedApply } from '../plan.ts';
 import { iniEntries } from '../settings.ts';
@@ -22,7 +24,7 @@ import type { Level, Rule, RuleContext } from '../types.ts';
 const RULE = 'ci-weakens-policy';
 
 /** The tools this rule covers; pip, Composer and Bundler have rules of their own. */
-const TOOLS: readonly PackageManagerId[] = ['npm', 'pnpm', 'yarn', 'bun', 'deno', 'uv', 'poetry', 'pdm'];
+const TOOLS: readonly PackageManagerId[] = ['npm', 'pnpm', 'yarn', 'bun', 'deno', 'uv', 'poetry', 'pdm', 'cargo'];
 
 type Weakens = 'delay' | 'scripts' | 'sources';
 
@@ -46,6 +48,8 @@ interface ToolSwitches {
   byName: ReadonlyMap<string, readonly { entry: Switch; match: EnvironmentNameRule['match']; prefix: number }[]>;
   settingPrefix?: string;
   negation?: string;
+  /** Cargo: the option that takes configuration in TOML or a file (--config), and the keys of the delay it may set. */
+  config?: { option: string; keys: DelayKey[] };
 }
 
 const SOURCE_LABELS: Readonly<Record<SourceKind, string>> = { git: 'git', remoteTarball: 'remote tarball', file: 'local tarball', directory: 'local directory' };
@@ -103,6 +107,10 @@ function switchesOf(tool: ToolKnowledge): ToolSwitches {
   const line = extra(tool, 'commandLine');
   const commands = isRecord(line) ? [...(isList(line['add']) ? line['add'] : []), ...(isList(line['run']) ? line['run'].map((entry) => (isRecord(entry) ? entry['command'] : undefined)) : [])] : [];
   const executables = new Set(commands.flatMap((command) => (isList(command) && typeof command[0] === 'string' ? [command[0]] : [])));
+  // Cargo: --config and the programs that take it (extra.configOverride).
+  const override = extra(tool, 'configOverride');
+  const config = isRecord(override) && typeof override['option'] === 'string' ? { option: override['option'], keys: delayKeys(tool) } : undefined;
+  if (isRecord(override) && isList(override['executables'])) for (const name of override['executables']) if (typeof name === 'string') executables.add(name);
   const parsing = extra(tool, 'parsing');
   const negationFact = isRecord(settings) && typeof settings['negation'] === 'string' ? settings['negation'] : isRecord(parsing) && typeof parsing['negation'] === 'string' ? parsing['negation'] : undefined;
   return {
@@ -113,6 +121,7 @@ function switchesOf(tool: ToolKnowledge): ToolSwitches {
     byName: namesOf(variables, (extra(tool, 'environmentNames') as EnvironmentNameRule[] | undefined) ?? []),
     ...(isRecord(parsing) && typeof parsing['settingPrefix'] === 'string' ? { settingPrefix: parsing['settingPrefix'] } : {}),
     ...(negationFact === undefined ? {} : { negation: negationFact }),
+    ...(config === undefined ? {} : { config }),
   };
 }
 
@@ -174,6 +183,8 @@ function effectOf(context: RuleContext, tools: ToolSwitches, entry: Switch, valu
   if (entry.values === 'delay') {
     if (value === undefined || value.trim() === '') return undefined;
     const delay = delayMinutes(tool, value.trim(), undefined);
+    // Cargo: a span whose product of seconds Cargo may wrap (cargoTimeSpan), with that reason.
+    if (!delay.ok && tool.id === 'cargo') return { ...base, level: 'warning', text: `may weaken the release-age delay of ${tool.name} (${minimum?.text ?? ''} in ${POLICY_FILE}): ${delay.reason}` };
     if (!delay.ok) return { ...base, level: 'warning', text: `sets the release-age delay of ${tool.name} to a value depcurfew cannot compare with the ${minimum?.text ?? ''} of ${POLICY_FILE} (a date, false or another form), and may weaken it` };
     if (minimum === undefined || delay.minutes >= minimum.minutes) return undefined;
     return {
@@ -257,6 +268,13 @@ function checkTool(context: RuleContext, tools: ToolSwitches): void {
         negated = entry !== undefined && entry.values !== 'delay' && entry.values !== 'any';
         if (!negated) entry = undefined;
       }
+      if (entry === undefined && tools.config !== undefined && name === tools.config.option) {
+        const argument = attached ?? command.words[index + 1];
+        if (argument === undefined) continue;
+        checkConfigArgument(context, tools, command, attached === undefined ? `${word} ${argument}` : word, argument, strict);
+        if (attached === undefined) index++;
+        continue;
+      }
       if (entry === undefined) continue;
       const { value, written } = optionValue(entry, command.words, index, attached, negated);
       const effect = effectOf(context, tools, entry, value, strict);
@@ -267,6 +285,132 @@ function checkTool(context: RuleContext, tools: ToolSwitches): void {
         message: `${command.where} in ${command.file} (line ${command.line}) runs ${tool.name} with ${written}, which ${effect.text}`,
         fix: `Remove ${written} from that command in ${command.file}${instead(effect)}`,
       });
+    }
+  }
+}
+
+/**
+ * cargo --config (E10): each delay key the argument sets, as the variable of that key would (an error for zero, a
+ * shorter delay or "allow"), and a warning for an include, a file depcurfew cannot read or an argument too long or too
+ * deep to read, as those may set the delay.
+ */
+function checkConfigArgument(context: RuleContext, tools: ToolSwitches, command: CiCommand, written: string, argument: string, strict: (setting: string) => boolean): void {
+  const { tool, config } = tools;
+  if (config === undefined || context.policy?.cooldown === undefined) return;
+  const shown = written.length > 120 ? `${written.slice(0, 117)}...` : written;
+  const head = `${command.where} in ${command.file} (line ${command.line}) runs ${tool.name} with ${shown}`;
+  const location = { file: command.file, line: command.line };
+  const what = `the release-age delay of ${tool.name} (${context.policy.cooldown.minimum.text} in ${POLICY_FILE})`;
+  const read = readConfigArgument(context.repository, argument, config.keys);
+  const remove = `Remove ${shown} from that command in ${command.file}`;
+  if (read.kind === 'unreadable') {
+    context.report({ level: 'warning', location, message: `${head}, ${read.reason}, which may weaken ${what}`, fix: `${remove}, or make sure it never weakens what ${POLICY_FILE} requires` });
+    return;
+  }
+  for (const setting of read.settings) {
+    const value = typeof setting.value === 'string' ? setting.value : JSON.stringify(setting.value);
+    const effect = effectOf(context, tools, { name: setting.key.key, weakens: 'delay', values: setting.key.values }, value, strict);
+    if (effect === undefined) continue;
+    const pair = `${setting.key.key} = ${JSON.stringify(setting.value)}`;
+    context.report({
+      level: effect.level,
+      location,
+      message: read.file === undefined ? `${head}, which ${effect.text}` : `${head}, and ${pair} in ${read.file}${setting.line === undefined ? '' : ` (line ${setting.line})`} ${effect.text}`,
+      fix: read.file === undefined ? `${remove}${instead(effect)}` : `Remove ${setting.key.key} from ${read.file}, or ${shown} from that command in ${command.file}${instead(effect)}`,
+    });
+  }
+  if (read.include) {
+    context.report({
+      level: 'warning',
+      location,
+      message: `${head}, which loads more configuration with include, which depcurfew does not read and which may weaken ${what}`,
+      fix: `${remove}, or make sure the files it includes never weaken what ${POLICY_FILE} requires`,
+    });
+  }
+}
+
+/** The Cargo configuration file Cargo uses in a directory's .cargo: the older name when both are there (extra.legacyConfig). */
+function cargoConfigIn(context: RuleContext, tool: ToolKnowledge, directory: string): string | undefined {
+  const file = values(tool.cooldown.configFiles)[0]?.[0] ?? '.cargo/config.toml';
+  const legacy = extra(tool, 'legacyConfig');
+  const older = isRecord(legacy) && typeof legacy['file'] === 'string' ? legacy['file'] : undefined;
+  const at = (name: string) => (directory === '' ? name : `${directory}/${name}`);
+  if (older !== undefined && context.repository.isFile(at(older))) return at(older);
+  return context.repository.isFile(at(file)) ? at(file) : undefined;
+}
+
+/**
+ * Cargo configuration files depcurfew apply does not write (E10): the one of each workspace member, which Cargo reads
+ * before the root's when it runs there, with what it includes; what the root's .cargo/config.toml includes, for the keys
+ * the root does not set itself (its own values win, extra.configInclude); and in each, the CARGO_ variables of the delay
+ * in [env], which reach only a cargo that a build script or cargo run starts (extra.envTable). The root file itself is
+ * config-drift's (E07).
+ */
+function checkCargoFiles(context: RuleContext, tools: ToolSwitches): void {
+  const { tool, config } = tools;
+  const minimum = context.policy?.cooldown?.minimum;
+  if (config === undefined || minimum === undefined) return;
+  const variables = new Set(tools.variables.map((entry) => entry.name));
+  const what = `the release-age delay of ${tool.name} (${minimum.text} in ${POLICY_FILE})`;
+  const rootFile = values(tool.cooldown.configFiles)[0]?.[0] ?? '.cargo/config.toml';
+  const report = (read: ReadConfigFile, setting: DelaySetting, directory: string | undefined): void => {
+    const value = typeof setting.value === 'string' ? setting.value : JSON.stringify(setting.value);
+    const effect = effectOf(context, tools, { name: setting.key.key, weakens: 'delay', values: setting.key.values }, value, () => false);
+    if (effect === undefined) return;
+    const where = `${read.file}${setting.line === undefined ? '' : ` (line ${setting.line})`}${read.includedBy === undefined ? '' : `, included by ${read.includedBy},`}`;
+    const reach = directory === undefined ? 'for every cargo command that reads it' : `for cargo commands run in ${directory}: Cargo reads the configuration of the directory it runs in before that of its parents`;
+    context.report({
+      level: effect.level,
+      location: setting.line === undefined ? { file: read.file } : { file: read.file, line: setting.line },
+      message: `${where} sets ${setting.key.key} = ${JSON.stringify(setting.value)}, which ${effect.text} ${reach}`,
+      fix:
+        directory === undefined
+          ? `Remove ${setting.key.key} from ${read.file}${instead(effect)}`
+          : `Remove ${setting.key.key} from ${read.file}: Cargo also reads the delay depcurfew apply writes into ${rootFile} at the root when it runs in ${directory}${instead(effect)}`,
+    });
+  };
+  const others = (read: ReadConfigFile): void => {
+    for (const entry of read.env) {
+      const raw = isRecord(entry.value) ? entry.value['value'] : entry.value;
+      const value = typeof raw === 'string' ? raw : JSON.stringify(raw);
+      const effect = effectOf(context, tools, variableSwitch(tools, entry.name) ?? { name: entry.name, weakens: 'delay', values: 'delay' }, value, () => false);
+      if (effect === undefined) continue;
+      context.report({
+        level: 'warning',
+        location: entry.line === undefined ? { file: read.file } : { file: read.file, line: entry.line },
+        message: `${read.file}${entry.line === undefined ? '' : ` (line ${entry.line})`} sets ${entry.name} = ${JSON.stringify(raw)} in [env], which does not change the Cargo that reads the file but reaches build scripts and the programs cargo run starts, so a cargo they run in turn (an xtask, for example) takes it, and it ${effect.text}`,
+        fix: `Remove ${entry.name} from [env] in ${read.file}${instead({ ...effect, level: 'error' })}`,
+      });
+    }
+    for (const include of read.unreadable) {
+      context.report({
+        level: 'warning',
+        location: include.line === undefined ? { file: read.file } : { file: read.file, line: include.line },
+        message: `${read.file}${include.line === undefined ? '' : ` (line ${include.line})`} includes ${include.path}, which depcurfew cannot read (outside the repository or included too deep) and which may weaken ${what}`,
+        fix: `Make sure ${include.path} never weakens what ${POLICY_FILE} requires, or move its settings into the repository`,
+      });
+    }
+  };
+  // The root: its includes, for the keys the root does not set; and its [env].
+  const root = cargoConfigIn(context, tool, '');
+  if (root !== undefined) {
+    const files = readConfigFiles(context.repository, root, config.keys, variables);
+    const own = new Set((files[0]?.settings ?? []).map((setting) => setting.key.key));
+    for (const read of files) {
+      if (read.includedBy !== undefined) for (const setting of read.settings) if (!own.has(setting.key.key)) report(read, setting, undefined);
+      others(read);
+    }
+  }
+  // The workspace members.
+  const members = (context.detection.workspaces?.packages ?? []).filter((directory) => context.repository.isFile(`${directory}/Cargo.toml`));
+  for (const directory of members) {
+    const file = cargoConfigIn(context, tool, directory);
+    if (file === undefined) continue;
+    const files = readConfigFiles(context.repository, file, config.keys, variables);
+    const own = new Set((files[0]?.settings ?? []).map((setting) => setting.key.key));
+    for (const read of files) {
+      for (const setting of read.settings) if (read.includedBy === undefined || !own.has(setting.key.key)) report(read, setting, directory);
+      others(read);
     }
   }
 }
@@ -295,17 +439,21 @@ function usedTools(context: RuleContext): ToolSwitches[] {
 
 export const ciWeakensPolicy: Rule = {
   id: RULE,
-  checks: 'CI workflows and Dockerfiles keep the release-age delay, the rule on install scripts and the source bans of npm, pnpm, Yarn, Bun, Deno, uv, Poetry and PDM',
-  summary: 'A CI workflow or a Dockerfile turns off or weakens, for the commands it runs, a protection depcurfew apply wrote for npm, pnpm, Yarn, Bun, Deno, uv, Poetry or PDM.',
+  checks: 'CI workflows and Dockerfiles keep the release-age delay, the rule on install scripts and the source bans of npm, pnpm, Yarn, Bun, Deno, uv, Poetry, PDM and Cargo, and so do the Cargo configuration files depcurfew apply does not write',
+  summary: 'A CI workflow, a Dockerfile or a Cargo configuration file depcurfew apply does not write turns off or weakens a protection depcurfew apply wrote for npm, pnpm, Yarn, Bun, Deno, uv, Poetry, PDM or Cargo.',
   description:
-    'Package managers take settings from the command line and the environment over their configuration files, so a workflow or a Dockerfile can undo what depcurfew apply wrote for every install it runs: NPM_CONFIG_MIN_RELEASE_AGE=0, npm_config_strict_allow_scripts=false, npm_config_allow_git=all, pnpm_config_minimum_release_age=0, YARN_ENABLE_SCRIPTS=true or UV_EXCLUDE_NEWER in the env of the workflow, a job, its container or a step, exported or set before a command in a run step, written to $GITHUB_ENV, or set with ENV or ARG in a Dockerfile; and npm --min-release-age=0 or --allow-git=all, pnpm --config.dangerously-allow-all-builds=true, uv lock --exclude-newer or pdm lock --exclude-newer on a command there. A shorter delay and install scripts or sources the policy denies are errors; a value with $ or ${{ }}, or a delay depcurfew cannot compare (a date), gives a warning. pip has python-config-ignored, Composer composer-config-weakens and Bundler bundler-config-weakens.',
+    'Package managers take settings from the command line and the environment over their configuration files, so a workflow or a Dockerfile can undo what depcurfew apply wrote: NPM_CONFIG_MIN_RELEASE_AGE=0, npm_config_allow_git=all, pnpm_config_minimum_release_age=0, YARN_ENABLE_SCRIPTS=true, UV_EXCLUDE_NEWER or CARGO_REGISTRY_GLOBAL_MIN_PUBLISH_AGE=0 in an env, exported, set before a command, written to $GITHUB_ENV or set with ENV or ARG; npm --min-release-age=0, uv lock --exclude-newer or cargo --config (TOML or a file) on a command. Cargo also reads the .cargo/config.toml of a workspace member before the root\'s and the files include names; a CARGO_ variable in [env] reaches only a cargo that a build script or cargo run starts (a warning). A shorter delay and install scripts or sources the policy denies are errors; a value with $, a delay depcurfew cannot compare or a file it cannot read gives a warning. pip has python-config-ignored, Composer composer-config-weakens and Bundler bundler-config-weakens.',
   help: 'Remove the variable or the option, or give it a value that keeps what depcurfew.json requires; let a single package through with cooldown.exclude, installScripts.allow or sources in depcurfew.json and depcurfew apply instead.',
   level: 'error',
   requiresPolicy: true,
-  applies: (scope) => usesManager(scope, TOOLS) && (scope.detection.workflows.length > 0 || scope.detection.dockerfiles.length > 0),
+  // Cargo: also its configuration files depcurfew apply does not write, without a workflow or a Dockerfile (E10).
+  applies: (scope) => (usesManager(scope, TOOLS) && (scope.detection.workflows.length > 0 || scope.detection.dockerfiles.length > 0)) || usesManager(scope, ['cargo']),
   check(context) {
-    if (context.detection.workflows.length === 0 && context.detection.dockerfiles.length === 0) return;
-    for (const tools of usedTools(context)) checkTool(context, tools);
+    const ci = context.detection.workflows.length > 0 || context.detection.dockerfiles.length > 0;
+    for (const tools of usedTools(context)) {
+      if (ci) checkTool(context, tools);
+      if (tools.config !== undefined) checkCargoFiles(context, tools);
+    }
   },
 };
 

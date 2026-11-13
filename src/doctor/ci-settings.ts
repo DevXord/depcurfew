@@ -92,12 +92,14 @@ const WATCHED_VARIABLES: ReadonlySet<string> = new Set(
     .map((name) => name.toLowerCase()),
 );
 
-/** The programs the rules look at: those of each tool's commandLine, Bundler's executables and composer. */
+/** The programs the rules look at: those of each tool's commandLine, Bundler's executables, composer and cargo. */
 const WATCHED_PROGRAMS: ReadonlySet<string> = new Set([
   ...extraValue('commandLine').flatMap((value) =>
     isObject(value) ? [...listOf(value['add']), ...listOf(value['run']).map((entry) => (isObject(entry) ? entry['command'] : undefined))].flatMap((command) => (Array.isArray(command) && typeof command[0] === 'string' ? [command[0]] : [])) : [],
   ),
   ...extraValue('resolveCommands').flatMap((value) => (isObject(value) ? listOf(value['executables']).filter((item): item is string => typeof item === 'string') : [])),
+  // Cargo, for --config (extra.configOverride, E10).
+  ...extraValue('configOverride').flatMap((value) => (isObject(value) ? listOf(value['executables']).filter((item): item is string => typeof item === 'string') : [])),
 ]);
 
 const watchedVariable = (name: string) => WATCHED_VARIABLES.has(name.toLowerCase());

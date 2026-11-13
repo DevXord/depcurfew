@@ -889,6 +889,7 @@ const bundler$1 = {
 // src/knowledge/cargo.ts
 const { verified: verified$15, uncertain: uncertain$13 } = verifiedOn("2026-11-12");
 const toolchain = verifiedOn("2026-11-13");
+const settingsElsewhere = verifiedOn("2026-11-13");
 /**
 * The cargo of Rust 1.100.0, the first Rust whose Cargo respects min-publish-age (E05). channel-rust-1.100.0.toml names
 * cargo 0.101.0 (3acc79c0c 2026-11-05), and the tag 0.101.0 of rust-lang/cargo (branch rust-1.100.0) is this commit.
@@ -913,6 +914,8 @@ const VERSION_PREFS = `${CARGO_RELEASE}/src/resolver/version_prefs.rs`;
 const TIME_SPAN = `${CARGO_RELEASE}/src/util/time_span.rs`;
 const SCHEMA$3 = `${CARGO_RELEASE}/src/context/schema.rs`;
 const DE = `${CARGO_RELEASE}/src/context/de.rs`;
+const CONTEXT = `${CARGO_RELEASE}/src/context/mod.rs`;
+const ENVIRONMENT_SNAPSHOT = `${CARGO_RELEASE}/src/context/environment.rs`;
 const TESTS = `${CARGO_RELEASE}/tests/testsuite/min_publish_age.rs`;
 const noSourceSetting = (kind) => ({ setting: uncertain$13(null, CONFIG$4, `No key of the Cargo configuration allows or forbids ${kind} (concluded from config.md, which lists every key).`) });
 const noSourceKind = (kind) => ({ setting: uncertain$13(null, SPECIFYING, `Cargo has no ${kind} dependency: a dependency comes from a registry, a git repository or a path to a directory with a Cargo.toml.`) });
@@ -998,6 +1001,59 @@ const cargo$1 = {
 			name: "as-written",
 			needsTable: true
 		}, DE, "environment-variables.md documents CARGO_REGISTRIES_<name>_MIN_PUBLISH_AGE. The registries map takes its names from the tables of the configuration files and --config (ConfigMapAccess::new_map) and puts each into the variable as it is written (push_sensitive), so Cargo reads CARGO_REGISTRIES_crates-io_MIN_PUBLISH_AGE, and only when a file or --config defines [registries.crates-io]; without -Zadvanced-env a variable alone adds no registry. The spelling in capitals is not read on Linux; how Windows compares the names of variables is not established. Both spellings count (fail closed)."),
+		installOverrides: settingsElsewhere.uncertain({
+			options: [],
+			variables: [
+				{
+					name: "CARGO_REGISTRY_GLOBAL_MIN_PUBLISH_AGE",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE",
+					weakens: "delay",
+					values: ["allow"]
+				},
+				{
+					name: "CARGO_REGISTRIES_crates-io_MIN_PUBLISH_AGE",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "CARGO_REGISTRIES_CRATES_IO_MIN_PUBLISH_AGE",
+					weakens: "delay",
+					values: "delay"
+				}
+			]
+		}, ENVIRONMENT, "The variables of registry.global-min-publish-age, resolver.incompatible-publish-age and registries.<name>.min-publish-age, which \"take precedence over TOML configuration files\" (config.md#environment-variables), so each undoes for the commands it reaches the delay depcurfew apply writes into .cargo/config.toml. The variable of crates.io is listed in both spellings because which one Cargo reads is not settled (extra.registryVariable); both count (fail closed). The global variable counts even where [registries.crates-io] could take its place, as apply writes no such table."),
+		environmentNames: settingsElsewhere.verified([{
+			prefix: "CARGO_",
+			match: "exact"
+		}], ENVIRONMENT_SNAPSHOT, "Env::new snapshots std::env::vars_os, and the typed configuration API looks a key up with get_str, an exact match of the name (CARGO_REGISTRY_GLOBAL_MIN_PUBLISH_AGE); the upper-case and normalized maps only feed warnings about names in the wrong format."),
+		configOverride: settingsElsewhere.verified({
+			option: "--config",
+			executables: ["cargo"],
+			forms: ["KEY=VALUE", "path"],
+			winsOver: ["environment", "files"]
+		}, `${CONFIG$4}#command-line-overrides`, "\"The argument should be in TOML syntax of KEY=VALUE or provided as a path to an extra configuration file\"; \"Configuration values specified this way take precedence over environment variables, which take precedence over configuration files\", and --config may be given several times. GlobalContext::cli_args_as_table (src/context/mod.rs) loads an argument as a file when a file of that name exists relative to the working directory, else parses it as TOML dotted keys, and loads the include of either."),
+		configInclude: settingsElsewhere.verified({
+			key: "include",
+			since: "1.93.0",
+			relativeTo: "including file",
+			extension: ".toml",
+			optional: "optional",
+			ownValuesWin: true
+		}, `${CONFIG$4}#include`, "\"Paths are relative to the configuration file that includes them. Only paths ending with .toml are accepted\"; an entry is a path or a table with path and optional (\"If true, missing files are silently skipped\"). \"Then, the config file's own values are merged on top of the included config, taking highest precedence\" (load_includes in src/context/mod.rs merges the file over its includes). unstable.md: \"Support for including extra configuration files via the include config key has been stabilized in 1.93.0.\""),
+		envTable: settingsElsewhere.verified({
+			table: "env",
+			reachesCargo: false,
+			reaches: [
+				"build scripts",
+				"rustc",
+				"cargo run",
+				"cargo build"
+			]
+		}, CONTEXT, "\"The [env] section allows you to set additional environment variables for build scripts, rustc invocations, cargo run and cargo build\" (config.md#env). GlobalContext::env_config collects the table for the processes Cargo starts (apply_env_config), while Cargo reads its own configuration from the snapshot of its process environment (Env::new in src/context/environment.rs), so a CARGO_ variable in [env] does not change the Cargo that reads the file, only a cargo that a build script or a program started by cargo run runs in turn."),
 		timeSpan: uncertain$13({
 			units: {
 				second: 1,
@@ -19830,7 +19886,7 @@ function findAction(actions, uses) {
 	return actions.find((action) => action.action.toLowerCase() === name);
 }
 /** The scalar of a matrix value at the properties after its key (matrix.cfg.node: node of each object of cfg). */
-function valueAt$1(node, properties) {
+function valueAt$2(node, properties) {
 	let current = node;
 	for (const property of properties) {
 		if (!(0, import_dist.isMap)(current)) return void 0;
@@ -19863,7 +19919,7 @@ function matrixValues(job, path) {
 	const include = matrix.get("include");
 	if ((0, import_dist.isSeq)(list) && (0, import_dist.isSeq)(exclude)) {
 		const same = (a, b) => JSON.stringify((0, import_dist.isScalar)(a) || (0, import_dist.isMap)(a) || (0, import_dist.isSeq)(a) ? a.toJSON() : a) === JSON.stringify((0, import_dist.isScalar)(b) || (0, import_dist.isMap)(b) || (0, import_dist.isSeq)(b) ? b.toJSON() : b);
-		const included = new Set((0, import_dist.isSeq)(include) ? include.items.map((item) => (0, import_dist.isMap)(item) ? scalarText$1(valueAt$1(item.get(key, true), properties)) : void 0) : []);
+		const included = new Set((0, import_dist.isSeq)(include) ? include.items.map((item) => (0, import_dist.isMap)(item) ? scalarText$1(valueAt$2(item.get(key, true), properties)) : void 0) : []);
 		for (const entry of exclude.items) {
 			if (!(0, import_dist.isMap)(entry) || entry.items.length !== 1) continue;
 			const value = entry.get(key, true);
@@ -19877,11 +19933,11 @@ function matrixValues(job, path) {
 	if ((0, import_dist.isSeq)(list)) for (const item of list.items) {
 		if (properties.length === 0 ? !(0, import_dist.isScalar)(item) : !(0, import_dist.isMap)(item)) return void 0;
 		if (excluded.has(item)) continue;
-		if (!add(valueAt$1(item, properties))) return "too-many";
+		if (!add(valueAt$2(item, properties))) return "too-many";
 	}
 	else if (list !== void 0) return;
 	if ((0, import_dist.isSeq)(include)) for (const entry of include.items) {
-		const value = (0, import_dist.isMap)(entry) ? valueAt$1(entry.get(key, true), properties) : void 0;
+		const value = (0, import_dist.isMap)(entry) ? valueAt$2(entry.get(key, true), properties) : void 0;
 		if (value !== void 0 && !add(value)) return "too-many";
 	}
 	return values.size === 0 ? void 0 : [...values.values()];
@@ -25354,7 +25410,7 @@ function comparableUrl(tool, url) {
 	return Object.hasOwn(aliases, host) ? [aliases[host] ?? host, ...rest].join("/") : normalized;
 }
 /** A value at a path of a JSON object. */
-function valueAt(item, path) {
+function valueAt$1(item, path) {
 	return path.reduce((node, key) => isRecord(node) ? node[key] : void 0, item);
 }
 /**
@@ -25428,7 +25484,7 @@ function composerEntries(text, tool, repositories, manifest) {
 				installScript: plugin,
 				anchor: `"${format.name}": ${JSON.stringify(written)}`,
 				...release ? { version: locked } : {},
-				...plugin && valueAt(item, format.optionalPlugin) === true ? { optional: true } : {},
+				...plugin && valueAt$1(item, format.optionalPlugin) === true ? { optional: true } : {},
 				...kind === "git" && why !== void 0 ? { why } : {},
 				...kind === "git" && preference !== void 0 ? { preferredInstall: preference } : {},
 				...otherSource === void 0 ? {} : { otherSource },
@@ -40609,8 +40665,12 @@ const listOf = (value) => Array.isArray(value) ? value : [];
 * workflow or a Dockerfile with thousands of other variables costs little (decision D-121).
 */
 const WATCHED_VARIABLES = new Set([...extraValue("installOverrides").flatMap((value) => isObject$2(value) ? listOf(value["variables"]) : []), ...extraValue("environmentOverrides").flatMap(listOf)].flatMap((entry) => isObject$2(entry) && typeof entry["name"] === "string" ? [entry["name"]] : []).concat(extraValue("cooldownSetting").flatMap((value) => isObject$2(value) && typeof value["variable"] === "string" ? [value["variable"]] : [])).concat(extraValue("settingOverrides").flatMap((value) => isObject$2(value) && typeof value["variablePrefix"] === "string" ? listOf(value["settings"]).flatMap((entry) => isObject$2(entry) && typeof entry["setting"] === "string" ? [`${String(value["variablePrefix"])}${entry["setting"].replaceAll("-", "_")}`] : []) : [])).map((name) => name.toLowerCase()));
-/** The programs the rules look at: those of each tool's commandLine, Bundler's executables and composer. */
-const WATCHED_PROGRAMS = /* @__PURE__ */ new Set([...extraValue("commandLine").flatMap((value) => isObject$2(value) ? [...listOf(value["add"]), ...listOf(value["run"]).map((entry) => isObject$2(entry) ? entry["command"] : void 0)].flatMap((command) => Array.isArray(command) && typeof command[0] === "string" ? [command[0]] : []) : []), ...extraValue("resolveCommands").flatMap((value) => isObject$2(value) ? listOf(value["executables"]).filter((item) => typeof item === "string") : [])]);
+/** The programs the rules look at: those of each tool's commandLine, Bundler's executables, composer and cargo. */
+const WATCHED_PROGRAMS = /* @__PURE__ */ new Set([
+	...extraValue("commandLine").flatMap((value) => isObject$2(value) ? [...listOf(value["add"]), ...listOf(value["run"]).map((entry) => isObject$2(entry) ? entry["command"] : void 0)].flatMap((command) => Array.isArray(command) && typeof command[0] === "string" ? [command[0]] : []) : []),
+	...extraValue("resolveCommands").flatMap((value) => isObject$2(value) ? listOf(value["executables"]).filter((item) => typeof item === "string") : []),
+	...extraValue("configOverride").flatMap((value) => isObject$2(value) ? listOf(value["executables"]).filter((item) => typeof item === "string") : [])
+]);
 const watchedVariable = (name) => WATCHED_VARIABLES.has(name.toLowerCase());
 const watchedProgram = (word) => word !== void 0 && WATCHED_PROGRAMS.has(programName(word));
 /** The settings of the workflows and Dockerfiles detection found, read once per repository. */
@@ -41154,6 +41214,206 @@ const bundlerConfigWeakens = {
 	}
 };
 
+// src/doctor/cargo-config.ts
+/** The longest --config argument depcurfew reads, in characters. */
+const MAX_CONFIG_ARGUMENT = 16384;
+/** The deepest nesting of arrays and inline tables depcurfew reads in a --config argument. */
+const MAX_CONFIG_DEPTH = 32;
+/** The keys that decide Cargo's delay, from the knowledge base. */
+function delayKeys(tool) {
+	const keys = [];
+	const global = settingOf(tool.cooldown.setting);
+	if (global !== null) keys.push({
+		key: global,
+		path: global.split("."),
+		values: "delay"
+	});
+	const registry = tool.extra?.["registryMinPublishAge"] === void 0 ? void 0 : extraOf(tool, "registryMinPublishAge", isRecord);
+	if (registry !== void 0 && typeof registry["key"] === "string" && typeof registry["cratesIo"] === "string") {
+		const leaf = registry["key"].split(".").at(-1) ?? "min-publish-age";
+		keys.push({
+			key: `registries.${registry["cratesIo"]}.${leaf}`,
+			path: [
+				"registries",
+				registry["cratesIo"],
+				leaf
+			],
+			values: "delay"
+		});
+	}
+	const resolver = tool.extra?.["resolverSwitch"] === void 0 ? void 0 : extraOf(tool, "resolverSwitch", isRecord);
+	if (resolver !== void 0 && typeof resolver["key"] === "string" && typeof resolver["turnsOff"] === "string") keys.push({
+		key: resolver["key"],
+		path: resolver["key"].split("."),
+		values: [resolver["turnsOff"]]
+	});
+	return keys;
+}
+function valueAt(document, path) {
+	let current = document.root;
+	for (const part of path) {
+		if (!isRecord(current)) return void 0;
+		current = current[part];
+	}
+	return current;
+}
+/** The delay keys a parsed Cargo configuration sets, and whether it has an include. */
+function delaySettings(document, keys) {
+	const settings = [];
+	for (const key of keys) {
+		const value = valueAt(document, key.path);
+		if (value === void 0) continue;
+		const line = document.lineOf(key.path);
+		settings.push(line === void 0 ? {
+			key,
+			value
+		} : {
+			key,
+			value,
+			line
+		});
+	}
+	return {
+		settings,
+		include: document.root["include"] !== void 0
+	};
+}
+/** The deepest nesting of [ and { in a text, counted without regard to strings (a deeper count only stops the reading). */
+function nesting(text) {
+	let depth = 0;
+	let deepest = 0;
+	for (const character of text) if (character === "[" || character === "{") deepest = Math.max(deepest, ++depth);
+	else if ((character === "]" || character === "}") && depth > 0) depth--;
+	return deepest;
+}
+/** A path as written, relative to the root of the repository, when it stays inside it. */
+function repositoryPath(argument) {
+	const parts = [];
+	for (const part of argument.replaceAll("\\", "/").split("/")) {
+		if (part === "" || part === ".") continue;
+		if (part === "..") {
+			if (parts.pop() === void 0) return void 0;
+			continue;
+		}
+		parts.push(part);
+	}
+	return parts.length === 0 || argument.startsWith("/") ? void 0 : parts.join("/");
+}
+function readConfigArgument(repository, argument, keys) {
+	if (argument.length > 16384) return {
+		kind: "unreadable",
+		reason: `an argument longer than the ${MAX_CONFIG_ARGUMENT / 1024} KiB depcurfew reads`
+	};
+	const path = repositoryPath(argument);
+	const text = path === void 0 ? void 0 : repository.readText(path);
+	if (path !== void 0 && text !== void 0) try {
+		return {
+			kind: "settings",
+			...delaySettings(parseToml(text), keys),
+			file: path
+		};
+	} catch {
+		return {
+			kind: "unreadable",
+			reason: `${path}, a file depcurfew cannot parse`
+		};
+	}
+	if (!argument.includes("=")) return {
+		kind: "unreadable",
+		reason: `${argument}, a file depcurfew cannot read`
+	};
+	if (nesting(argument) > 32) return {
+		kind: "unreadable",
+		reason: `an argument nested deeper than the ${32} levels depcurfew reads`
+	};
+	try {
+		return {
+			kind: "settings",
+			...delaySettings(parseToml(argument), keys)
+		};
+	} catch {
+		return {
+			kind: "settings",
+			settings: [],
+			include: false
+		};
+	}
+}
+/** The deepest chain of include depcurfew follows from one configuration file. */
+const MAX_INCLUDE_DEPTH = 8;
+/** The directory of a path ('' for a file at the root). */
+const directoryOf = (path) => path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+/** The paths of an include (extra.configInclude): strings or tables with path, each with whether it is optional. */
+function includePaths(value) {
+	return (Array.isArray(value) ? value : typeof value === "string" ? [value] : []).flatMap((item) => {
+		if (typeof item === "string") return [{
+			path: item,
+			optional: false
+		}];
+		if (isRecord(item) && typeof item["path"] === "string") return [{
+			path: item["path"],
+			optional: item["optional"] === true
+		}];
+		return [];
+	});
+}
+/**
+* A Cargo configuration file and the files it includes, depth first (Cargo merges a file over its includes). A file
+* depcurfew cannot parse, or a missing include that is not optional, stops Cargo, so it sets nothing; an include outside
+* the repository, of an absolute path or nested deeper than MAX_INCLUDE_DEPTH cannot be read and is listed.
+*/
+function readConfigFiles(repository, file, keys, variables) {
+	const result = [];
+	const seen = /* @__PURE__ */ new Set();
+	const visit = (path, includedBy, depth) => {
+		if (seen.has(path)) return;
+		seen.add(path);
+		const text = repository.readText(path);
+		if (text === void 0) return;
+		let document;
+		try {
+			document = parseToml(text);
+		} catch {
+			return;
+		}
+		const entry = {
+			file: path,
+			...delaySettings(document, keys),
+			env: [],
+			unreadable: [],
+			...includedBy === void 0 ? {} : { includedBy }
+		};
+		const env = document.root["env"];
+		if (isRecord(env)) for (const [name, value] of Object.entries(env)) {
+			if (!variables.has(name)) continue;
+			const line = document.lineOf(["env", name]);
+			entry.env.push(line === void 0 ? {
+				name,
+				value
+			} : {
+				name,
+				value,
+				line
+			});
+		}
+		result.push(entry);
+		const line = document.lineOf(["include"]);
+		for (const include of includePaths(document.root["include"])) {
+			const target = include.path.startsWith("/") || /^[A-Za-z]:/u.test(include.path) ? void 0 : repositoryPath(`${directoryOf(path)}/${include.path}`);
+			if (target === void 0 || depth >= 8) {
+				entry.unreadable.push(line === void 0 ? { path: include.path } : {
+					path: include.path,
+					line
+				});
+				continue;
+			}
+			visit(target, path, depth + 1);
+		}
+	};
+	visit(file, void 0, 0);
+	return result;
+}
+
 // src/doctor/rules/ci-weakens-policy.ts
 const RULE$4 = "ci-weakens-policy";
 /** The tools this rule covers; pip, Composer and Bundler have rules of their own. */
@@ -41165,7 +41425,8 @@ const TOOLS$1 = [
 	"deno",
 	"uv",
 	"poetry",
-	"pdm"
+	"pdm",
+	"cargo"
 ];
 const SOURCE_LABELS = {
 	git: "git",
@@ -41236,6 +41497,14 @@ function switchesOf(tool) {
 	const line = extra(tool, "commandLine");
 	const commands = isRecord(line) ? [...isList$1(line["add"]) ? line["add"] : [], ...isList$1(line["run"]) ? line["run"].map((entry) => isRecord(entry) ? entry["command"] : void 0) : []] : [];
 	const executables = new Set(commands.flatMap((command) => isList$1(command) && typeof command[0] === "string" ? [command[0]] : []));
+	const override = extra(tool, "configOverride");
+	const config = isRecord(override) && typeof override["option"] === "string" ? {
+		option: override["option"],
+		keys: delayKeys(tool)
+	} : void 0;
+	if (isRecord(override) && isList$1(override["executables"])) {
+		for (const name of override["executables"]) if (typeof name === "string") executables.add(name);
+	}
 	const parsing = extra(tool, "parsing");
 	const negationFact = isRecord(settings) && typeof settings["negation"] === "string" ? settings["negation"] : isRecord(parsing) && typeof parsing["negation"] === "string" ? parsing["negation"] : void 0;
 	return {
@@ -41245,7 +41514,8 @@ function switchesOf(tool) {
 		variables,
 		byName: namesOf(variables, extra(tool, "environmentNames") ?? []),
 		...isRecord(parsing) && typeof parsing["settingPrefix"] === "string" ? { settingPrefix: parsing["settingPrefix"] } : {},
-		...negationFact === void 0 ? {} : { negation: negationFact }
+		...negationFact === void 0 ? {} : { negation: negationFact },
+		...config === void 0 ? {} : { config }
 	};
 }
 /** The variables by their names in lower case, each with the rule of the longest prefix it starts with (decision D-143). */
@@ -41301,6 +41571,11 @@ function effectOf(context, tools, entry, value, written) {
 	if (entry.values === "delay") {
 		if (value === void 0 || value.trim() === "") return void 0;
 		const delay = delayMinutes(tool, value.trim(), void 0);
+		if (!delay.ok && tool.id === "cargo") return {
+			...base,
+			level: "warning",
+			text: `may weaken the release-age delay of ${tool.name} (${minimum?.text ?? ""} in ${POLICY_FILE}): ${delay.reason}`
+		};
 		if (!delay.ok) return {
 			...base,
 			level: "warning",
@@ -41408,6 +41683,13 @@ function checkTool(context, tools) {
 				negated = entry !== void 0 && entry.values !== "delay" && entry.values !== "any";
 				if (!negated) entry = void 0;
 			}
+			if (entry === void 0 && tools.config !== void 0 && name === tools.config.option) {
+				const argument = attached ?? command.words[index + 1];
+				if (argument === void 0) continue;
+				checkConfigArgument(context, tools, command, attached === void 0 ? `${word} ${argument}` : word, argument, strict);
+				if (attached === void 0) index++;
+				continue;
+			}
 			if (entry === void 0) continue;
 			const { value, written } = optionValue(entry, command.words, index, attached, negated);
 			const effect = effectOf(context, tools, entry, value, strict);
@@ -41421,6 +41703,154 @@ function checkTool(context, tools) {
 				message: `${command.where} in ${command.file} (line ${command.line}) runs ${tool.name} with ${written}, which ${effect.text}`,
 				fix: `Remove ${written} from that command in ${command.file}${instead(effect)}`
 			});
+		}
+	}
+}
+/**
+* cargo --config (E10): each delay key the argument sets, as the variable of that key would (an error for zero, a
+* shorter delay or "allow"), and a warning for an include, a file depcurfew cannot read or an argument too long or too
+* deep to read, as those may set the delay.
+*/
+function checkConfigArgument(context, tools, command, written, argument, strict) {
+	const { tool, config } = tools;
+	if (config === void 0 || context.policy?.cooldown === void 0) return;
+	const shown = written.length > 120 ? `${written.slice(0, 117)}...` : written;
+	const head = `${command.where} in ${command.file} (line ${command.line}) runs ${tool.name} with ${shown}`;
+	const location = {
+		file: command.file,
+		line: command.line
+	};
+	const what = `the release-age delay of ${tool.name} (${context.policy.cooldown.minimum.text} in ${POLICY_FILE})`;
+	const read = readConfigArgument(context.repository, argument, config.keys);
+	const remove = `Remove ${shown} from that command in ${command.file}`;
+	if (read.kind === "unreadable") {
+		context.report({
+			level: "warning",
+			location,
+			message: `${head}, ${read.reason}, which may weaken ${what}`,
+			fix: `${remove}, or make sure it never weakens what ${POLICY_FILE} requires`
+		});
+		return;
+	}
+	for (const setting of read.settings) {
+		const value = typeof setting.value === "string" ? setting.value : JSON.stringify(setting.value);
+		const effect = effectOf(context, tools, {
+			name: setting.key.key,
+			weakens: "delay",
+			values: setting.key.values
+		}, value, strict);
+		if (effect === void 0) continue;
+		const pair = `${setting.key.key} = ${JSON.stringify(setting.value)}`;
+		context.report({
+			level: effect.level,
+			location,
+			message: read.file === void 0 ? `${head}, which ${effect.text}` : `${head}, and ${pair} in ${read.file}${setting.line === void 0 ? "" : ` (line ${setting.line})`} ${effect.text}`,
+			fix: read.file === void 0 ? `${remove}${instead(effect)}` : `Remove ${setting.key.key} from ${read.file}, or ${shown} from that command in ${command.file}${instead(effect)}`
+		});
+	}
+	if (read.include) context.report({
+		level: "warning",
+		location,
+		message: `${head}, which loads more configuration with include, which depcurfew does not read and which may weaken ${what}`,
+		fix: `${remove}, or make sure the files it includes never weaken what ${POLICY_FILE} requires`
+	});
+}
+/** The Cargo configuration file Cargo uses in a directory's .cargo: the older name when both are there (extra.legacyConfig). */
+function cargoConfigIn(context, tool, directory) {
+	const file = values$1(tool.cooldown.configFiles)[0]?.[0] ?? ".cargo/config.toml";
+	const legacy = extra(tool, "legacyConfig");
+	const older = isRecord(legacy) && typeof legacy["file"] === "string" ? legacy["file"] : void 0;
+	const at = (name) => directory === "" ? name : `${directory}/${name}`;
+	if (older !== void 0 && context.repository.isFile(at(older))) return at(older);
+	return context.repository.isFile(at(file)) ? at(file) : void 0;
+}
+/**
+* Cargo configuration files depcurfew apply does not write (E10): the one of each workspace member, which Cargo reads
+* before the root's when it runs there, with what it includes; what the root's .cargo/config.toml includes, for the keys
+* the root does not set itself (its own values win, extra.configInclude); and in each, the CARGO_ variables of the delay
+* in [env], which reach only a cargo that a build script or cargo run starts (extra.envTable). The root file itself is
+* config-drift's (E07).
+*/
+function checkCargoFiles(context, tools) {
+	const { tool, config } = tools;
+	const minimum = context.policy?.cooldown?.minimum;
+	if (config === void 0 || minimum === void 0) return;
+	const variables = new Set(tools.variables.map((entry) => entry.name));
+	const what = `the release-age delay of ${tool.name} (${minimum.text} in ${POLICY_FILE})`;
+	const rootFile = values$1(tool.cooldown.configFiles)[0]?.[0] ?? ".cargo/config.toml";
+	const report = (read, setting, directory) => {
+		const value = typeof setting.value === "string" ? setting.value : JSON.stringify(setting.value);
+		const effect = effectOf(context, tools, {
+			name: setting.key.key,
+			weakens: "delay",
+			values: setting.key.values
+		}, value, () => false);
+		if (effect === void 0) return;
+		const where = `${read.file}${setting.line === void 0 ? "" : ` (line ${setting.line})`}${read.includedBy === void 0 ? "" : `, included by ${read.includedBy},`}`;
+		const reach = directory === void 0 ? "for every cargo command that reads it" : `for cargo commands run in ${directory}: Cargo reads the configuration of the directory it runs in before that of its parents`;
+		context.report({
+			level: effect.level,
+			location: setting.line === void 0 ? { file: read.file } : {
+				file: read.file,
+				line: setting.line
+			},
+			message: `${where} sets ${setting.key.key} = ${JSON.stringify(setting.value)}, which ${effect.text} ${reach}`,
+			fix: directory === void 0 ? `Remove ${setting.key.key} from ${read.file}${instead(effect)}` : `Remove ${setting.key.key} from ${read.file}: Cargo also reads the delay depcurfew apply writes into ${rootFile} at the root when it runs in ${directory}${instead(effect)}`
+		});
+	};
+	const others = (read) => {
+		for (const entry of read.env) {
+			const raw = isRecord(entry.value) ? entry.value["value"] : entry.value;
+			const value = typeof raw === "string" ? raw : JSON.stringify(raw);
+			const effect = effectOf(context, tools, variableSwitch(tools, entry.name) ?? {
+				name: entry.name,
+				weakens: "delay",
+				values: "delay"
+			}, value, () => false);
+			if (effect === void 0) continue;
+			context.report({
+				level: "warning",
+				location: entry.line === void 0 ? { file: read.file } : {
+					file: read.file,
+					line: entry.line
+				},
+				message: `${read.file}${entry.line === void 0 ? "" : ` (line ${entry.line})`} sets ${entry.name} = ${JSON.stringify(raw)} in [env], which does not change the Cargo that reads the file but reaches build scripts and the programs cargo run starts, so a cargo they run in turn (an xtask, for example) takes it, and it ${effect.text}`,
+				fix: `Remove ${entry.name} from [env] in ${read.file}${instead({
+					...effect,
+					level: "error"
+				})}`
+			});
+		}
+		for (const include of read.unreadable) context.report({
+			level: "warning",
+			location: include.line === void 0 ? { file: read.file } : {
+				file: read.file,
+				line: include.line
+			},
+			message: `${read.file}${include.line === void 0 ? "" : ` (line ${include.line})`} includes ${include.path}, which depcurfew cannot read (outside the repository or included too deep) and which may weaken ${what}`,
+			fix: `Make sure ${include.path} never weakens what ${POLICY_FILE} requires, or move its settings into the repository`
+		});
+	};
+	const root = cargoConfigIn(context, tool, "");
+	if (root !== void 0) {
+		const files = readConfigFiles(context.repository, root, config.keys, variables);
+		const own = new Set((files[0]?.settings ?? []).map((setting) => setting.key.key));
+		for (const read of files) {
+			if (read.includedBy !== void 0) {
+				for (const setting of read.settings) if (!own.has(setting.key.key)) report(read, setting, void 0);
+			}
+			others(read);
+		}
+	}
+	const members = (context.detection.workspaces?.packages ?? []).filter((directory) => context.repository.isFile(`${directory}/Cargo.toml`));
+	for (const directory of members) {
+		const file = cargoConfigIn(context, tool, directory);
+		if (file === void 0) continue;
+		const files = readConfigFiles(context.repository, file, config.keys, variables);
+		const own = new Set((files[0]?.settings ?? []).map((setting) => setting.key.key));
+		for (const read of files) {
+			for (const setting of read.settings) if (read.includedBy === void 0 || !own.has(setting.key.key)) report(read, setting, directory);
+			others(read);
 		}
 	}
 }
@@ -41441,16 +41871,19 @@ function usedTools(context) {
 }
 const ciWeakensPolicy = {
 	id: RULE$4,
-	checks: "CI workflows and Dockerfiles keep the release-age delay, the rule on install scripts and the source bans of npm, pnpm, Yarn, Bun, Deno, uv, Poetry and PDM",
-	summary: "A CI workflow or a Dockerfile turns off or weakens, for the commands it runs, a protection depcurfew apply wrote for npm, pnpm, Yarn, Bun, Deno, uv, Poetry or PDM.",
-	description: "Package managers take settings from the command line and the environment over their configuration files, so a workflow or a Dockerfile can undo what depcurfew apply wrote for every install it runs: NPM_CONFIG_MIN_RELEASE_AGE=0, npm_config_strict_allow_scripts=false, npm_config_allow_git=all, pnpm_config_minimum_release_age=0, YARN_ENABLE_SCRIPTS=true or UV_EXCLUDE_NEWER in the env of the workflow, a job, its container or a step, exported or set before a command in a run step, written to $GITHUB_ENV, or set with ENV or ARG in a Dockerfile; and npm --min-release-age=0 or --allow-git=all, pnpm --config.dangerously-allow-all-builds=true, uv lock --exclude-newer or pdm lock --exclude-newer on a command there. A shorter delay and install scripts or sources the policy denies are errors; a value with $ or ${{ }}, or a delay depcurfew cannot compare (a date), gives a warning. pip has python-config-ignored, Composer composer-config-weakens and Bundler bundler-config-weakens.",
+	checks: "CI workflows and Dockerfiles keep the release-age delay, the rule on install scripts and the source bans of npm, pnpm, Yarn, Bun, Deno, uv, Poetry, PDM and Cargo, and so do the Cargo configuration files depcurfew apply does not write",
+	summary: "A CI workflow, a Dockerfile or a Cargo configuration file depcurfew apply does not write turns off or weakens a protection depcurfew apply wrote for npm, pnpm, Yarn, Bun, Deno, uv, Poetry, PDM or Cargo.",
+	description: "Package managers take settings from the command line and the environment over their configuration files, so a workflow or a Dockerfile can undo what depcurfew apply wrote: NPM_CONFIG_MIN_RELEASE_AGE=0, npm_config_allow_git=all, pnpm_config_minimum_release_age=0, YARN_ENABLE_SCRIPTS=true, UV_EXCLUDE_NEWER or CARGO_REGISTRY_GLOBAL_MIN_PUBLISH_AGE=0 in an env, exported, set before a command, written to $GITHUB_ENV or set with ENV or ARG; npm --min-release-age=0, uv lock --exclude-newer or cargo --config (TOML or a file) on a command. Cargo also reads the .cargo/config.toml of a workspace member before the root's and the files include names; a CARGO_ variable in [env] reaches only a cargo that a build script or cargo run starts (a warning). A shorter delay and install scripts or sources the policy denies are errors; a value with $, a delay depcurfew cannot compare or a file it cannot read gives a warning. pip has python-config-ignored, Composer composer-config-weakens and Bundler bundler-config-weakens.",
 	help: "Remove the variable or the option, or give it a value that keeps what depcurfew.json requires; let a single package through with cooldown.exclude, installScripts.allow or sources in depcurfew.json and depcurfew apply instead.",
 	level: "error",
 	requiresPolicy: true,
-	applies: (scope) => usesManager(scope, TOOLS$1) && (scope.detection.workflows.length > 0 || scope.detection.dockerfiles.length > 0),
+	applies: (scope) => usesManager(scope, TOOLS$1) && (scope.detection.workflows.length > 0 || scope.detection.dockerfiles.length > 0) || usesManager(scope, ["cargo"]),
 	check(context) {
-		if (context.detection.workflows.length === 0 && context.detection.dockerfiles.length === 0) return;
-		for (const tools of usedTools(context)) checkTool(context, tools);
+		const ci = context.detection.workflows.length > 0 || context.detection.dockerfiles.length > 0;
+		for (const tools of usedTools(context)) {
+			if (ci) checkTool(context, tools);
+			if (tools.config !== void 0) checkCargoFiles(context, tools);
+		}
 	}
 };
 

@@ -3,6 +3,7 @@ import type { SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-11-12');
 const toolchain = verifiedOn('2026-11-13');
+const settingsElsewhere = verifiedOn('2026-11-13');
 
 /**
  * The cargo of Rust 1.100.0, the first Rust whose Cargo respects min-publish-age (E05). channel-rust-1.100.0.toml names
@@ -29,6 +30,8 @@ const VERSION_PREFS = `${CARGO_RELEASE}/src/resolver/version_prefs.rs`;
 const TIME_SPAN = `${CARGO_RELEASE}/src/util/time_span.rs`;
 const SCHEMA = `${CARGO_RELEASE}/src/context/schema.rs`;
 const DE = `${CARGO_RELEASE}/src/context/de.rs`;
+const CONTEXT = `${CARGO_RELEASE}/src/context/mod.rs`;
+const ENVIRONMENT_SNAPSHOT = `${CARGO_RELEASE}/src/context/environment.rs`;
 const TESTS = `${CARGO_RELEASE}/tests/testsuite/min_publish_age.rs`;
 
 const noSourceSetting = (kind: string): SourceKnowledge => ({
@@ -149,6 +152,39 @@ export const cargo: ToolKnowledge = {
       { prefix: 'CARGO_REGISTRIES_', suffix: '_MIN_PUBLISH_AGE', name: 'as-written', needsTable: true },
       DE,
       'environment-variables.md documents CARGO_REGISTRIES_<name>_MIN_PUBLISH_AGE. The registries map takes its names from the tables of the configuration files and --config (ConfigMapAccess::new_map) and puts each into the variable as it is written (push_sensitive), so Cargo reads CARGO_REGISTRIES_crates-io_MIN_PUBLISH_AGE, and only when a file or --config defines [registries.crates-io]; without -Zadvanced-env a variable alone adds no registry. The spelling in capitals is not read on Linux; how Windows compares the names of variables is not established. Both spellings count (fail closed).',
+    ),
+    installOverrides: settingsElsewhere.uncertain(
+      {
+        options: [],
+        variables: [
+          { name: 'CARGO_REGISTRY_GLOBAL_MIN_PUBLISH_AGE', weakens: 'delay', values: 'delay' },
+          { name: 'CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE', weakens: 'delay', values: ['allow'] },
+          { name: 'CARGO_REGISTRIES_crates-io_MIN_PUBLISH_AGE', weakens: 'delay', values: 'delay' },
+          { name: 'CARGO_REGISTRIES_CRATES_IO_MIN_PUBLISH_AGE', weakens: 'delay', values: 'delay' },
+        ],
+      },
+      ENVIRONMENT,
+      'The variables of registry.global-min-publish-age, resolver.incompatible-publish-age and registries.<name>.min-publish-age, which "take precedence over TOML configuration files" (config.md#environment-variables), so each undoes for the commands it reaches the delay depcurfew apply writes into .cargo/config.toml. The variable of crates.io is listed in both spellings because which one Cargo reads is not settled (extra.registryVariable); both count (fail closed). The global variable counts even where [registries.crates-io] could take its place, as apply writes no such table.',
+    ),
+    environmentNames: settingsElsewhere.verified(
+      [{ prefix: 'CARGO_', match: 'exact' }],
+      ENVIRONMENT_SNAPSHOT,
+      'Env::new snapshots std::env::vars_os, and the typed configuration API looks a key up with get_str, an exact match of the name (CARGO_REGISTRY_GLOBAL_MIN_PUBLISH_AGE); the upper-case and normalized maps only feed warnings about names in the wrong format.',
+    ),
+    configOverride: settingsElsewhere.verified(
+      { option: '--config', executables: ['cargo'], forms: ['KEY=VALUE', 'path'], winsOver: ['environment', 'files'] },
+      `${CONFIG}#command-line-overrides`,
+      '"The argument should be in TOML syntax of KEY=VALUE or provided as a path to an extra configuration file"; "Configuration values specified this way take precedence over environment variables, which take precedence over configuration files", and --config may be given several times. GlobalContext::cli_args_as_table (src/context/mod.rs) loads an argument as a file when a file of that name exists relative to the working directory, else parses it as TOML dotted keys, and loads the include of either.',
+    ),
+    configInclude: settingsElsewhere.verified(
+      { key: 'include', since: '1.93.0', relativeTo: 'including file', extension: '.toml', optional: 'optional', ownValuesWin: true },
+      `${CONFIG}#include`,
+      '"Paths are relative to the configuration file that includes them. Only paths ending with .toml are accepted"; an entry is a path or a table with path and optional ("If true, missing files are silently skipped"). "Then, the config file\'s own values are merged on top of the included config, taking highest precedence" (load_includes in src/context/mod.rs merges the file over its includes). unstable.md: "Support for including extra configuration files via the include config key has been stabilized in 1.93.0."',
+    ),
+    envTable: settingsElsewhere.verified(
+      { table: 'env', reachesCargo: false, reaches: ['build scripts', 'rustc', 'cargo run', 'cargo build'] },
+      CONTEXT,
+      '"The [env] section allows you to set additional environment variables for build scripts, rustc invocations, cargo run and cargo build" (config.md#env). GlobalContext::env_config collects the table for the processes Cargo starts (apply_env_config), while Cargo reads its own configuration from the snapshot of its process environment (Env::new in src/context/environment.rs), so a CARGO_ variable in [env] does not change the Cargo that reads the file, only a cargo that a build script or a program started by cargo run runs in turn.',
     ),
     timeSpan: uncertain(
       {
