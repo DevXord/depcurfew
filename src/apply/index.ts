@@ -26,6 +26,7 @@ import { isRecord, sinceOf, values } from './facts.ts';
 import { foldCase, ignoredByGit, ignoresCase, trackedFiles } from './gitignore.ts';
 import { bun } from './generators/bun.ts';
 import { bundler } from './generators/bundler.ts';
+import { cargo } from './generators/cargo.ts';
 import { composer } from './generators/composer.ts';
 import { workspaceText } from './generators/common.ts';
 import { createContext, EditFailed, type BotGenerator, type EditFailure, type ManagerGenerator, type Snippet, type VersionPin } from './generators/context.ts';
@@ -137,7 +138,7 @@ export function planDetails(report: ApplyReport): PlanDetails | undefined {
   return DETAILS.get(report);
 }
 
-const MANAGERS: Partial<Record<ToolId, ManagerGenerator>> = { npm, pnpm, yarn, bun, deno, uv, pip, poetry, pdm, pipenv, composer, bundler };
+const MANAGERS: Partial<Record<ToolId, ManagerGenerator>> = { npm, pnpm, yarn, bun, deno, uv, pip, poetry, pdm, pipenv, composer, bundler, cargo };
 const BOTS: Partial<Record<ToolId, BotGenerator>> = { renovate, dependabot };
 
 function latestVersion(tool: ToolKnowledge): string | undefined {
@@ -178,6 +179,13 @@ function pinPlaces(tool: ToolKnowledge): string | undefined {
   const lockfileVersion = tool.extra?.['lockfileVersion'] === undefined ? undefined : values(tool.extra['lockfileVersion'])[0];
   const lockfile = tool.project === undefined ? undefined : values(tool.project.lockfiles)[0]?.at(-1)?.value[0];
   if (isRecord(lockfileVersion) && typeof lockfileVersion['section'] === 'string' && lockfile !== undefined) places.push(`${lockfileVersion['section']} in ${lockfile}`);
+  // Cargo: the channel of the toolchain file rustup reads (extra.toolchainFiles, E06).
+  const toolchain = tool.extra?.['toolchainFiles'] === undefined ? undefined : values(tool.extra['toolchainFiles'])[0];
+  if (isRecord(toolchain) && typeof toolchain['key'] === 'string' && Array.isArray(toolchain['files'])) {
+    const [table, key] = [toolchain['key'].split('.').slice(0, -1).join('.'), toolchain['key'].split('.').at(-1)];
+    const file = toolchain['files'].filter((entry): entry is string => typeof entry === 'string').at(-1);
+    if (file !== undefined && key !== undefined) places.push(`${key} in [${table}] of ${file}`);
+  }
   const plugins = values(environmentKnowledge.asdf.plugins)[0] ?? {};
   if (Object.values(plugins).includes(tool.id)) places.push('.tool-versions');
   const actions = Object.values(environmentKnowledge.githubActions).flatMap((fact) => values(fact as Fact<unknown>));

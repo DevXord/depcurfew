@@ -6,7 +6,7 @@ The facts depcurfew relies on, each linked to the official documentation or chan
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-15 tools · 960 facts · 134 uncertain · 14 disputed · verified 2026-10-28 to 2026-11-13.
+15 tools · 963 facts · 134 uncertain · 14 disputed · verified 2026-10-28 to 2026-11-13.
 
 ## Release-age cooldown
 
@@ -536,6 +536,9 @@ Further facts used by generators and `doctor`.
 
 ### Cargo
 
+- `legacyConfig` (✅ verified): `{"file":".cargo/config","bothUse":".cargo/config"}` [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md#hierarchical-structure)
+- `durationStrings` (✅ verified): `{"syntax":"cargo","trim":false}` [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/util/time_span.rs)
+- `dependencySources` (✅ verified): git, directory [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/specifying-dependencies.md)
 - `durationUnits` (✅ verified): minutes, hours, days, weeks [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/util/time_span.rs)
 - `registryMinPublishAge` (✅ verified): `{"key":"registries.<name>.min-publish-age","winsOverGlobal":true,"cratesIo":"crates-io"}` [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/resolver/version_prefs.rs)
 - `resolverSwitch` (✅ verified): `{"key":"resolver.incompatible-publish-age","values":["allow","deny"],"default":"deny","turnsOff":"allow"}` [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md#resolverincompatible-publish-age)
@@ -1322,6 +1325,9 @@ Context recorded with verified facts.
 - `project.manifests`: "The Cargo.toml file for each package is called its manifest." [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/manifest.md)
 - `project.workspaces`: The [workspace] table of the root Cargo.toml lists members and exclude; members takes globs ("crates/\*"), the root package is a member too, and path dependencies of members become members. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/workspaces.md)
 - `project.workspacesObjectKey`: members = ["member1", "path/to/member2", "crates/\*"] in [workspace]. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/workspaces.md#the-members-and-exclude-fields)
+- `extra.legacyConfig`: "Cargo also reads config files without the .toml extension, such as .cargo/config. Support for the .toml extension was added in version 1.39 and is the preferred form. If both files exist, Cargo will use the file without the extension." [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md#hierarchical-structure)
+- `extra.durationStrings`: maybe_parse_time_span reads the string as it is: a space before or after it makes it invalid (tests time_span_errors), and "0" alone is no delay (PublishAgePolicy::for_report). [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/util/time_span.rs)
+- `extra.dependencySources`: A dependency comes from a registry, a git repository (git = "...") or a path (path = "..."), a directory with a Cargo.toml; Cargo has no dependency on a tarball URL or a local archive. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/specifying-dependencies.md)
 - `extra.durationUnits`: The units depcurfew writes, each of which parse_time_span accepts in the singular and the plural; it also accepts seconds and months, which depcurfew does not write. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/util/time_span.rs)
 - `extra.registryMinPublishAge`: PublishAgePolicy::min_age takes registries.\<name>.min-publish-age before registry.global-min-publish-age, and names crates.io crates-io (CRATES_IO_REGISTRY), so [registries.crates-io] min-publish-age = "0" turns the delay off for crates.io under any global value (test registries_crates_io_overrides_global in tests/testsuite/min_publish_age.rs). The comment "registries other than crates.io" in config.md is about the other keys of [registries.\<name>]. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/src/resolver/version_prefs.rs)
 - `extra.resolverSwitch`: "allow: treat pubtime-incompatible versions like any other version"; with it PublishAgePolicy::new returns no policy (src/resolver/version_prefs.rs). deny keeps versions already in Cargo.lock. [↗](https://github.com/rust-lang/cargo/blob/3acc79c0c841844675bc53a605922dbfc441e750/doc/book/src/reference/config.md#resolverincompatible-publish-age)

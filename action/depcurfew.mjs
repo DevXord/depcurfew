@@ -916,7 +916,7 @@ const DE = `${CARGO_RELEASE}/src/context/de.rs`;
 const TESTS = `${CARGO_RELEASE}/tests/testsuite/min_publish_age.rs`;
 const noSourceSetting = (kind) => ({ setting: uncertain$13(null, CONFIG$4, `No key of the Cargo configuration allows or forbids ${kind} (concluded from config.md, which lists every key).`) });
 const noSourceKind = (kind) => ({ setting: uncertain$13(null, SPECIFYING, `Cargo has no ${kind} dependency: a dependency comes from a registry, a git repository or a path to a directory with a Cargo.toml.`) });
-const cargo = {
+const cargo$1 = {
 	id: "cargo",
 	name: "Cargo",
 	kind: "package-manager",
@@ -962,6 +962,15 @@ const cargo = {
 		directory: noSourceSetting("path dependencies")
 	},
 	extra: {
+		legacyConfig: verified$15({
+			file: ".cargo/config",
+			bothUse: ".cargo/config"
+		}, `${CONFIG$4}#hierarchical-structure`, "\"Cargo also reads config files without the .toml extension, such as .cargo/config. Support for the .toml extension was added in version 1.39 and is the preferred form. If both files exist, Cargo will use the file without the extension.\""),
+		durationStrings: verified$15({
+			syntax: "cargo",
+			trim: false
+		}, TIME_SPAN, "maybe_parse_time_span reads the string as it is: a space before or after it makes it invalid (tests time_span_errors), and \"0\" alone is no delay (PublishAgePolicy::for_report)."),
+		dependencySources: verified$15(["git", "directory"], SPECIFYING, "A dependency comes from a registry, a git repository (git = \"...\") or a path (path = \"...\"), a directory with a Cargo.toml; Cargo has no dependency on a tarball URL or a local archive."),
 		durationUnits: verified$15([
 			"minutes",
 			"hours",
@@ -9826,7 +9835,7 @@ const knowledgeBase = [
 	pipenv$1,
 	composer$3,
 	bundler$1,
-	cargo,
+	cargo$1,
 	renovate$1,
 	dependabot$1
 ];
@@ -20228,7 +20237,7 @@ function readWorkflows(repository, facts) {
 
 // src/detect/rust-toolchain.ts
 function toolchainFacts() {
-	const fact = cargo.extra?.["toolchainFiles"];
+	const fact = cargo$1.extra?.["toolchainFiles"];
 	const found = fact === void 0 ? void 0 : values$1(fact)[0];
 	if (!isRecord(found) || !Array.isArray(found["files"]) || typeof found["bothUse"] !== "string" || typeof found["legacyIn"] !== "string") return void 0;
 	return {
@@ -20238,7 +20247,7 @@ function toolchainFacts() {
 	};
 }
 function latestRust() {
-	const fact = cargo.extra?.["latestVersion"];
+	const fact = cargo$1.extra?.["latestVersion"];
 	const found = fact === void 0 ? void 0 : values$1(fact)[0];
 	return typeof found === "string" ? found : void 0;
 }
@@ -21595,13 +21604,13 @@ function topBlock(lines, at, entries, separate, marker) {
 }
 
 // src/apply/gemfile-scan.ts
-const isStrings$8 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-const isSyntax = (value) => isRecord(value) && isRecord(value["endOfScript"]) && typeof value["endOfScript"]["marker"] === "string" && isStrings$8(value["endOfScript"]["characters"]) && isStrings$8(value["embeddedDocument"]) && value["embeddedDocument"].length === 2 && isRecord(value["percentLiterals"]) && isStrings$8(value["percentLiterals"]["expanding"]) && isStrings$8(value["percentLiterals"]["plain"]) && isRecord(value["pairedDelimiters"]) && isStrings$8(value["heredocIndent"]) && typeof value["globalPunctuation"] === "string" && isStrings$8(value["numberSuffixes"]) && typeof value["lineEnding"] === "string" && isRecord(value["keywords"]) && Object.values(value["keywords"]).every(isStrings$8) && [
+const isStrings$9 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isSyntax = (value) => isRecord(value) && isRecord(value["endOfScript"]) && typeof value["endOfScript"]["marker"] === "string" && isStrings$9(value["endOfScript"]["characters"]) && isStrings$9(value["embeddedDocument"]) && value["embeddedDocument"].length === 2 && isRecord(value["percentLiterals"]) && isStrings$9(value["percentLiterals"]["expanding"]) && isStrings$9(value["percentLiterals"]["plain"]) && isRecord(value["pairedDelimiters"]) && isStrings$9(value["heredocIndent"]) && typeof value["globalPunctuation"] === "string" && isStrings$9(value["numberSuffixes"]) && typeof value["lineEnding"] === "string" && isRecord(value["keywords"]) && Object.values(value["keywords"]).every(isStrings$9) && [
 	"opening",
 	"loops",
 	"closing"
-].every((key) => isRecord(value["keywords"]) && isStrings$8(value["keywords"][key])) && value["keywords"]["closing"].length === 1;
-const isParsers = (value) => isRecord(value) && isRecord(value["differences"]) && typeof value["differences"]["characterBeyondAscii"] === "boolean" && isStrings$8(value["differences"]["embeddedDocumentAfter"]) && typeof value["differences"]["globalZeroWithName"] === "boolean";
+].every((key) => isRecord(value["keywords"]) && isStrings$9(value["keywords"][key])) && value["keywords"]["closing"].length === 1;
+const isParsers = (value) => isRecord(value) && isRecord(value["differences"]) && typeof value["differences"]["characterBeyondAscii"] === "boolean" && isStrings$9(value["differences"]["embeddedDocumentAfter"]) && typeof value["differences"]["globalZeroWithName"] === "boolean";
 const SYNTAX$2 = extraOf(bundler$1, "rubySyntax", isSyntax);
 const DIFFERENCES = extraOf(bundler$1, "rubyParsers", isParsers).differences;
 const [EMBEDDED_BEGIN, EMBEDDED_END] = SYNTAX$2.embeddedDocument;
@@ -22939,7 +22948,7 @@ function lineEndingPositions(original) {
 }
 
 // src/apply/gemfile.ts
-const isStrings$7 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isStrings$8 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 /** The second token of a source line that makes it no call of source: an assignment, a method of it, a comparison. */
 const NOT_A_CALL = /* @__PURE__ */ new Set([
 	"=",
@@ -23017,7 +23026,7 @@ function cooldownKey(tokens, k) {
 }
 /** Whitespace Ruby skips at the start of the next line while it looks for a leading .method. */
 const isLeadingSpace = (c) => c === " " || c === "	" || c === "\f" || c === "\r" || c === "\v";
-const isContinuation = (value) => isRecord(value) && isStrings$7(value["calls"]) && isRecord(value["logical"]) && isStrings$7(value["logical"]["operators"]) && isStrings$7(value["logical"]["words"]);
+const isContinuation = (value) => isRecord(value) && isStrings$8(value["calls"]) && isRecord(value["logical"]) && isStrings$8(value["logical"]["operators"]) && isStrings$8(value["logical"]["words"]);
 /** What continues a statement at the start of the next line: .method and &.method, and since Ruby 4.0 && || and or. */
 const CONTINUATION = extraOf(bundler$1, "lineContinuation", isContinuation);
 const CONTINUING = [...CONTINUATION.calls, ...CONTINUATION.logical.operators];
@@ -23098,7 +23107,7 @@ const VALUE_ENDS = /* @__PURE__ */ new Set([
 const ARGUMENTS_END = /* @__PURE__ */ new Set([
 	"do",
 	"end",
-	...extraOf(bundler$1, "rubySyntax", (value) => isRecord(value) && isRecord(value["keywords"]) && isStrings$7(value["keywords"]["modifiers"])).keywords.modifiers,
+	...extraOf(bundler$1, "rubySyntax", (value) => isRecord(value) && isRecord(value["keywords"]) && isStrings$8(value["keywords"]["modifiers"])).keywords.modifiers,
 	...CONTINUATION.logical.words
 ]);
 /** Whether the value before `next` ends there; at the end of the line when the statement ends there. */
@@ -25202,8 +25211,8 @@ function trimTrailing(text, character) {
 
 // src/doctor/composer.ts
 const COMPOSER_MANIFEST = "composer.json";
-const isStrings$6 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-const isRepositoryTypes = (value) => isRecord(value) && isStrings$6(value["vcs"]) && isStrings$6(value["directory"]) && isStrings$6(value["file"]) && isStrings$6(value["inline"]) && typeof value["disable"] === "string";
+const isStrings$7 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isRepositoryTypes = (value) => isRecord(value) && isStrings$7(value["vcs"]) && isStrings$7(value["directory"]) && isStrings$7(value["file"]) && isStrings$7(value["inline"]) && typeof value["disable"] === "string";
 function repositoryTypes(tool) {
 	return extraOf(tool, "repositoryTypes", isRepositoryTypes);
 }
@@ -25287,7 +25296,7 @@ const REMOTE = /^[a-z][a-z0-9+.-]*:\/\//iu;
 function isLocal(url) {
 	return /^file:\/\//iu.test(url) || !REMOTE.test(url);
 }
-const isFormat = (value) => isRecord(value) && isStrings$6(value["sections"]) && typeof value["name"] === "string" && typeof value["version"] === "string" && typeof value["pluginType"] === "string" && isStrings$6(value["pluginTypes"]) && isStrings$6(value["optionalPlugin"]) && typeof value["pathType"] === "string";
+const isFormat = (value) => isRecord(value) && isStrings$7(value["sections"]) && typeof value["name"] === "string" && typeof value["version"] === "string" && typeof value["pluginType"] === "string" && isStrings$7(value["pluginTypes"]) && isStrings$7(value["optionalPlugin"]) && typeof value["pathType"] === "string";
 const isBranches = (value) => isRecord(value) && typeof value["prefix"] === "string" && typeof value["suffix"] === "string";
 function describe$2(location) {
 	return isRecord(location) ? [location["type"], location["url"]].filter((part) => typeof part === "string").join(" ") : "";
@@ -25301,7 +25310,7 @@ function hostOf(url) {
 * it knows by default (extra.registryDistHosts), and the hosts of the repositories composer.json declares.
 */
 function registryHosts(tool, repositories) {
-	const known = extraOf(tool, "registryDistHosts", isStrings$6);
+	const known = extraOf(tool, "registryDistHosts", isStrings$7);
 	const archives = repositoryArchiveHosts(tool);
 	return /* @__PURE__ */ new Set([...known, ...repositories.flatMap((entry) => {
 		if (entry.url === void 0 || entry.kind === "disable") return [];
@@ -25309,7 +25318,7 @@ function registryHosts(tool, repositories) {
 		return [host, ...entry.kind === "registry" && Object.hasOwn(archives, host) ? archives[host] ?? [] : []];
 	})]);
 }
-const isHostLists = (value) => isRecord(value) && Object.values(value).every(isStrings$6);
+const isHostLists = (value) => isRecord(value) && Object.values(value).every(isStrings$7);
 /** The hosts of the archives of Composer repositories other than Packagist.org, by the host of the repository (decision D-141). */
 function repositoryArchiveHosts(tool) {
 	return tool.extra?.["repositoryArchiveHosts"] === void 0 ? {} : extraOf(tool, "repositoryArchiveHosts", isHostLists);
@@ -25450,7 +25459,7 @@ function repositoryCallables(repository, tool) {
 	const types = repositoryTypes(tool);
 	const passing = new Set(fact.repositoryKinds.flatMap((kind) => {
 		const listed = Object.hasOwn(types, kind) ? types[kind] : void 0;
-		return isStrings$6(listed) ? listed : [];
+		return isStrings$7(listed) ? listed : [];
 	}));
 	const found = [];
 	for (const [key, entry] of entries) {
@@ -28395,6 +28404,21 @@ function delayMinutes(tool, value, version) {
 	};
 	const fact = tool.extra?.["durationStrings"];
 	const format = fact === void 0 ? void 0 : values$1(fact)[0];
+	if (isRecord(format) && format["syntax"] === "cargo") {
+		const span = cargoTimeSpan(value);
+		if (span.kind === "off") return {
+			ok: true,
+			minutes: 0
+		};
+		if (span.kind === "delay") return {
+			ok: true,
+			minutes: span.seconds / 60
+		};
+		return {
+			ok: false,
+			reason: span.kind === "overflow" ? `"${value}" is more seconds than Cargo counts, and Cargo may wrap it to a short delay` : `"${value}" is not a time span ${tool.name} reads`
+		};
+	}
 	const text = isRecord(format) && format["trim"] === false ? value : value.trim();
 	if (/^\d+$/u.test(text)) return delayMinutes(tool, Number(text), version);
 	if (!isRecord(format) || typeof format["syntax"] !== "string") return {
@@ -28462,6 +28486,35 @@ function formatMinutes(minutes) {
 	]) if (minutes >= size && minutes % size === 0) return `${minutes / size} ${unit}${minutes === size ? "" : "s"}`;
 	const rounded = Math.round(minutes * 100) / 100;
 	return `${rounded} minute${rounded === 1 ? "" : "s"}`;
+}
+const U64_MAX = (1n << 64n) - 1n;
+function cargoUnits() {
+	const fact = cargo$1.extra?.["timeSpan"];
+	const found = fact === void 0 ? void 0 : values$1(fact)[0];
+	const units = isRecord(found) && isRecord(found["units"]) ? found["units"] : {};
+	return Object.fromEntries(Object.entries(units).filter((entry) => typeof entry[1] === "number"));
+}
+function cargoTimeSpan(text) {
+	if (text === "0") return { kind: "off" };
+	let end = 0;
+	while (end < text.length && text.charCodeAt(end) >= 48 && text.charCodeAt(end) <= 57) end += 1;
+	if (end === 0 || end === text.length) return { kind: "invalid" };
+	const digits = text.slice(0, end);
+	let unit = text.slice(end);
+	if (unit.startsWith(" ")) unit = unit.slice(1);
+	const units = cargoUnits();
+	const singular = unit.endsWith("s") ? unit.slice(0, -1) : unit;
+	const factor = Object.hasOwn(units, singular) ? units[singular] : void 0;
+	if (factor === void 0) return { kind: "invalid" };
+	if (digits.replace(/^0+/u, "").length > 20) return { kind: "invalid" };
+	const count = BigInt(digits);
+	if (count > U64_MAX) return { kind: "invalid" };
+	const product = count * BigInt(factor);
+	if (product > U64_MAX) return { kind: "overflow" };
+	return product === 0n ? { kind: "off" } : {
+		kind: "delay",
+		seconds: Number(product)
+	};
 }
 
 // src/doctor/pnpm-config.ts
@@ -31881,7 +31934,7 @@ const SOURCE_LABELS$1 = {
 	}
 };
 /** The cooldown in the tool's unit, or undefined (with a warning) when it cannot be written. */
-function cooldownValue(context, duration = context.policy.cooldown?.minimum) {
+function cooldownValue(context, duration = context.policy.cooldown?.minimum, options = {}) {
 	if (duration === void 0) return void 0;
 	const setting = settingOf(context.tool.cooldown.setting);
 	if (setting === null) return void 0;
@@ -31894,7 +31947,7 @@ function cooldownValue(context, duration = context.policy.cooldown?.minimum) {
 		});
 		return;
 	}
-	if (!context.supports(sinceOf(context.tool.cooldown.availableSince), setting)) return void 0;
+	if (!context.supports(sinceOf(context.tool.cooldown.availableSince), setting) && options.olderToo !== true) return void 0;
 	if (typeof result.value === "string") {
 		const [count = "0", unit = ""] = result.value.split(" ");
 		return {
@@ -32398,14 +32451,14 @@ function decisive(run) {
 		if (regex !== void 0) return regex;
 	}
 }
-const isStrings$5 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isStrings$6 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 const isNames = (value) => isRecord(value) && Object.values(value).every((item) => typeof item === "string");
-const isLists = (value) => isRecord(value) && Object.values(value).every(isStrings$5);
+const isLists = (value) => isRecord(value) && Object.values(value).every(isStrings$6);
 const isManagerMatching$1 = (value) => isRecord(value) && typeof value["managerMatcher"] === "string" && typeof value["categoryMatcher"] === "string" && typeof value["stringIsList"] === "boolean";
 const isActions = (value) => isRecord(value) && typeof value["manager"] === "string" && typeof value["datasource"] === "string";
 const isActionsMatching$1 = (value) => isRecord(value) && typeof value["fileMatcher"] === "string" && typeof value["depTypeMatcher"] === "string" && typeof value["depType"] === "string";
-const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$5(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
-const isPresetFact = (value) => isRecord(value) && isStrings$5(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
+const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$6(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
+const isPresetFact = (value) => isRecord(value) && isStrings$6(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
 /** The built-in presets that set minimumReleaseAge, each in a packageRules entry with matchDatasources for its datasource. */
 function presetDelays(bot) {
 	return [
@@ -32418,7 +32471,7 @@ function presetDelays(bot) {
 function presetIn(presets, fact) {
 	return presets.find((item) => fact.presets.includes(presetName(item)));
 }
-const isInternal = (value) => isRecord(value) && isStrings$5(value["prefixes"]) && isStrings$5(value["settingDelay"]);
+const isInternal = (value) => isRecord(value) && isStrings$6(value["prefixes"]) && isStrings$6(value["settingDelay"]);
 function readRenovateConfig(text, file, base) {
 	const top = jsonSetting(text, [...base, "minimumReleaseAge"]);
 	const extendsList = jsonSetting(text, [...base, "extends"]);
@@ -32436,7 +32489,7 @@ function readRenovateConfig(text, file, base) {
 		base,
 		top,
 		extends: {
-			presets: isStrings$5(extendsList?.value) ? extendsList.value : [],
+			presets: isStrings$6(extendsList?.value) ? extendsList.value : [],
 			line: extendsList?.line ?? 1
 		},
 		rules
@@ -32550,7 +32603,7 @@ function actionsTarget(bot, files = []) {
 		...matching === void 0 ? {} : { depTypes: [matching.depType] }
 	};
 }
-const isBotOnly = (value) => isRecord(value) && Object.values(value).every((entry) => isRecord(entry) && typeof entry["manager"] === "string" && typeof entry["datasource"] === "string" && isStrings$5(entry["categories"]));
+const isBotOnly = (value) => isRecord(value) && Object.values(value).every((entry) => isRecord(entry) && typeof entry["manager"] === "string" && typeof entry["datasource"] === "string" && isStrings$6(entry["categories"]));
 /**
 * The dependencies of the ecosystems updated by bots only among `ids` (extra.botOnlyEcosystems, decision D-151), one
 * target each, with the manager, datasource and categories Renovate gives them; none without the fact.
@@ -32597,7 +32650,7 @@ function targetOf(bot, on) {
 }
 /** The patterns of a matcher: a list, or one string when Renovate reads a string as a list of one (extra.managerMatching). */
 function patternsOf(value, stringIsList) {
-	if (isStrings$5(value)) return value;
+	if (isStrings$6(value)) return value;
 	return stringIsList && typeof value === "string" ? [value] : void 0;
 }
 /** anyMatchRegexOrGlobList: some input matches the list. */
@@ -32643,7 +32696,7 @@ function coverageOf(bot, rule, on, run) {
 	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
 	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
 	const stringIsList = managerMatching?.stringIsList === true;
-	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$5);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$6);
 	const actionsMatching = target.actions === true && bot.extra?.["actionsMatching"] !== void 0 ? extraOf(bot, "actionsMatching", isActionsMatching$1) : void 0;
 	const matchers = Object.keys(rule).filter((key) => /^(match|exclude)[A-Z]/u.test(key));
 	const known = /* @__PURE__ */ new Set([
@@ -32808,7 +32861,7 @@ function matchesName(bot, name, pattern) {
 */
 function ruleUpdateTypes(bot, rule) {
 	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
-	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$5);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$6);
 	if (!(matching.updateTypeMatcher in rule)) return { types: updateTypes };
 	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
 	const patterns = patternsOf(rule[matching.updateTypeMatcher], managerMatching?.stringIsList === true);
@@ -32859,7 +32912,7 @@ function presetName(preset) {
 */
 function renovateDelay$1(bot, config, on) {
 	const target = targetOf(bot, on);
-	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$5);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$6);
 	const internal = extraOf(bot, "internalPresets", isInternal);
 	const byType = /* @__PURE__ */ new Map();
 	const unreadable = [];
@@ -33956,7 +34009,7 @@ const bun = (context) => {
 };
 
 // src/apply/generators/bundler.ts
-const isStrings$4 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isStrings$5 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 const isGap = (value) => isRecord(value) && typeof value["since"] === "string" && typeof value["scope"] === "string";
 const isServer = (value) => isRecord(value) && typeof value["url"] === "string";
 /**
@@ -33964,7 +34017,7 @@ const isServer = (value) => isRecord(value) && typeof value["url"] === "string";
 * names are only looked at (File.file?, extra.gemfileNames), so a directory named gems.rb stops nothing.
 */
 function plannedGemfile(context) {
-	const names = context.tool.extra?.["gemfileNames"] === void 0 ? ["gems.rb", "Gemfile"] : extraOf(context.tool, "gemfileNames", isStrings$4);
+	const names = context.tool.extra?.["gemfileNames"] === void 0 ? ["gems.rb", "Gemfile"] : extraOf(context.tool, "gemfileNames", isStrings$5);
 	return gemfileIn((file) => context.isFile(file), names);
 }
 /** Why apply does not edit a source call, for messages. */
@@ -34110,6 +34163,171 @@ const bundler = (context) => {
 		message: `${context.name} builds the native extensions of gems when it installs them, which runs code of the gem (extconf.rb, a Rakefile), and has no setting that blocks this or allows it for some gems only, so installScripts "deny" cannot be enforced`,
 		fix: `Review gems with native extensions (extensions in the gemspec, an ext directory) before you add or update them; there is nothing to set for ${context.name}`
 	});
+	const kinds = tool.extra?.["dependencySources"] === void 0 ? void 0 : extraOf(tool, "dependencySources", isStrings$5);
+	const sources = policy.sources === void 0 || kinds === void 0 ? policy.sources : Object.fromEntries(Object.entries(policy.sources).filter(([kind]) => kinds.includes(kind)));
+	eachSource({
+		...context,
+		policy: {
+			...policy,
+			...sources === void 0 ? {} : { sources }
+		}
+	}, () => void 0);
+	return minutes;
+};
+
+// src/apply/generators/python.ts
+/** The policy's Python allow-list as normalized names; patterns with * are dropped with a warning. */
+function buildAllowList(context, setting) {
+	return [...new Set(allowedNames(context, setting).map(normalizePythonName))];
+}
+/** Exclusions as normalized names. */
+function pythonNames(names) {
+	return [...new Set(names.map(normalizePythonName))];
+}
+function forcedBuildWarning(context, setting, names, policyFile = POLICY_FILE) {
+	if (names.length === 0) return;
+	const policyNames = names.map((name) => `pypi:${name}`);
+	context.warn({
+		code: "forced-source-build",
+		message: `${context.name}: ${setting} lets ${names.join(", ")} be built from source while building is forbidden for everything else; ${context.name} then always builds ${names.length === 1 ? "it" : "them"} from source, even where a wheel exists, because it has no setting that only allows building`,
+		fix: names.length === 1 ? `If ${policyNames.join("")} has a wheel and needs no build, remove it from installScripts.allow in ${policyFile}` : `Remove those of ${listing$1(policyNames)} that have a wheel and need no build from installScripts.allow in ${policyFile}`
+	});
+}
+/** Says when the tool's switch does not stop git, local and URL dependencies from being built. */
+function buildSwitchScopeWarning(context, setting, covers) {
+	if (Array.isArray(covers) && covers.includes("git") && covers.includes("directory")) return;
+	context.warn({
+		code: "build-switch-scope",
+		message: `${context.name}: ${setting} forbids building only packages from an index; ${context.name} still builds git, local directory and source archive dependencies`,
+		fix: `Run depcurfew doctor to find them in ${dependencyFiles(context)}`
+	});
+}
+/** A key of a TOML table ('' for the top level) of a file as it is now, with its line; undefined when unset or unreadable. */
+function tomlCurrent(context, file, table, key) {
+	if (!context.exists(file)) return void 0;
+	let document;
+	try {
+		document = parseToml(context.read(file));
+	} catch {
+		return;
+	}
+	const path = [...table === "" ? [] : table.split("."), key];
+	const value = tomlValueAt(document, path);
+	return value === void 0 ? void 0 : {
+		value,
+		line: document.lineOf(path)
+	};
+}
+/** A TOML string or array value. */
+function tomlValue(value) {
+	return Array.isArray(value) ? `[${value.map((item) => tomlValue(item)).join(", ")}]` : JSON.stringify(value);
+}
+const COMPACT_UNITS = {
+	hour: "h",
+	day: "d",
+	week: "w"
+};
+/** A duration such as "36 hours" in the compact form PDM and Pipenv read: "36h". */
+function compactDuration(value) {
+	const [count = "", unit = ""] = value.split(" ");
+	const letter = COMPACT_UNITS[unit.replace(/s$/u, "")];
+	if (letter === void 0) throw new Error(`cannot write the duration "${value}" in compact form`);
+	return `${count}${letter}`;
+}
+const isStringList = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+function isLockedSettings$1(value) {
+	return isRecord(value) && (value["settings"] === "table" || isStringList(value["settings"])) && typeof value["lock"] === "string" && isStringList(value["failing"]);
+}
+/** A TOML value for comparison: a date-time as written. */
+function comparable(value) {
+	return JSON.stringify(value instanceof TomlDateTime ? value.text : value ?? null);
+}
+/**
+* uv records some settings in uv.lock, and PDM checks pdm.lock against its whole [tool.pdm.resolution] table
+* (extra.lockedSettings); when `edit` changes what the lockfile depends on, its check commands fail until it is
+* locked again, so apply says so. Call it before the edit is planned: the context reads a file as edited after that.
+*/
+function relockWarning$1(context, file, table, edit) {
+	const { tool } = context;
+	if (tool.extra?.["lockedSettings"] === void 0) return;
+	const locked = extraOf(tool, "lockedSettings", isLockedSettings$1);
+	const lockfile = (tool.project === void 0 ? [] : values$1(tool.project.lockfiles)).flatMap((versions) => versions.flatMap((entry) => entry.value)).find((name) => context.isFile(name));
+	if (lockfile === void 0) return;
+	const body = context.exists(file) ? context.read(file) : "";
+	let before;
+	let after;
+	try {
+		before = parseToml(body);
+		after = parseToml(edit(body));
+	} catch {
+		return;
+	}
+	const path = table === "" ? [] : table.split(".");
+	const keysOf = (document) => {
+		const value = tomlValueAt(document, path);
+		return isRecord(value) ? Object.keys(value) : [];
+	};
+	const changed = (locked.settings === "table" ? [.../* @__PURE__ */ new Set([...keysOf(after), ...keysOf(before)])] : locked.settings).filter((setting) => comparable(tomlValueAt(before, [...path, setting])) !== comparable(tomlValueAt(after, [...path, setting])));
+	if (changed.length === 0) return;
+	context.warn({
+		code: "lockfile-out-of-date",
+		location: { file: lockfile },
+		message: locked.settings === "table" ? `${context.name}: ${lockfile} is checked against the whole [${table}] table, and this change alters ${listing$1(changed)}, so ${lockfile} is out of date` : `${context.name}: ${lockfile} records ${listing$1(changed)}, so it is out of date after this change`,
+		fix: `Run ${locked.lock} and commit ${lockfile}; until then ${listing$1(locked.failing)} fail`
+	});
+}
+
+// src/apply/generators/cargo.ts
+const isStrings$4 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+/** Key and table of a dotted setting: registry.global-min-publish-age is global-min-publish-age in [registry]. */
+function split$1(setting) {
+	const at = setting.lastIndexOf(".");
+	return at === -1 ? {
+		table: "",
+		key: setting
+	} : {
+		table: setting.slice(0, at),
+		key: setting.slice(at + 1)
+	};
+}
+const cargo = (context) => {
+	const { tool, policy } = context;
+	const file = values$1(tool.cooldown.configFiles)[0]?.[0] ?? ".cargo/config.toml";
+	const legacy = extraOf(tool, "legacyConfig", isRecord);
+	const legacyFile = typeof legacy["file"] === "string" ? legacy["file"] : void 0;
+	const setting = settingOf(tool.cooldown.setting) ?? "registry.global-min-publish-age";
+	const { table, key } = split$1(setting);
+	let minutes;
+	if (policy.cooldown !== void 0) {
+		const cooldown = cooldownValue(context, void 0, { olderToo: true });
+		if (legacyFile !== void 0 && context.exists(legacyFile)) {
+			const both = context.exists(file);
+			context.warn({
+				code: "cooldown-not-written",
+				location: { file: legacyFile },
+				message: `${context.name}: cooldown not written: the Cargo configuration of this directory is ${legacyFile}, the older name, which depcurfew apply does not edit`,
+				fix: both ? `Move the settings of ${legacyFile} into ${file} and delete ${legacyFile} (Cargo reads ${legacyFile} and ignores ${file} when both are there), then run depcurfew apply again` : `Rename ${legacyFile} to ${file}, the name Cargo prefers (it reads both), then run depcurfew apply again`
+			});
+		} else if (cooldown !== void 0) {
+			const current = tomlCurrent(context, file, table, key);
+			if (!unreadableDelay(context, file, setting, current?.value, current?.line, cooldown)) {
+				context.toml(file, table, [`${key} = ${tomlValue(cooldown.value)}`], [key]);
+				minutes = cooldown.minutes;
+				overrides(context, file, cooldown.minutes);
+			}
+			limits(context, file, key);
+		}
+		if (context.policyExclusions.length > 0 && settingOf(tool.cooldown.exclude.setting) === null) context.warn({
+			code: "exclude-unsupported",
+			message: `${context.name}: no setting exempts single crates from ${key}, so every crate waits; the exceptions of cooldown.exclude in ${POLICY_FILE} name no Rust crates and are not applied to ${context.name}`,
+			fix: `Nothing to set for ${context.name}. To take a newer version of one crate sooner, review it and run cargo update --precise for it with CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE=allow for that command only`
+		});
+	}
+	if (policy.installScripts?.default === "deny" && settingOf(tool.installScripts.disableAll) === null && settingOf(tool.installScripts.allowList.setting) === null) context.warn({
+		code: "scripts-not-enforceable",
+		message: `${context.name} compiles and runs the build scripts (build.rs) of dependencies, and their procedural macros run in the compiler, at cargo build, check and test; nothing in ${context.name} blocks this or allows it for some crates only, so installScripts "deny" cannot be enforced`,
+		fix: `Review crates with a build.rs or a proc-macro crate type before you add or update them; there is nothing to set for ${context.name}`
+	});
 	const kinds = tool.extra?.["dependencySources"] === void 0 ? void 0 : extraOf(tool, "dependencySources", isStrings$4);
 	const sources = policy.sources === void 0 || kinds === void 0 ? policy.sources : Object.fromEntries(Object.entries(policy.sources).filter(([kind]) => kinds.includes(kind)));
 	eachSource({
@@ -34121,6 +34339,57 @@ const bundler = (context) => {
 	}, () => void 0);
 	return minutes;
 };
+/** The settings of the file that undo the delay apply writes: the resolver switch, and a shorter value for crates.io. */
+function overrides(context, file, written) {
+	const { tool } = context;
+	const resolver = extraOf(tool, "resolverSwitch", isRecord);
+	const registry = extraOf(tool, "registryMinPublishAge", isRecord);
+	const turnsOff = typeof resolver["turnsOff"] === "string" ? resolver["turnsOff"] : "allow";
+	if (typeof resolver["key"] === "string") {
+		const { table, key } = split$1(resolver["key"]);
+		const current = tomlCurrent(context, file, table, key);
+		if (current?.value === turnsOff) {
+			const where = current.line === void 0 ? "" : ` (line ${current.line})`;
+			context.warn({
+				code: "cooldown-overridden",
+				location: current.line === void 0 ? { file } : {
+					file,
+					line: current.line
+				},
+				message: `${context.name}: ${resolver["key"]} = ${JSON.stringify(turnsOff)} in ${file}${where} turns the release-age delay off, the one depcurfew apply writes included`,
+				fix: `Remove ${resolver["key"]} from ${file}, or set it to "deny"; for one version that has to come sooner, use cargo update --precise with it for that command only`
+			});
+		}
+	}
+	const cratesIo = typeof registry["cratesIo"] === "string" ? registry["cratesIo"] : "crates-io";
+	const key = typeof registry["key"] === "string" ? registry["key"].split(".").at(-1) ?? "min-publish-age" : "min-publish-age";
+	const current = tomlCurrent(context, file, `registries.${cratesIo}`, key);
+	if (current === void 0) return;
+	const delay = delayMinutes(tool, current.value, context.version);
+	if (delay.ok && delay.minutes >= written) return;
+	const where = current.line === void 0 ? "" : ` (line ${current.line})`;
+	context.warn({
+		code: "cooldown-overridden",
+		location: current.line === void 0 ? { file } : {
+			file,
+			line: current.line
+		},
+		message: `${context.name}: registries.${cratesIo}.${key} in ${file}${where} is ${JSON.stringify(current.value)}, which takes the place of the ${formatMinutes(written)} depcurfew apply writes for crates.io`,
+		fix: `Remove ${key} from [registries.${cratesIo}] in ${file}, or set it to at least the ${formatMinutes(written)} of cooldown.minimum in ${POLICY_FILE}`
+	});
+}
+/** What Cargo's delay does not cover (extra.notCovered), once per directory. */
+function limits(context, file, key) {
+	const environment = extraOf(context.tool, "environment", isRecord);
+	const global = typeof environment["global"] === "string" ? environment["global"] : "CARGO_REGISTRY_GLOBAL_MIN_PUBLISH_AGE";
+	const resolver = typeof environment["resolver"] === "string" ? environment["resolver"] : "CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE";
+	context.warn({
+		code: "cooldown-limits",
+		location: { file },
+		message: `${context.name}: ${key} holds back new versions when Cargo resolves dependencies, but not cargo install of a crate, not versions a registry gives no publish time, and not versions already in Cargo.lock; a value in $CARGO_HOME/config.toml, an environment variable or --config takes the place of the one in ${file}`,
+		fix: `Install tools with cargo install --locked and an exact --version; check ${global}, ${resolver} and $CARGO_HOME/config.toml where Cargo runs`
+	});
+}
 
 // src/apply/generators/composer.ts
 const isContentHash$1 = (value) => isRecord(value) && typeof value["file"] === "string" && Array.isArray(value["settings"]) && typeof value["command"] === "string" && typeof value["since"] === "string";
@@ -34325,7 +34594,7 @@ function denyListSince(context) {
 	return isRecord(value) && typeof value["since"] === "string" ? value["since"] : void 0;
 }
 /** composer.lock hashes config.policy (2.11.0+): after a change there composer install warns and composer validate fails until it is locked again. */
-function relockWarning$1(context, file, before, after) {
+function relockWarning(context, file, before, after) {
 	const hash = extraOf(context.tool, "contentHash", isContentHash$1);
 	if (JSON.stringify(before) === JSON.stringify(after) || !context.isFile(hash.file) || !context.atLeast(hash.since)) return;
 	context.warn({
@@ -34358,7 +34627,7 @@ const composer = (context) => {
 	const minutes = context.policy.cooldown === void 0 ? void 0 : writeCooldown(context, json, manifest);
 	writePlugins(context, json, manifest);
 	eachSource(context, () => void 0);
-	relockWarning$1(context, file, before, hash.settings.map(hashed));
+	relockWarning(context, file, before, hash.settings.map(hashed));
 	return minutes;
 };
 
@@ -35526,108 +35795,6 @@ function hideTomlValues(all, shown) {
 	}
 }
 
-// src/apply/generators/python.ts
-/** The policy's Python allow-list as normalized names; patterns with * are dropped with a warning. */
-function buildAllowList(context, setting) {
-	return [...new Set(allowedNames(context, setting).map(normalizePythonName))];
-}
-/** Exclusions as normalized names. */
-function pythonNames(names) {
-	return [...new Set(names.map(normalizePythonName))];
-}
-function forcedBuildWarning(context, setting, names, policyFile = POLICY_FILE) {
-	if (names.length === 0) return;
-	const policyNames = names.map((name) => `pypi:${name}`);
-	context.warn({
-		code: "forced-source-build",
-		message: `${context.name}: ${setting} lets ${names.join(", ")} be built from source while building is forbidden for everything else; ${context.name} then always builds ${names.length === 1 ? "it" : "them"} from source, even where a wheel exists, because it has no setting that only allows building`,
-		fix: names.length === 1 ? `If ${policyNames.join("")} has a wheel and needs no build, remove it from installScripts.allow in ${policyFile}` : `Remove those of ${listing$1(policyNames)} that have a wheel and need no build from installScripts.allow in ${policyFile}`
-	});
-}
-/** Says when the tool's switch does not stop git, local and URL dependencies from being built. */
-function buildSwitchScopeWarning(context, setting, covers) {
-	if (Array.isArray(covers) && covers.includes("git") && covers.includes("directory")) return;
-	context.warn({
-		code: "build-switch-scope",
-		message: `${context.name}: ${setting} forbids building only packages from an index; ${context.name} still builds git, local directory and source archive dependencies`,
-		fix: `Run depcurfew doctor to find them in ${dependencyFiles(context)}`
-	});
-}
-/** A key of a TOML table ('' for the top level) of a file as it is now, with its line; undefined when unset or unreadable. */
-function tomlCurrent(context, file, table, key) {
-	if (!context.exists(file)) return void 0;
-	let document;
-	try {
-		document = parseToml(context.read(file));
-	} catch {
-		return;
-	}
-	const path = [...table === "" ? [] : table.split("."), key];
-	const value = tomlValueAt(document, path);
-	return value === void 0 ? void 0 : {
-		value,
-		line: document.lineOf(path)
-	};
-}
-/** A TOML string or array value. */
-function tomlValue(value) {
-	return Array.isArray(value) ? `[${value.map((item) => tomlValue(item)).join(", ")}]` : JSON.stringify(value);
-}
-const COMPACT_UNITS = {
-	hour: "h",
-	day: "d",
-	week: "w"
-};
-/** A duration such as "36 hours" in the compact form PDM and Pipenv read: "36h". */
-function compactDuration(value) {
-	const [count = "", unit = ""] = value.split(" ");
-	const letter = COMPACT_UNITS[unit.replace(/s$/u, "")];
-	if (letter === void 0) throw new Error(`cannot write the duration "${value}" in compact form`);
-	return `${count}${letter}`;
-}
-const isStringList = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-function isLockedSettings$1(value) {
-	return isRecord(value) && (value["settings"] === "table" || isStringList(value["settings"])) && typeof value["lock"] === "string" && isStringList(value["failing"]);
-}
-/** A TOML value for comparison: a date-time as written. */
-function comparable(value) {
-	return JSON.stringify(value instanceof TomlDateTime ? value.text : value ?? null);
-}
-/**
-* uv records some settings in uv.lock, and PDM checks pdm.lock against its whole [tool.pdm.resolution] table
-* (extra.lockedSettings); when `edit` changes what the lockfile depends on, its check commands fail until it is
-* locked again, so apply says so. Call it before the edit is planned: the context reads a file as edited after that.
-*/
-function relockWarning(context, file, table, edit) {
-	const { tool } = context;
-	if (tool.extra?.["lockedSettings"] === void 0) return;
-	const locked = extraOf(tool, "lockedSettings", isLockedSettings$1);
-	const lockfile = (tool.project === void 0 ? [] : values$1(tool.project.lockfiles)).flatMap((versions) => versions.flatMap((entry) => entry.value)).find((name) => context.isFile(name));
-	if (lockfile === void 0) return;
-	const body = context.exists(file) ? context.read(file) : "";
-	let before;
-	let after;
-	try {
-		before = parseToml(body);
-		after = parseToml(edit(body));
-	} catch {
-		return;
-	}
-	const path = table === "" ? [] : table.split(".");
-	const keysOf = (document) => {
-		const value = tomlValueAt(document, path);
-		return isRecord(value) ? Object.keys(value) : [];
-	};
-	const changed = (locked.settings === "table" ? [.../* @__PURE__ */ new Set([...keysOf(after), ...keysOf(before)])] : locked.settings).filter((setting) => comparable(tomlValueAt(before, [...path, setting])) !== comparable(tomlValueAt(after, [...path, setting])));
-	if (changed.length === 0) return;
-	context.warn({
-		code: "lockfile-out-of-date",
-		location: { file: lockfile },
-		message: locked.settings === "table" ? `${context.name}: ${lockfile} is checked against the whole [${table}] table, and this change alters ${listing$1(changed)}, so ${lockfile} is out of date` : `${context.name}: ${lockfile} records ${listing$1(changed)}, so it is out of date after this change`,
-		fix: `Run ${locked.lock} and commit ${lockfile}; until then ${listing$1(locked.failing)} fail`
-	});
-}
-
 // src/apply/generators/pip.ts
 /** The line of `before` that a line of `after` (1-based) was, for a line the edit kept. */
 function lineInOriginal(before, after) {
@@ -36153,7 +36320,7 @@ const pdm = (context) => {
 	}
 	eachSource(context, () => void 0);
 	if (entries.length > 0 || context.exists(file) && hasManagedTomlLines(context.read(file))) {
-		relockWarning(context, file, table, (body) => writeTomlBlock(body, table, entries, managed, table));
+		relockWarning$1(context, file, table, (body) => writeTomlBlock(body, table, entries, managed, table));
 		context.toml(file, table, entries, managed, table);
 	}
 	return minutes;
@@ -36616,7 +36783,7 @@ const uv = (context) => {
 	eachSource(context, () => void 0);
 	const label = table === "" ? void 0 : table;
 	if (entries.length > 0 || context.exists(file) && hasManagedTomlLines(context.read(file))) {
-		relockWarning(context, file, table, (body) => writeTomlBlock(body, table, entries, managed, label));
+		relockWarning$1(context, file, table, (body) => writeTomlBlock(body, table, entries, managed, label));
 		context.toml(file, table, entries, managed, label);
 	}
 	return minutes;
@@ -37805,7 +37972,8 @@ const MANAGERS = {
 	pdm,
 	pipenv,
 	composer,
-	bundler
+	bundler,
+	cargo
 };
 const BOTS = {
 	renovate,
@@ -37858,6 +38026,12 @@ function pinPlaces(tool) {
 	const lockfileVersion = tool.extra?.["lockfileVersion"] === void 0 ? void 0 : values$1(tool.extra["lockfileVersion"])[0];
 	const lockfile = tool.project === void 0 ? void 0 : values$1(tool.project.lockfiles)[0]?.at(-1)?.value[0];
 	if (isRecord(lockfileVersion) && typeof lockfileVersion["section"] === "string" && lockfile !== void 0) places.push(`${lockfileVersion["section"]} in ${lockfile}`);
+	const toolchain = tool.extra?.["toolchainFiles"] === void 0 ? void 0 : values$1(tool.extra["toolchainFiles"])[0];
+	if (isRecord(toolchain) && typeof toolchain["key"] === "string" && Array.isArray(toolchain["files"])) {
+		const [table, key] = [toolchain["key"].split(".").slice(0, -1).join("."), toolchain["key"].split(".").at(-1)];
+		const file = toolchain["files"].filter((entry) => typeof entry === "string").at(-1);
+		if (file !== void 0 && key !== void 0) places.push(`${key} in [${table}] of ${file}`);
+	}
 	const plugins = values$1(environment.asdf.plugins)[0] ?? {};
 	if (Object.values(plugins).includes(tool.id)) places.push(".tool-versions");
 	if (Object.values(environment.githubActions).flatMap((fact) => values$1(fact)).some((action) => isRecord(action) && Array.isArray(action["inputs"]) && action["inputs"].some((input) => isRecord(input) && input["tool"] === tool.id))) places.push("a CI setup step");
@@ -41969,6 +42143,25 @@ function checkPipOptions(context, plan) {
 		});
 	}
 }
+/**
+* Cargo (E07): a setting of .cargo/config.toml that undoes the delay apply writes (cooldown-overridden), a value apply
+* cannot read or that Cargo may wrap, and the older name .cargo/config (cooldown-not-written) stay after apply; each is
+* reported where it points, with apply's text, once per line, as for Bundler (decision D-159) and pip (decision D-167).
+*/
+function checkCargoCooldown(context, plan) {
+	const seen = /* @__PURE__ */ new Set();
+	for (const warning of plan.warningDetails) {
+		if (warning.tool !== "cargo" || warning.location === void 0 || warning.code !== "cooldown-overridden" && warning.code !== "cooldown-not-written") continue;
+		const key = `${warning.location.file}\u0000${warning.location.line ?? ""}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		context.report({
+			location: warning.location,
+			message: warning.message,
+			...warning.fix === void 0 ? {} : { fix: warning.fix }
+		});
+	}
+}
 /** The most settings a note against the default policy names; the rest are counted (decision D-149). */
 const MAX_SETTINGS = 6;
 /** Settings for a message: `a`, `b` and `c`, at most MAX_SETTINGS, then how many more. */
@@ -42039,6 +42232,7 @@ const configDrift = {
 			reportAgainstDefault(context, plan);
 			checkBundlerCooldown(context, plan);
 			checkPipOptions(context, plan);
+			checkCargoCooldown(context, plan);
 			checkAllowLists(context, plan);
 			checkComposerExclusions(context, plan);
 			return;
@@ -42071,6 +42265,7 @@ const configDrift = {
 		}
 		checkBundlerCooldown(context, plan);
 		checkPipOptions(context, plan);
+		checkCargoCooldown(context, plan);
 		checkAllowLists(context, plan);
 		checkComposerExclusions(context, plan);
 	}
